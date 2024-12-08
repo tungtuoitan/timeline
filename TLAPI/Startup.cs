@@ -70,7 +70,7 @@ namespace TimelineAPI
                 options.MultipartBodyLengthLimit = 100 * 1024 * 1024; // set max body của request là 100mb
             });
 
-            services.AddHttpContextAccessor();
+            services.AddHttpContextAccessor(); // cho phép dùng httpContext trong service
             //services.AddTransient<IBlobAppend, BlobAppend>();
             //services.AddTransient<ILoggerService, LoggerService>();
         }
