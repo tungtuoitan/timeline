@@ -7,7 +7,7 @@ namespace TLDataRes.Extensions
     public static class DataTableExtensions
     {
         //Name, Type, Level, TimeStart, TimeEnd, ParentId
-        public static DataTable ToDataTable(this Event ev)
+        public static DataTable ToDataTable(this Ev ev)
         {
             DataTable dataTable = new DataTable();
             dataTable.Columns.Add(new DataColumn { ColumnName = "Id", DataType = typeof(Int64) });

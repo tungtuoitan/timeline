@@ -8,9 +8,9 @@ using TLMos.Mos;
 
 namespace TLDataRes.Ins
 {
-    public interface IXRe
+    public interface IEvRe
     {
-        Task<List<Event>> GetEvents();
-        Task<ResultOptions> IuEv(Event ev);
+        Task<List<Ev>> GetEvs();
+        Task<ResultOptions> IuEv(Ev ev);
     }
 }

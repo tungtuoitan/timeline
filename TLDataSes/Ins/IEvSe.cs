@@ -8,10 +8,10 @@ using TLMos.Mos;
 
 namespace TLDataSes.Ins
 {
-    public interface IXSe
+    public interface IEvSe
     {
-        Task<List<Event>> GetEvents();
-        Task<ResultOptions> IuEv(Event ev);
+        Task<List<Ev>> GetEvs();
+        Task<ResultOptions> IuEv(Ev ev);
 
     }
 }

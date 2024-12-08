@@ -36,8 +36,8 @@ namespace TimelineAPI
 
                     services.AddHttpContextAccessor(); // 3.4 cấu hình này cho phép ta truy cập vào HttpContext
 
-                    services.Add(ServiceDescriptor.Scoped<IXRe, XRe>());
-                    services.Add(ServiceDescriptor.Scoped<IXSe, XSe>());
+                    services.Add(ServiceDescriptor.Scoped<IEvRe, EvRe>());
+                    services.Add(ServiceDescriptor.Scoped<IEvSe, EvSe>());
                 });
     }
 }

@@ -2,8 +2,8 @@
 {
     public static class StoredProcedures
     {
-        public static string spSelectEvent=> "[dbo].[usp_s_Events]";
-        public static string spInsertUpdateEvent=> "[dbo].[usp_iu_Ev]";
+        public static string spSelectEvs=> "[dbo].[usp_s_Evs]";
+        public static string spInsertUpdateEv=> "[dbo].[usp_iu_Ev]";
 
     }
 }

@@ -9,19 +9,19 @@ using TLDataRes.Extensions;
 
 namespace TLDataRes.Res
 {
-    public class XRe : IXRe
+    public class EvRe : IEvRe
 
     {
-        public async Task<List<Event>> GetEvents()
+        public async Task<List<Ev>> GetEvs()
         {
             try
             {
-                List<Event> list = new();
+                List<Ev> list = new();
 
                 using (var conn = await OpenedConnection.Create(ApplicationSettings.ERPConnectionString))
                 using (var command = conn.CreateCommand())
                 {
-                    command.CommandText = StoredProcedures.spSelectEvent;
+                    command.CommandText = StoredProcedures.spSelectEvs;
                     command.CommandType = CommandType.StoredProcedure;
                     command.CommandTimeout = 1200; // 20 minutes
 
@@ -32,7 +32,7 @@ namespace TLDataRes.Res
                     {
                         while (await reader.ReadAsync())
                         {
-                            var Event = reader.MapToObject<Event>();
+                            var Event = reader.MapToObject<Ev>();
                             list.Add(Event);
                         }
                     }
@@ -45,14 +45,14 @@ namespace TLDataRes.Res
             }
         }
 
-        public async Task<ResultOptions> IuEv(Event ev)
+        public async Task<ResultOptions> IuEv(Ev ev)
         {
             try
             {
                 using (var conn = await OpenedConnection.Create(ApplicationSettings.ERPConnectionString))
                 using (var command = conn.CreateCommand())
                 {
-                    command.CommandText = StoredProcedures.spInsertUpdateEvent;
+                    command.CommandText = StoredProcedures.spInsertUpdateEv;
                     command.CommandType = CommandType.StoredProcedure;
                     command.CommandTimeout = 1200; // 20 minutes
 

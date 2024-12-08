@@ -4,27 +4,27 @@ using TLDataSes.Ins;
 using TLMos.DTOs;
 
 
-namespace Timeline.Controllers
+namespace TLAPI.Controllers
 {
     [ApiController]
     [Route("[controller]")]
-    public class XController : Controller
+    public class EvController : Controller
     {
-        private readonly IXSe _XSe;
-        public XController(IXSe XSe)
+        private readonly IEvSe _XSe;
+        public EvController(IEvSe XSe)
         {
             _XSe = XSe;
         }
 
-        [HttpGet("GetEvents")]
-        public async Task<List<Event>> GetEvents()
+        [HttpGet("GetEvs")]
+        public async Task<List<Ev>> GetEvs()
         {
-            var Events = await _XSe.GetEvents();
-            return Events;  
+            var evs = await _XSe.GetEvs();
+            return evs;
         }
 
         [HttpPost("IuEv")]
-        public async Task<IActionResult> IuEv([FromForm] Event ev)
+        public async Task<IActionResult> IuEv([FromForm] Ev ev)
         {
             ResultOptions res = await _XSe.IuEv( ev);
             if(res.Success)

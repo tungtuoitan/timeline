@@ -9,18 +9,18 @@ using TLMos.DTOs;
 
 namespace TLDataSes.Ses
 {
-    public class XSe: IXSe
+    public class EvSe: IEvSe
     {
-        private readonly IXRe _XRepo;
-        public XSe(IXRe XRepo) {
+        private readonly IEvRe _XRepo;
+        public EvSe(IEvRe XRepo) {
             _XRepo = XRepo;
         }
-        public async Task<List<Event>> GetEvents()
+        public async Task<List<Ev>> GetEvs()
         {
-            List<Event> Events = await _XRepo.GetEvents();
+            List<Ev> Events = await _XRepo.GetEvs();
             return Events;
         }
-        public async Task<ResultOptions> IuEv(Event ev)
+        public async Task<ResultOptions> IuEv(Ev ev)
         {
             return await _XRepo.IuEv(ev);
         }

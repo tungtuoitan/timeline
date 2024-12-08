@@ -7,7 +7,7 @@ using System.Xml.Linq;
 
 namespace TLMos.Mos
 { 
-    public class Event
+    public class Ev
     {
         public int Id { get; set; }
         public string Name { get; set; }
@@ -17,7 +17,7 @@ namespace TLMos.Mos
         public DateTime TimeStart { get; set; }
         public DateTime TimeEnd { get; set; }
 
-        public Event()
+        public Ev()
         {
             Name = string.Empty;
             Type = string.Empty;
