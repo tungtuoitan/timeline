@@ -17,15 +17,17 @@ namespace TLDataRes.Extensions
             dataTable.Columns.Add(new DataColumn { ColumnName = "TimeStart", DataType = typeof(DateTime) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "TimeEnd", DataType = typeof(DateTime) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "ParentId", DataType = typeof(Int64), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "Status", DataType = typeof(Int64)});
 
             DataRow row = dataTable.NewRow();
-            row["Id"] = ev.Id == 0 ? DBNull.Value : ev.Id;
+            row["Id"] = ev.Id;
             row["Name"] = ev.Name;
             row["Type"] = ev.Type;
             row["Level"] = ev.Level;
             row["TimeStart"] = ev.TimeStart;
             row["TimeEnd"] = ev.TimeEnd;
             row["ParentId"] = ev.ParentId.HasValue ? ev.ParentId : DBNull.Value;
+            row["Status"] = ev.Status;
 
             dataTable.Rows.Add(row);
             return dataTable;
