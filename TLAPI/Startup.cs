@@ -16,7 +16,6 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using System.Text;
-using TLAPI.Middleware;
 
 namespace TimelineAPI
 {
@@ -71,7 +70,7 @@ namespace TimelineAPI
                 options.MultipartBodyLengthLimit = 100 * 1024 * 1024; // set max body của request là 100mb
             });
 
-            services.AddHttpContextAccessor(); // cho phép dùng httpContext trong service
+            services.AddHttpContextAccessor();
             //services.AddTransient<IBlobAppend, BlobAppend>();
             //services.AddTransient<ILoggerService, LoggerService>();
         }
@@ -107,7 +106,6 @@ namespace TimelineAPI
 
             app.UseAuthentication();
             app.UseAuthorization();
-            app.UseMiddleware<TimeZoneMiddleware>();
 
             app.UseSession(); // thêm middleware để quản lí session
 
