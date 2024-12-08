@@ -13,7 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\test2\TLDataRes.csproj" />
+    <ProjectReference Include="..\TLDataRes\TLDataRes.csproj" />
     <ProjectReference Include="..\TLModels\TLMos.csproj" />
   </ItemGroup>
 

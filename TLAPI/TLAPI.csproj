@@ -11,8 +11,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\test2\TLDataRes.csproj" />
-    <ProjectReference Include="..\TLDataServices22\TLDataSes.csproj" />
+    <ProjectReference Include="..\TLDataRes\TLDataRes.csproj" />
+    <ProjectReference Include="..\TLDataSes\TLDataSes.csproj" />
     <ProjectReference Include="..\TLModels\TLMos.csproj" />
   </ItemGroup>
 
