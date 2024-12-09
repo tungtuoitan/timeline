@@ -45,10 +45,12 @@ namespace TLDataRes.Res
             }
         }
 
-        public async Task<ResultOptions> IuEv(Ev ev)
+        public async Task<EvsResult> IuEv(Ev ev)
         {
             try
             {
+                List<Ev> evs = new List<Ev>();
+                ResultOptions options;
                 using (var conn = await OpenedConnection.Create(ApplicationSettings.ERPConnectionString))
                 using (var command = conn.CreateCommand())
                 {
@@ -65,45 +67,51 @@ namespace TLDataRes.Res
                         Value = Ev
                     });
 
-                    SqlParameter insertedIdParam = new SqlParameter("@ov_EvId", SqlDbType.BigInt)
-                    {
-                        Direction = ParameterDirection.Output,
-                    };
-                    command.Parameters.Add(insertedIdParam);
-
                     SqlParameter errorMsg = new SqlParameter("@ov_ErrorMsg", SqlDbType.VarChar, -1)
                     {
                         Direction = ParameterDirection.Output
                     };
                     command.Parameters.Add(errorMsg);
 
-                    var retValue = await command.ExecuteNonQueryAsync();
+                    using (var reader = await command.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            var item = reader.MapToObject<Ev>();
+                            evs.Add(item);
+                        }
+                    }
 
                     string msg = errorMsg.Value.ToString() ?? "";
+                    
+
                     if (string.IsNullOrEmpty(msg))
                     {
-
-                        return new ResultOptions
+                        options = new ResultOptions
                         {
-                            Message = "Successfully saved record.",
+                            Message = ev.Id == 0 ? "Successfully saved record." : "Successfully updated record",
                             Success = true,
-                            Reference = insertedIdParam.Value.ToString(),
+                            Reference = evs.ToString(), 
                         };
                     }
                     else
                     {
-                        return new ResultOptions
+                        options = new ResultOptions
                         {
                             Message = "Error saving record",
                             Success = false,
                         };
                     }
+
+                    return new EvsResult { Evs = evs, Options = options };
                 }
             }
             catch (Exception ex)
             {
-                throw; // You might want to log the exception before rethrowing
+                // Log lỗi nếu cần thiết trước khi ném lại
+                throw;
             }
         }
+
     }
 }

@@ -3,14 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TLMos.DTOs;
 using TLMos.Mos;
 
-namespace TLDataRes.Ins
+namespace TLMos.DTOs
 {
-    public interface IEvRe
+    public class EvsResult
     {
-        Task<List<Ev>> GetEvs();
-        Task<EvsResult> IuEv(Ev ev);
+        public List<Ev> Evs { get; set; }
+        public ResultOptions Options { get; set; }
     }
 }

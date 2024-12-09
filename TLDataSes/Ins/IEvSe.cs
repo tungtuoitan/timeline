@@ -11,7 +11,9 @@ namespace TLDataSes.Ins
     public interface IEvSe
     {
         Task<List<Ev>> GetEvs();
-        Task<ResultOptions> IuEv(Ev ev);
+        Task<EvsResult> IuEv(Ev ev);
+
+        DateTime ConvertUTCToUserTimeZone(DateTime utcDateTime);
 
     }
 }

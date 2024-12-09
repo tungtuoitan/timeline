@@ -26,14 +26,14 @@ namespace TLAPI.Controllers
         [HttpPost("IuEv")]
         public async Task<IActionResult> IuEv([FromForm] Ev ev)
         {
-            ResultOptions res = await _XSe.IuEv( ev);
-            if(res.Success)
+            EvsResult res = await _XSe.IuEv( ev);
+            if(res.Options.Success)
             {
                 return Ok(res);
             }
             else
             {
-                return BadRequest(res);
+                return BadRequest(new EvsResult { Evs = new List<Ev>(), Options = res.Options });
             }
         }
     }

@@ -22,23 +22,36 @@ namespace TLDataSes.Ses
         }
         public async Task<List<Ev>> GetEvs()
         {
-            List<Ev> Events = await _XRepo.GetEvs();
+            List<Ev> evs = await _XRepo.GetEvs();
            
             // convert UTC time to UserLocalTime
-            string UserTimeZone = _httpContextAccessor.HttpContext.Request.Headers["X-TimeZone"];
-            var userTimeZoneInfo = TimeZoneInfo.FindSystemTimeZoneById(UserTimeZone);
-            foreach (var ev in Events)
-            {
-                ev.TimeStart = TimeZoneInfo.ConvertTimeFromUtc(ev.TimeStart, userTimeZoneInfo);
+            foreach (var ev in evs){
+                ev.TimeStart = ConvertUTCToUserTimeZone(ev.TimeStart);
                 if (ev.TimeEnd.HasValue)
-                    ev.TimeEnd = TimeZoneInfo.ConvertTimeFromUtc(ev.TimeEnd.Value, userTimeZoneInfo);
+                    ev.TimeEnd = ConvertUTCToUserTimeZone(ev.TimeEnd.Value);
             }
 
-            return Events;
+            return evs;
         }
-        public async Task<ResultOptions> IuEv(Ev ev)
+        public async Task<EvsResult> IuEv(Ev ev)
         {
-            return await _XRepo.IuEv(ev);
+            var evResult = await _XRepo.IuEv(ev);
+
+            // convert UTC time to UserLocalTime
+            foreach (var _ev in evResult.Evs)
+            {
+                _ev.TimeStart = ConvertUTCToUserTimeZone(_ev.TimeStart);
+                if (_ev.TimeEnd.HasValue)
+                    _ev.TimeEnd = ConvertUTCToUserTimeZone(_ev.TimeEnd.Value);
+            }
+
+            return evResult;
+        }
+        public DateTime ConvertUTCToUserTimeZone(DateTime utcDateTime)
+        {
+            string userTimeZone = _httpContextAccessor.HttpContext.Request.Headers["X-TimeZone"];
+            var userTimeZoneInfo = TimeZoneInfo.FindSystemTimeZoneById(userTimeZone);
+            return TimeZoneInfo.ConvertTimeFromUtc(utcDateTime, userTimeZoneInfo);
         }
 
     }
