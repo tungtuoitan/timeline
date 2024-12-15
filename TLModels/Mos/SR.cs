@@ -8,7 +8,7 @@ namespace TLMos.Mos
         public string Code { get; set; }
         public string Desc { get; set; }
         public string Type { get; set; }
-        public int Active { get; set; }
+        public int? Active { get; set; }
 
         public SR()
         {

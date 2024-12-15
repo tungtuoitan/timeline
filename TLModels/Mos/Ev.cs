@@ -13,7 +13,7 @@ namespace TLMos.Mos
         public string Name { get; set; }
         public int? ParentId { get; set; }
         public string? Type { get; set; }
-        public string Level { get; set; }
+        public string LevelC { get; set; }
         public DateTime TimeStart { get; set; }
         public DateTime? TimeEnd { get; set; }
         public string? ActiveC { get; set; }
@@ -23,7 +23,7 @@ namespace TLMos.Mos
         {
             Name = string.Empty;
             Type = string.Empty;
-            Level = string.Empty;
+            LevelC = string.Empty;
             MainC = string.Empty;
             ActiveC = string.Empty;
         }
