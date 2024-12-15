@@ -23,13 +23,13 @@ namespace TLDataRes.Extensions
             DataRow row = dataTable.NewRow();
             row["Id"] = ev.Id;
             row["Name"] = ev.Name;
-            row["Type"] = ev.Type;
+            row["Type"] = ev.Type != null ? ev.Type : DBNull.Value;
             row["LevelC"] = ev.LevelC;
             row["TimeStart"] = ev.TimeStart;
             row["TimeEnd"] = ev.TimeEnd;
             row["ParentId"] = ev.ParentId.HasValue ? ev.ParentId : DBNull.Value;
-            row["ActiveC"] = ev.ActiveC;
-            row["MainC"] = ev.MainC;
+            row["ActiveC"] = ev.ActiveC != null ? ev.ActiveC : DBNull.Value;
+            row["MainC"] = ev.MainC != null ? ev.MainC : DBNull.Value;
 
 
             dataTable.Rows.Add(row);

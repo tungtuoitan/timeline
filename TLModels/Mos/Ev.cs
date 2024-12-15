@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
+﻿
 
 namespace TLMos.Mos
 { 
@@ -22,10 +17,7 @@ namespace TLMos.Mos
         public Ev()
         {
             Name = string.Empty;
-            Type = string.Empty;
             LevelC = string.Empty;
-            MainC = string.Empty;
-            ActiveC = string.Empty;
         }
     }
 }
