@@ -16,13 +16,16 @@ namespace TLMos.Mos
         public string Level { get; set; }
         public DateTime TimeStart { get; set; }
         public DateTime? TimeEnd { get; set; }
-        public int Status { get; set; }
+        public string? ActiveC { get; set; }
+        public string? MainC { get; set; }
 
         public Ev()
         {
             Name = string.Empty;
             Type = string.Empty;
             Level = string.Empty;
+            MainC = string.Empty;
+            ActiveC = string.Empty;
         }
     }
 }

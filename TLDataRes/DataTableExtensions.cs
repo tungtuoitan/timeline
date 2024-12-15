@@ -17,7 +17,8 @@ namespace TLDataRes.Extensions
             dataTable.Columns.Add(new DataColumn { ColumnName = "TimeStart", DataType = typeof(DateTime) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "TimeEnd", DataType = typeof(DateTime) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "ParentId", DataType = typeof(Int64), AllowDBNull = true });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "Status", DataType = typeof(Int64)});
+            dataTable.Columns.Add(new DataColumn { ColumnName = "ActiveC", DataType = typeof(string), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "MainC", DataType = typeof(string), AllowDBNull = true });
 
             DataRow row = dataTable.NewRow();
             row["Id"] = ev.Id;
@@ -27,7 +28,9 @@ namespace TLDataRes.Extensions
             row["TimeStart"] = ev.TimeStart;
             row["TimeEnd"] = ev.TimeEnd;
             row["ParentId"] = ev.ParentId.HasValue ? ev.ParentId : DBNull.Value;
-            row["Status"] = ev.Status;
+            row["ActiveC"] = ev.ActiveC;
+            row["MainC"] = ev.MainC;
+
 
             dataTable.Rows.Add(row);
             return dataTable;

@@ -38,6 +38,9 @@ namespace TimelineAPI
 
                     services.Add(ServiceDescriptor.Scoped<IEvRe, EvRe>());
                     services.Add(ServiceDescriptor.Scoped<IEvSe, EvSe>());
+                    services.Add(ServiceDescriptor.Scoped<ISRsSe, SRsSe>());
+                    services.Add(ServiceDescriptor.Scoped<ISRsRe, SRsRe>());
+
                 });
     }
 }

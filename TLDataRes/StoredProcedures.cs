@@ -4,6 +4,7 @@
     {
         public static string spSelectEvs=> "[dbo].[usp_s_Evs]";
         public static string spInsertUpdateEv=> "[dbo].[usp_iu_Ev]";
+        public static string spSelectSRs=> "[dbo].[usp_s_SRs]";
 
     }
 }
