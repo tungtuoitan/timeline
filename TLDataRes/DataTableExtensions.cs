@@ -17,8 +17,10 @@ namespace TLDataRes.Extensions
             dataTable.Columns.Add(new DataColumn { ColumnName = "TimeStart", DataType = typeof(DateTime) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "TimeEnd", DataType = typeof(DateTime) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "ParentId", DataType = typeof(Int64), AllowDBNull = true });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "ActiveC", DataType = typeof(string), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "ActiveC", DataType = typeof(string)  });
             dataTable.Columns.Add(new DataColumn { ColumnName = "MainC", DataType = typeof(string), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "StatusC", DataType = typeof(string) });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "PrioriC", DataType = typeof(string) });
 
             DataRow row = dataTable.NewRow();
             row["Id"] = ev.Id;
@@ -28,8 +30,10 @@ namespace TLDataRes.Extensions
             row["TimeStart"] = ev.TimeStart;
             row["TimeEnd"] = ev.TimeEnd;
             row["ParentId"] = ev.ParentId.HasValue ? ev.ParentId : DBNull.Value;
-            row["ActiveC"] = ev.ActiveC != null ? ev.ActiveC : DBNull.Value;
-            row["MainC"] = ev.MainC != null ? ev.MainC : DBNull.Value;
+            row["ActiveC"] = ev.ActiveC;
+            row["MainC"] = ev.MainC;
+            row["StatusC"] = ev.StatusC;
+            row["PrioriC"] = ev.PrioriC;
 
 
             dataTable.Rows.Add(row);
