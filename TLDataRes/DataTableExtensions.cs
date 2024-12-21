@@ -14,11 +14,12 @@ namespace TLDataRes.Extensions
             dataTable.Columns.Add(new DataColumn { ColumnName = "Name", DataType = typeof(string) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "Type", DataType = typeof(string), AllowDBNull = true });
             dataTable.Columns.Add(new DataColumn { ColumnName = "LevelC", DataType = typeof(string) });
+
             dataTable.Columns.Add(new DataColumn { ColumnName = "TimeStart", DataType = typeof(DateTime) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "TimeEnd", DataType = typeof(DateTime) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "ParentId", DataType = typeof(Int64), AllowDBNull = true });
+
             dataTable.Columns.Add(new DataColumn { ColumnName = "ActiveC", DataType = typeof(string)  });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "MainC", DataType = typeof(string), AllowDBNull = true });
             dataTable.Columns.Add(new DataColumn { ColumnName = "StatusC", DataType = typeof(string) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "PrioriC", DataType = typeof(string) });
 
@@ -27,11 +28,12 @@ namespace TLDataRes.Extensions
             row["Name"] = ev.Name;
             row["Type"] = ev.Type != null ? ev.Type : DBNull.Value;
             row["LevelC"] = ev.LevelC;
+
             row["TimeStart"] = ev.TimeStart;
             row["TimeEnd"] = ev.TimeEnd;
             row["ParentId"] = ev.ParentId.HasValue ? ev.ParentId : DBNull.Value;
+
             row["ActiveC"] = ev.ActiveC;
-            row["MainC"] = ev.MainC;
             row["StatusC"] = ev.StatusC;
             row["PrioriC"] = ev.PrioriC;
 

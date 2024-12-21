@@ -10,7 +10,7 @@ namespace TLDataRes
     public static class ApplicationSettings
     {
 //#if DEBUG
-        public static string ERPConnectionString => "Server=157.66.218.17;Database=Timeline;User ID=sa;Password=Noitoibatdau2024#;";
+        public static string ERPConnectionString => "Server=157.66.218.17;Database=Timeline-dev;User ID=sa;Password=Noitoibatdau2024#;";
         //public static string ERPConnectionString => "Server=TUNGHOMEPC\\SQLEXPRESS;Database=Timeline;Trusted_Connection=True;";
 //#else
 //        public static string ERPConnectionString => Environment.GetEnvironmentVariable("ENVIRONMENT") == "Production"
