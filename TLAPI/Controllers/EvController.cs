@@ -2,6 +2,7 @@
 using TLMos.Mos;
 using TLDataSes.Ins;
 using TLMos.DTOs;
+using Serilog;
 
 
 namespace TLAPI.Controllers
@@ -11,9 +12,11 @@ namespace TLAPI.Controllers
     public class EvController : Controller
     {
         private readonly IEvSe _XSe;
-        public EvController(IEvSe XSe)
+        private readonly ILogger<EvController> _logger;
+        public EvController(IEvSe XSe, ILogger<EvController> logger)
         {
             _XSe = XSe;
+            _logger = logger;
         }
 
         [HttpGet("GetEvs")]

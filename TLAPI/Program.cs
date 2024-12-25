@@ -3,6 +3,7 @@ using TLDataSes.Ins;
 using TLDataSes.Ses;
 using TLDataRes.Ins;
 using TLDataRes.Res;
+using Serilog;
 
 namespace TimelineAPI
 {
@@ -10,16 +11,35 @@ namespace TimelineAPI
     {
         public static void Main(string[] args)
         {
-            CreateHostBuilder(args).Build().Run();
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug() 
+                .WriteTo.Console()  
+                .WriteTo.File("Logs/timeline.log", rollingInterval: RollingInterval.Day) // Log ra file theo ngày
+                .CreateLogger();
+
+            try{
+                Log.Information(">>  >>  >>  Starting up the application...");
+                CreateHostBuilder(args).Build().Run();
+            }
+            catch (Exception ex){
+                Log.Fatal(ex, "Application start-up failed");
+            }
+            finally{
+                Log.CloseAndFlush();
+            }
         }
+
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             //1. tạo ra 1 host Builder với cấu hình cho trước
             Host.CreateDefaultBuilder(args)
+                .UseSerilog()
                 // 2. cấu hình web host với "default settings"
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
-                    webBuilder.UseStartup<Startup>() // 3. dùng file Startup để cấu hình
-                     .ConfigureKestrel(options =>
+                    webBuilder
+                    .UseStartup<Startup>() // 3. dùng file Startup để cấu hình
+                    //.UseUrls("https://0.0.0.0:5000")
+                    .ConfigureKestrel(options =>
                      {
                          options.Limits.MaxRequestBodySize = 100 * 1024 * 1024; // 3.1 set max body size của request là 100MB
                      });

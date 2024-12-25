@@ -3,22 +3,25 @@ using TLMos.Mos;
 using DbDataReaderMapper;
 using TLDataRes.Ins;
 using TLMos.DTOs;
-using System.Collections.Generic;
 using System.Data.SqlClient;
 using TLDataRes.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace TLDataRes.Res
 {
     public class EvRe : IEvRe
-
     {
+        private readonly ILogger<EvRe> _logger;
+        public EvRe(ILogger<EvRe> logger)
+        {
+            _logger = logger;
+        }
         public async Task<List<Ev>> GetEvs()
         {
             try
             {
                 List<Ev> list = new();
-
-                using (var conn = await OpenedConnection.Create(ApplicationSettings.ERPConnectionString))
+                using (var conn = await OpenedConnection.Create(ApplicationSettings.TimelineConnectionString))
                 using (var command = conn.CreateCommand())
                 {
                     command.CommandText = StoredProcedures.spSelectEvs;
@@ -51,7 +54,7 @@ namespace TLDataRes.Res
             {
                 List<Ev> evs = new List<Ev>();
                 ResultOptions options;
-                using (var conn = await OpenedConnection.Create(ApplicationSettings.ERPConnectionString))
+                using (var conn = await OpenedConnection.Create(ApplicationSettings.TimelineConnectionString))
                 using (var command = conn.CreateCommand())
                 {
                     command.CommandText = StoredProcedures.spInsertUpdateEv;

@@ -16,6 +16,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using System.Text;
+using Serilog;
 
 namespace TimelineAPI
 {
@@ -34,7 +35,7 @@ namespace TimelineAPI
             //services.AddAutoMapper(typeof(DocumentServiceAutoMapperConfiguration));
 
             //services.AddDbContext<PLMDBContext>(
-            //options => options.UseSqlServer(ApplicationSettings.ERPConnectionString));
+            //options => options.UseSqlServer(ApplicationSettings.TimelineConnectionString));
 
             services.AddMemoryCache();
 
@@ -42,6 +43,12 @@ namespace TimelineAPI
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "Timeline", Version = "v1" });
+            });
+            services.AddLogging(config =>
+            {
+                config.AddConsole();
+                config.AddDebug();
+                // Other logging providers
             });
 
             // phần này là cấu hình CORS

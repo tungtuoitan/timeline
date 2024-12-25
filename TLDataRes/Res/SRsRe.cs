@@ -19,7 +19,7 @@ namespace TLDataRes.Res
             {
                 List<SR> list = new();
 
-                using (var conn = await OpenedConnection.Create(ApplicationSettings.ERPConnectionString))
+                using (var conn = await OpenedConnection.Create(ApplicationSettings.TimelineConnectionString))
                 using (var command = conn.CreateCommand())
                 {
                     command.CommandText = StoredProcedures.spSelectSRs;
