@@ -16,6 +16,7 @@ namespace TLMos.Mos
         public string ActiveC { get; set; }
         public string StatusC { get; set; }
         public string PrioriC { get; set; }
+        public string? Fink { get; set; }
 
         public Ev()
         {

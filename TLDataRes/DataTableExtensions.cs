@@ -22,6 +22,7 @@ namespace TLDataRes.Extensions
             dataTable.Columns.Add(new DataColumn { ColumnName = "ActiveC", DataType = typeof(string)  });
             dataTable.Columns.Add(new DataColumn { ColumnName = "StatusC", DataType = typeof(string) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "PrioriC", DataType = typeof(string) });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "Fink", DataType = typeof(string) });
 
             DataRow row = dataTable.NewRow();
             row["Id"] = ev.Id;
@@ -36,6 +37,7 @@ namespace TLDataRes.Extensions
             row["ActiveC"] = ev.ActiveC;
             row["StatusC"] = ev.StatusC;
             row["PrioriC"] = ev.PrioriC;
+            row["Fink"] = ev.Fink != null ? ev.Fink : DBNull.Value;
 
 
             dataTable.Rows.Add(row);
