@@ -23,6 +23,9 @@ namespace TLDataRes.Extensions
             dataTable.Columns.Add(new DataColumn { ColumnName = "StatusC", DataType = typeof(string) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "PrioriC", DataType = typeof(string) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "Fink", DataType = typeof(string) });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "Desc", DataType = typeof(string) });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "SubType", DataType = typeof(string) });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "EvelC", DataType = typeof(string), AllowDBNull = true });
 
             DataRow row = dataTable.NewRow();
             row["Id"] = ev.Id;
@@ -38,6 +41,9 @@ namespace TLDataRes.Extensions
             row["StatusC"] = ev.StatusC;
             row["PrioriC"] = ev.PrioriC;
             row["Fink"] = ev.Fink != null ? ev.Fink : DBNull.Value;
+            row["Desc"] = ev.Desc;
+            row["SubType"] = ev.SubType;
+            row["EvelC"] = ev.EvelC != null ? ev.EvelC : DBNull.Value;
 
 
             dataTable.Rows.Add(row);
