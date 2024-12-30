@@ -12,7 +12,7 @@ namespace TLDataRes.Extensions
             DataTable dataTable = new DataTable();
             dataTable.Columns.Add(new DataColumn { ColumnName = "Id", DataType = typeof(Int64) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "Name", DataType = typeof(string) });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "Type", DataType = typeof(string), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "Type", DataType = typeof(string) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "LevelC", DataType = typeof(string) });
 
             dataTable.Columns.Add(new DataColumn { ColumnName = "TimeStart", DataType = typeof(DateTime) });
@@ -27,7 +27,7 @@ namespace TLDataRes.Extensions
             DataRow row = dataTable.NewRow();
             row["Id"] = ev.Id;
             row["Name"] = ev.Name;
-            row["Type"] = ev.Type != null ? ev.Type : DBNull.Value;
+            row["Type"] = ev.Type;
             row["LevelC"] = ev.LevelC;
 
             row["TimeStart"] = ev.TimeStart;
