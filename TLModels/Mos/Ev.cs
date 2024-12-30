@@ -18,6 +18,10 @@ namespace TLMos.Mos
         public string PrioriC { get; set; }
         public string? Fink { get; set; }
 
+        public string Desc { get; set; }
+        public string SubType  { get; set; }
+        public string? EvelC { get; set; }
+
         public Ev()
         {
             Name = string.Empty;
