@@ -11,6 +11,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TLDataSes", "TLDataSes\TLDa
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TLDataRes", "TLDataRes\TLDataRes.csproj", "{8834170F-CB6F-4C19-85B4-B0AC5670B478}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PRDataRes", "PRDataRes\PRDataRes.csproj", "{E4DD741F-46B5-4D68-87EE-C5583028A179}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PRDataSes", "PRDataSes\PRDataSes.csproj", "{503AE740-8480-426A-AC69-4565EE6BF0AE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +37,14 @@ Global
 		{8834170F-CB6F-4C19-85B4-B0AC5670B478}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8834170F-CB6F-4C19-85B4-B0AC5670B478}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8834170F-CB6F-4C19-85B4-B0AC5670B478}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E4DD741F-46B5-4D68-87EE-C5583028A179}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E4DD741F-46B5-4D68-87EE-C5583028A179}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E4DD741F-46B5-4D68-87EE-C5583028A179}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E4DD741F-46B5-4D68-87EE-C5583028A179}.Release|Any CPU.Build.0 = Release|Any CPU
+		{503AE740-8480-426A-AC69-4565EE6BF0AE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{503AE740-8480-426A-AC69-4565EE6BF0AE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{503AE740-8480-426A-AC69-4565EE6BF0AE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{503AE740-8480-426A-AC69-4565EE6BF0AE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

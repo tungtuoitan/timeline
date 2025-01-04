@@ -16,7 +16,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TLDataRes\TLDataRes.csproj" />
+	  <ProjectReference Include="..\PRDataRes\PRDataRes.csproj" />
+	  <ProjectReference Include="..\PRDataSes\PRDataSes.csproj" />
+	  <ProjectReference Include="..\TLDataRes\TLDataRes.csproj" />
     <ProjectReference Include="..\TLDataSes\TLDataSes.csproj" />
     <ProjectReference Include="..\TLModels\TLMos.csproj" />
   </ItemGroup>

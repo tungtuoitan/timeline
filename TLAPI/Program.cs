@@ -4,6 +4,10 @@ using TLDataSes.Ses;
 using TLDataRes.Ins;
 using TLDataRes.Res;
 using Serilog;
+using PRDataRes.Res;
+using PRDataRes.Ins;
+using PRDataSes.Ins;
+using PRDataSes.Ses;
 
 namespace TimelineAPI
 {
@@ -60,6 +64,8 @@ namespace TimelineAPI
                     services.Add(ServiceDescriptor.Scoped<IEvSe, EvSe>());
                     services.Add(ServiceDescriptor.Scoped<ISRsSe, SRsSe>());
                     services.Add(ServiceDescriptor.Scoped<ISRsRe, SRsRe>());
+                    services.Add(ServiceDescriptor.Scoped<IPrRe, PrRe>());
+                    services.Add(ServiceDescriptor.Scoped<IPRSe, PrSe>());
 
                 });
     }
