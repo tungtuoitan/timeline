@@ -16,6 +16,7 @@ namespace TLMos.Mos
         public string PrioriC { get; set; }
         public string? Fink { get; set; }
         public string? Desc { get; set; }
+        public string Pesults { get; set; }
 
 
         public Pr()

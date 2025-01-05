@@ -1,6 +1,6 @@
 using System.Data;
 using TLMos.Mos;
-
+using Newtonsoft.Json;
 
 namespace PRDataRes.Extensions
 {
@@ -26,6 +26,8 @@ namespace PRDataRes.Extensions
             dataTable.Columns.Add(new DataColumn { ColumnName = "Fink", DataType = typeof(string), AllowDBNull=true });
             dataTable.Columns.Add(new DataColumn { ColumnName = "Desc", DataType = typeof(string), AllowDBNull=true });
 
+            dataTable.Columns.Add(new DataColumn { ColumnName = "Pesults", DataType = typeof(string) });
+
             DataRow row = dataTable.NewRow();
             row["Id"] = pr.Id;
             row["Name"] = pr.Name;
@@ -43,6 +45,8 @@ namespace PRDataRes.Extensions
 
             row["Fink"] = pr.Fink == null ? DBNull.Value : pr.Fink;
             row["Desc"] = pr.Desc == null ? DBNull.Value : pr.Desc;
+
+            row["Pesults"] = pr.Pesults;
 
 
             dataTable.Rows.Add(row);

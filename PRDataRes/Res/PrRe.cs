@@ -6,6 +6,7 @@ using System.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using PRDataRes.Ins;
 using PRDataRes.Extensions;
+using Newtonsoft.Json;
 
 namespace PRDataRes.Res
 {
@@ -37,7 +38,11 @@ namespace PRDataRes.Res
                         {
                             var pr = reader.MapToObject<Pr>();
                             pr.TimeStart = pr.TimeStart.Date;
-                            pr.TimeEnd = pr.TimeEnd!=null ? pr.TimeEnd?.Date : null;
+                            //pr.TimeEnd = pr.TimeEnd!=null ? pr.TimeEnd?.Date : null;
+                            //var pesultsJson = reader["Pesults"].ToString(); // Assuming Pesults is stored as JSON in the database
+                            //pr.Pesults = !string.IsNullOrEmpty(pesultsJson)
+                            //    ? JsonConvert.DeserializeObject<List<Pesult>>(pesultsJson)
+                            //    : new List<Pesult>();
                             list.Add(pr);
                         }
                     }
