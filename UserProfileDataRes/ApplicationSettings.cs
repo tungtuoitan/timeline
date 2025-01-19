@@ -1,5 +1,5 @@
 ﻿
-namespace PRDataRes
+namespace UserProfileDataRes
 {
     public static class ApplicationSettings
     {

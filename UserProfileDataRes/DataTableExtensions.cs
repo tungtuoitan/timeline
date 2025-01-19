@@ -2,7 +2,7 @@ using System.Data;
 using TLMos.Mos;
 using Newtonsoft.Json;
 
-namespace PRDataRes.Extensions
+namespace UserProfileDataRes.Extensions
 {
     public static class DataTableExtensions
     {

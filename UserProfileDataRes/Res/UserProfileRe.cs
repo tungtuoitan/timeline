@@ -4,9 +4,7 @@ using DbDataReaderMapper;
 using TLMos.DTOs;
 using System.Data.SqlClient;
 using Microsoft.Extensions.Logging;
-using PRDataRes.Extensions;
 using Newtonsoft.Json;
-using PRDataRes;
 using UserProfileDataRes.Ins;
 
 namespace UserProfileDataRes.Res

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace PRDataRes
+namespace UserProfileDataRes
 {
     public static class OpenedConnection
     {
