@@ -16,9 +16,9 @@ namespace PRDataSes.Ses
             _XRepo = XRepo;
             _httpContextAccessor = httpContextAccessor;
         }
-        public async Task<List<Pr>> GetPrs()
+        public async Task<List<Pr>> GetPrs(string? searchText)
         {
-            List<Pr> prs = await _XRepo.GetPrs();
+            List<Pr> prs = await _XRepo.GetPrs(searchText);
             return prs;
         }
         public async Task<PrsResult> IuPr(Pr pr)

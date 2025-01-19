@@ -6,7 +6,7 @@ namespace TLMos.Mos
     {
         public int Id { get; set; }
         public string Name { get; set; }
-        public string? ParentId { get; set; }
+        public int? ParentId { get; set; }
         public string Types { get; set; }
         public string RepeatType { get; set; }
         public DateTime TimeStart { get; set; }

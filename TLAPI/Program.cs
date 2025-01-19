@@ -8,6 +8,10 @@ using PRDataRes.Res;
 using PRDataRes.Ins;
 using PRDataSes.Ins;
 using PRDataSes.Ses;
+using UserProfileDataRes.Ins;
+using UserProfileDataSes.Ins;
+using UserProfileDataRes.Res;
+using UserProfileDataSes.Ses;
 
 namespace TimelineAPI
 {
@@ -66,6 +70,10 @@ namespace TimelineAPI
                     services.Add(ServiceDescriptor.Scoped<ISRsRe, SRsRe>());
                     services.Add(ServiceDescriptor.Scoped<IPrRe, PrRe>());
                     services.Add(ServiceDescriptor.Scoped<IPRSe, PrSe>());
+                    services.Add(ServiceDescriptor.Scoped<IPrFilterRe, PrFilterRe>());
+                    services.Add(ServiceDescriptor.Scoped<IPrFilterSe, PrFilterSe>());
+                    services.Add(ServiceDescriptor.Scoped<IUserProfileRe, UserProfileRe>());
+                    services.Add(ServiceDescriptor.Scoped<IUserProfileSe, UserProfileSe>());
 
                 });
     }

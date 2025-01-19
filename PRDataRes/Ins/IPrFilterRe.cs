@@ -8,9 +8,8 @@ using TLMos.Mos;
 
 namespace PRDataRes.Ins
 {
-    public interface IPrRe
+    public interface IPrFilterRe
     {
-        Task<List<Pr>> GetPrs(string searchText);
-        Task<PrsResult> IuPr(Pr pr);
+        Task<List<int>> GetPrParentIds();
     }
 }

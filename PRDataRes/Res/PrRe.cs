@@ -17,7 +17,7 @@ namespace PRDataRes.Res
         {
             _logger = logger;
         }
-        public async Task<List<Pr>> GetPrs()
+        public async Task<List<Pr>> GetPrs(string searchText)
         {
             try
             {
@@ -32,17 +32,14 @@ namespace PRDataRes.Res
                     // Clear any previous parameters
                     command.Parameters.Clear();
 
+                    if (!string.IsNullOrEmpty(searchText))
+                        command.Parameters.Add(new SqlParameter("@iv_SearchText", searchText));
                     using (var reader = await command.ExecuteReaderAsync())
                     {
                         while (await reader.ReadAsync())
                         {
                             var pr = reader.MapToObject<Pr>();
                             pr.TimeStart = pr.TimeStart.Date;
-                            //pr.TimeEnd = pr.TimeEnd!=null ? pr.TimeEnd?.Date : null;
-                            //var pesultsJson = reader["Pesults"].ToString(); // Assuming Pesults is stored as JSON in the database
-                            //pr.Pesults = !string.IsNullOrEmpty(pesultsJson)
-                            //    ? JsonConvert.DeserializeObject<List<Pesult>>(pesultsJson)
-                            //    : new List<Pesult>();
                             list.Add(pr);
                         }
                     }

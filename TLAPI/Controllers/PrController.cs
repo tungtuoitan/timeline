@@ -19,9 +19,9 @@ namespace TLAPI.Controllers
         }
 
         [HttpGet("GetPrs")]
-        public async Task<List<Pr>> GetPrs()
+        public async Task<List<Pr>> GetPrs(string? searchText)
         {
-            var prs = await _XSe.GetPrs();
+            var prs = await _XSe.GetPrs(searchText);
             return prs;
         }
 

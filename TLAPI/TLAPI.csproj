@@ -22,6 +22,7 @@
 	  <ProjectReference Include="..\TLDataRes\TLDataRes.csproj" />
     <ProjectReference Include="..\TLDataSes\TLDataSes.csproj" />
     <ProjectReference Include="..\TLModels\TLMos.csproj" />
+    <ProjectReference Include="..\UserProfileDataSes\UserProfileDataSes.csproj" />
   </ItemGroup>
 
 </Project>
