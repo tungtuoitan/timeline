@@ -12,6 +12,10 @@ using UserProfileDataRes.Ins;
 using UserProfileDataSes.Ins;
 using UserProfileDataRes.Res;
 using UserProfileDataSes.Ses;
+using FoDataRes.Ins;
+using FoDataRes.Res;
+using FoDataSes.Ins;
+using FoDataSes.Ses;
 
 namespace TimelineAPI
 {
@@ -74,6 +78,9 @@ namespace TimelineAPI
                     services.Add(ServiceDescriptor.Scoped<IPrFilterSe, PrFilterSe>());
                     services.Add(ServiceDescriptor.Scoped<IUserProfileRe, UserProfileRe>());
                     services.Add(ServiceDescriptor.Scoped<IUserProfileSe, UserProfileSe>());
+
+                    services.Add(ServiceDescriptor.Scoped<IFoRe, FoRe>());
+                    services.Add(ServiceDescriptor.Scoped<IFoSe, FoSe>());
 
                 });
     }

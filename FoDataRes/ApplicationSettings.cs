@@ -1,5 +1,5 @@
 ﻿
-namespace PRDataRes
+namespace FoDataRes
 {
     public static class ApplicationSettings
     {
