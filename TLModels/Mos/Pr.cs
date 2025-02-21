@@ -17,7 +17,7 @@ namespace TLMos.Mos
         public string? Fink { get; set; }
         public string? Desc { get; set; }
         public string Pesults { get; set; }
-        public string LearnC { get; set; }
+        public string KnowC { get; set; }
 
 
         public Pr()
