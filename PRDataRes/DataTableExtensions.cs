@@ -27,6 +27,7 @@ namespace PRDataRes.Extensions
             dataTable.Columns.Add(new DataColumn { ColumnName = "Desc", DataType = typeof(string), AllowDBNull=true });
 
             dataTable.Columns.Add(new DataColumn { ColumnName = "Pesults", DataType = typeof(string) });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "LearnC", DataType = typeof(string) });
 
             DataRow row = dataTable.NewRow();
             row["Id"] = pr.Id;
@@ -47,6 +48,7 @@ namespace PRDataRes.Extensions
             row["Desc"] = pr.Desc == null ? DBNull.Value : pr.Desc;
 
             row["Pesults"] = pr.Pesults;
+            row["LearnC"] = pr.LearnC;
 
 
             dataTable.Rows.Add(row);
