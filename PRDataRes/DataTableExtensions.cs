@@ -28,6 +28,7 @@ namespace PRDataRes.Extensions
 
             dataTable.Columns.Add(new DataColumn { ColumnName = "Pesults", DataType = typeof(string) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "KnowC", DataType = typeof(string) });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "KnowLevelC", DataType = typeof(string) });
 
             DataRow row = dataTable.NewRow();
             row["Id"] = pr.Id;
@@ -49,6 +50,7 @@ namespace PRDataRes.Extensions
 
             row["Pesults"] = pr.Pesults;
             row["KnowC"] = pr.KnowC;
+            row["KnowLevelC"] = pr.KnowLevelC;
 
 
             dataTable.Rows.Add(row);

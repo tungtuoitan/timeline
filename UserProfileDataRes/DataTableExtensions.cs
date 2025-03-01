@@ -27,6 +27,8 @@ namespace UserProfileDataRes.Extensions
             dataTable.Columns.Add(new DataColumn { ColumnName = "Desc", DataType = typeof(string), AllowDBNull=true });
 
             dataTable.Columns.Add(new DataColumn { ColumnName = "Pesults", DataType = typeof(string) });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "KnowC", DataType = typeof(string) });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "KnowLevelC", DataType = typeof(string) });
 
             DataRow row = dataTable.NewRow();
             row["Id"] = pr.Id;
@@ -47,6 +49,8 @@ namespace UserProfileDataRes.Extensions
             row["Desc"] = pr.Desc == null ? DBNull.Value : pr.Desc;
 
             row["Pesults"] = pr.Pesults;
+            row["KnowC"] = pr.KnowC;
+            row["KnowLevelC"] = pr.KnowLevelC;
 
 
             dataTable.Rows.Add(row);

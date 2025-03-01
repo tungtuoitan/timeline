@@ -18,6 +18,7 @@ namespace TLMos.Mos
         public string? Desc { get; set; }
         public string Pesults { get; set; }
         public string KnowC { get; set; }
+        public string KnowLevelC { get; set; }
 
 
         public Pr()
