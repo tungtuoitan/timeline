@@ -16,6 +16,12 @@ using FoDataRes.Ins;
 using FoDataRes.Res;
 using FoDataSes.Ins;
 using FoDataSes.Ses;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.Google;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+
 
 namespace TimelineAPI
 {
@@ -42,46 +48,62 @@ namespace TimelineAPI
         }
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>
-            //1. tạo ra 1 host Builder với cấu hình cho trước
             Host.CreateDefaultBuilder(args)
                 .UseSerilog()
-                // 2. cấu hình web host với "default settings"
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
                     webBuilder
-                    .UseStartup<Startup>() // 3. dùng file Startup để cấu hình
-                    //.UseUrls("https://0.0.0.0:5000")
+                    .UseStartup<Startup>()
                     .ConfigureKestrel(options =>
-                     {
-                         options.Limits.MaxRequestBodySize = 100 * 1024 * 1024; // 3.1 set max body size của request là 100MB
-                     });
+                    {
+                        options.Limits.MaxRequestBodySize = 100 * 1024 * 1024;
+                    });
                 })
-                .ConfigureServices((_, services) =>
+                .ConfigureServices((hostContext, services) =>
                 {
-                    services.AddDistributedMemoryCache(); // 3.2
-                    services.AddSession(o => // 3.3 cấu hình Session: 30'
+                    var builder = hostContext.Configuration;
+                    var jwtSettings = hostContext.Configuration.GetSection("Jwt");
+                    var key = Encoding.UTF8.GetBytes(jwtSettings["Key"]);
+
+                    services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                        .AddJwtBearer(options =>
+                        {
+                            options.TokenValidationParameters = new TokenValidationParameters
+                            {
+                                ValidateIssuerSigningKey = true,
+                                IssuerSigningKey = new SymmetricSecurityKey(key),
+                                ValidateIssuer = true,
+                                ValidIssuer = jwtSettings["Issuer"],
+                                ValidateAudience = true,
+                                ValidAudience = jwtSettings["Audience"],
+                                ValidateLifetime = true,
+                                ClockSkew = TimeSpan.Zero // Không cho phép thời gian trễ
+                            };
+                        });
+
+                    services.AddDistributedMemoryCache();
+                    services.AddSession(o =>
                     {
                         o.IdleTimeout = TimeSpan.FromMinutes(30);
                         o.Cookie.HttpOnly = true;
                         o.Cookie.IsEssential = true;
                     });
 
-                    services.AddHttpContextAccessor(); // 3.4 cấu hình này cho phép ta truy cập vào HttpContext
+                    services.AddHttpContextAccessor();
 
-                    services.Add(ServiceDescriptor.Scoped<IEvRe, EvRe>());
-                    services.Add(ServiceDescriptor.Scoped<IEvSe, EvSe>());
-                    services.Add(ServiceDescriptor.Scoped<ISRsSe, SRsSe>());
-                    services.Add(ServiceDescriptor.Scoped<ISRsRe, SRsRe>());
-                    services.Add(ServiceDescriptor.Scoped<IPrRe, PrRe>());
-                    services.Add(ServiceDescriptor.Scoped<IPRSe, PrSe>());
-                    services.Add(ServiceDescriptor.Scoped<IPrFilterRe, PrFilterRe>());
-                    services.Add(ServiceDescriptor.Scoped<IPrFilterSe, PrFilterSe>());
-                    services.Add(ServiceDescriptor.Scoped<IUserProfileRe, UserProfileRe>());
-                    services.Add(ServiceDescriptor.Scoped<IUserProfileSe, UserProfileSe>());
-
-                    services.Add(ServiceDescriptor.Scoped<IFoRe, FoRe>());
-                    services.Add(ServiceDescriptor.Scoped<IFoSe, FoSe>());
-
+                    services.AddScoped<IEvRe, EvRe>();
+                    services.AddScoped<IEvSe, EvSe>();
+                    services.AddScoped<ISRsSe, SRsSe>();
+                    services.AddScoped<ISRsRe, SRsRe>();
+                    services.AddScoped<IPrRe, PrRe>();
+                    services.AddScoped<IPRSe, PrSe>();
+                    services.AddScoped<IPrFilterRe, PrFilterRe>();
+                    services.AddScoped<IPrFilterSe, PrFilterSe>();
+                    services.AddScoped<IUserProfileRe, UserProfileRe>();
+                    services.AddScoped<IUserProfileSe, UserProfileSe>();
+                    services.AddScoped<IFoRe, FoRe>();
+                    services.AddScoped<IFoSe, FoSe>();
                 });
+
     }
 }

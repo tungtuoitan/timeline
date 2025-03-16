@@ -17,6 +17,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using System.Text;
 using Serilog;
+using TLAPI.Middlewares;
 
 namespace TimelineAPI
 {
@@ -115,8 +116,7 @@ namespace TimelineAPI
             app.UseAuthorization();
 
             app.UseSession(); // thêm middleware để quản lí session
-
-            //app.UseTokenValidation();
+            app.UseTokenValidation();
 
             // thêm middleware cho quản lí session
             app.UseExceptionHandler(a => a.Run(async context =>
@@ -152,6 +152,10 @@ namespace TimelineAPI
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
+                endpoints.MapGet("/", async context =>
+                {
+                    await context.Response.WriteAsync("Welcome to Timeline API");
+                });
             });
         }
     }
