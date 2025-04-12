@@ -26,7 +26,9 @@ namespace TLAPI.Middlewares
             context.Request.Headers.TryGetValue("Referer", out var refererHeader);
 
             if ((!String.IsNullOrEmpty(refererHeader) && refererHeader.ToString().Contains("swagger")) ||
-                context.Request.Path.Value.Contains("login"))
+                context.Request.Path.Value.Contains("login") ||
+                context.Request.Path.Value.Contains("getBackendToken")
+            ) 
             {
                 await _next(context); // Bỏ qua middleware nếu là API login
                 return;

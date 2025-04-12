@@ -1,9 +1,11 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
+using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using TLMos.Mos;
+using UserProfileDataSes.Ins;
 
 namespace TimelineAPI.Controllers
 {
@@ -12,46 +14,28 @@ namespace TimelineAPI.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IConfiguration _config;
+        private readonly IAuthSe _authService;
 
-        public AuthController(IConfiguration config)
+        public AuthController(IConfiguration config, IAuthSe authSe)
         {
             _config = config;
+            _authService = authSe;
         }
 
-        //UnauthorizedAccessException
-        [HttpPost("login")]
-        public IActionResult Login([FromForm] LoginModel  model)
+        [HttpPost("getBackendToken")]
+        public async Task<IActionResult> Login([FromBody] UserModel model)
         {
-            if (true) // Giả lập login
-            if (model.Username == "ad" && model.Password == "1111") // Giả lập login
+            try
             {
-                var token = GenerateJwtToken(model.Username);
-                return Ok(new { token });
+                UserModel res = await _authService.GenerateJwtToken(model);
+                return Ok(res);
             }
-            return Unauthorized();
-        }
-
-        private string GenerateJwtToken(string username)
-        {
-            var jwtSettings = _config.GetSection("Jwt");
-            var key = Encoding.UTF8.GetBytes(jwtSettings["Key"]);
-
-            var claims = new[]
+            catch (Exception ex)
             {
-                new Claim(JwtRegisteredClaimNames.Sub, username),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            };
-
-            var token = new JwtSecurityToken(
-                issuer: jwtSettings["Issuer"],
-                audience: jwtSettings["Audience"],
-                claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(int.Parse(jwtSettings["ExpireMinutes"])),
-                signingCredentials: new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256)
-            );
-
-            return new JwtSecurityTokenHandler().WriteToken(token);
+                return Unauthorized(ex);
+            }
         }
+       
     }
 
   

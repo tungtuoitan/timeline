@@ -103,6 +103,7 @@ namespace TimelineAPI
                     services.AddScoped<IUserProfileSe, UserProfileSe>();
                     services.AddScoped<IFoRe, FoRe>();
                     services.AddScoped<IFoSe, FoSe>();
+                    services.AddScoped<IAuthSe, AuthSe>();
                 });
 
     }
