@@ -104,6 +104,7 @@ namespace TimelineAPI
                     services.AddScoped<IFoRe, FoRe>();
                     services.AddScoped<IFoSe, FoSe>();
                     services.AddScoped<IAuthSe, AuthSe>();
+                    services.AddScoped<IAuthRe, AuthRe>();
                 });
 
     }

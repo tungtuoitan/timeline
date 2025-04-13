@@ -6,12 +6,14 @@ using System.Threading.Tasks;
 
 namespace TLMos.Mos
 {
-    public class UserModel
+    public class LoginSignUpModel
     {
         public string Email { get; set; }
         public string? FirstName { get; set; }
         public string? LastName { get; set; }
         public string? Token { get; set; }
         public DateTime? Expire { get; set; }
+        public string? Type { get; set; } // "loginDefault" | "signupDefault" | "loginByGoogle
+
     }
 }

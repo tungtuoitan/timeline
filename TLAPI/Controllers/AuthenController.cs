@@ -1,9 +1,11 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
+using PLMModels.DTOs;
 using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using TLMos.DTOs;
 using TLMos.Mos;
 using UserProfileDataSes.Ins;
 
@@ -22,12 +24,12 @@ namespace TimelineAPI.Controllers
             _authService = authSe;
         }
 
-        [HttpPost("getBackendToken")]
+        [HttpPost("loginSignup")]
         public async Task<IActionResult> Login([FromBody] UserModel model)
         {
             try
             {
-                UserModel res = await _authService.GenerateJwtToken(model);
+                ResultOptions2<UserModel> res = await _authService.IuUser(model);
                 return Ok(res);
             }
             catch (Exception ex)
