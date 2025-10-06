@@ -1,80 +1,121 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.IdentityModel.Tokens;
-using System;
-using System.IdentityModel.Tokens.Jwt;
-using System.Linq;
-using System.Text;
+﻿using System;
 using System.Threading.Tasks;
-
+using Microsoft.AspNetCore.Http;
+using Google.Apis.Auth;
+using Microsoft.Extensions.Logging;
+using Microsoft.SqlServer.Server;
 
 namespace TLAPI.Middlewares
 {
-
-    public class TokenValidationMiddleware
+    public class GoogleTokenValidationMiddleware
     {
         private readonly RequestDelegate _next;
         private readonly IConfiguration _config;
+        private readonly ILogger<GoogleTokenValidationMiddleware> _logger;
 
-        public TokenValidationMiddleware(RequestDelegate next, IConfiguration config)
+        public GoogleTokenValidationMiddleware(
+            RequestDelegate next, 
+            IConfiguration config,
+            ILogger<GoogleTokenValidationMiddleware> logger)
         {
             _next = next;
             _config = config;
+            _logger = logger;
         }
 
         public async Task InvokeAsync(HttpContext context)
         {
-            context.Request.Headers.TryGetValue("Referer", out var refererHeader);
 
-            if ((!String.IsNullOrEmpty(refererHeader) && refererHeader.ToString().Contains("swagger")) ||
-                context.Request.Path.Value.Contains("login") ||
-                context.Request.Path.Value.Contains("getBackendToken")
-            ) 
+            string path = context.Request.Path.Value;
+            if (!string.IsNullOrEmpty(path) && 
+                path.Contains("loginSignup", StringComparison.OrdinalIgnoreCase) ||
+                path.Contains("loginSignup2", StringComparison.OrdinalIgnoreCase)
+                )
             {
-                await _next(context); // Bỏ qua middleware nếu là API login
+                _logger.LogInformation("Skipping authentication for URL: {Path}", path);
+                await _next(context); // Skip authentication
                 return;
             }
-            var token = context.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
-
-            if (token == null || !ValidateToken(token))
+            // Check for the Authorization header
+            if (!context.Request.Headers.ContainsKey("Authorization"))
             {
+                _logger.LogWarning("Authorization header missing.");
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsync("Unauthorized: Invalid token.");
+                await context.Response.WriteAsync("Authorization header is required.");
                 return;
             }
 
-            await _next(context);
-        }
+            // Extract the token from the Authorization header
+            string authHeader = context.Request.Headers["Authorization"].ToString();
+            if (!authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Invalid Authorization header format. Expected 'Bearer <token>'.");
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsync("Invalid Authorization header format.");
+                return;
+            }
 
-        private bool ValidateToken(string token)
-        {
-            var jwtSettings = _config.GetSection("Jwt");
+            string token = authHeader.Substring("Bearer ".Length).Trim();
+
             try
             {
-                var tokenHandler = new JwtSecurityTokenHandler();
-                var key = Encoding.UTF8.GetBytes(jwtSettings["Key"]);
-                tokenHandler.ValidateToken(token, new TokenValidationParameters
-                {
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(key),
-                    ValidateIssuer = false,
-                    ValidateAudience = false,
-                    ClockSkew = TimeSpan.Zero
-                }, out _);
+                // Validate the Google ID token
+                GoogleJsonWebSignature.Payload payload = await GoogleJsonWebSignature.ValidateAsync(token);
 
-                return true;
+                // Optionally, verify audience (client ID) to ensure token is intended for your app
+                string expectedClientId = _config["OAuth:ClientId"];
+                if (!payload.Audience.Equals(expectedClientId))
+                {
+                    _logger.LogWarning("Invalid audience in token.");
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    await context.Response.WriteAsync("Invalid token audience.");
+                    return;
+                }
+
+                // Optionally, check token expiration
+                if (payload.ExpirationTimeSeconds.HasValue)
+                {
+                    var expiration = DateTimeOffset.FromUnixTimeSeconds(payload.ExpirationTimeSeconds.Value);
+                    if (expiration < DateTimeOffset.UtcNow)
+                    {
+                        _logger.LogWarning("Token has expired.");
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        await context.Response.WriteAsync("Token has expired.");
+                        return;
+                    }
+                }
+
+                // Store payload in HttpContext for downstream use (e.g., user info)
+                context.Items["GooglePayload"] = payload;
+
+                _logger.LogInformation("Token validated successfully for user: {UserId}", payload.Subject);
+
+                // Call the next middleware in the pipeline
+                await _next(context);
             }
-            catch
+            catch (InvalidJwtException ex)
             {
-                return false;
+                _logger.LogError(ex, "Failed to validate Google token.");
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsync("Invalid token.");
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error during token validation.");
+                context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                await context.Response.WriteAsync("Internal server error.");
+                return;
             }
         }
-       
     }
-    public static class TokenValidationExtensions
+
+    // Extension method to register the middleware
+    public static class GoogleTokenValidationMiddlewareExtensions
     {
-        public static IApplicationBuilder UseTokenValidation(this IApplicationBuilder builder)
+        public static IApplicationBuilder UseGoogleTokenValidation(this IApplicationBuilder builder)
         {
-            return builder.UseMiddleware<TokenValidationMiddleware>();
+            return builder.UseMiddleware<GoogleTokenValidationMiddleware>();
         }
     }
 }

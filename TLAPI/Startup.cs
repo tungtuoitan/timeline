@@ -41,6 +41,16 @@ namespace TimelineAPI
             services.AddMemoryCache();
 
             services.AddControllers();
+            services.AddHttpClient();
+            //services.AddCors(options =>
+            //{
+            //    options.AddPolicy("AllowReactApp", policy =>
+            //    {
+            //        policy.WithOrigins("http://localhost:3000")
+            //              .AllowAnyHeader()
+            //              .AllowAnyMethod();
+            //    });
+            //});
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "Timeline", Version = "v1" });
@@ -112,11 +122,12 @@ namespace TimelineAPI
 
             app.UseRouting();
 
-            app.UseAuthentication();
-            app.UseAuthorization();
+            //app.UseAuthentication();
+            //app.UseAuthorization();
 
             app.UseSession(); // thêm middleware để quản lí session
-            app.UseTokenValidation();
+            // TEMPORARILY DISABLED: Google Token validation middleware
+            // app.UseGoogleTokenValidation();
 
             // thêm middleware cho quản lí session
             app.UseExceptionHandler(a => a.Run(async context =>
@@ -149,6 +160,9 @@ namespace TimelineAPI
             }));
 
 
+
+
+            //app.UseAuthorization();
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
@@ -157,6 +171,7 @@ namespace TimelineAPI
                     await context.Response.WriteAsync("Welcome to Timeline API");
                 });
             });
+            app.UseCors("AllowReactApp");
         }
     }
 }

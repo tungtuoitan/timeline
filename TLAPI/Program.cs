@@ -65,22 +65,6 @@ namespace TimelineAPI
                     var jwtSettings = hostContext.Configuration.GetSection("Jwt");
                     var key = Encoding.UTF8.GetBytes(jwtSettings["Key"]);
 
-                    services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                        .AddJwtBearer(options =>
-                        {
-                            options.TokenValidationParameters = new TokenValidationParameters
-                            {
-                                ValidateIssuerSigningKey = true,
-                                IssuerSigningKey = new SymmetricSecurityKey(key),
-                                ValidateIssuer = true,
-                                ValidIssuer = jwtSettings["Issuer"],
-                                ValidateAudience = true,
-                                ValidAudience = jwtSettings["Audience"],
-                                ValidateLifetime = true,
-                                ClockSkew = TimeSpan.Zero // Không cho phép thời gian trễ
-                            };
-                        });
-
                     services.AddDistributedMemoryCache();
                     services.AddSession(o =>
                     {
