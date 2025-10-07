@@ -1,21 +1,12 @@
-﻿
-using TLDataSes.Ins;
+﻿using TLDataSes.Ins;
 using TLDataSes.Ses;
 using TLDataRes.Ins;
 using TLDataRes.Res;
 using Serilog;
-using PRDataRes.Res;
-using PRDataRes.Ins;
-using PRDataSes.Ins;
-using PRDataSes.Ses;
 using UserProfileDataRes.Ins;
 using UserProfileDataSes.Ins;
 using UserProfileDataRes.Res;
 using UserProfileDataSes.Ses;
-using FoDataRes.Ins;
-using FoDataRes.Res;
-using FoDataSes.Ins;
-using FoDataSes.Ses;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using System.Text;
@@ -75,20 +66,12 @@ namespace TimelineAPI
 
                     services.AddHttpContextAccessor();
 
-                    services.AddScoped<IEvRe, EvRe>();
-                    services.AddScoped<IEvSe, EvSe>();
-                    services.AddScoped<ISRsSe, SRsSe>();
-                    services.AddScoped<ISRsRe, SRsRe>();
-                    services.AddScoped<IPrRe, PrRe>();
-                    services.AddScoped<IPRSe, PrSe>();
-                    services.AddScoped<IPrFilterRe, PrFilterRe>();
-                    services.AddScoped<IPrFilterSe, PrFilterSe>();
                     services.AddScoped<IUserProfileRe, UserProfileRe>();
                     services.AddScoped<IUserProfileSe, UserProfileSe>();
-                    services.AddScoped<IFoRe, FoRe>();
-                    services.AddScoped<IFoSe, FoSe>();
                     services.AddScoped<IAuthSe, AuthSe>();
                     services.AddScoped<IAuthRe, AuthRe>();
+                    services.AddScoped<INoteRe, NoteRe>();
+                    services.AddScoped<INoteSe, NoteSe>();
                 });
 
     }

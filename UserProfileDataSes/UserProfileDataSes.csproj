@@ -22,7 +22,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\PRDataRes\PRDataRes.csproj" />
     <ProjectReference Include="..\TLDataRes\TLDataRes.csproj" />
     <ProjectReference Include="..\TLModels\TLMos.csproj" />
     <ProjectReference Include="..\UserProfileDataRes\UserProfileDataRes.csproj" />
