@@ -5,7 +5,7 @@ using SuperAppModels.Mos;
 
 namespace UserProfileDataServices.Ins
 {
-    public interface IAuthSe
+    public interface IAuthService
     {
         Task<ResultOptions2<UserModel>> IuUser(UserModel model);
         Task<ResultOptions2<List<UserModel>>> GetUsers();

@@ -10,7 +10,7 @@ using SuperAppModels.Mos;
 
 namespace UserProfileDataRepositories.Ins
 {
-    public interface IAuthRe
+    public interface IAuthRepository
     {
         Task<ResultOptions2<UserModel>> IuUser(UserModel User);
         Task<ResultOptions2<List<UserModel>>> GetUsers();

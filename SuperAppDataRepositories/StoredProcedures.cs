@@ -7,5 +7,6 @@
         public static string spSelectStandardRegistries=> "[dbo].[usp_s_SRs]";
         public static string spSelectNotes=> "[dbo].[usp_s_Notes]";
         public static string spInsertUpdateNote=> "[dbo].[usp_iu_Note]";
+        public static string spDeleteNote=> "[dbo].[usp_d_Note]";
     }
 }

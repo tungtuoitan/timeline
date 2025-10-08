@@ -1,34 +1,74 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using SuperAppModels.Mos;
 using SuperAppModels.DTOs;
-using UserProfileDataServices.Ins;
-
+using UserProfileDataRepositories.Ins;
 
 namespace SuperAppAPI.Controllers
 {
+    // [Authorize]  // Temporarily commented out - Require authentication for all endpoints
     [ApiController]
-    [Route("[controller]")]
-    public class UserProfileController : Controller
+    [Route("api/[controller]")]
+    public class UserProfileController : ControllerBase
     {
-        private readonly IUserProfileSe _XSe;
+        private readonly IUserProfileRepositoy _repository;
         private readonly ILogger<UserProfileController> _logger;
-        public UserProfileController(IUserProfileSe XSe, ILogger<UserProfileController> logger)
+
+        public UserProfileController(
+            IUserProfileRepositoy repository,
+            ILogger<UserProfileController> logger)
         {
-            _XSe = XSe;
+            _repository = repository;
             _logger = logger;
         }
 
-        [HttpGet("GetUserProfileJson")]
-        public async Task<UserProfile> GetUserProfileJson(string email, string appC)
+        /// <summary>
+        /// Get user profile as JSON
+        /// </summary>
+        [HttpGet]
+        [ProducesResponseType(typeof(UserProfile), 200)]
+        public async Task<ActionResult<UserProfile>> GetUserProfile(
+            [FromQuery] string email,
+            [FromQuery] string appC)
         {
-            var userProfile = await _XSe.GetUserProfileJson(email, appC);
-            return userProfile;
+            _logger.LogInformation("Getting user profile for email: {Email}", email);
+
+            var userProfile = await _repository.GetUserProfileJson(email, appC);
+
+            return Ok(userProfile);
         }
 
-        [HttpPost("IuUserProfile")]
-        public async Task<ResultOptions> IuUserProfile([FromForm] string email, [FromForm] string appC, [FromForm] string userProfileJson)
+        /// <summary>
+        /// Update user profile
+        /// </summary>
+        [HttpPut]
+        [ProducesResponseType(typeof(ResultOptions), 200)]
+        [ProducesResponseType(400)]
+        public async Task<ActionResult<ResultOptions>> UpdateUserProfile(
+            [FromBody] UpdateUserProfileRequest request)
         {
-            return await _XSe.IuUserProfile(email, appC, userProfileJson);
+            _logger.LogInformation("Updating user profile for email: {Email}", request.Email);
+
+            var result = await _repository.IuUserProfile(
+                request.Email,
+                request.AppC,
+                request.UserProfileJson);
+
+            if (result.Success)
+            {
+                return Ok(result);
+            }
+            else
+            {
+                return BadRequest(result);
+            }
         }
+    }
+
+    public class UpdateUserProfileRequest
+    {
+        public string Email { get; set; } = string.Empty;
+        public string AppC { get; set; } = string.Empty;
+        public string UserProfileJson { get; set; } = string.Empty;
     }
 }

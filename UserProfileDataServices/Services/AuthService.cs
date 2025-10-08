@@ -16,14 +16,14 @@ using UserProfileDataRepositories;
 using Newtonsoft.Json.Linq;
 namespace UserProfileDataServices.Services
 {
-    public class AuthSe: IAuthSe
+    public class AuthService: IAuthService
     {
-        private readonly IAuthRe _XRepo;
+        private readonly IAuthRepository _XRepository;
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IConfiguration _config;
-        public AuthSe(IAuthRe XRepo, IHttpContextAccessor httpContextAccessor, IConfiguration config)
+        public AuthService(IAuthRepository XRepository, IHttpContextAccessor httpContextAccessor, IConfiguration config)
         {
-            _XRepo = XRepo;
+            _XRepository = XRepository;
             _httpContextAccessor = httpContextAccessor;
             _config = config;
         }
@@ -48,7 +48,7 @@ namespace UserProfileDataServices.Services
                             };
                         }
 
-                        ResultOptions2<UserModel> res = await _XRepo.IuUser(model);
+                        ResultOptions2<UserModel> res = await _XRepository.IuUser(model);
                         string token = GenerateJwtToken(model);
                         res.Data.Token = token;
                         return res;
@@ -59,7 +59,7 @@ namespace UserProfileDataServices.Services
                         UserModel? existUser = list.FirstOrDefault(u => u.Email == model.Email && model.Email != null || u.Phone == model.Phone && model.Phone != null);
                         if (existUser == null)
                         {
-                            ResultOptions2<UserModel> res = await _XRepo.IuUser(model);
+                            ResultOptions2<UserModel> res = await _XRepository.IuUser(model);
                         }
 
                         string token = GenerateJwtToken(model);
@@ -90,7 +90,7 @@ namespace UserProfileDataServices.Services
                             };
                         }
                         
-                        if(Helpers.HashPassword(model.Password ?? "") == existUser.Password)
+                        if(Helpers.VerifyPassword(model.Password ?? "", existUser.Password))
                         {
                             string token = GenerateJwtToken(model);
                             return new ResultOptions2<UserModel>
@@ -170,7 +170,7 @@ namespace UserProfileDataServices.Services
         }
         public async Task<ResultOptions2<List<UserModel>>> GetUsers()
         {
-            var res = await _XRepo.GetUsers();
+            var res = await _XRepository.GetUsers();
             return res;
         }
 

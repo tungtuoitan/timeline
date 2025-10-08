@@ -2,6 +2,8 @@
 using SuperAppDataServices.Services;
 using SuperAppDataRepositories.Ins;
 using SuperAppDataRepositories.Repositories;
+using SuperAppDataRepositories.Data;
+using SuperApp.Application.Common.Mappings;
 using Serilog;
 using UserProfileDataRepositories.Ins;
 using UserProfileDataServices.Ins;
@@ -12,6 +14,8 @@ using Microsoft.AspNetCore.Authentication.Google;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using System.Reflection;
+using AutoMapper;
 
 
 namespace SuperAppAPI
@@ -66,14 +70,49 @@ namespace SuperAppAPI
 
                     services.AddHttpContextAccessor();
 
-                    services.AddScoped<IUserProfileRe, UserProfileRe>();
-                    services.AddScoped<IUserProfileSe, UserProfileSe>();
-                    services.AddScoped<IAuthSe, AuthSe>();
-                    services.AddScoped<IAuthRe, AuthRe>();
-                    services.AddScoped<INoteRe, NoteRe>();
-                    services.AddScoped<INoteSe, NoteSe>();
-                    services.AddScoped<IStandardRegistryService, StandardRegistryService>();
+                    // Configure JWT Authentication
+                    services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                        .AddJwtBearer(options =>
+                        {
+                            options.TokenValidationParameters = new TokenValidationParameters
+                            {
+                                ValidateIssuerSigningKey = true,
+                                IssuerSigningKey = new SymmetricSecurityKey(key),
+                                ValidateIssuer = false,
+                                ValidateAudience = false,
+                                ValidateLifetime = true,
+                                ClockSkew = TimeSpan.Zero
+                            };
+                        });
+
+                    services.AddAuthorization();
+
+                    // Register MediatR
+                    services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(SuperApp.Application.Features.Notes.Queries.GetNotes.GetNotesQuery).Assembly));
+
+                    // Register AutoMapper
+                    var mapperConfig = new AutoMapper.MapperConfiguration(mc =>
+                    {
+                        mc.AddProfile(new MappingProfile());
+                    });
+                    IMapper mapper = mapperConfig.CreateMapper();
+                    services.AddSingleton(mapper);
+
+                    // Register Connection Factory
+                    services.AddScoped<IConnectionFactory, ConnectionFactory>();
+
+                    // Register Repositories (keeping these for now as they're used by CQRS handlers)
+                    services.AddScoped<IUserProfileRepositoy, UserProfileRepository>();
+                    services.AddScoped<IAuthRepository, AuthRepository>();
+                    services.AddScoped<INoteRepository, NoteRepository>();
                     services.AddScoped<IStandardRegistryRepository, StandardRegistryRepository>();
+
+                    // Register Services (only keeping what's still needed - gradually phase these out)
+                    services.AddScoped<IUserProfileSe, UserProfileSe>();
+                    services.AddScoped<IAuthService, AuthService>();
+                    services.AddScoped<IStandardRegistryService, StandardRegistryService>();
+
+                    // Note: Removed INoteSe registration as we're using CQRS for Notes now
                 });
 
     }

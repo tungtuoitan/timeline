@@ -1,26 +1,39 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using SuperAppModels.Mos;
-using SuperAppDataServices.Ins;
-
+using SuperAppDataRepositories.Ins;
 
 namespace SuperAppAPI.Controllers
 {
+    //[Authorize]  // Temporarily commented out - Require authentication for all endpoints
     [ApiController]
-    [Route("[controller]")]
-    public class StandardRegistryController : Controller
+    [Route("api/[controller]")]
+    public class StandardRegistryController : ControllerBase
     {
-        private readonly IStandardRegistryService _StandardRegistryService;
-        
-        public StandardRegistryController(IStandardRegistryService XSe)
+        private readonly IStandardRegistryRepository _repository;
+        private readonly ILogger<StandardRegistryController> _logger;
+
+        public StandardRegistryController(
+            IStandardRegistryRepository repository,
+            ILogger<StandardRegistryController> logger)
         {
-            _StandardRegistryService = XSe;
+            _repository = repository;
+            _logger = logger;
         }
 
-        [HttpGet("GetStandardRegistries")]
-        public async Task<List<StandardRegistry>> GetStandardRegistries(string? type)
+        /// <summary>
+        /// Get standard registry entries by type
+        /// </summary>
+        [HttpGet]
+        [ProducesResponseType(typeof(List<StandardRegistry>), 200)]
+        public async Task<ActionResult<List<StandardRegistry>>> GetStandardRegistries(
+            [FromQuery] string? type = null)
         {
-            var sr = await _StandardRegistryService.GetStandardRegistries(type);
-            return sr;
+            _logger.LogInformation("Getting standard registries. Type: {Type}", type);
+
+            var registries = await _repository.GetStandardRegistries(type);
+
+            return Ok(registries);
         }
     }
 }

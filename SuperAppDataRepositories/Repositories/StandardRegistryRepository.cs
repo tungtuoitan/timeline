@@ -1,58 +1,37 @@
-﻿using System.Data;
+using System.Data;
 using SuperAppModels.Mos;
-using DbDataReaderMapper;
-using SuperAppDataRepositories.Ins;
-using SuperAppModels.DTOs;
-using System.Collections.Generic;
 using System.Data.SqlClient;
-using SuperAppDataRepositories.Extensions;
+using Microsoft.Extensions.Logging;
+using SuperAppDataRepositories.Ins;
+using SuperAppDataRepositories.Data;
 
 namespace SuperAppDataRepositories.Repositories
 {
-    public class StandardRegistryRepository : IStandardRegistryRepository
-
-
+    public class StandardRegistryRepository : BaseRepository, IStandardRegistryRepository
     {
+        public StandardRegistryRepository(ILogger<StandardRegistryRepository> logger, IConnectionFactory connectionFactory)
+            : base(connectionFactory, logger)
+        {
+        }
+
         public async Task<List<StandardRegistry>> GetStandardRegistries(string? type)
         {
-            try
-            {
-                List<StandardRegistry> list = new();
-
-                using (var conn = await OpenedConnection.Create(ApplicationSettings.SuperAppConnectionString))
-                using (var command = conn.CreateCommand())
+            return await ExecuteStoredProcedureAsync(
+                StoredProcedures.spSelectStandardRegistries,
+                addParameters: async (command) =>
                 {
-                    command.CommandText = StoredProcedures.spSelectStandardRegistries;
-                    command.CommandType = CommandType.StoredProcedure;
-                    command.CommandTimeout = 1200; // 20 minutes
-
-                    // Clear any previous parameters
-                    command.Parameters.Clear();
-
-                    if(type != null)
+                    if (type != null)
                     {
                         command.Parameters.Add(new SqlParameter("@Type", SqlDbType.Structured)
                         {
                             Value = type
                         });
-
                     }
-
-                    using (var reader = await command.ExecuteReaderAsync())
-                    {
-                        while (await reader.ReadAsync())
-                        {
-                            var standardRegistry = reader.MapToObject<StandardRegistry>();
-                            list.Add(standardRegistry);
-                        }
-                    }
-                }
-                return list;
-            }
-            catch (Exception)
-            {
-                throw;
-            }
+                    await Task.CompletedTask;
+                },
+                mapResult: MapToListAsync<StandardRegistry>,
+                useSuperAppConnection: true
+            );
         }
     }
 }

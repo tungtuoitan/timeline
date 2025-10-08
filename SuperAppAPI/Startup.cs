@@ -54,6 +54,31 @@ namespace SuperAppAPI
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "SuperApp", Version = "v1" });
+                
+                // Add JWT Authentication to Swagger
+                c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+                {
+                    Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+                    Name = "Authorization",
+                    In = ParameterLocation.Header,
+                    Type = SecuritySchemeType.ApiKey,
+                    Scheme = "Bearer"
+                });
+
+                c.AddSecurityRequirement(new OpenApiSecurityRequirement
+                {
+                    {
+                        new OpenApiSecurityScheme
+                        {
+                            Reference = new OpenApiReference
+                            {
+                                Type = ReferenceType.SecurityScheme,
+                                Id = "Bearer"
+                            }
+                        },
+                        Array.Empty<string>()
+                    }
+                });
             });
             services.AddLogging(config =>
             {
@@ -122,48 +147,14 @@ namespace SuperAppAPI
 
             app.UseRouting();
 
-            //app.UseAuthentication();
-            //app.UseAuthorization();
+            // Global Exception Handler - Must be early in the pipeline
+            app.UseGlobalExceptionHandler();
 
-            app.UseSession(); // thêm middleware để quản lí session
-            // TEMPORARILY DISABLED: Google Token validation middleware
-            // app.UseGoogleTokenValidation();
+            app.UseSession(); // Session management middleware
 
-            // thêm middleware cho quản lí session
-            app.UseExceptionHandler(a => a.Run(async context =>
-            {
-                var error = context.Features.Get<IExceptionHandlerFeature>().Error;
-                var problem = new ProblemDetails { Title = "Critical Error" };
-                if (error != null)
-                {
-                    if (env.IsDevelopment())
-                    {
-                        problem.Title = error.Message;
-                        problem.Detail = error.StackTrace;
-                    }
-                    else
-                        problem.Detail = error.Message;
-
-                    // get session name
-                    string name = string.Empty;
-                    if (context.Session.TryGetValue("email", out byte[] nameBytes))
-                    {
-                        name = Encoding.UTF8.GetString(nameBytes);
-                    }
-
-                    // appsettings, timezone
-                    string baseTimezone = System.OperatingSystem.IsWindows() ? Configuration.GetValue<string>("appSettings:timezone") : Configuration.GetValue<string>("appSettings:timezone2");
-                }
-
-                await context.Response.WriteAsJsonAsync(problem);
-
-            }));
-
-
-
-
-
-            //app.UseAuthorization();
+            // Authentication and Authorization - MUST be in this order and after routing
+            app.UseAuthentication();  // Must come before UseAuthorization
+            app.UseAuthorization();
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();

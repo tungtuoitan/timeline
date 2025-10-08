@@ -8,9 +8,10 @@ using SuperAppModels.DTOs;
 
 namespace SuperAppDataRepositories.Ins
 {
-    public interface INoteRe
+    public interface INoteRepository
     {
         Task<List<Note>> GetNotes(bool getAll = false, string? searchText = null, string? types = null, string? tags = null, string? createdBy = null);
         Task<NotesResult> IuNote(Note note);
+        Task<bool> DNote(int noteId);
     }
 }

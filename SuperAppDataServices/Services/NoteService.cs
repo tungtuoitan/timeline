@@ -6,26 +6,26 @@ using SuperAppModels.DTOs;
 
 namespace SuperAppDataServices.Services
 {
-    public class NoteSe : INoteSe
+    public class NoteService : INoteSe
     {
-        private readonly INoteRe _noteRepo;
+        private readonly INoteRepository _noteRepository;
         private readonly IHttpContextAccessor _httpContextAccessor;
         
-        public NoteSe(INoteRe noteRepo, IHttpContextAccessor httpContextAccessor)
+        public NoteService(INoteRepository noteRepo, IHttpContextAccessor httpContextAccessor)
         {
-            _noteRepo = noteRepo;
+            _noteRepository = noteRepo;
             _httpContextAccessor = httpContextAccessor;
         }
         
         public async Task<List<Note>> GetNotes(bool getAll = false, string? searchText = null, string? types = null, string? tags = null, string? createdBy = null)
         {
-            List<Note> notes = await _noteRepo.GetNotes(getAll, searchText, types, tags, createdBy);
+            List<Note> notes = await _noteRepository.GetNotes(getAll, searchText, types, tags, createdBy);
             return notes;
         }
 
         public async Task<NotesResult> IuNote(Note note)
         {
-            return await _noteRepo.IuNote(note);
+            return await _noteRepository.IuNote(note);
         }
     }
 }

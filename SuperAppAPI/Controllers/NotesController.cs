@@ -1,47 +1,103 @@
+using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SuperAppModels.Mos;
-using SuperAppDataServices.Ins;
-using SuperAppModels.DTOs;
+using SuperApp.Application.Features.Notes.Commands.CreateNote;
+using SuperApp.Application.Features.Notes.Commands.DeleteNote;
+using SuperApp.Application.Features.Notes.Commands.UpdateNote;
+using SuperApp.Application.Features.Notes.Queries.GetNotes;
+using SuperAppModels.DTOs.Requests;
+using SuperAppModels.DTOs.Responses;
 
 namespace SuperAppAPI.Controllers
 {
+    //[Authorize]  // Temporarily commented out - Require authentication for all endpoints
     [ApiController]
-    [Route("[controller]")]
-    public class NotesController : Controller
+    [Route("api/[controller]")]
+    public class NotesController : ControllerBase
     {
-        private readonly INoteSe _noteSe;
+        private readonly IMediator _mediator;
         private readonly ILogger<NotesController> _logger;
-        
-        public NotesController(INoteSe noteSe, ILogger<NotesController> logger)
+
+        public NotesController(IMediator mediator, ILogger<NotesController> logger)
         {
-            _noteSe = noteSe;
+            _mediator = mediator;
             _logger = logger;
         }
 
-        [HttpGet("GetNotes")]
-        public async Task<List<Note>> GetNotes(
-            bool getAll = false,
-            string? searchText = null,
-            string? types = null,
-            string? tags = null,
-            string? createdBy = null)
+        /// <summary>
+        /// Get all notes with optional filtering
+        /// </summary>
+        [HttpGet]
+        [ProducesResponseType(typeof(List<NoteResponse>), 200)]
+        public async Task<ActionResult<List<NoteResponse>>> GetNotes(
+            [FromQuery] bool getAll = false,
+            [FromQuery] string? searchText = null)
         {
-            var notes = await _noteSe.GetNotes(getAll, searchText, types, tags, createdBy);
-            return notes;
+            _logger.LogInformation("Getting notes. GetAll: {GetAll}, SearchText: {SearchText}", getAll, searchText);
+
+            var query = new GetNotesQuery(getAll, searchText);
+            var response = await _mediator.Send(query);
+
+            return Ok(response);
         }
 
-        [HttpPost("IuNote")]
-        public async Task<IActionResult> IuNote([FromForm] Note note)
+        /// <summary>
+        /// Create a new note
+        /// </summary>
+        [HttpPost]
+        [ProducesResponseType(typeof(NoteResponse), 201)]
+        [ProducesResponseType(400)]
+        public async Task<ActionResult<NoteResponse>> CreateNote([FromBody] CreateNoteRequest request)
         {
-            NotesResult res = await _noteSe.IuNote(note);
-            if (res.Options.Success)
+            _logger.LogInformation("Creating note: {Name}", request.Name);
+
+            var command = new CreateNoteCommand(request);
+            var response = await _mediator.Send(command);
+
+            return CreatedAtAction(nameof(GetNotes), new { }, response);
+        }
+
+        /// <summary>
+        /// Update an existing note
+        /// </summary>
+        [HttpPut("{id}")]
+        [ProducesResponseType(typeof(NoteResponse), 200)]
+        [ProducesResponseType(400)]
+        [ProducesResponseType(404)]
+        public async Task<ActionResult<NoteResponse>> UpdateNote(int id, [FromBody] UpdateNoteRequest request)
+        {
+            if (id != request.NoteId)
             {
-                return Ok(res);
+                return BadRequest(new { Message = "Note ID in URL does not match request body" });
             }
-            else
+
+            _logger.LogInformation("Updating note: {NoteId}", request.NoteId);
+
+            var command = new UpdateNoteCommand(request);
+            var response = await _mediator.Send(command);
+
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Delete a note
+        /// </summary>
+        [HttpDelete("{id}")]
+        [ProducesResponseType(204)]
+        [ProducesResponseType(404)]
+        public async Task<IActionResult> DeleteNote(int id)
+        {
+            _logger.LogInformation("Deleting note: {NoteId}", id);
+
+            var command = new DeleteNoteCommand(id);
+            var success = await _mediator.Send(command);
+
+            if (success)
             {
-                return BadRequest(new NotesResult { Notes = new List<Note>(), Options = res.Options });
+                return NoContent();
             }
+            
+            return NotFound(new { Message = $"Note with ID {id} not found" });
         }
     }
 }
