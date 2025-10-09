@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using SuperApp.Application.Features.Authentication.Commands.GoogleAuth;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs.Responses;
+using UserProfileDataRepositories.Ins;
 
 namespace SuperApp.Application.Features.Authentication.Commands.GoogleAuth
 {
@@ -28,7 +29,7 @@ namespace SuperApp.Application.Features.Authentication.Commands.GoogleAuth
 
                 var result = await _authRepository.GoogleAuthAsync(request.Request);
 
-                if (result != null && !string.IsNullOrEmpty(result.Token))
+                if (result != null && result.Success && result.User != null && !string.IsNullOrEmpty(result.User.Token))
                 {
                     _logger.LogInformation("Google authentication successful");
                     return result;

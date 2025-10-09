@@ -11,8 +11,7 @@ namespace UserProfileDataRepositories.Ins
         Task<UserProfile> UpdateUserProfileAsync(UserProfile userProfile);
         Task<bool> DeleteUserProfileAsync(int id);
         
-        // Legacy methods for backward compatibility
-        Task<UserProfile> GetUserProfileJson(string email, string appC);
-        Task<ResultOptions> IuUserProfile(string email, string appC, string json);
+        // Legacy method for backward compatibility
+        Task<ResultOptions?> IuUserProfile(string email, string appC, string jsonProfile);
     }
 }

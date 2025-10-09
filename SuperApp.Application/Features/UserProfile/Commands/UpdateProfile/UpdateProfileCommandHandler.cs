@@ -31,8 +31,9 @@ namespace SuperApp.Application.Features.UserProfile.Commands.UpdateProfile
                 _logger.LogInformation("Updating user profile for user: {Email}", request.UserEmail);
 
                 var userProfile = _mapper.Map<SuperAppModels.Models.UserProfile>(request.Request);
+                userProfile.Email = request.UserEmail; // Ensure email is set
                 
-                var result = await _userProfileRepository.IuUserProfile(userProfile, request.UserEmail);
+                var result = await _userProfileRepository.UpdateUserProfileAsync(userProfile);
 
                 if (result != null)
                 {

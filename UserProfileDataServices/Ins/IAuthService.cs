@@ -1,7 +1,6 @@
-
 using PLMModels.DTOs;
 using SuperAppModels.DTOs;
-using SuperAppModels.Mos;
+using SuperAppModels.Models;
 
 namespace UserProfileDataServices.Ins
 {
@@ -9,6 +8,5 @@ namespace UserProfileDataServices.Ins
     {
         Task<ResultOptions2<UserModel>> IuUser(UserModel model);
         Task<ResultOptions2<List<UserModel>>> GetUsers();
-
     }
 }

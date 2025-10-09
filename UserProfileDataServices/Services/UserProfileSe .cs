@@ -1,5 +1,4 @@
-﻿
-using SuperAppModels.Mos;
+﻿using SuperAppModels.Models;
 using SuperAppModels.DTOs;
 using Microsoft.AspNetCore.Http;
 using UserProfileDataServices.Ins;
@@ -9,21 +8,33 @@ namespace UserProfileDataServices.Services
 {
     public class UserProfileSe: IUserProfileSe
     {
-        private readonly IUserProfileRepositoy _XRepository;
+        private readonly IUserProfileRepository _userProfileRepository;
         private readonly IHttpContextAccessor _httpContextAccessor;
-        public UserProfileSe(IUserProfileRepositoy XRepository, IHttpContextAccessor httpContextAccessor)
+        
+        public UserProfileSe(IUserProfileRepository userProfileRepository, IHttpContextAccessor httpContextAccessor)
         {
-            _XRepository = XRepository;
+            _userProfileRepository = userProfileRepository;
             _httpContextAccessor = httpContextAccessor;
         }
-        public async Task<UserProfile> GetUserProfileJson(string email, string appC)
+        
+        public async Task<UserProfile?> GetUserProfileByEmailAsync(string email)
         {
-            UserProfile userProfile = await _XRepository.GetUserProfileJson(email, appC);
-            return userProfile;
+            return await _userProfileRepository.GetUserProfileByEmailAsync(email);
         }
-        public async Task<ResultOptions> IuUserProfile(string email, string appC, string userProfileJson)
+        
+        public async Task<UserProfile> CreateUserProfileAsync(UserProfile userProfile)
         {
-            return await _XRepository.IuUserProfile(email, appC, userProfileJson);
+            return await _userProfileRepository.CreateUserProfileAsync(userProfile);
+        }
+        
+        public async Task<UserProfile> UpdateUserProfileAsync(UserProfile userProfile)
+        {
+            return await _userProfileRepository.UpdateUserProfileAsync(userProfile);
+        }
+        
+        public async Task<bool> DeleteUserProfileAsync(int id)
+        {
+            return await _userProfileRepository.DeleteUserProfileAsync(id);
         }
     }
 }

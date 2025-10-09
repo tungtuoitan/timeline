@@ -46,47 +46,6 @@ namespace UserProfileDataRepositories.Repositories
             }
         }
 
-        public async Task<UserProfile> GetUserProfileJson(string email, string appC)
-        {
-            try
-            {
-                _logger.LogInformation("Getting user profile JSON for email: {Email}, appC: {AppC}", email, appC);
-
-                var (userProfile, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
-                    StoredProcedures.spSelectUserProfileJson,
-                    addParametersAndGetOutputs: async (command) =>
-                    {
-                        AddParameterIfNotNull(command, "@iv_Email", email);
-                        AddParameterIfNotNull(command, "@iv_AppC", appC);
-                        var userProfileJson = AddOutputParameter(command, "@ov_Json", SqlDbType.NVarChar, -1);
-                        await Task.CompletedTask;
-                        return new[] { userProfileJson };
-                    },
-                    mapResult: async (reader) =>
-                    {
-                        await Task.CompletedTask;
-                        return new UserProfile();
-                    },
-                    useSuperAppConnection: false
-                );
-
-                var jsonParam = outputParams[0];
-                var jsonString = jsonParam.Value?.ToString() ?? "";
-                if (!string.IsNullOrEmpty(jsonString))
-                {
-                    var up = JsonConvert.DeserializeObject<UserProfile>(jsonString);
-                    return up ?? new UserProfile();
-                }
-
-                return new UserProfile();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error occurred while getting user profile JSON for email: {Email}", email);
-                throw;
-            }
-        }
-
         public async Task<UserProfile> CreateUserProfileAsync(UserProfile userProfile)
         {
             try
@@ -98,19 +57,25 @@ namespace UserProfileDataRepositories.Repositories
                     throw new ArgumentException("UserProfile email cannot be null or empty", nameof(userProfile));
                 }
 
-                var (profiles, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
-                    StoredProcedures.spInsertUserProfile,
+                // Convert UserProfile to JSON string and use existing stored procedure
+                string jsonProfile = JsonConvert.SerializeObject(userProfile);
+                
+                var (_, outputParams) = await ExecuteStoredProcedureWithOutputAsync<object?>(
+                    StoredProcedures.spInsertUpdateUserProfile,
                     addParametersAndGetOutputs: async (command) =>
                     {
-                        // Set ID to 0 for new profiles
-                        userProfile.Id = 0;
-                        DataTable profileTable = userProfile.ToDataTable();
-                        AddStructuredParameter(command, "@UserProfile", profileTable);
+                        AddParameterIfNotNull(command, "@iv_Email", userProfile.Email);
+                        AddParameterIfNotNull(command, "@iv_AppC", userProfile.AppC);
+                        AddParameterIfNotNull(command, "@iv_Json", jsonProfile);
                         var errorMsg = AddOutputParameter(command, "@ov_ErrorMsg", SqlDbType.VarChar, -1);
                         await Task.CompletedTask;
                         return new[] { errorMsg };
                     },
-                    mapResult: MapToListAsync<UserProfile>,
+                    mapResult: async (reader) =>
+                    {
+                        await Task.CompletedTask;
+                        return (object?)null;
+                    },
                     useSuperAppConnection: false
                 );
 
@@ -121,13 +86,14 @@ namespace UserProfileDataRepositories.Repositories
                     throw new InvalidOperationException($"Failed to create user profile: {errorMessage}");
                 }
 
-                var createdProfile = profiles.FirstOrDefault();
+                // Return the updated profile by fetching it
+                var createdProfile = await GetUserProfileByEmailAsync(userProfile.Email);
                 if (createdProfile == null)
                 {
-                    throw new InvalidOperationException("Failed to create user profile: No profile returned from database");
+                    throw new InvalidOperationException("Failed to create user profile: Profile not found after creation");
                 }
 
-                _logger.LogInformation("Successfully created user profile with ID: {Id}", createdProfile.Id);
+                _logger.LogInformation("Successfully created user profile for email: {Email}", userProfile.Email);
                 return createdProfile;
             }
             catch (Exception ex)
@@ -141,29 +107,32 @@ namespace UserProfileDataRepositories.Repositories
         {
             try
             {
-                _logger.LogInformation("Updating user profile with ID: {Id}", userProfile.Id);
-
-                if (userProfile.Id <= 0)
-                {
-                    throw new ArgumentException("UserProfile ID must be greater than 0 for updates", nameof(userProfile));
-                }
+                _logger.LogInformation("Updating user profile for email: {Email}", userProfile.Email);
 
                 if (string.IsNullOrEmpty(userProfile.Email))
                 {
                     throw new ArgumentException("UserProfile email cannot be null or empty", nameof(userProfile));
                 }
 
-                var (profiles, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
-                    StoredProcedures.spUpdateUserProfile,
+                // Convert UserProfile to JSON string and use existing stored procedure
+                string jsonProfile = JsonConvert.SerializeObject(userProfile);
+                
+                var (_, outputParams) = await ExecuteStoredProcedureWithOutputAsync<object?>(
+                    StoredProcedures.spInsertUpdateUserProfile,
                     addParametersAndGetOutputs: async (command) =>
                     {
-                        DataTable profileTable = userProfile.ToDataTable();
-                        AddStructuredParameter(command, "@UserProfile", profileTable);
+                        AddParameterIfNotNull(command, "@iv_Email", userProfile.Email);
+                        AddParameterIfNotNull(command, "@iv_AppC", userProfile.AppC);
+                        AddParameterIfNotNull(command, "@iv_Json", jsonProfile);
                         var errorMsg = AddOutputParameter(command, "@ov_ErrorMsg", SqlDbType.VarChar, -1);
                         await Task.CompletedTask;
                         return new[] { errorMsg };
                     },
-                    mapResult: MapToListAsync<UserProfile>,
+                    mapResult: async (reader) =>
+                    {
+                        await Task.CompletedTask;
+                        return (object?)null;
+                    },
                     useSuperAppConnection: false
                 );
 
@@ -174,75 +143,20 @@ namespace UserProfileDataRepositories.Repositories
                     throw new InvalidOperationException($"Failed to update user profile: {errorMessage}");
                 }
 
-                var updatedProfile = profiles.FirstOrDefault();
+                // Return the updated profile by fetching it
+                var updatedProfile = await GetUserProfileByEmailAsync(userProfile.Email);
                 if (updatedProfile == null)
                 {
-                    throw new InvalidOperationException("Failed to update user profile: No profile returned from database");
+                    throw new InvalidOperationException("Failed to update user profile: Profile not found after update");
                 }
 
-                _logger.LogInformation("Successfully updated user profile with ID: {Id}", updatedProfile.Id);
+                _logger.LogInformation("Successfully updated user profile for email: {Email}", userProfile.Email);
                 return updatedProfile;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error occurred while updating user profile with ID: {Id}", userProfile.Id);
+                _logger.LogError(ex, "Error occurred while updating user profile for email: {Email}", userProfile.Email);
                 throw;
-            }
-        }
-
-        public async Task<ResultOptions> IuUserProfile(string email, string appC, string json)
-        {
-            try
-            {
-                _logger.LogInformation("Insert/Update user profile JSON for email: {Email}, appC: {AppC}", email, appC);
-
-                var (_, outputParams) = await ExecuteStoredProcedureWithOutputAsync<object?>(
-                    StoredProcedures.spInsertUpdateUserProfile,
-                    addParametersAndGetOutputs: async (command) =>
-                    {
-                        AddParameterIfNotNull(command, "@iv_Email", email);
-                        AddParameterIfNotNull(command, "@iv_AppC", appC);
-                        AddParameterIfNotNull(command, "@iv_Json", json);
-                        var errorMsg = AddOutputParameter(command, "@ov_ErrorMsg", SqlDbType.VarChar, -1);
-                        await Task.CompletedTask;
-                        return new[] { errorMsg };
-                    },
-                    mapResult: async (reader) =>
-                    {
-                        await Task.CompletedTask;
-                        return (object?)null;
-                    },
-                    useSuperAppConnection: false
-                );
-
-                var errorParam = outputParams[0];
-                if (!HasError(errorParam, out string errorMessage))
-                {
-                    _logger.LogInformation("Successfully updated user profile for email: {Email}", email);
-                    return new ResultOptions
-                    {
-                        Message = "Successfully update user profile",
-                        Success = true,
-                    };
-                }
-                else
-                {
-                    _logger.LogError("Error updating user profile: {ErrorMessage}", errorMessage);
-                    return new ResultOptions
-                    {
-                        Message = $"Error update user profile: {errorMessage}",
-                        Success = false,
-                    };
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error occurred while insert/update user profile for email: {Email}", email);
-                return new ResultOptions
-                {
-                    Message = $"Error update user profile: {ex.Message}",
-                    Success = false,
-                };
             }
         }
 
@@ -250,18 +164,42 @@ namespace UserProfileDataRepositories.Repositories
         {
             try
             {
-                _logger.LogInformation("Deleting user profile with ID: {Id}", id);
+                _logger.LogInformation("Delete operation not supported for user profiles with ID: {Id}", id);
+                
+                // Since there's no delete stored procedure and UserProfile doesn't have ID,
+                // we'll throw a not supported exception or return false
+                throw new NotSupportedException("Delete operation is not supported for user profiles. Use email-based operations instead.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while attempting to delete user profile with ID: {Id}", id);
+                throw;
+            }
+        }
 
-                if (id <= 0)
+        // Legacy method for backward compatibility
+        public async Task<ResultOptions?> IuUserProfile(string email, string appC, string jsonProfile)
+        {
+            try
+            {
+                _logger.LogInformation("Legacy IuUserProfile called for email: {Email}", email);
+
+                if (string.IsNullOrEmpty(email))
                 {
-                    throw new ArgumentException("UserProfile ID must be greater than 0", nameof(id));
+                    return new ResultOptions
+                    {
+                        Success = false,
+                        ErrorMessage = "Email cannot be null or empty"
+                    };
                 }
 
                 var (_, outputParams) = await ExecuteStoredProcedureWithOutputAsync<object?>(
-                    StoredProcedures.spDeleteUserProfile,
+                    StoredProcedures.spInsertUpdateUserProfile,
                     addParametersAndGetOutputs: async (command) =>
                     {
-                        command.Parameters.Add(new SqlParameter("@iv_Id", id));
+                        AddParameterIfNotNull(command, "@iv_Email", email);
+                        AddParameterIfNotNull(command, "@iv_AppC", appC);
+                        AddParameterIfNotNull(command, "@iv_Json", jsonProfile);
                         var errorMsg = AddOutputParameter(command, "@ov_ErrorMsg", SqlDbType.VarChar, -1);
                         await Task.CompletedTask;
                         return new[] { errorMsg };
@@ -277,17 +215,29 @@ namespace UserProfileDataRepositories.Repositories
                 var errorParam = outputParams[0];
                 if (HasError(errorParam, out string errorMessage))
                 {
-                    _logger.LogError("Error deleting user profile: {ErrorMessage}", errorMessage);
-                    throw new InvalidOperationException($"Failed to delete user profile: {errorMessage}");
+                    _logger.LogError("Error in legacy IuUserProfile: {ErrorMessage}", errorMessage);
+                    return new ResultOptions
+                    {
+                        Success = false,
+                        ErrorMessage = errorMessage
+                    };
                 }
 
-                _logger.LogInformation("Successfully deleted user profile with ID: {Id}", id);
-                return true;
+                _logger.LogInformation("Successfully executed legacy IuUserProfile for email: {Email}", email);
+                return new ResultOptions
+                {
+                    Success = true,
+                    Message = "User profile updated successfully"
+                };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error occurred while deleting user profile with ID: {Id}", id);
-                throw;
+                _logger.LogError(ex, "Error occurred in legacy IuUserProfile for email: {Email}", email);
+                return new ResultOptions
+                {
+                    Success = false,
+                    ErrorMessage = ex.Message
+                };
             }
         }
     }

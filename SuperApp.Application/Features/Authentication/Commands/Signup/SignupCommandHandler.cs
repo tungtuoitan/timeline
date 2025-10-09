@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using SuperApp.Application.Features.Authentication.Commands.Signup;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs.Responses;
+using UserProfileDataRepositories.Ins;
 
 namespace SuperApp.Application.Features.Authentication.Commands.Signup
 {
@@ -27,7 +28,7 @@ namespace SuperApp.Application.Features.Authentication.Commands.Signup
 
                 var result = await _authRepository.SignupAsync(request.Request);
 
-                if (result != null && !string.IsNullOrEmpty(result.Token))
+                if (result != null && result.Success && result.User != null && !string.IsNullOrEmpty(result.User.Token))
                 {
                     _logger.LogInformation("Signup successful for user: {Email}", request.Request.Email);
                     return result;

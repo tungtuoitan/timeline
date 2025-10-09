@@ -1,5 +1,5 @@
 using System.Data;
-using SuperAppModels.Mos;
+using SuperAppModels.Models;
 using Newtonsoft.Json;
 using UserProfileDataRepositories;
 

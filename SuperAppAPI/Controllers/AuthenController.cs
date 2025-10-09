@@ -7,9 +7,10 @@ using SuperAppModels.DTOs.Responses;
 using SuperAppModels.Models;
 using MediatR;
 using SuperApp.Application.Features.Authentication.Commands.Login;
-using SuperApp.Application.Features.Authentication.Commands.Register;
+using SuperApp.Application.Features.Authentication.Commands.Signup;
 using SuperApp.Application.Features.Authentication.Commands.GoogleLogin;
-using SuperApp.Application.Common.Exceptions;
+using FluentValidation;
+using ValidationException = FluentValidation.ValidationException;
 
 namespace SuperAppAPI.Controllers
 {
@@ -57,38 +58,15 @@ namespace SuperAppAPI.Controllers
 
             try
             {
-                var command = new RegisterCommand(
-                    Email: request.Email,
-                    Phone: request.Phone,
-                    Password: request.Password,
-                    FirstName: request.FirstName,
-                    LastName: request.LastName,
-                    Birthday: request.Birthday
-                );
-
+                var command = new SignupCommand(request);
                 var result = await _mediator.Send(command);
 
-                var response = new AuthResponse
-                {
-                    Success = true,
-                    Message = "User registered successfully",
-                    User = new UserData
-                    {
-                        Id = result.Id,
-                        Email = result.Email,
-                        Phone = result.Phone,
-                        FirstName = result.FirstName,
-                        LastName = result.LastName,
-                        Token = result.Token
-                    }
-                };
-
-                _logger.LogInformation("User successfully created with ID: {UserId}", result.Id);
-                return Ok(response);
+                _logger.LogInformation("User successfully created with ID: {UserId}", result.User?.Id);
+                return Ok(result);
             }
-            catch (ValidationException ex)
+            catch (System.ComponentModel.DataAnnotations.ValidationException ex)
             {
-                _logger.LogWarning("Validation failed during signup for email: {Email}, Errors: {Errors}", request.Email, string.Join(", ", ex.Errors.SelectMany(e => e.Value)));
+                _logger.LogWarning("Validation failed during signup for email: {Email}, Error: {ErrorMessage}", request.Email, ex.Message);
                 return BadRequest(new AuthResponse
                 {
                     Success = false,
@@ -139,33 +117,13 @@ namespace SuperAppAPI.Controllers
 
             try
             {
-                var command = new LoginCommand(
-                    Email: request.Email,
-                    Phone: request.Phone,
-                    Password: request.Password
-                );
-
+                var command = new LoginCommand(request);
                 var result = await _mediator.Send(command);
 
-                var response = new AuthResponse
-                {
-                    Success = true,
-                    Message = "Login successful",
-                    User = new UserData
-                    {
-                        Id = result.Id,
-                        Email = result.Email,
-                        Phone = result.Phone,
-                        FirstName = result.FirstName,
-                        LastName = result.LastName,
-                        Token = result.Token
-                    }
-                };
-
-                _logger.LogInformation("User successfully logged in with ID: {UserId}", result.Id);
-                return Ok(response);
+                _logger.LogInformation("User successfully logged in with ID: {UserId}", result.User?.Id);
+                return Ok(result);
             }
-            catch (UnauthorizedException ex)
+            catch (UnauthorizedAccessException ex)
             {
                 _logger.LogWarning("Login failed for: {Identifier}, Reason: {Message}", 
                     request.Email ?? request.Phone, ex.Message);
@@ -176,10 +134,10 @@ namespace SuperAppAPI.Controllers
                     User = null
                 });
             }
-            catch (ValidationException ex)
+            catch (System.ComponentModel.DataAnnotations.ValidationException ex)
             {
-                _logger.LogWarning("Validation failed during login for: {Identifier}, Errors: {Errors}", 
-                    request.Email ?? request.Phone, string.Join(", ", ex.Errors.SelectMany(e => e.Value)));
+                _logger.LogWarning("Validation failed during login for: {Identifier}, Error: {ErrorMessage}", 
+                    request.Email ?? request.Phone, ex.Message);
                 return BadRequest(new AuthResponse
                 {
                     Success = false,
@@ -218,34 +176,13 @@ namespace SuperAppAPI.Controllers
 
             try
             {
-                var command = new GoogleLoginCommand(
-                    IdToken: request.IdToken,
-                    Email: request.Email,
-                    FirstName: request.FirstName,
-                    LastName: request.LastName
-                );
-
+                var command = new GoogleLoginCommand(request);
                 var result = await _mediator.Send(command);
 
-                var response = new AuthResponse
-                {
-                    Success = true,
-                    Message = "Google authentication successful",
-                    User = new UserData
-                    {
-                        Id = result.Id,
-                        Email = result.Email,
-                        Phone = result.Phone,
-                        FirstName = result.FirstName,
-                        LastName = result.LastName,
-                        Token = result.Token
-                    }
-                };
-
-                _logger.LogInformation("Google user successfully authenticated with ID: {UserId}", result.Id);
-                return Ok(response);
+                _logger.LogInformation("Google user successfully authenticated with ID: {UserId}", result.User?.Id);
+                return Ok(result);
             }
-            catch (UnauthorizedException ex)
+            catch (UnauthorizedAccessException ex)
             {
                 _logger.LogWarning("Google login failed for email: {Email}, Reason: {Message}", 
                     request.Email, ex.Message);
@@ -258,8 +195,8 @@ namespace SuperAppAPI.Controllers
             }
             catch (ValidationException ex)
             {
-                _logger.LogWarning("Validation failed during Google login for email: {Email}, Errors: {Errors}", 
-                    request.Email, string.Join(", ", ex.Errors.SelectMany(e => e.Value)));
+                _logger.LogWarning("Validation failed during Google login for email: {Email}, Errors: {Errors}",
+                    request.Email, string.Join(", ", ex.Errors.Select(f => f.ErrorMessage)));
                 return BadRequest(new AuthResponse
                 {
                     Success = false,
@@ -291,7 +228,7 @@ namespace SuperAppAPI.Controllers
         [HttpPost("google/token")]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> ExchangeGoogleToken([FromBody] GoogleCodeRequest request)
         {
             _logger.LogInformation("Exchanging Google authorization code");

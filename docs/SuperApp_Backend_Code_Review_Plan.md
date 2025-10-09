@@ -178,7 +178,7 @@ Move from Models:
 
 #### 7.1 Startup Configuration
 **Files to Review:**
-- `Program.cs` – modern .NET 9 startup
+- `Program.cs` – modern .NET 8 startup
 - `Startup.cs` – legacy configuration (may need removal)
 - `appsettings.json` – configuration review
 - `appsettings.Development.json` – dev settings

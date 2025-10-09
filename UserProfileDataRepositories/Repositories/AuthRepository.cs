@@ -1,11 +1,14 @@
 using System.Data;
-using SuperAppModels.Mos;
+using SuperAppModels.Models;
 using SuperAppModels.DTOs;
+using SuperAppModels.DTOs.Requests;
+using SuperAppModels.DTOs.Responses;
 using System.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using UserProfileDataRepositories.Ins;
 using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Repositories;
+using SuperAppDataRepositories.Extensions;
 using PLMModels.DTOs;
 
 namespace UserProfileDataRepositories.Repositories
@@ -17,13 +20,78 @@ namespace UserProfileDataRepositories.Repositories
         {
         }
 
-        public async Task<ResultOptions2<UserModel>> IuUser(UserModel model)
+        // Modern interface methods
+        public async Task<AuthResponse> LoginAsync(LoginRequest request)
         {
-            var (user, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
+            // Placeholder implementation - convert to use the legacy method for now
+            var userModel = new UserModel
+            {
+                Email = request.Email,
+                Password = request.Password,
+                Type = "loginDefault"
+            };
+
+            // For now, use the legacy method and convert the response
+            // This should be refactored to use proper domain models
+            return new AuthResponse
+            {
+                Success = false,
+                Message = "Modern authentication not yet implemented - use legacy methods",
+                User = null
+            };
+        }
+
+        public async Task<AuthResponse> SignupAsync(SignupRequest request)
+        {
+            // Placeholder implementation
+            return new AuthResponse
+            {
+                Success = false,
+                Message = "Modern signup not yet implemented - use legacy methods",
+                User = null
+            };
+        }
+
+        public async Task<AuthResponse> GoogleAuthAsync(GoogleCodeRequest request)
+        {
+            // Placeholder implementation
+            return new AuthResponse
+            {
+                Success = false,
+                Message = "Google authentication not yet implemented - use legacy methods",
+                User = null
+            };
+        }
+
+        public async Task<User?> GetUserByEmailAsync(string email)
+        {
+            // Placeholder implementation
+            await Task.CompletedTask;
+            return null;
+        }
+
+        public async Task<User?> GetUserByIdAsync(int userId)
+        {
+            // Placeholder implementation
+            await Task.CompletedTask;
+            return null;
+        }
+
+        public async Task<bool> ValidateUserCredentialsAsync(string email, string password)
+        {
+            // Placeholder implementation
+            await Task.CompletedTask;
+            return false;
+        }
+
+        // Legacy methods for backward compatibility - fix parameter name to match interface
+        public async Task<ResultOptions2<UserModel>> IuUser(UserModel user)
+        {
+            var (userResult, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
                 StoredProcedures.spInsertUpdateUser,
                 addParametersAndGetOutputs: async (command) =>
                 {
-                    var table = model.ToDataTable();
+                    var table = user.ToDataTable();
                     AddStructuredParameter(command, "@User", table);
                     var msg = AddOutputParameter(command, "@ov_ErrorMsg", SqlDbType.NVarChar, -1);
                     await Task.CompletedTask;
@@ -31,18 +99,18 @@ namespace UserProfileDataRepositories.Repositories
                 },
                 mapResult: async (reader) =>
                 {
-                    UserModel user = new UserModel();
+                    UserModel userModel = new UserModel();
                     if (await reader.ReadAsync())
                     {
-                        user.Id = Convert.ToInt32(reader["Id"]);
-                        user.Email = reader["Email"] != DBNull.Value ? reader["Email"].ToString() : null;
-                        user.Phone = reader["Phone"] != DBNull.Value ? reader["Phone"].ToString() : null;
-                        user.FirstName = reader["FirstName"] != DBNull.Value ? reader["FirstName"].ToString() : null;
-                        user.LastName = reader["LastName"] != DBNull.Value ? reader["LastName"].ToString() : null;
-                        user.Birthday = reader["Birthday"] != DBNull.Value ? DateOnly.FromDateTime((DateTime)reader["Birthday"]) : null;
-                        user.Password = reader["Password"] != DBNull.Value ? reader["Password"].ToString() : null;
+                        userModel.Id = Convert.ToInt32(reader["Id"]);
+                        userModel.Email = reader["Email"] != DBNull.Value ? reader["Email"].ToString() : null;
+                        userModel.Phone = reader["Phone"] != DBNull.Value ? reader["Phone"].ToString() : null;
+                        userModel.FirstName = reader["FirstName"] != DBNull.Value ? reader["FirstName"].ToString() : null;
+                        userModel.LastName = reader["LastName"] != DBNull.Value ? reader["LastName"].ToString() : null;
+                        userModel.Birthday = reader["Birthday"] != DBNull.Value ? DateOnly.FromDateTime((DateTime)reader["Birthday"]) : null;
+                        userModel.Password = reader["Password"] != DBNull.Value ? reader["Password"].ToString() : null;
                     }
-                    return user;
+                    return userModel;
                 },
                 useSuperAppConnection: false
             );
@@ -57,7 +125,42 @@ namespace UserProfileDataRepositories.Repositories
             {
                 Message = "Sign up successfully",
                 Success = true,
-                Data = user
+                Data = userResult
+            };
+        }
+
+        public async Task<ResultOptions2<List<UserModel>>> GetUsers()
+        {
+            var users = await ExecuteStoredProcedureAsync(
+                StoredProcedures.spSelectUsers,
+                addParameters: async (command) =>
+                {
+                    await Task.CompletedTask;
+                },
+                mapResult: async (reader) =>
+                {
+                    List<UserModel> list = new();
+                    while (await reader.ReadAsync())
+                    {
+                        UserModel userModel = new();
+                        userModel.Id = Convert.ToInt32(reader["Id"]);
+                        userModel.Email = reader["Email"] != DBNull.Value ? reader["Email"].ToString() : null;
+                        userModel.Phone = reader["Phone"] != DBNull.Value ? reader["Phone"].ToString() : null;
+                        userModel.FirstName = reader["FirstName"] != DBNull.Value ? reader["FirstName"].ToString() : null;
+                        userModel.LastName = reader["LastName"] != DBNull.Value ? reader["LastName"].ToString() : null;
+                        userModel.Birthday = reader["Birthday"] != DBNull.Value ? DateOnly.FromDateTime((DateTime)reader["Birthday"]) : null;
+                        userModel.Password = reader["Password"] != DBNull.Value ? reader["Password"].ToString() : null;
+                        list.Add(userModel);
+                    }
+                    return list;
+                },
+                useSuperAppConnection: false
+            );
+
+            return new ResultOptions2<List<UserModel>>
+            {
+                Success = true,
+                Data = users
             };
         }
 
@@ -99,41 +202,6 @@ namespace UserProfileDataRepositories.Repositories
                     Success = false,
                 };
             }
-        }
-
-        public async Task<ResultOptions2<List<UserModel>>> GetUsers()
-        {
-            var users = await ExecuteStoredProcedureAsync(
-                StoredProcedures.spSelectUsers,
-                addParameters: async (command) =>
-                {
-                    await Task.CompletedTask;
-                },
-                mapResult: async (reader) =>
-                {
-                    List<UserModel> list = new();
-                    while (await reader.ReadAsync())
-                    {
-                        UserModel user = new();
-                        user.Id = Convert.ToInt32(reader["Id"]);
-                        user.Email = reader["Email"] != DBNull.Value ? reader["Email"].ToString() : null;
-                        user.Phone = reader["Phone"] != DBNull.Value ? reader["Phone"].ToString() : null;
-                        user.FirstName = reader["FirstName"] != DBNull.Value ? reader["FirstName"].ToString() : null;
-                        user.LastName = reader["LastName"] != DBNull.Value ? reader["LastName"].ToString() : null;
-                        user.Birthday = reader["Birthday"] != DBNull.Value ? DateOnly.FromDateTime((DateTime)reader["Birthday"]) : null;
-                        user.Password = reader["Password"] != DBNull.Value ? reader["Password"].ToString() : null;
-                        list.Add(user);
-                    }
-                    return list;
-                },
-                useSuperAppConnection: false
-            );
-
-            return new ResultOptions2<List<UserModel>>
-            {
-                Success = true,
-                Data = users
-            };
         }
     }
 }

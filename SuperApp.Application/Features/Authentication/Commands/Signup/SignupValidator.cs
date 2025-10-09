@@ -31,12 +31,10 @@ namespace SuperApp.Application.Features.Authentication.Commands.Signup
                 .WithMessage("Password cannot exceed 100 characters")
                 .When(x => x.Request != null);
 
-            RuleFor(x => x.Request.PhoneNumber)
-                .NotEmpty()
-                .WithMessage("Phone number is required")
+            RuleFor(x => x.Request.Phone)
                 .Matches(@"^\+?[1-9]\d{1,14}$")
                 .WithMessage("Invalid phone number format")
-                .When(x => x.Request != null);
+                .When(x => x.Request != null && !string.IsNullOrWhiteSpace(x.Request.Phone));
         }
     }
 }

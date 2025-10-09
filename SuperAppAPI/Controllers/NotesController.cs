@@ -59,7 +59,7 @@ namespace SuperAppAPI.Controllers
                 var response = await _mediator.Send(query);
 
                 _logger.LogInformation("Successfully retrieved {NoteCount} notes for user: {UserEmail}",
-                    response?.Notes?.Count ?? 0, userEmail);
+                    response?.Count ?? 0, userEmail);
 
                 return Ok(response);
             }
@@ -176,10 +176,10 @@ namespace SuperAppAPI.Controllers
 
                 _logger.LogInformation("Retrieving note {NoteId} for user: {UserEmail}", id, userEmail);
 
-                var query = new GetNotesQuery(false, null, id);
+                var query = new GetNotesQuery(false, null);
                 var response = await _mediator.Send(query);
                 
-                var note = response?.Notes?.FirstOrDefault();
+                var note = response?.FirstOrDefault();
                 if (note == null)
                 {
                     _logger.LogWarning("Note {NoteId} not found or not accessible for user: {UserEmail}", id, userEmail);
@@ -241,7 +241,7 @@ namespace SuperAppAPI.Controllers
                 }
 
                 // Ensure the ID in the URL matches the request if NoteId is provided in request
-                if (request.NoteId.HasValue && request.NoteId.Value != id)
+                if (request.NoteId !=0 && request.NoteId != id)
                 {
                     _logger.LogWarning("Note ID mismatch: URL ID {UrlId}, Request ID {RequestId}", id, request.NoteId);
                     return BadRequest(new { Message = "Note ID in URL does not match request body" });
@@ -257,7 +257,7 @@ namespace SuperAppAPI.Controllers
                 _logger.LogInformation("Updating note {NoteId} for user: {UserEmail}", id, userEmail);
 
                 // Set the NoteId in request to ensure consistency
-                if (!request.NoteId.HasValue)
+                if (request.NoteId == 0)
                 {
                     request.NoteId = id;
                 }

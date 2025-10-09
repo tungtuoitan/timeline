@@ -2,9 +2,10 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Extensions;
-using SuperAppModels.Mos;
 using SuperAppModels.DTOs;
 using UserProfileDataRepositories.Ins;
+using SuperAppModels.Models;
+using SuperAppModels.DTOs.Requests;
 
 namespace SuperAppAPI.Controllers
 {
@@ -16,11 +17,11 @@ namespace SuperAppAPI.Controllers
     [Authorize] // Restore authorization for all endpoints - security critical!
     public class UserProfileController : ControllerBase
     {
-        private readonly IUserProfileRepositoy _repository;
+        private readonly IUserProfileRepository _repository;
         private readonly ILogger<UserProfileController> _logger;
 
         public UserProfileController(
-            IUserProfileRepositoy repository,
+            IUserProfileRepository repository,
             ILogger<UserProfileController> logger)
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
@@ -53,7 +54,7 @@ namespace SuperAppAPI.Controllers
 
                 _logger.LogInformation("Getting user profile for email: {Email}, AppC: {AppC}", userEmail, appC);
 
-                var userProfile = await _repository.GetUserProfileJson(userEmail, appC ?? string.Empty);
+                var userProfile = await _repository.GetUserProfileByEmailAsync(userEmail);
 
                 if (userProfile == null)
                 {
@@ -125,7 +126,7 @@ namespace SuperAppAPI.Controllers
 
                 _logger.LogInformation("Getting user profile for email: {Email}, AppC: {AppC}", email, appC);
 
-                var userProfile = await _repository.GetUserProfileJson(email, appC ?? string.Empty);
+                var userProfile = await _repository.GetUserProfileByEmailAsync(email);
 
                 if (userProfile == null)
                 {

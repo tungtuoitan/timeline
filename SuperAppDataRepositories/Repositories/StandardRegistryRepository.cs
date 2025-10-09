@@ -4,6 +4,7 @@ using System.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Ins;
 using SuperAppDataRepositories.Data;
+using SuperAppDataRepositories.Extensions;
 
 namespace SuperAppDataRepositories.Repositories
 {
@@ -65,6 +66,64 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
+        public async Task<StandardRegistry?> GetStandardRegistryById(int id)
+        {
+            try
+            {
+                _logger.LogInformation("Getting standard registry by ID: {Id}", id);
+
+                if (id <= 0)
+                {
+                    throw new ArgumentException("ID must be greater than 0", nameof(id));
+                }
+
+                return await ExecuteStoredProcedureAsync(
+                    StoredProcedures.spSelectStandardRegistryById,
+                    addParameters: async (command) =>
+                    {
+                        command.Parameters.Add(new SqlParameter("@iv_Id", id));
+                        await Task.CompletedTask;
+                    },
+                    mapResult: MapToSingleAsync<StandardRegistry>,
+                    useSuperAppConnection: true
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while getting standard registry by ID: {Id}", id);
+                throw;
+            }
+        }
+
+        public async Task<List<StandardRegistry>> GetStandardRegistryByType(string type)
+        {
+            try
+            {
+                _logger.LogInformation("Getting standard registries by type: {Type}", type);
+
+                if (string.IsNullOrEmpty(type))
+                {
+                    throw new ArgumentException("Type cannot be null or empty", nameof(type));
+                }
+
+                return await ExecuteStoredProcedureAsync(
+                    StoredProcedures.spSelectStandardRegistries,
+                    addParameters: async (command) =>
+                    {
+                        command.Parameters.Add(new SqlParameter("@Type", type));
+                        await Task.CompletedTask;
+                    },
+                    mapResult: MapToListAsync<StandardRegistry>,
+                    useSuperAppConnection: true
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while getting standard registries by type: {Type}", type);
+                throw;
+            }
+        }
+
         public async Task<StandardRegistry?> GetStandardRegistryByKey(string key)
         {
             try
@@ -80,7 +139,7 @@ namespace SuperAppDataRepositories.Repositories
                     StoredProcedures.spSelectStandardRegistryByKey,
                     addParameters: async (command) =>
                     {
-                        command.Parameters.Add(new SqlParameter("@iv_Key", key));
+                        command.Parameters.Add(new SqlParameter("@iv_Code", key)); // Changed from @iv_Key to @iv_Code
                         await Task.CompletedTask;
                     },
                     mapResult: MapToSingleAsync<StandardRegistry>,
@@ -98,14 +157,14 @@ namespace SuperAppDataRepositories.Repositories
         {
             try
             {
-                _logger.LogInformation("Creating new standard registry entry with key: {Key}", standardRegistry.Key);
+                _logger.LogInformation("Creating new standard registry entry with code: {Code}", standardRegistry.Code);
 
-                if (string.IsNullOrEmpty(standardRegistry.Key))
+                if (string.IsNullOrEmpty(standardRegistry.Code))
                 {
-                    throw new ArgumentException("StandardRegistry key cannot be null or empty", nameof(standardRegistry));
+                    throw new ArgumentException("StandardRegistry code cannot be null or empty", nameof(standardRegistry));
                 }
 
-                var (entries, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
+                (List<StandardRegistry> entries, SqlParameter[] outputParams) = await ExecuteStoredProcedureWithOutputAsync(
                     StoredProcedures.spInsertUpdateStandardRegistry,
                     addParametersAndGetOutputs: async (command) =>
                     {
@@ -155,12 +214,12 @@ namespace SuperAppDataRepositories.Repositories
                     throw new ArgumentException("StandardRegistry ID must be greater than 0 for updates", nameof(standardRegistry));
                 }
 
-                if (string.IsNullOrEmpty(standardRegistry.Key))
+                if (string.IsNullOrEmpty(standardRegistry.Code)) // Changed from Key to Code
                 {
-                    throw new ArgumentException("StandardRegistry key cannot be null or empty", nameof(standardRegistry));
+                    throw new ArgumentException("StandardRegistry code cannot be null or empty", nameof(standardRegistry));
                 }
 
-                var (entries, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
+                (List<StandardRegistry> entries, SqlParameter[] outputParams) = await ExecuteStoredProcedureWithOutputAsync(
                     StoredProcedures.spInsertUpdateStandardRegistry,
                     addParametersAndGetOutputs: async (command) =>
                     {

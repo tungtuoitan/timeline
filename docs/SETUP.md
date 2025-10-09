@@ -6,7 +6,7 @@
 
 | Software | Minimum Version | Download Link |
 |----------|----------------|---------------|
-| .NET SDK | 9.0 | https://dotnet.microsoft.com/download |
+| .NET SDK | 8.0 | https://dotnet.microsoft.com/download |
 | Visual Studio 2022 | 17.8+ | https://visualstudio.microsoft.com/ |
 | SQL Server | 2019+ | https://www.microsoft.com/sql-server |
 | Git | 2.30+ | https://git-scm.com/ |
@@ -249,7 +249,7 @@ code --install-extension patcx.vscode-nuget-gallery
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/src/SuperApp.API/bin/Debug/net9.0/SuperApp.API.dll",
+      "program": "${workspaceFolder}/src/SuperApp.API/bin/Debug/net8.0/SuperApp.API.dll",
       "args": [],
       "cwd": "${workspaceFolder}/src/SuperApp.API",
       "stopAtEntry": false,

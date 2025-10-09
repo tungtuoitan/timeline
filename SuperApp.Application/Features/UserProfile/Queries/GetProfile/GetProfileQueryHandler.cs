@@ -29,7 +29,7 @@ namespace SuperApp.Application.Features.UserProfile.Queries.GetProfile
             {
                 _logger.LogInformation("Getting user profile for user: {Email}", request.UserEmail);
 
-                var userProfile = await _userProfileRepository.GetUserProfile(request.UserEmail);
+                var userProfile = await _userProfileRepository.GetUserProfileByEmailAsync(request.UserEmail);
 
                 if (userProfile != null)
                 {

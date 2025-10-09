@@ -1,6 +1,6 @@
 # Database Access Guide
 
-[← Back to Main Documentation](../.copilot-instructions.md.md)
+[← Back to Main Documentation](../.github/copilot-instructions.md)
 
 ---
 
@@ -49,12 +49,13 @@ public class ConnectionFactory : IConnectionFactory
         
         if (string.IsNullOrEmpty(connectionString))
         {
-            _logger.LogError("SuperAppConnection string not found in configuration");
-            throw new InvalidOperationException("Database connection string not configured");
+            throw new InvalidOperationException("SuperApp connection string not configured");
         }
 
         var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
+        
+        _logger.LogDebug("SuperApp database connection opened");
         return connection;
     }
 
@@ -64,36 +65,15 @@ public class ConnectionFactory : IConnectionFactory
         
         if (string.IsNullOrEmpty(connectionString))
         {
-            _logger.LogError("UserProfileConnection string not found in configuration");
-            throw new InvalidOperationException("Database connection string not configured");
+            throw new InvalidOperationException("UserProfile connection string not configured");
         }
 
         var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
+        
+        _logger.LogDebug("UserProfile database connection opened");
         return connection;
     }
-}
-```
-
-### Configuration
-
-**secrets.json** (Never commit to Git!)
-```json
-{
-  "ConnectionStrings": {
-    "SuperAppConnection": "Server=TUNGHOMEPC\\MSSQLSERVER03;Database=Timeline-dev;Trusted_Connection=True;",
-    "UserProfileConnection": "Server=TUNGHOMEPC\\MSSQLSERVER05;Database=SuperApp-dev;Trusted_Connection=True;"
-  }
-}
-```
-
-**appsettings.json** (Safe to commit)
-```json
-{
-  "ConnectionStrings": {
-    "SuperAppConnection": "",
-    "UserProfileConnection": ""
-  }
 }
 ```
 
@@ -107,6 +87,9 @@ Eliminate 40% code duplication by centralizing common database operations.
 ### Implementation
 
 ```csharp
+/// <summary>
+/// Base repository providing common database operation patterns and connection management
+/// </summary>
 public abstract class BaseRepository
 {
     protected readonly IConnectionFactory _connectionFactory;
@@ -120,8 +103,14 @@ public abstract class BaseRepository
     }
 
     /// <summary>
-    /// Executes a stored procedure and returns a single result
+    /// Executes a stored procedure with complex parameter mapping and result transformation
     /// </summary>
+    /// <typeparam name="T">The type to return from the operation</typeparam>
+    /// <param name="storedProcedure">Name of the stored procedure to execute</param>
+    /// <param name="addParameters">Function to add parameters to the command</param>
+    /// <param name="mapResult">Function to map the result from SqlDataReader</param>
+    /// <param name="useSuperAppConnection">True to use SuperApp connection, false for UserProfile</param>
+    /// <returns>The mapped result of type T</returns>
     protected async Task<T> ExecuteStoredProcedure<T>(
         string storedProcedure,
         Func<SqlCommand, Task> addParameters,
@@ -154,8 +143,14 @@ public abstract class BaseRepository
     }
 
     /// <summary>
-    /// Executes a stored procedure for INSERT/UPDATE/DELETE with output parameters
+    /// Executes non-query stored procedures with output parameter extraction and error handling
     /// </summary>
+    /// <typeparam name="TResult">Type of result to extract from output parameters</typeparam>
+    /// <param name="storedProcedure">Name of the stored procedure to execute</param>
+    /// <param name="addParameters">Function to add parameters to the command</param>
+    /// <param name="extractResult">Function to extract result from command after execution</param>
+    /// <param name="useSuperAppConnection">True to use SuperApp connection, false for UserProfile</param>
+    /// <returns>The extracted result from output parameters</returns>
     protected async Task<TResult> ExecuteNonQuery<TResult>(
         string storedProcedure,
         Func<SqlCommand, Task> addParameters,
@@ -187,17 +182,12 @@ public abstract class BaseRepository
         }
     }
 
-    /// <summary>
-    /// Adds parameter with null handling
-    /// </summary>
+    // Simple utility methods - no documentation needed
     protected void AddParameterIfNotNull(SqlCommand command, string paramName, object? value)
     {
         command.Parameters.Add(new SqlParameter(paramName, value ?? DBNull.Value));
     }
 
-    /// <summary>
-    /// Maps SqlDataReader to List<T>
-    /// </summary>
     protected async Task<List<T>> MapToList<T>(SqlDataReader reader) where T : new()
     {
         var list = new List<T>();
@@ -208,9 +198,6 @@ public abstract class BaseRepository
         return list;
     }
 
-    /// <summary>
-    /// Maps SqlDataReader to single object or null
-    /// </summary>
     protected async Task<T?> MapToSingleOrDefault<T>(SqlDataReader reader) where T : class, new()
     {
         if (await reader.ReadAsync())
@@ -238,125 +225,38 @@ public abstract class BaseRepository
 public static class StoredProcedures
 {
     // Format: [dbo].[usp_{operation}_{entity}]
-    // Operations: s (select), i (insert), u (update), d (delete), iu (insert/update)
+    public const string SelectNotes = "[dbo].[usp_Select_Notes]";
+    public const string SelectNoteById = "[dbo].[usp_Select_Note_ById]";
+    public const string InsertUpdateNote = "[dbo].[usp_InsertUpdate_Note]";
+    public const string DeleteNote = "[dbo].[usp_Delete_Note]";
     
-    // Notes
-    public const string SelectNotes = "[dbo].[usp_s_Notes]";
-    public const string SelectNoteById = "[dbo].[usp_s_NoteById]";
-    public const string InsertNote = "[dbo].[usp_i_Note]";
-    public const string UpdateNote = "[dbo].[usp_u_Note]";
-    public const string DeleteNote = "[dbo].[usp_d_Note]";
-    public const string InsertUpdateNote = "[dbo].[usp_iu_Note]";
-    
-    // Users
-    public const string SelectUserByEmail = "[dbo].[usp_s_UserByEmail]";
-    public const string InsertUser = "[dbo].[usp_i_User]";
-    
-    // UserProfile
-    public const string SelectUserProfile = "[dbo].[usp_s_UserProfile]";
-    public const string InsertUpdateUserProfile = "[dbo].[usp_iu_UserProfile]";
+    // UserProfile procedures
+    public const string SelectUserProfile = "[dbo].[usp_Select_UserProfile]";
+    public const string InsertUpdateUserProfile = "[dbo].[usp_InsertUpdate_UserProfile]";
 }
 ```
 
-### Repository Example
+### Best Practices
+
+#### ✅ Good - Always use constants
 
 ```csharp
-public class NoteRepository : BaseRepository, INoteRepository
-{
-    public NoteRepository(
-        IConnectionFactory connectionFactory,
-        ILogger<NoteRepository> logger)
-        : base(connectionFactory, logger)
-    {
-    }
+await ExecuteStoredProcedure(
+    StoredProcedures.SelectNotes,
+    addParameters: (cmd) => {
+        cmd.Parameters.Add(new SqlParameter("@iv_UserId", userId));
+    },
+    mapResult: MapToList<Note>
+);
+```
 
-    public async Task<List<Note>> GetNotesAsync(bool getAll, string? searchText)
-    {
-        _logger.LogInformation(
-            "Retrieving notes with filter: getAll={GetAll}, searchText={SearchText}",
-            getAll, searchText);
+#### ❌ Bad - Hard-coded strings
 
-        return await ExecuteStoredProcedure(
-            StoredProcedures.SelectNotes,
-            addParameters: (cmd) =>
-            {
-                cmd.Parameters.Add(new SqlParameter("@ov_NoteId", SqlDbType.Int)
-                {
-                    Direction = ParameterDirection.Output
-                });
-
-                cmd.Parameters.Add(new SqlParameter("@ov_ErrorMsg", SqlDbType.VarChar, -1)
-                {
-                    Direction = ParameterDirection.Output
-                });
-            },
-            extractResult: (cmd) =>
-            {
-                var errorMsg = cmd.Parameters["@ov_ErrorMsg"].Value?.ToString();
-                if (!string.IsNullOrEmpty(errorMsg))
-                {
-                    throw new InvalidOperationException($"Database error: {errorMsg}");
-                }
-
-                return (int)cmd.Parameters["@ov_NoteId"].Value;
-            }
-        );
-    }
-
-    public async Task UpdateNoteAsync(Note note)
-    {
-        await ExecuteNonQuery(
-            StoredProcedures.UpdateNote,
-            addParameters: async (cmd) =>
-            {
-                var noteTable = note.ToDataTable();
-                cmd.Parameters.Add(new SqlParameter("@Note", SqlDbType.Structured)
-                {
-                    Value = noteTable,
-                    TypeName = "dbo.NoteType"
-                });
-
-                cmd.Parameters.Add(new SqlParameter("@ov_ErrorMsg", SqlDbType.VarChar, -1)
-                {
-                    Direction = ParameterDirection.Output
-                });
-            },
-            extractResult: (cmd) =>
-            {
-                var errorMsg = cmd.Parameters["@ov_ErrorMsg"].Value?.ToString();
-                if (!string.IsNullOrEmpty(errorMsg))
-                {
-                    throw new InvalidOperationException($"Database error: {errorMsg}");
-                }
-                return true;
-            }
-        );
-    }
-
-    public async Task DeleteNoteAsync(int id)
-    {
-        await ExecuteNonQuery(
-            StoredProcedures.DeleteNote,
-            addParameters: async (cmd) =>
-            {
-                cmd.Parameters.Add(new SqlParameter("@iv_NoteId", id));
-                cmd.Parameters.Add(new SqlParameter("@ov_ErrorMsg", SqlDbType.VarChar, -1)
-                {
-                    Direction = ParameterDirection.Output
-                });
-            },
-            extractResult: (cmd) =>
-            {
-                var errorMsg = cmd.Parameters["@ov_ErrorMsg"].Value?.ToString();
-                if (!string.IsNullOrEmpty(errorMsg))
-                {
-                    throw new InvalidOperationException($"Database error: {errorMsg}");
-                }
-                return true;
-            }
-        );
-    }
-}
+```csharp
+await ExecuteStoredProcedure(
+    "usp_Select_Notes", // Hard to maintain, typo-prone
+    // ...
+);
 ```
 
 ---
@@ -366,108 +266,61 @@ public class NoteRepository : BaseRepository, INoteRepository
 ### Input Parameters
 
 ```csharp
-// ✅ Good - Simple parameters
-cmd.Parameters.Add(new SqlParameter("@iv_NoteId", noteId));
-cmd.Parameters.Add(new SqlParameter("@iv_IsActive", isActive));
+// ✅ Good - Null-safe parameter handling
+addParameters: (cmd) =>
+{
+    cmd.Parameters.Add(new SqlParameter("@iv_UserId", userId));
+    AddParameterIfNotNull(cmd, "@iv_SearchText", searchText);
+    AddParameterIfNotNull(cmd, "@iv_CategoryId", categoryId);
+}
 
-// ✅ Good - Nullable parameters using helper
-AddParameterIfNotNull(cmd, "@iv_SearchText", searchText);
-AddParameterIfNotNull(cmd, "@iv_Description", description);
-
-// ❌ Bad - Manual null checking (don't do this!)
-if (!string.IsNullOrEmpty(searchText))
-    cmd.Parameters.Add(new SqlParameter("@iv_SearchText", searchText));
-else
-    cmd.Parameters.Add(new SqlParameter("@iv_SearchText", DBNull.Value));
+// ❌ Bad - No null handling
+addParameters: (cmd) =>
+{
+    cmd.Parameters.Add(new SqlParameter("@iv_SearchText", searchText)); // NullReference risk
+}
 ```
 
 ### Output Parameters
 
 ```csharp
-// Output parameter for scalar value
-cmd.Parameters.Add(new SqlParameter("@ov_NoteId", SqlDbType.Int)
+public async Task<ResultOptions> IuNote(Note note)
 {
-    Direction = ParameterDirection.Output
-});
+    var (result, outputParams) = await ExecuteStoredProcedureWithOutputAsync<object?>(
+        StoredProcedures.InsertUpdateNote,
+        addParametersAndGetOutputs: async (command) =>
+        {
+            // Input parameters
+            AddParameterIfNotNull(command, "@iv_Name", note.Name);
+            AddParameterIfNotNull(command, "@iv_Description", note.Description);
+            AddParameterIfNotNull(command, "@iv_Tags", note.Tags);
+            
+            // Output parameters
+            var successParam = AddOutputParameter(command, "@ov_Success", SqlDbType.Bit);
+            var errorMsgParam = AddOutputParameter(command, "@ov_ErrorMsg", SqlDbType.VarChar, 500);
+            var noteIdParam = AddOutputParameter(command, "@ov_NoteId", SqlDbType.Int);
+            
+            await Task.CompletedTask;
+            return new[] { successParam, errorMsgParam, noteIdParam };
+        },
+        mapResult: async (reader) =>
+        {
+            await Task.CompletedTask;
+            return (object?)null;
+        }
+    );
 
-// Output parameter for error messages
-cmd.Parameters.Add(new SqlParameter("@ov_ErrorMsg", SqlDbType.VarChar, -1)
-{
-    Direction = ParameterDirection.Output
-});
+    // Extract output values
+    var success = (bool)(outputParams[0]?.Value ?? false);
+    var errorMessage = outputParams[1]?.Value?.ToString();
+    var noteId = outputParams[2]?.Value as int?;
 
-// Reading output parameters after execution
-var noteId = (int)cmd.Parameters["@ov_NoteId"].Value;
-var errorMsg = cmd.Parameters["@ov_ErrorMsg"].Value?.ToString();
-```
-
-### Table-Valued Parameters (TVP)
-
-```csharp
-// Create DataTable from entity
-var noteTable = note.ToDataTable();
-
-// Add as structured parameter
-cmd.Parameters.Add(new SqlParameter("@Note", SqlDbType.Structured)
-{
-    Value = noteTable,
-    TypeName = "dbo.NoteType"  // SQL Server user-defined table type
-});
-```
-
-**Extension Method for DataTable Conversion:**
-
-```csharp
-public static class DataTableExtensions
-{
-    public static DataTable ToDataTable<T>(this T entity) where T : class
+    return new ResultOptions
     {
-        var dataTable = new DataTable();
-        var properties = typeof(T).GetProperties();
-
-        // Add columns
-        foreach (var prop in properties)
-        {
-            var type = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
-            dataTable.Columns.Add(prop.Name, type);
-        }
-
-        // Add row
-        var row = dataTable.NewRow();
-        foreach (var prop in properties)
-        {
-            row[prop.Name] = prop.GetValue(entity) ?? DBNull.Value;
-        }
-        dataTable.Rows.Add(row);
-
-        return dataTable;
-    }
-
-    public static DataTable ToDataTable<T>(this IEnumerable<T> items) where T : class
-    {
-        var dataTable = new DataTable();
-        var properties = typeof(T).GetProperties();
-
-        // Add columns
-        foreach (var prop in properties)
-        {
-            var type = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
-            dataTable.Columns.Add(prop.Name, type);
-        }
-
-        // Add rows
-        foreach (var item in items)
-        {
-            var row = dataTable.NewRow();
-            foreach (var prop in properties)
-            {
-                row[prop.Name] = prop.GetValue(item) ?? DBNull.Value;
-            }
-            dataTable.Rows.Add(row);
-        }
-
-        return dataTable;
-    }
+        Success = success,
+        ErrorMessage = errorMessage,
+        Data = noteId
+    };
 }
 ```
 
@@ -475,75 +328,43 @@ public static class DataTableExtensions
 
 ## Data Mapping
 
-### Automatic Mapping with Extension Method
+### Automatic Mapping
+
+Use the `MapToObject<T>()` extension method for automatic property mapping:
 
 ```csharp
-public static class DbDataReaderMapper
+public async Task<List<Note>> GetNotesAsync()
 {
-    public static T MapToObject<T>(this SqlDataReader reader) where T : new()
-    {
-        var obj = new T();
-        var properties = typeof(T).GetProperties();
-
-        foreach (var prop in properties)
-        {
-            if (!reader.HasColumn(prop.Name))
-                continue;
-
-            var value = reader[prop.Name];
-            if (value == DBNull.Value)
-            {
-                prop.SetValue(obj, null);
-            }
-            else
-            {
-                // Handle type conversion
-                var targetType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
-                var convertedValue = Convert.ChangeType(value, targetType);
-                prop.SetValue(obj, convertedValue);
-            }
-        }
-
-        return obj;
-    }
-
-    public static bool HasColumn(this IDataReader reader, string columnName)
-    {
-        for (int i = 0; i < reader.FieldCount; i++)
-        {
-            if (reader.GetName(i).Equals(columnName, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-        return false;
-    }
+    return await ExecuteStoredProcedure(
+        StoredProcedures.SelectNotes,
+        addParameters: (cmd) => Task.CompletedTask,
+        mapResult: MapToList<Note> // Automatic mapping
+    );
 }
 ```
 
-### Usage Examples
+### Manual Mapping
+
+For complex scenarios, use manual mapping:
 
 ```csharp
-// ✅ Good - Use extension method
-using var reader = await command.ExecuteReaderAsync();
-while (await reader.ReadAsync())
+mapResult: async (reader) =>
 {
-    var note = reader.MapToObject<Note>();
-    noteList.Add(note);
-}
-
-// Or use the BaseRepository helper
-var notes = await MapToList<Note>(reader);
-
-// ❌ Bad - Manual mapping (tedious and error-prone)
-while (await reader.ReadAsync())
-{
-    var note = new Note
+    var notes = new List<Note>();
+    while (await reader.ReadAsync())
     {
-        NoteId = reader["NoteId"] != DBNull.Value ? (int)reader["NoteId"] : 0,
-        Name = reader["Name"] != DBNull.Value ? reader["Name"].ToString() : null,
-        Description = reader["Description"] != DBNull.Value ? reader["Description"].ToString() : null,
-        // ... 10 more lines
-    };
-    noteList.Add(note);
+        var note = new Note
+        {
+            NoteId = reader.GetInt32("NoteId"),
+            Name = reader.GetString("Name"),
+            Description = reader.IsDBNull("Description") ? null : reader.GetString("Description"),
+            CreatedAt = reader.GetDateTime("CreatedAt"),
+            // Custom logic for complex fields
+            Tags = ParseTagsFromDatabase(reader.GetString("TagsJson"))
+        };
+        notes.Add(note);
+    }
+    return notes;
 }
 ```
 
@@ -551,104 +372,54 @@ while (await reader.ReadAsync())
 
 ## Error Handling
 
-### Let BaseRepository Handle SQL Exceptions
+### Database-Specific Errors
 
 ```csharp
-// ✅ Good - BaseRepository logs and re-throws
-public async Task<Note?> GetNoteByIdAsync(int id)
+try
 {
-    return await ExecuteStoredProcedure(
-        StoredProcedures.SelectNoteById,
-        addParameters: (cmd) =>
-        {
-            cmd.Parameters.Add(new SqlParameter("@iv_NoteId", id));
-            return Task.CompletedTask;
-        },
-        mapResult: MapToSingleOrDefault<Note>
-    );
-    // No try-catch needed!
+    return await ExecuteStoredProcedure(/* ... */);
 }
-
-// ❌ Bad - Useless try-catch
-public async Task<Note?> GetNoteByIdAsync(int id)
+catch (SqlException ex)
 {
-    try
+    // Handle specific SQL errors
+    switch (ex.Number)
     {
-        return await ExecuteStoredProcedure(...);
-    }
-    catch
-    {
-        throw; // Adds no value!
+        case 2: // Timeout
+            _logger.LogWarning("Database timeout for operation: {Operation}", operationName);
+            throw new TimeoutException("Database operation timed out", ex);
+            
+        case 18456: // Login failed
+            _logger.LogError("Database authentication failed");
+            throw new UnauthorizedAccessException("Database access denied", ex);
+            
+        default:
+            _logger.LogError(ex, "Unexpected database error: {SqlErrorNumber}", ex.Number);
+            throw;
     }
 }
 ```
 
-### Handle Business Logic Errors
+### Business Logic Errors
 
 ```csharp
-// ✅ Good - Check output parameters for business errors
-public async Task<int> CreateNoteAsync(Note note)
+public async Task<ResultOptions> CreateNoteAsync(Note note)
 {
-    return await ExecuteNonQuery(
-        StoredProcedures.InsertNote,
-        addParameters: async (cmd) => { /* ... */ },
-        extractResult: (cmd) =>
-        {
-            var errorMsg = cmd.Parameters["@ov_ErrorMsg"].Value?.ToString();
-            if (!string.IsNullOrEmpty(errorMsg))
-            {
-                _logger.LogWarning("Business rule violation: {ErrorMessage}", errorMsg);
-                throw new BusinessRuleException(errorMsg);
-            }
-
-            return (int)cmd.Parameters["@ov_NoteId"].Value;
-        }
-    );
-}
-```
-
-### Transaction Handling (When Needed)
-
-```csharp
-public async Task<bool> TransferNoteOwnershipAsync(int noteId, int fromUserId, int toUserId)
-{
-    using var conn = await _connectionFactory.CreateSuperAppConnectionAsync();
-    using var transaction = conn.BeginTransaction();
-
-    try
+    var result = await IuNote(note);
+    
+    if (!result.Success)
     {
-        // Operation 1: Update note owner
-        using (var cmd1 = conn.CreateCommand())
+        _logger.LogWarning("Failed to create note: {ErrorMessage}", result.ErrorMessage);
+        
+        // Convert database error to domain exception
+        if (result.ErrorMessage?.Contains("duplicate", StringComparison.OrdinalIgnoreCase) == true)
         {
-            cmd1.Transaction = transaction;
-            cmd1.CommandText = StoredProcedures.UpdateNoteOwner;
-            cmd1.CommandType = CommandType.StoredProcedure;
-            cmd1.Parameters.Add(new SqlParameter("@iv_NoteId", noteId));
-            cmd1.Parameters.Add(new SqlParameter("@iv_NewOwnerId", toUserId));
-            await cmd1.ExecuteNonQueryAsync();
+            throw new DuplicateException($"Note with name '{note.Name}' already exists");
         }
-
-        // Operation 2: Log ownership change
-        using (var cmd2 = conn.CreateCommand())
-        {
-            cmd2.Transaction = transaction;
-            cmd2.CommandText = StoredProcedures.InsertAuditLog;
-            cmd2.CommandType = CommandType.StoredProcedure;
-            cmd2.Parameters.Add(new SqlParameter("@iv_NoteId", noteId));
-            cmd2.Parameters.Add(new SqlParameter("@iv_OldOwnerId", fromUserId));
-            cmd2.Parameters.Add(new SqlParameter("@iv_NewOwnerId", toUserId));
-            await cmd2.ExecuteNonQueryAsync();
-        }
-
-        transaction.Commit();
-        return true;
+        
+        throw new InvalidOperationException($"Failed to create note: {result.ErrorMessage}");
     }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Failed to transfer note {NoteId} ownership", noteId);
-        transaction.Rollback();
-        throw;
-    }
+    
+    return result;
 }
 ```
 
@@ -656,223 +427,120 @@ public async Task<bool> TransferNoteOwnershipAsync(int noteId, int fromUserId, i
 
 ## Best Practices
 
-### ✅ DO
-
-1. **Always use IConnectionFactory**
-   ```csharp
-   using var conn = await _connectionFactory.CreateSuperAppConnectionAsync();
-   ```
-
-2. **Always inherit from BaseRepository**
-   ```csharp
-   public class NoteRepository : BaseRepository, INoteRepository
-   ```
-
-3. **Use helper methods to reduce duplication**
-   ```csharp
-   AddParameterIfNotNull(cmd, "@iv_SearchText", searchText);
-   var notes = await MapToList<Note>(reader);
-   ```
-
-4. **Always use parameterized queries**
-   ```csharp
-   cmd.Parameters.Add(new SqlParameter("@iv_SearchText", searchText));
-   ```
-
-5. **Set appropriate command timeouts**
-   ```csharp
-   command.CommandTimeout = 1200; // 20 minutes for reports
-   ```
-
-6. **Log repository operations**
-   ```csharp
-   _logger.LogInformation("Retrieving notes with filter: getAll={GetAll}", getAll);
-   ```
-
-7. **Use async/await consistently**
-   ```csharp
-   public async Task<List<Note>> GetNotesAsync(bool getAll)
-   ```
-
-8. **Dispose resources properly**
-   ```csharp
-   using var conn = await _connectionFactory.CreateSuperAppConnectionAsync();
-   using var command = conn.CreateCommand();
-   using var reader = await command.ExecuteReaderAsync();
-   ```
-
-### ❌ DON'T
-
-1. **Don't hardcode connection strings**
-   ```csharp
-   // ❌ Bad
-   var conn = new SqlConnection("Server=...;Database=...");
-   ```
-
-2. **Don't create connections directly**
-   ```csharp
-   // ❌ Bad
-   using var conn = new SqlConnection(connectionString);
-   ```
-
-3. **Don't use string concatenation for SQL**
-   ```csharp
-   // ❌ Bad - SQL Injection risk!
-   command.CommandText = $"SELECT * FROM Notes WHERE Name = '{searchText}'";
-   ```
-
-4. **Don't manually map every property**
-   ```csharp
-   // ❌ Bad - Use MapToObject<T>() instead
-   note.Name = reader["Name"]?.ToString();
-   note.Description = reader["Description"]?.ToString();
-   // ... 20 more lines
-   ```
-
-5. **Don't use empty try-catch blocks**
-   ```csharp
-   // ❌ Bad
-   try { /* ... */ }
-   catch { throw; } // Useless!
-   ```
-
-6. **Don't swallow exceptions**
-   ```csharp
-   // ❌ Bad
-   try { /* ... */ }
-   catch (Exception ex)
-   {
-       _logger.LogError(ex.Message);
-       return null; // Hides the error!
-   }
-   ```
-
-7. **Don't forget to check output parameters**
-   ```csharp
-   // ❌ Bad - Ignores error messages
-   await command.ExecuteNonQueryAsync();
-   return (int)command.Parameters["@ov_NoteId"].Value;
-   ```
-
----
-
-## Command Timeout Guidelines
-
-| Operation Type | Timeout (seconds) | Use Case |
-|---------------|-------------------|----------|
-| Simple SELECT | 30 | Single record lookup |
-| Complex SELECT | 300 (5 min) | Joins, aggregations |
-| INSERT/UPDATE | 60 | Standard CRUD |
-| Batch Operations | 600 (10 min) | Bulk inserts/updates |
-| Reports | 1200 (20 min) | Large dataset reports |
-| Data Migration | 3600 (1 hour) | One-time migrations |
+### 1. Connection Management
 
 ```csharp
-// Set timeout based on operation
-command.CommandTimeout = operation switch
+// ✅ Good - Use IConnectionFactory
+public class NoteRepository : BaseRepository
 {
-    "SimpleQuery" => 30,
-    "ComplexQuery" => 300,
-    "StandardCRUD" => 60,
-    "BatchOperation" => 600,
-    "Report" => 1200,
-    _ => 1200 // Default
-};
-```
-
----
-
-## Performance Tips
-
-### 1. Use Stored Procedures
-- Pre-compiled execution plans
-- Reduced network traffic
-- Better security
-
-### 2. Avoid N+1 Queries
-```csharp
-// ✅ Good - Single query with JOIN
-var notesWithUsers = await _repository.GetNotesWithUsersAsync();
-
-// ❌ Bad - N+1 queries
-var notes = await _repository.GetNotesAsync();
-foreach (var note in notes)
-{
-    note.User = await _repository.GetUserByIdAsync(note.UserId); // N queries!
+    public NoteRepository(IConnectionFactory connectionFactory, ILogger<NoteRepository> logger)
+        : base(connectionFactory, logger)
+    {
+    }
 }
-```
 
-### 3. Use Appropriate Data Types
-```csharp
-// Match SQL Server types exactly
-cmd.Parameters.Add(new SqlParameter("@iv_NoteId", SqlDbType.Int) { Value = noteId });
-cmd.Parameters.Add(new SqlParameter("@iv_Description", SqlDbType.NVarChar, 5000) { Value = description });
-```
-
-### 4. Limit Result Sets
-```csharp
-// Add paging parameters
-cmd.Parameters.Add(new SqlParameter("@iv_PageNumber", pageNumber));
-cmd.Parameters.Add(new SqlParameter("@iv_PageSize", pageSize));
-```
-
----
-
-## Testing Repositories
-
-### Integration Test Example
-
-```csharp
-public class NoteRepositoryTests : IClassFixture<DatabaseFixture>
+// ❌ Bad - Direct connection creation
+public class NoteRepository
 {
-    private readonly DatabaseFixture _fixture;
-    private readonly NoteRepository _repository;
-
-    public NoteRepositoryTests(DatabaseFixture fixture)
+    public async Task<List<Note>> GetNotesAsync()
     {
-        _fixture = fixture;
-        _repository = _fixture.CreateRepository<NoteRepository>();
-    }
-
-    [Fact]
-    public async Task GetNotesAsync_WithValidFilter_ReturnsNotes()
-    {
-        // Arrange
-        await _fixture.SeedTestDataAsync();
-
-        // Act
-        var notes = await _repository.GetNotesAsync(getAll: true, searchText: "test");
-
-        // Assert
-        Assert.NotEmpty(notes);
-        Assert.All(notes, n => Assert.Contains("test", n.Name, StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    public async Task CreateNoteAsync_WithValidNote_ReturnsNewId()
-    {
-        // Arrange
-        var note = new Note
-        {
-            Name = "Test Note",
-            Description = "Test Description"
-        };
-
-        // Act
-        var noteId = await _repository.CreateNoteAsync(note);
-
-        // Assert
-        Assert.True(noteId > 0);
-
-        // Cleanup
-        await _repository.DeleteNoteAsync(noteId);
+        using var connection = new SqlConnection("connection string"); // Hard-coded!
     }
 }
 ```
 
+### 2. Parameter Safety
+
+```csharp
+// ✅ Good - Parameterized queries
+AddParameterIfNotNull(cmd, "@iv_SearchText", searchText);
+
+// ❌ Bad - SQL Injection risk
+var sql = $"SELECT * FROM Notes WHERE Name LIKE '%{searchText}%'";
+```
+
+### 3. Async Patterns
+
+```csharp
+// ✅ Good - Properly async
+public async Task<Note> GetNoteAsync(int id)
+{
+    return await ExecuteStoredProcedure(/* ... */);
+}
+
+// ❌ Bad - Blocking async
+public Note GetNote(int id)
+{
+    return ExecuteStoredProcedure(/* ... */).Result; // Deadlock risk!
+}
+```
+
+### 4. Resource Management
+
+```csharp
+// ✅ Good - Using statements for proper disposal
+using var connection = await _connectionFactory.CreateSuperAppConnectionAsync();
+using var command = connection.CreateCommand();
+
+// ❌ Bad - Manual disposal (error-prone)
+var connection = await _connectionFactory.CreateSuperAppConnectionAsync();
+try
+{
+    // ... operations
+}
+finally
+{
+    connection.Dispose(); // What if this throws?
+}
+```
+
+### 5. Logging
+
+```csharp
+// ✅ Good - Structured logging
+_logger.LogInformation("Retrieving notes for user {UserId} with filter {SearchText}", 
+    userId, searchText);
+
+// ❌ Bad - String concatenation
+_logger.LogInformation("Retrieving notes for user " + userId + " with filter " + searchText);
+```
+
 ---
 
-[← Back to Main Documentation](../.copilot-instructions.md.md) | [Next: Error Handling →](ERROR_HANDLING.md)("@iv_getAll", getAll));
+## Repository Implementation Example
+
+```csharp
+// No class-level summary needed for standard repositories
+public class NoteRepository : BaseRepository, INoteRepository
+{
+    private readonly ILogger<NoteRepository> _logger;
+
+    public NoteRepository(
+        IConnectionFactory connectionFactory, 
+        ILogger<NoteRepository> logger)
+        : base(connectionFactory, logger)
+    {
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Retrieves notes with advanced filtering, user permission checks, and complex business logic
+    /// </summary>
+    /// <param name="userEmail">Email of the requesting user for permission filtering</param>
+    /// <param name="getAll">If true, retrieves all notes; otherwise applies user-specific filters</param>
+    /// <param name="searchText">Optional text to search within note names and descriptions</param>
+    /// <returns>List of notes matching the criteria with applied security and business filters</returns>
+    public async Task<List<Note>> GetNotesAsync(string userEmail, bool getAll = false, string? searchText = null)
+    {
+        _logger.LogInformation("Retrieving notes for user {UserEmail}, getAll={GetAll}, searchText={SearchText}",
+            userEmail, getAll, searchText);
+
+        return await ExecuteStoredProcedure(
+            StoredProcedures.SelectNotes,
+            addParameters: (cmd) =>
+            {
+                cmd.Parameters.Add(new SqlParameter("@iv_UserEmail", userEmail));
+                cmd.Parameters.Add(new SqlParameter("@iv_GetAll", getAll));
                 AddParameterIfNotNull(cmd, "@iv_SearchText", searchText);
                 return Task.CompletedTask;
             },
@@ -880,30 +548,76 @@ public class NoteRepositoryTests : IClassFixture<DatabaseFixture>
         );
     }
 
-    public async Task<Note?> GetNoteByIdAsync(int id)
+    // Simple CRUD - no documentation needed
+    public async Task<Note?> GetNoteByIdAsync(int noteId)
     {
         return await ExecuteStoredProcedure(
             StoredProcedures.SelectNoteById,
             addParameters: (cmd) =>
             {
-                cmd.Parameters.Add(new SqlParameter("@iv_NoteId", id));
+                cmd.Parameters.Add(new SqlParameter("@iv_NoteId", noteId));
                 return Task.CompletedTask;
             },
             mapResult: MapToSingleOrDefault<Note>
         );
     }
 
-    public async Task<int> CreateNoteAsync(Note note)
+    /// <summary>
+    /// Creates or updates a note with complex validation, audit logging, and business rule processing
+    /// </summary>
+    /// <param name="note">Note entity with all required fields for creation or update</param>
+    /// <returns>Operation result with success status, error messages, and created/updated note ID</returns>
+    public async Task<ResultOptions> IuNote(Note note)
     {
-        return await ExecuteNonQuery(
-            StoredProcedures.InsertNote,
-            addParameters: async (cmd) =>
-            {
-                var noteTable = note.ToDataTable();
-                cmd.Parameters.Add(new SqlParameter("@Note", SqlDbType.Structured)
-                {
-                    Value = noteTable,
-                    TypeName = "dbo.NoteType"
-                });
+        _logger.LogInformation("Saving note with ID {NoteId} and name {NoteName}", 
+            note.NoteId, note.Name);
 
-                cmd.Parameters.Add(new SqlParameter
+        var (_, outputParams) = await ExecuteStoredProcedureWithOutputAsync<object?>(
+            StoredProcedures.InsertUpdateNote,
+            addParametersAndGetOutputs: async (command) =>
+            {
+                // Input parameters
+                AddParameterIfNotNull(command, "@iv_NoteId", note.NoteId > 0 ? note.NoteId : null);
+                AddParameterIfNotNull(command, "@iv_Name", note.Name);
+                AddParameterIfNotNull(command, "@iv_Description", note.Description);
+                AddParameterIfNotNull(command, "@iv_Tags", note.Tags);
+                AddParameterIfNotNull(command, "@iv_Type", note.Type);
+                AddParameterIfNotNull(command, "@iv_CreatedBy", note.CreatedBy);
+
+                // Output parameters
+                var successParam = AddOutputParameter(command, "@ov_Success", SqlDbType.Bit);
+                var errorMsgParam = AddOutputParameter(command, "@ov_ErrorMsg", SqlDbType.VarChar, 500);
+                var noteIdParam = AddOutputParameter(command, "@ov_NoteId", SqlDbType.Int);
+
+                await Task.CompletedTask;
+                return new[] { successParam, errorMsgParam, noteIdParam };
+            },
+            mapResult: async (reader) =>
+            {
+                await Task.CompletedTask;
+                return (object?)null;
+            }
+        );
+
+        var success = (bool)(outputParams[0]?.Value ?? false);
+        var errorMessage = outputParams[1]?.Value?.ToString();
+        var noteId = outputParams[2]?.Value as int?;
+
+        if (success && noteId.HasValue)
+        {
+            note.NoteId = noteId.Value;
+        }
+
+        return new ResultOptions
+        {
+            Success = success,
+            ErrorMessage = errorMessage,
+            Data = noteId
+        };
+    }
+}
+```
+
+---
+
+[← Back to Main Documentation](../.github/copilot-instructions.md) | [Next: Validation Guide →](VALIDATION.md)

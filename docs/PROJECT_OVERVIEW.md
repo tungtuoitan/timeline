@@ -2,7 +2,7 @@
 
 ## Introduction
 
-SuperApp is a modern backend API built with .NET 9, following Clean Architecture principles and implementing the CQRS (Command Query Responsibility Segregation) pattern. This document provides a comprehensive overview of the project's technology stack, architecture, and core design principles.
+SuperApp is a modern backend API built with .NET 8, following Clean Architecture principles and implementing the CQRS (Command Query Responsibility Segregation) pattern. This document provides a comprehensive overview of the project's technology stack, architecture, and core design principles.
 
 ---
 
@@ -12,9 +12,9 @@ SuperApp is a modern backend API built with .NET 9, following Clean Architecture
 
 | Component | Technology | Version | Purpose |
 |-----------|-----------|---------|---------|
-| **Framework** | .NET | 9.0 | Primary application framework |
+| **Framework** | .NET | 8.0 | Primary application framework |
 | **Language** | C# | 12.0 | Programming language |
-| **API Type** | ASP.NET Core Web API | 9.0 | RESTful API implementation |
+| **API Type** | ASP.NET Core Web API | 8.0 | RESTful API implementation |
 | **Database Access** | ADO.NET | Built-in | Direct database access via stored procedures |
 
 ### Key Libraries & Packages

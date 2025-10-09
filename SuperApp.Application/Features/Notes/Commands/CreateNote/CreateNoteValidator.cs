@@ -11,21 +11,26 @@ namespace SuperApp.Application.Features.Notes.Commands.CreateNote
                 .NotNull()
                 .WithMessage("Request cannot be null");
 
-            RuleFor(x => x.Request.Title)
+            RuleFor(x => x.Request.Name)
                 .NotEmpty()
-                .WithMessage("Title is required")
+                .WithMessage("Name is required")
                 .MaximumLength(200)
-                .WithMessage("Title cannot exceed 200 characters")
+                .WithMessage("Name cannot exceed 200 characters")
                 .When(x => x.Request != null);
 
-            RuleFor(x => x.Request.Content)
+            RuleFor(x => x.Request.Description)
                 .MaximumLength(5000)
-                .WithMessage("Content cannot exceed 5000 characters")
+                .WithMessage("Description cannot exceed 5000 characters")
                 .When(x => x.Request != null);
 
             RuleFor(x => x.Request.Tags)
                 .MaximumLength(500)
                 .WithMessage("Tags cannot exceed 500 characters")
+                .When(x => x.Request != null);
+
+            RuleFor(x => x.Request.Type)
+                .MaximumLength(100)
+                .WithMessage("Type cannot exceed 100 characters")
                 .When(x => x.Request != null);
         }
     }

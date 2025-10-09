@@ -1,5 +1,6 @@
 using SuperAppModels.Models;
 using SuperAppModels.DTOs.Responses;
+using SuperAppModels.DTOs;
 
 namespace SuperAppDataRepositories.Ins
 {

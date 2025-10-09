@@ -108,7 +108,7 @@ namespace SuperAppAPI
                     services.AddScoped<IConnectionFactory, ConnectionFactory>();
 
                     // Register Repositories (keeping these for now as they're used by CQRS handlers)
-                    services.AddScoped<IUserProfileRepositoy, UserProfileRepository>();
+                    services.AddScoped<IUserProfileRepository, UserProfileRepository>();
                     services.AddScoped<IAuthRepository, AuthRepository>();
                     services.AddScoped<INoteRepository, NoteRepository>();
                     services.AddScoped<IStandardRegistryRepository, StandardRegistryRepository>();

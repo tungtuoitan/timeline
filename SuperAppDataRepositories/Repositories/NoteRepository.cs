@@ -55,11 +55,12 @@ namespace SuperAppDataRepositories.Repositories
 
             if (!HasError(errorParam, out string errorMessage))
             {
+                var createdOrUpdatedNote = notes.FirstOrDefault();
                 options = new ResultOptions
                 {
                     Message = note.NoteId == 0 ? "Successfully saved record." : "Successfully updated record",
                     Success = true,
-                    Reference = notes.ToString(),
+                    Reference = createdOrUpdatedNote?.NoteId.ToString() ?? string.Empty,
                 };
             }
             else
@@ -127,7 +128,7 @@ namespace SuperAppDataRepositories.Repositories
         {
             try
             {
-                _logger.LogInformation("Creating new note with title: {Title}", note.NoteName);
+                _logger.LogInformation("Creating new note with title: {Title}", note.Name); // Changed from note.NoteName to note.Name
 
                 var (notes, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
                     StoredProcedures.spInsertUpdateNote,
@@ -227,7 +228,7 @@ namespace SuperAppDataRepositories.Repositories
                     throw new ArgumentException("Note ID must be greater than 0", nameof(noteId));
                 }
 
-                var (_, outputParams) = await ExecuteStoredProcedureWithOutputAsync<object?>(
+                var (_, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
                     StoredProcedures.spDeleteNote,
                     addParametersAndGetOutputs: async (command) =>
                     {
@@ -239,7 +240,7 @@ namespace SuperAppDataRepositories.Repositories
                     mapResult: async (reader) =>
                     {
                         await Task.CompletedTask;
-                        return (object?)null;
+                        return new List<object>();
                     },
                     useSuperAppConnection: true
                 );

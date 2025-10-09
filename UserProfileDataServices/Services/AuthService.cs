@@ -1,5 +1,4 @@
-﻿
-using SuperAppModels.Mos;
+﻿using SuperAppModels.Models;
 using SuperAppModels.DTOs;
 using Microsoft.AspNetCore.Http;
 using UserProfileDataServices.Ins;

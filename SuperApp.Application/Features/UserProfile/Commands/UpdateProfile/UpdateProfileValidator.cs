@@ -17,34 +17,45 @@ namespace SuperApp.Application.Features.UserProfile.Commands.UpdateProfile
                 .EmailAddress()
                 .WithMessage("Invalid email format");
 
-            RuleFor(x => x.Request.FullName)
-                .MaximumLength(100)
-                .WithMessage("Full name cannot exceed 100 characters")
+            RuleFor(x => x.Request.Email)
+                .EmailAddress()
+                .WithMessage("Invalid email format")
+                .When(x => x.Request != null && !string.IsNullOrEmpty(x.Request.Email));
+
+            RuleFor(x => x.Request.AppC)
+                .MaximumLength(50)
+                .WithMessage("AppC cannot exceed 50 characters")
                 .When(x => x.Request != null);
 
-            RuleFor(x => x.Request.Bio)
+            RuleFor(x => x.Request.Parents)
                 .MaximumLength(1000)
-                .WithMessage("Bio cannot exceed 1000 characters")
+                .WithMessage("Parents configuration cannot exceed 1000 characters")
                 .When(x => x.Request != null);
 
-            RuleFor(x => x.Request.Address)
-                .MaximumLength(500)
-                .WithMessage("Address cannot exceed 500 characters")
+            RuleFor(x => x.Request.Priorities)
+                .MaximumLength(1000)
+                .WithMessage("Priorities configuration cannot exceed 1000 characters")
                 .When(x => x.Request != null);
 
-            RuleFor(x => x.Request.ProfilePictureUrl)
-                .Must(BeAValidUrl)
-                .WithMessage("Invalid URL format for profile picture")
-                .When(x => x.Request != null && !string.IsNullOrEmpty(x.Request.ProfilePictureUrl));
-        }
+            RuleFor(x => x.Request.Statuses)
+                .MaximumLength(1000)
+                .WithMessage("Statuses configuration cannot exceed 1000 characters")
+                .When(x => x.Request != null);
 
-        private static bool BeAValidUrl(string? url)
-        {
-            if (string.IsNullOrEmpty(url))
-                return true;
+            RuleFor(x => x.Request.Types)
+                .MaximumLength(1000)
+                .WithMessage("Types configuration cannot exceed 1000 characters")
+                .When(x => x.Request != null);
 
-            return Uri.TryCreate(url, UriKind.Absolute, out var result) && 
-                   (result.Scheme == Uri.UriSchemeHttp || result.Scheme == Uri.UriSchemeHttps);
+            RuleFor(x => x.Request.RepeatTypes)
+                .MaximumLength(1000)
+                .WithMessage("RepeatTypes configuration cannot exceed 1000 characters")
+                .When(x => x.Request != null);
+
+            RuleFor(x => x.Request.IsUpdatedTodays)
+                .MaximumLength(100)
+                .WithMessage("IsUpdatedTodays cannot exceed 100 characters")
+                .When(x => x.Request != null);
         }
     }
 }

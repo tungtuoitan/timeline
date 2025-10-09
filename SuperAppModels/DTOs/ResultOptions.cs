@@ -28,6 +28,16 @@ namespace SuperAppModels.DTOs
         [JsonPropertyName("status")]
         public int? Status { get; set; }
 
+        /// <summary>
+        /// Error message (alias for Message for backward compatibility)
+        /// </summary>
+        [JsonIgnore]
+        public string? ErrorMessage 
+        { 
+            get => Message; 
+            set => Message = value; 
+        }
+
         public override string ToString()
         {
             StringBuilder sb = new StringBuilder();

@@ -4,6 +4,7 @@ using SuperApp.Application.Features.Authentication.Commands.Login;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs.Responses;
 using System.Security.Authentication;
+using UserProfileDataRepositories.Ins;
 
 namespace SuperApp.Application.Features.Authentication.Commands.Login
 {
@@ -28,7 +29,7 @@ namespace SuperApp.Application.Features.Authentication.Commands.Login
 
                 var result = await _authRepository.LoginAsync(request.Request);
 
-                if (result != null && !string.IsNullOrEmpty(result.Token))
+                if (result != null && result.Success && result.User != null && !string.IsNullOrEmpty(result.User.Token))
                 {
                     _logger.LogInformation("Login successful for user: {Email}", request.Request.Email);
                     return result;

@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Extensions;
-using SuperAppModels.Mos;
 using SuperAppDataRepositories.Ins;
+using SuperAppModels.Models;
 
 namespace SuperAppAPI.Controllers
 {

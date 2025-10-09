@@ -1,8 +1,9 @@
 # SuperApp Backend Documentation
 
-Welcome to the SuperApp backend documentation. This guide will help you understand the architecture, coding standards, and best practices for developing and maintaining this .NET 9 Web API application.
+Welcome to the SuperApp backend documentation. This guide will help you understand the architecture, coding standards, and best practices for developing and maintaining this .NET 8 Web API application.
 
 ## 📚 Documentation Index
+
 
 ### Getting Started
 - **[Setup Guide](../docs/SETUP.md)** - Environment setup, prerequisites, and first-time configuration
@@ -171,7 +172,7 @@ Before submitting a pull request, ensure:
 
 - [ ] Code follows **[Coding Standards](../docs/CODING_STANDARDS.md)**
 - [ ] No secrets or connection strings in code (see **[Security](../docs/SECURITY.md)**)
-- [ ] All public APIs have XML documentation
+- [ ] XML documentation used only for complex methods and classes, not simple properties
 - [ ] DTOs used instead of domain entities in controllers
 - [ ] Input validation implemented (see **[Validation](../docs/VALIDATION.md)**)
 - [ ] Appropriate error handling (see **[Error Handling](../docs/ERROR_HANDLING.md)**)
@@ -181,6 +182,45 @@ Before submitting a pull request, ensure:
 - [ ] Async methods properly implemented
 
 Full checklist: **[Code Review Checklist](../docs/CODE_REVIEW_CHECKLIST.md)**
+
+---
+
+## 📝 Documentation Standards
+
+### XML Documentation Guidelines
+
+- **DO use `<summary>` tags for:**
+  - Complex classes with business logic
+  - Public API methods with non-obvious behavior
+  - Methods with multiple parameters or complex return types
+  - Controllers and their action methods
+
+- **DON'T use `<summary>` tags for:**
+  - Simple properties (getters/setters)
+  - DTOs with self-explanatory property names
+  - Basic CRUD operations with obvious functionality
+  - Private methods with clear names
+
+### Example - Good Documentation:
+```csharp
+/// <summary>
+/// Processes payment with fraud detection and external gateway integration
+/// </summary>
+/// <param name="request">Payment details including amount and method</param>
+/// <returns>Payment result with transaction ID and status</returns>
+public async Task<PaymentResult> ProcessPaymentAsync(PaymentRequest request)
+
+// Simple property - no documentation needed
+public string Email { get; set; }
+
+// Simple DTO - no class or property documentation needed
+public class CreateNoteRequest
+{
+    public string Name { get; set; }
+    public string? Description { get; set; }
+    public string? Tags { get; set; }
+}
+```
 
 ---
 
@@ -214,6 +254,7 @@ This project follows:
 - Clean Architecture principles
 - SOLID principles
 - DRY (Don't Repeat Yourself)
+- Minimal XML documentation for simple code elements
 
 See **[Coding Standards](../docs/CODING_STANDARDS.md)** for detailed guidelines.
 

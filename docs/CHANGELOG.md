@@ -86,7 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Mock implementations for testing
 
 ### Technical Specifications
-- .NET 9.0 Framework
+- .NET 8.0 Framework
 - C# 12.0 Language Features
 - ADO.NET for Database Access
 - SQL Server Database
@@ -146,7 +146,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Initial project setup
-- .NET 9 Web API template
+- .NET 8 Web API template
 - Solution and project structure
 - Git repository initialization
 - Basic README and documentation structure

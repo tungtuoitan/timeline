@@ -17,7 +17,7 @@
 ## Project Overview
 
 **Technology Stack:**
-- .NET 9 Web API
+- .NET 8 Web API
 - ADO.NET with Stored Procedures
 - JWT Authentication + Google OAuth
 - Serilog for Logging

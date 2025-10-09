@@ -1,13 +1,14 @@
-
 using SuperAppModels.DTOs;
-using SuperAppModels.Mos;
+using SuperAppModels.Models;
 
 namespace UserProfileDataServices.Ins
 {
     public interface IUserProfileSe
     {
-        Task<UserProfile> GetUserProfileJson(string email, string appC);
-        Task<ResultOptions> IuUserProfile(string email, string appC, string json);
-
+        // Modern methods with full CRUD support
+        Task<UserProfile?> GetUserProfileByEmailAsync(string email);
+        Task<UserProfile> CreateUserProfileAsync(UserProfile userProfile);
+        Task<UserProfile> UpdateUserProfileAsync(UserProfile userProfile);
+        Task<bool> DeleteUserProfileAsync(int id);
     }
 }
