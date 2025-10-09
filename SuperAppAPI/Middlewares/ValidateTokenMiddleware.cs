@@ -7,6 +7,12 @@ using Microsoft.Extensions.Configuration;
 
 namespace SuperAppAPI.Middlewares
 {
+    /// <summary>
+    /// Middleware for validating Google OAuth tokens
+    /// WARNING: This middleware has security vulnerabilities and should be replaced
+    /// with proper JWT authentication or removed entirely
+    /// </summary>
+    [Obsolete("This middleware has security vulnerabilities. Use JwtValidationMiddleware or ASP.NET Core JWT authentication instead.")]
     public class GoogleTokenValidationMiddleware
     {
         private readonly RequestDelegate _next;
@@ -26,14 +32,24 @@ namespace SuperAppAPI.Middlewares
         public async Task InvokeAsync(HttpContext context)
         {
 
-            string path = context.Request.Path.Value;
-            if (!string.IsNullOrEmpty(path) && 
-                path.Contains("loginSignup", StringComparison.OrdinalIgnoreCase) ||
-                path.Contains("loginSignup2", StringComparison.OrdinalIgnoreCase)
-                )
+            // SECURITY VULNERABILITY: Hardcoded endpoint bypass
+            // This allows any URL containing "loginSignup" to bypass authentication
+            // Should use proper route-based authentication attributes instead
+            string path = context.Request.Path.Value?.ToLowerInvariant() ?? "";
+            
+            // Define specific anonymous endpoints (more secure than substring matching)
+            var anonymousEndpoints = new[]
             {
-                _logger.LogInformation("Skipping authentication for URL: {Path}", path);
-                await _next(context); // Skip authentication
+                "/api/authen/login",
+                "/api/authen/signup", 
+                "/api/authen/googlelogin",
+                "/api/health"
+            };
+            
+            if (anonymousEndpoints.Any(endpoint => path.StartsWith(endpoint)))
+            {
+                _logger.LogInformation("Skipping Google token validation for anonymous endpoint: {Path}", path);
+                await _next(context);
                 return;
             }
             // Check for the Authorization header

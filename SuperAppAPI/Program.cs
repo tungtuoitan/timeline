@@ -1,14 +1,11 @@
-﻿using SuperAppDataServices.Ins;
-using SuperAppDataServices.Services;
+﻿
 using SuperAppDataRepositories.Ins;
 using SuperAppDataRepositories.Repositories;
 using SuperAppDataRepositories.Data;
 using SuperApp.Application.Common.Mappings;
 using Serilog;
 using UserProfileDataRepositories.Ins;
-using UserProfileDataServices.Ins;
 using UserProfileDataRepositories.Repositories;
-using UserProfileDataServices.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using System.Text;
@@ -16,6 +13,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Reflection;
 using AutoMapper;
+using FluentValidation;
+using MediatR;
 
 
 namespace SuperAppAPI
@@ -87,8 +86,15 @@ namespace SuperAppAPI
 
                     services.AddAuthorization();
 
-                    // Register MediatR
+                    // Register MediatR with pipeline behaviors
                     services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(SuperApp.Application.Features.Notes.Queries.GetNotes.GetNotesQuery).Assembly));
+                    
+                    // Register FluentValidation
+                    services.AddValidatorsFromAssembly(typeof(SuperApp.Application.Features.Notes.Commands.CreateNote.CreateNoteValidator).Assembly);
+                    
+                    // Register MediatR pipeline behaviors
+                    services.AddTransient(typeof(IPipelineBehavior<,>), typeof(SuperApp.Application.Common.Behaviors.ValidationBehavior<,>));
+                    services.AddTransient(typeof(IPipelineBehavior<,>), typeof(SuperApp.Application.Common.Behaviors.LoggingBehavior<,>));
 
                     // Register AutoMapper
                     var mapperConfig = new AutoMapper.MapperConfiguration(mc =>
@@ -107,12 +113,8 @@ namespace SuperAppAPI
                     services.AddScoped<INoteRepository, NoteRepository>();
                     services.AddScoped<IStandardRegistryRepository, StandardRegistryRepository>();
 
-                    // Register Services (only keeping what's still needed - gradually phase these out)
-                    services.AddScoped<IUserProfileSe, UserProfileSe>();
-                    services.AddScoped<IAuthService, AuthService>();
-                    services.AddScoped<IStandardRegistryService, StandardRegistryService>();
-
-                    // Note: Removed INoteSe registration as we're using CQRS for Notes now
+                    // Services layer removed - using CQRS pattern instead
+                    // All controllers now use MediatR commands/queries or repository pattern directly
                 });
 
     }

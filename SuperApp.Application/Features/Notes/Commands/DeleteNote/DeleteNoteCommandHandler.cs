@@ -24,15 +24,23 @@ namespace SuperApp.Application.Features.Notes.Commands.DeleteNote
             {
                 _logger.LogInformation("Deleting note with ID: {NoteId}", request.NoteId);
 
-                await _noteRepository.DNote(request.NoteId);
+                var result = await _noteRepository.DNote(request.NoteId);
                 
-                _logger.LogInformation("Successfully deleted note with ID: {NoteId}", request.NoteId);
-                return true;
+                if (result)
+                {
+                    _logger.LogInformation("Successfully deleted note with ID: {NoteId}", request.NoteId);
+                    return true;
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to delete note with ID: {NoteId} - Note may not exist", request.NoteId);
+                    throw new InvalidOperationException($"Note with ID {request.NoteId} not found or could not be deleted");
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while deleting note with ID: {NoteId}", request.NoteId);
-                return false;
+                throw;
             }
         }
     }

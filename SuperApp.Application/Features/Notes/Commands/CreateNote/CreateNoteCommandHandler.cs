@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using SuperApp.Application.Features.Notes.Commands.CreateNote;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs.Responses;
-using SuperAppModels.Mos;
+using SuperAppModels.Models;
 
 namespace SuperApp.Application.Features.Notes.Commands.CreateNote
 {

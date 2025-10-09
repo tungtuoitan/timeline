@@ -1,236 +1,417 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
-using SuperAppModels.Mos;
-using UserProfileDataServices.Ins;
+using SuperAppModels.Models;
+using MediatR;
+using SuperApp.Application.Features.Authentication.Commands.Login;
+using SuperApp.Application.Features.Authentication.Commands.Register;
+using SuperApp.Application.Features.Authentication.Commands.GoogleLogin;
+using SuperApp.Application.Common.Exceptions;
 
 namespace SuperAppAPI.Controllers
 {
-    [Route("api/auth")]
+    /// <summary>
+    /// Handles authentication operations including signup, login, and token management
+    /// </summary>
+    [Route("api/[controller]")]
     [ApiController]
+    [Produces("application/json")]
     public class AuthController : ControllerBase
     {
         private readonly IConfiguration _config;
-        private readonly IAuthService _authService;
+        private readonly IMediator _mediator;
         private readonly HttpClient _httpClient;
         private readonly ILogger<AuthController> _logger;
 
         public AuthController(
             IConfiguration config,
-            IAuthService authSe,
+            IMediator mediator,
             HttpClient httpClient,
             ILogger<AuthController> logger)
         {
             _config = config;
-            _authService = authSe;
+            _mediator = mediator;
             _httpClient = httpClient;
             _logger = logger;
         }
 
         /// <summary>
-        /// Sign up a new user
+        /// Creates a new user account with email and password
         /// </summary>
+        /// <param name="request">User signup information including email, password, and personal details</param>
+        /// <returns>Authentication response with user data and JWT token</returns>
+        /// <response code="200">User created successfully with authentication token</response>
+        /// <response code="400">Invalid request data or user already exists</response>
+        /// <response code="500">Internal server error</response>
         [AllowAnonymous]
         [HttpPost("signup")]
-        [ProducesResponseType(typeof(AuthResponse), 200)]
-        [ProducesResponseType(400)]
+        [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<AuthResponse>> Signup([FromBody] SignupRequest request)
         {
             _logger.LogInformation("New signup request for email: {Email}", request.Email);
 
-            var userModel = new UserModel
+            try
             {
-                Email = request.Email,
-                Phone = request.Phone,
-                Password = request.Password,
-                FirstName = request.FirstName,
-                LastName = request.LastName,
-                Birthday = request.Birthday,
-                Type = "signUpDefault"
-            };
+                var command = new RegisterCommand(
+                    Email: request.Email,
+                    Phone: request.Phone,
+                    Password: request.Password,
+                    FirstName: request.FirstName,
+                    LastName: request.LastName,
+                    Birthday: request.Birthday
+                );
 
-            var result = await _authService.IuUser(userModel);
+                var result = await _mediator.Send(command);
 
-            var response = new AuthResponse
-            {
-                Success = result.Success,
-                Message = result.Message,
-                User = result.Success ? new UserData
+                var response = new AuthResponse
                 {
-                    Id = result.Data.Id,
-                    Email = result.Data.Email,
-                    Phone = result.Data.Phone,
-                    FirstName = result.Data.FirstName,
-                    LastName = result.Data.LastName,
-                    Token = result.Data.Token
-                } : null
-            };
+                    Success = true,
+                    Message = "User registered successfully",
+                    User = new UserData
+                    {
+                        Id = result.Id,
+                        Email = result.Email,
+                        Phone = result.Phone,
+                        FirstName = result.FirstName,
+                        LastName = result.LastName,
+                        Token = result.Token
+                    }
+                };
 
-            return Ok(response);
+                _logger.LogInformation("User successfully created with ID: {UserId}", result.Id);
+                return Ok(response);
+            }
+            catch (ValidationException ex)
+            {
+                _logger.LogWarning("Validation failed during signup for email: {Email}, Errors: {Errors}", request.Email, string.Join(", ", ex.Errors.SelectMany(e => e.Value)));
+                return BadRequest(new AuthResponse
+                {
+                    Success = false,
+                    Message = "Validation failed",
+                    User = null
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning("Signup failed for email: {Email}, Reason: {Message}", request.Email, ex.Message);
+                return BadRequest(new AuthResponse
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    User = null
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error during signup for email: {Email}", request.Email);
+                return StatusCode(StatusCodes.Status500InternalServerError, new AuthResponse
+                {
+                    Success = false,
+                    Message = "An unexpected error occurred during signup",
+                    User = null
+                });
+            }
         }
 
         /// <summary>
-        /// Login with email/phone and password
+        /// Authenticates a user with email/phone and password
         /// </summary>
+        /// <param name="request">Login credentials including email/phone and password</param>
+        /// <returns>Authentication response with user data and JWT token</returns>
+        /// <response code="200">Login successful with authentication token</response>
+        /// <response code="401">Invalid credentials</response>
+        /// <response code="400">Invalid request data</response>
+        /// <response code="500">Internal server error</response>
         [AllowAnonymous]
         [HttpPost("login")]
-        [ProducesResponseType(typeof(AuthResponse), 200)]
-        [ProducesResponseType(401)]
+        [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request)
         {
             _logger.LogInformation("Login attempt for: {Identifier}", request.Email ?? request.Phone);
 
-            var userModel = new UserModel
+            try
             {
-                Email = request.Email,
-                Phone = request.Phone,
-                Password = request.Password,
-                Type = "loginByDefault"
-            };
+                var command = new LoginCommand(
+                    Email: request.Email,
+                    Phone: request.Phone,
+                    Password: request.Password
+                );
 
-            var result = await _authService.IuUser(userModel);
+                var result = await _mediator.Send(command);
 
-            if (!result.Success)
+                var response = new AuthResponse
+                {
+                    Success = true,
+                    Message = "Login successful",
+                    User = new UserData
+                    {
+                        Id = result.Id,
+                        Email = result.Email,
+                        Phone = result.Phone,
+                        FirstName = result.FirstName,
+                        LastName = result.LastName,
+                        Token = result.Token
+                    }
+                };
+
+                _logger.LogInformation("User successfully logged in with ID: {UserId}", result.Id);
+                return Ok(response);
+            }
+            catch (UnauthorizedException ex)
             {
+                _logger.LogWarning("Login failed for: {Identifier}, Reason: {Message}", 
+                    request.Email ?? request.Phone, ex.Message);
                 return Unauthorized(new AuthResponse
                 {
                     Success = false,
-                    Message = result.Message
+                    Message = ex.Message,
+                    User = null
                 });
             }
-
-            var response = new AuthResponse
+            catch (ValidationException ex)
             {
-                Success = true,
-                Message = result.Message,
-                User = new UserData
+                _logger.LogWarning("Validation failed during login for: {Identifier}, Errors: {Errors}", 
+                    request.Email ?? request.Phone, string.Join(", ", ex.Errors.SelectMany(e => e.Value)));
+                return BadRequest(new AuthResponse
                 {
-                    Id = result.Data.Id,
-                    Email = result.Data.Email,
-                    Phone = result.Data.Phone,
-                    FirstName = result.Data.FirstName,
-                    LastName = result.Data.LastName,
-                    Token = result.Data.Token
-                }
-            };
-
-            return Ok(response);
+                    Success = false,
+                    Message = "Invalid request data",
+                    User = null
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error during login for: {Identifier}", request.Email ?? request.Phone);
+                return StatusCode(StatusCodes.Status500InternalServerError, new AuthResponse
+                {
+                    Success = false,
+                    Message = "An unexpected error occurred during login",
+                    User = null
+                });
+            }
         }
 
         /// <summary>
-        /// Login with Google account
+        /// Authenticates a user with Google OAuth credentials
         /// </summary>
+        /// <param name="request">Google authentication data including email and user information</param>
+        /// <returns>Authentication response with user data and JWT token</returns>
+        /// <response code="200">Google login successful with authentication token</response>
+        /// <response code="400">Invalid Google credentials or user data</response>
+        /// <response code="500">Internal server error</response>
         [AllowAnonymous]
         [HttpPost("login/google")]
-        [ProducesResponseType(typeof(AuthResponse), 200)]
-        [ProducesResponseType(400)]
+        [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<AuthResponse>> GoogleLogin([FromBody] GoogleLoginRequest request)
         {
             _logger.LogInformation("Google login for email: {Email}", request.Email);
 
-            var userModel = new UserModel
+            try
             {
-                Email = request.Email,
-                FirstName = request.FirstName,
-                LastName = request.LastName,
-                Type = "loginByGoogle"
-            };
+                var command = new GoogleLoginCommand(
+                    IdToken: request.IdToken,
+                    Email: request.Email,
+                    FirstName: request.FirstName,
+                    LastName: request.LastName
+                );
 
-            var result = await _authService.IuUser(userModel);
+                var result = await _mediator.Send(command);
 
-            var response = new AuthResponse
-            {
-                Success = result.Success,
-                Message = result.Message,
-                User = new UserData
+                var response = new AuthResponse
                 {
-                    Id = result.Data.Id,
-                    Email = result.Data.Email,
-                    Phone = result.Data.Phone,
-                    FirstName = result.Data.FirstName,
-                    LastName = result.Data.LastName,
-                    Token = result.Data.Token
-                }
-            };
+                    Success = true,
+                    Message = "Google authentication successful",
+                    User = new UserData
+                    {
+                        Id = result.Id,
+                        Email = result.Email,
+                        Phone = result.Phone,
+                        FirstName = result.FirstName,
+                        LastName = result.LastName,
+                        Token = result.Token
+                    }
+                };
 
-            return Ok(response);
+                _logger.LogInformation("Google user successfully authenticated with ID: {UserId}", result.Id);
+                return Ok(response);
+            }
+            catch (UnauthorizedException ex)
+            {
+                _logger.LogWarning("Google login failed for email: {Email}, Reason: {Message}", 
+                    request.Email, ex.Message);
+                return Unauthorized(new AuthResponse
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    User = null
+                });
+            }
+            catch (ValidationException ex)
+            {
+                _logger.LogWarning("Validation failed during Google login for email: {Email}, Errors: {Errors}", 
+                    request.Email, string.Join(", ", ex.Errors.SelectMany(e => e.Value)));
+                return BadRequest(new AuthResponse
+                {
+                    Success = false,
+                    Message = "Invalid request data",
+                    User = null
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error during Google login for email: {Email}", request.Email);
+                return StatusCode(StatusCodes.Status500InternalServerError, new AuthResponse
+                {
+                    Success = false,
+                    Message = "An unexpected error occurred during Google authentication",
+                    User = null
+                });
+            }
         }
 
         /// <summary>
-        /// Exchange Google authorization code for tokens
+        /// Exchanges Google authorization code for access and refresh tokens
         /// </summary>
+        /// <param name="request">Google authorization code from OAuth flow</param>
+        /// <returns>Google OAuth tokens including access_token and refresh_token</returns>
+        /// <response code="200">Token exchange successful</response>
+        /// <response code="400">Invalid authorization code</response>
+        /// <response code="500">Internal server error during token exchange</response>
+        [AllowAnonymous]
         [HttpPost("google/token")]
-        [ProducesResponseType(200)]
-        [ProducesResponseType(500)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> ExchangeGoogleToken([FromBody] GoogleCodeRequest request)
         {
             _logger.LogInformation("Exchanging Google authorization code");
 
-            var clientId = _config["OAuth:ClientId"];
-            var clientSecret = _config["OAuth:ClientSecret"];
-            var redirectUri = _config["OAuth:RedirectUri"];
-            var tokenUrl = "https://oauth2.googleapis.com/token";
-
-            var formData = new Dictionary<string, string>
+            if (string.IsNullOrWhiteSpace(request.Code))
             {
-                { "code", request.Code },
-                { "client_id", clientId },
-                { "client_secret", clientSecret },
-                { "redirect_uri", redirectUri },
-                { "grant_type", "authorization_code" }
-            };
-
-            var content = new FormUrlEncodedContent(formData);
+                _logger.LogWarning("Google token exchange failed: Authorization code is required");
+                return BadRequest(new { error = "Authorization code is required" });
+            }
 
             try
             {
+                var clientId = _config["OAuth:ClientId"];
+                var clientSecret = _config["OAuth:ClientSecret"];
+                var redirectUri = _config["OAuth:RedirectUri"];
+
+                if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
+                {
+                    _logger.LogError("OAuth configuration missing: ClientId or ClientSecret not configured");
+                    return StatusCode(StatusCodes.Status500InternalServerError, 
+                        new { error = "OAuth configuration error" });
+                }
+
+                var tokenUrl = "https://oauth2.googleapis.com/token";
+                var formData = new Dictionary<string, string>
+                {
+                    { "code", request.Code },
+                    { "client_id", clientId },
+                    { "client_secret", clientSecret },
+                    { "redirect_uri", redirectUri ?? "" },
+                    { "grant_type", "authorization_code" }
+                };
+
+                var content = new FormUrlEncodedContent(formData);
                 var response = await _httpClient.PostAsync(tokenUrl, content);
-                response.EnsureSuccessStatusCode();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    _logger.LogWarning("Google token exchange failed with status {StatusCode}: {Error}", 
+                        response.StatusCode, errorContent);
+                    return BadRequest(new { error = "Invalid authorization code or OAuth configuration" });
+                }
 
                 var json = await response.Content.ReadAsStringAsync();
                 var tokens = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
+                
+                _logger.LogInformation("Google token exchange successful");
                 return Ok(tokens);
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogError(ex, "Failed to exchange Google authorization code");
-                return StatusCode(500, new { error = "Failed to exchange authorization code" });
+                _logger.LogError(ex, "HTTP error during Google token exchange");
+                return StatusCode(StatusCodes.Status500InternalServerError, 
+                    new { error = "Failed to communicate with Google OAuth server" });
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "Failed to parse Google token response");
+                return StatusCode(StatusCodes.Status500InternalServerError, 
+                    new { error = "Invalid response from Google OAuth server" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error during Google token exchange");
+                return StatusCode(StatusCodes.Status500InternalServerError, 
+                    new { error = "An unexpected error occurred during token exchange" });
             }
         }
 
         /// <summary>
-        /// Get current user information from JWT token
+        /// Retrieves current authenticated user information from JWT token
         /// </summary>
-        // [Authorize]  // Temporarily commented out
+        /// <returns>Current user profile information and authentication status</returns>
+        /// <response code="200">User information retrieved successfully</response>
+        /// <response code="401">User is not authenticated or token is invalid</response>
+        [Authorize]
         [HttpGet("me")]
-        [ProducesResponseType(200)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status401Unauthorized)]
         public ActionResult GetCurrentUser()
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-                        ?? User.FindFirst("sub")?.Value;
-            
-            var email = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
-                       ?? User.FindFirst("email")?.Value;
-
-            if (string.IsNullOrEmpty(userId))
+            try
             {
-                return Unauthorized(new { message = "Invalid token or user not found" });
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                            ?? User.FindFirst("sub")?.Value;
+                
+                var email = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+                           ?? User.FindFirst("email")?.Value;
+
+                var firstName = User.FindFirst(System.Security.Claims.ClaimTypes.GivenName)?.Value
+                              ?? User.FindFirst("given_name")?.Value;
+
+                var lastName = User.FindFirst(System.Security.Claims.ClaimTypes.Surname)?.Value
+                             ?? User.FindFirst("family_name")?.Value;
+
+                if (string.IsNullOrEmpty(userId))
+                {
+                    _logger.LogWarning("Invalid token: UserId claim not found");
+                    return Unauthorized(new { message = "Invalid token or user not found" });
+                }
+
+                var userInfo = new
+                {
+                    userId = userId,
+                    email = email,
+                    firstName = firstName,
+                    lastName = lastName,
+                    isAuthenticated = User.Identity?.IsAuthenticated ?? false
+                };
+
+                _logger.LogInformation("User information retrieved for ID: {UserId}", userId);
+                return Ok(userInfo);
             }
-
-            return Ok(new
+            catch (Exception ex)
             {
-                userId = userId,
-                email = email,
-                isAuthenticated = User.Identity?.IsAuthenticated ?? false,
-                claims = User.Claims.Select(c => new { type = c.Type, value = c.Value })
-            });
+                _logger.LogError(ex, "Error retrieving current user information");
+                return StatusCode(StatusCodes.Status500InternalServerError, 
+                    new { message = "An error occurred while retrieving user information" });
+            }
         }
-    }
-
-    public class GoogleCodeRequest
-    {
-        public string Code { get; set; } = string.Empty;
     }
 }

@@ -87,30 +87,48 @@ namespace SuperAppAPI
                 // Other logging providers
             });
 
-            // phần này là cấu hình CORS
-            string[] localMachines = { "VTHKNB01", "VTHKNB02", "VTVNNB60", "VTVNNB70", "VTVNNB06" };
-            var isLocal = Array.Find(localMachines, l => l == Dns.GetHostName());
-            var serverUrl = (isLocal != null) ? "LocalWebUI" : "AzureWebUI";
-            var webui = new string[] { Configuration.GetValue<string>(serverUrl) };
-            services.AddCors(o =>
+            // CORS Configuration - Environment-specific for security
+            services.AddCors(options =>
             {
-                o.AddPolicy("WebAPIPolicy", builder =>
+                // Development policy - more permissive for local development
+                options.AddPolicy("DevelopmentPolicy", builder =>
                 {
-                    builder.SetIsOriginAllowedToAllowWildcardSubdomains()
-                    .WithOrigins("http://localhost:3000",
-                                 "http://localhost:3001",
-                                 "http://localhost:3003",
-                                 "*.vanthiel.com")
-                    .AllowAnyMethod()
-                    .AllowAnyHeader()
-                    .SetIsOriginAllowed(_ => true)
-                    .AllowCredentials();
+                    builder.WithOrigins(
+                            "http://localhost:3000",
+                            "http://localhost:3001", 
+                            "http://localhost:3003",
+                            "http://localhost:5000")
+                           .AllowAnyMethod()
+                           .AllowAnyHeader()
+                           .AllowCredentials();
+                });
+
+                // Production policy - restrictive for security
+                options.AddPolicy("ProductionPolicy", builder =>
+                {
+                    builder.WithOrigins(Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? Array.Empty<string>())
+                           .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                           .WithHeaders("Content-Type", "Authorization", "X-Requested-With")
+                           .AllowCredentials()
+                           .SetIsOriginAllowedToAllowWildcardSubdomains();
                 });
             });
 
+            // Configure form options with security limits
             services.Configure<FormOptions>(options =>
             {
-                options.MultipartBodyLengthLimit = 100 * 1024 * 1024; // set max body của request là 100mb
+                options.MultipartBodyLengthLimit = 50 * 1024 * 1024; // 50MB limit (reduced from 100MB for security)
+                options.ValueLengthLimit = 1024 * 1024; // 1MB per form value
+                options.KeyLengthLimit = 1024; // 1KB per form key
+                options.MemoryBufferThreshold = 64 * 1024; // 64KB buffer threshold
+            });
+
+            // Add security headers configuration
+            services.AddHsts(options =>
+            {
+                options.Preload = true;
+                options.IncludeSubDomains = true;
+                options.MaxAge = TimeSpan.FromDays(365);
             });
 
             services.AddHttpContextAccessor(); // cho phép dùng httpContext trong service
@@ -125,8 +143,25 @@ namespace SuperAppAPI
         {
             //ILoggerService _loggerService = loggerService ?? throw new ArgumentNullException(nameof(loggerService));
 
-            // sử dụng cấu hình CORS đã khai báo ở trên
-            app.UseCors("WebAPIPolicy");
+            // Security headers - should be first for all responses
+            app.UseSecurityHeaders();
+
+            // Environment-specific CORS policy
+            if (env.IsDevelopment())
+            {
+                app.UseCors("DevelopmentPolicy");
+            }
+            else
+            {
+                app.UseCors("ProductionPolicy");
+            }
+
+            // HTTPS Redirection and Security - production only
+            if (!env.IsDevelopment())
+            {
+                app.UseHttpsRedirection();
+                app.UseHsts(); // HTTP Strict Transport Security
+            }
 
             if (env.IsDevelopment())
             {
@@ -134,11 +169,6 @@ namespace SuperAppAPI
                 app.UseSwagger();
                 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "SuperApp v1"));
             }
-
-            //if (env.IsProduction())
-            //{
-            //    app.UseHttpsRedirection();
-            //}
 
             //app.UseExceptionHandler(new ExceptionHandlerOptions
             //{
@@ -163,7 +193,7 @@ namespace SuperAppAPI
                     await context.Response.WriteAsync("Welcome to SuperApp API");
                 });
             });
-            app.UseCors("AllowReactApp");
+            // CORS is already configured above - this line was duplicate and incorrect
         }
     }
 }
