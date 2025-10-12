@@ -34,73 +34,7 @@ namespace SuperAppDataRepositories.Repositories
             );
         }
 
-        public async Task<NotesResult> IuNote(Note note)
-        {
-            var (notes, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
-                StoredProcedures.spInsertUpdateNote,
-                addParametersAndGetOutputs: async (command) =>
-                {
-                    DataTable noteTable = note.ToDataTable();
-                    AddStructuredParameter(command, "@Note", noteTable);
-                    var errorMsg = AddOutputParameter(command, "@ov_ErrorMsg", SqlDbType.VarChar, -1);
-                    await Task.CompletedTask;
-                    return new[] { errorMsg };
-                },
-                mapResult: MapToListAsync<Note>,
-                useSuperAppConnection: true
-            );
 
-            var errorParam = outputParams[0];
-            ResultOptions options;
-
-            if (!HasError(errorParam, out string errorMessage))
-            {
-                var createdOrUpdatedNote = notes.FirstOrDefault();
-                options = new ResultOptions
-                {
-                    Message = note.NoteId == 0 ? "Successfully saved record." : "Successfully updated record",
-                    Success = true,
-                    Reference = createdOrUpdatedNote?.NoteId.ToString() ?? string.Empty,
-                };
-            }
-            else
-            {
-                options = new ResultOptions
-                {
-                    Message = "Error saving record",
-                    Success = false,
-                };
-            }
-
-            return new NotesResult { Notes = notes, Options = options };
-        }
-
-        public async Task<bool> DNote(int noteId)
-        {
-            try
-            {
-                var (result, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
-                    StoredProcedures.spDeleteNote,
-                    addParametersAndGetOutputs: async (command) =>
-                    {
-                        command.Parameters.Add(new SqlParameter("@iv_NoteId", noteId));
-                        var errorMsg = AddOutputParameter(command, "@ov_ErrorMsg", SqlDbType.VarChar, -1);
-                        await Task.CompletedTask;
-                        return new[] { errorMsg };
-                    },
-                    mapResult: async (reader) => new List<object>(),
-                    useSuperAppConnection: true
-                );
-
-                var errorParam = outputParams[0];
-                return !HasError(errorParam, out string errorMessage);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error occurred while deleting note with ID: {NoteId}", noteId);
-                return false;
-            }
-        }
 
         public async Task<Note?> GetNoteById(int noteId)
         {
@@ -217,22 +151,22 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
-        public async Task<bool> DeleteNoteAsync(int noteId)
+        public async Task<bool> DeleteNoteAsync(string noteIds)
         {
             try
             {
-                _logger.LogInformation("Deleting note with ID: {NoteId}", noteId);
+                _logger.LogInformation("Deleting notes with IDs: {NoteIds}", noteIds);
 
-                if (noteId <= 0)
+                if (string.IsNullOrWhiteSpace(noteIds))
                 {
-                    throw new ArgumentException("Note ID must be greater than 0", nameof(noteId));
+                    throw new ArgumentException("Note IDs must not be empty", nameof(noteIds));
                 }
 
                 var (_, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
                     StoredProcedures.spDeleteNote,
                     addParametersAndGetOutputs: async (command) =>
                     {
-                        command.Parameters.Add(new SqlParameter("@iv_NoteId", noteId));
+                        command.Parameters.Add(new SqlParameter("@iv_NoteIds", noteIds));
                         var errorMsg = AddOutputParameter(command, "@ov_ErrorMsg", SqlDbType.VarChar, -1);
                         await Task.CompletedTask;
                         return new[] { errorMsg };
@@ -248,16 +182,16 @@ namespace SuperAppDataRepositories.Repositories
                 var errorParam = outputParams[0];
                 if (HasError(errorParam, out string errorMessage))
                 {
-                    _logger.LogError("Error deleting note: {ErrorMessage}", errorMessage);
-                    throw new InvalidOperationException($"Failed to delete note: {errorMessage}");
+                    _logger.LogError("Error deleting notes: {ErrorMessage}", errorMessage);
+                    throw new InvalidOperationException($"Failed to delete notes: {errorMessage}");
                 }
 
-                _logger.LogInformation("Successfully deleted note with ID: {NoteId}", noteId);
+                _logger.LogInformation("Successfully deleted notes with IDs: {NoteIds}", noteIds);
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error occurred while deleting note with ID: {NoteId}", noteId);
+                _logger.LogError(ex, "Error occurred while deleting notes with IDs: {NoteIds}", noteIds);
                 throw;
             }
         }

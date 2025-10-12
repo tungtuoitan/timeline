@@ -1,6 +1,4 @@
 using SuperAppModels.Models;
-using SuperAppModels.DTOs.Responses;
-using SuperAppModels.DTOs;
 
 namespace SuperAppDataRepositories.Ins
 {
@@ -10,10 +8,6 @@ namespace SuperAppDataRepositories.Ins
         Task<Note?> GetNoteById(int noteId);
         Task<Note> CreateNoteAsync(Note note);
         Task<Note> UpdateNoteAsync(Note note);
-        Task<bool> DeleteNoteAsync(int noteId);
-        
-        // Legacy methods for backward compatibility
-        Task<NotesResult> IuNote(Note note);
-        Task<bool> DNote(int noteId);
+        Task<bool> DeleteNoteAsync(string noteIds);
     }
 }

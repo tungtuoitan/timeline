@@ -28,21 +28,32 @@ namespace SuperApp.Application.Features.Notes.Commands.UpdateNote
         {
             try
             {
-                _logger.LogInformation("Updating note with ID: {NoteId}", request.Request.NoteId);
+                _logger.LogInformation("Processing note with ID: {NoteId}", request.Request.NoteId);
 
                 var note = _mapper.Map<Note>(request.Request);
                 note.NoteId = request.Request.NoteId;
                 
-                await _noteRepository.IuNote(note);
+                Note resultNote;
                 
-                var response = _mapper.Map<NoteResponse>(note);
+                if (request.Request.NoteId == 0)
+                {
+                    _logger.LogInformation("Creating new note");
+                    resultNote = await _noteRepository.CreateNoteAsync(note);
+                }
+                else
+                {
+                    _logger.LogInformation("Updating existing note with ID: {NoteId}", request.Request.NoteId);
+                    resultNote = await _noteRepository.UpdateNoteAsync(note);
+                }
                 
-                _logger.LogInformation("Successfully updated note with ID: {NoteId}", request.Request.NoteId);
+                var response = _mapper.Map<NoteResponse>(resultNote);
+                
+                _logger.LogInformation("Successfully processed note with ID: {NoteId}", resultNote.NoteId);
                 return response;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error occurred while updating note with ID: {NoteId}", request.Request.NoteId);
+                _logger.LogError(ex, "Error occurred while processing note with ID: {NoteId}", request.Request.NoteId);
                 throw;
             }
         }

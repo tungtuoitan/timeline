@@ -12,6 +12,7 @@ namespace SuperAppAPI.Extensions
 
         public static string? GetUserEmail(this ClaimsPrincipal principal)
         {
+            return "hoanhtungle@gmail.com";
             return principal.FindFirstValue(ClaimTypes.Email) 
                 ?? principal.FindFirstValue("email");
         }

@@ -4,13 +4,10 @@ namespace SuperAppModels.DTOs.Requests
 {
     public class UpdateNoteRequest
     {
-        [Required]
-        [Range(1, int.MaxValue, ErrorMessage = "Invalid Note ID")]
         public int NoteId { get; set; }
 
-        [Required(ErrorMessage = "Name is required")]
-        [StringLength(200, MinimumLength = 1, ErrorMessage = "Name must be between 1 and 200 characters")]
-        public string Name { get; set; } = string.Empty;
+        [StringLength(200, ErrorMessage = "Name cannot exceed 200 characters")]
+        public string? Name { get; set; }
 
         [StringLength(5000, ErrorMessage = "Description cannot exceed 5000 characters")]
         public string? Description { get; set; }

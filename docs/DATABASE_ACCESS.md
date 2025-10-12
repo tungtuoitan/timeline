@@ -5,13 +5,73 @@
 ---
 
 ## Table of Contents
-1. [Connection Management](#connection-management)
-2. [BaseRepository Pattern](#baserepository-pattern)
-3. [Stored Procedures](#stored-procedures)
-4. [Parameter Handling](#parameter-handling)
-5. [Data Mapping](#data-mapping)
-6. [Error Handling](#error-handling)
-7. [Best Practices](#best-practices)
+1. [Database Configuration](#database-configuration)
+2. [Connection Management](#connection-management)
+3. [BaseRepository Pattern](#baserepository-pattern)
+4. [Stored Procedures](#stored-procedures)
+5. [Parameter Handling](#parameter-handling)
+6. [Data Mapping](#data-mapping)
+7. [Error Handling](#error-handling)
+8. [Best Practices](#best-practices)
+
+---
+
+## Database Configuration
+
+### Expected Database Names
+
+The SuperApp backend uses two separate databases:
+
+| Environment | SuperApp Database | UserProfile Database |
+|-------------|-------------------|----------------------|
+| **Development** | `SuperApp-dev` | `UserProfile-dev` |
+| **Production** | `SuperApp-prod` | `UserProfile-prod` |
+| **Testing** | `SuperApp_Test` | `UserProfile_Test` |
+
+### Connection String Configuration
+
+Connection strings are configured in `appsettings.json` but should **never** contain actual credentials:
+
+```json
+{
+  "ConnectionStrings": {
+    "SuperAppConnection": "",
+    "UserProfileConnection": ""
+  }
+}
+```
+
+#### Setting Up Connection Strings
+
+**For Development (User Secrets):**
+```bash
+# SuperApp database
+dotnet user-secrets set "ConnectionStrings:SuperAppConnection" "Server=(localdb)\\mssqllocaldb;Database=SuperApp-dev;Integrated Security=true;MultipleActiveResultSets=true;TrustServerCertificate=true" --project SuperAppAPI
+
+# UserProfile database  
+dotnet user-secrets set "ConnectionStrings:UserProfileConnection" "Server=(localdb)\\mssqllocaldb;Database=UserProfile-dev;Integrated Security=true;MultipleActiveResultSets=true;TrustServerCertificate=true" --project SuperAppAPI
+```
+
+**For Production (Environment Variables):**
+```bash
+# Set these as environment variables on your production server
+CONNECTIONSTRINGS__SUPERAPPCONNECTION="Server=your-server;Database=SuperApp-prod;User Id=your-user;Password=your-password;TrustServerCertificate=true"
+CONNECTIONSTRINGS__USERPROFILECONNECTION="Server=your-server;Database=UserProfile-prod;User Id=your-user;Password=your-password;TrustServerCertificate=true"
+```
+
+### Database Schema Requirements
+
+Each database should contain the necessary stored procedures and tables:
+
+**SuperApp-dev/SuperApp-prod:**
+- Notes-related tables and procedures
+- Standard registry tables and procedures
+- Audit and logging tables
+
+**UserProfile-dev/UserProfile-prod:**
+- User authentication tables and procedures
+- User profile management tables and procedures
+- OAuth and security-related tables
 
 ---
 

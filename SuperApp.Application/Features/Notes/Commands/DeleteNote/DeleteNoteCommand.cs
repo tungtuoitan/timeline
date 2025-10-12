@@ -2,5 +2,5 @@ using MediatR;
 
 namespace SuperApp.Application.Features.Notes.Commands.DeleteNote
 {
-    public record DeleteNoteCommand(int NoteId) : IRequest<bool>;
+    public record DeleteNoteCommand(string NoteIds) : IRequest<bool>;
 }

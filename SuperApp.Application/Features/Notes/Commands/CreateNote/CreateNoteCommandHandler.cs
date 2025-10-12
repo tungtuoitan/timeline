@@ -31,18 +31,11 @@ namespace SuperApp.Application.Features.Notes.Commands.CreateNote
                 _logger.LogInformation("Creating new note with name: {Name}", request.Request.Name);
 
                 var note = _mapper.Map<Note>(request.Request);
-                var notesResult = await _noteRepository.IuNote(note);
+                var createdNote = await _noteRepository.CreateNoteAsync(note);
                 
-                // Get the created note from the result
-                var createdNote = notesResult.Notes?.FirstOrDefault();
-                if (createdNote != null)
-                {
-                    note.NoteId = createdNote.NoteId;
-                }
+                var response = _mapper.Map<NoteResponse>(createdNote);
                 
-                var response = _mapper.Map<NoteResponse>(note);
-                
-                _logger.LogInformation("Successfully created note with ID: {NoteId}", note.NoteId);
+                _logger.LogInformation("Successfully created note with ID: {NoteId}", createdNote.NoteId);
                 return response;
             }
             catch (Exception ex)

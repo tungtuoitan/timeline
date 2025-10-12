@@ -12,16 +12,14 @@ namespace SuperApp.Application.Features.Notes.Commands.UpdateNote
                 .WithMessage("Request cannot be null");
 
             RuleFor(x => x.Request.NoteId)
-                .GreaterThan(0)
-                .WithMessage("Note ID must be greater than 0")
+                .GreaterThanOrEqualTo(0)
+                .WithMessage("Note ID must be greater than or equal to 0")
                 .When(x => x.Request != null);
 
             RuleFor(x => x.Request.Name)
-                .NotEmpty()
-                .WithMessage("Name is required")
                 .MaximumLength(200)
                 .WithMessage("Name cannot exceed 200 characters")
-                .When(x => x.Request != null);
+                .When(x => x.Request != null && !string.IsNullOrEmpty(x.Request.Name));
 
             RuleFor(x => x.Request.Description)
                 .MaximumLength(5000)

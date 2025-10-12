@@ -297,6 +297,6 @@ This documentation may reference security-sensitive topics. Always:
 - **Current Version:** 1.0
 - **Status:** Active Development
 - **Next Release:** Q1 2026
-- **Known Issues:** See [Issues](https://github.com/yourorg/superapp/issues)
+- **Known Issues:** See [Issues](https://github.com/tungtuoitan/SuperApp-backend/issues)
 
 For version history and changes, see **[Changelog](../docs/CHANGELOG.md)**

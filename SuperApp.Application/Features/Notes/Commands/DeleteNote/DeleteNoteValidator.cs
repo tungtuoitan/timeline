@@ -7,9 +7,30 @@ namespace SuperApp.Application.Features.Notes.Commands.DeleteNote
     {
         public DeleteNoteValidator()
         {
-            RuleFor(x => x.NoteId)
-                .GreaterThan(0)
-                .WithMessage("Note ID must be greater than 0");
+            RuleFor(x => x.NoteIds)
+                .NotEmpty()
+                .WithMessage("Note IDs cannot be empty")
+                .Must(BeValidNoteIds)
+                .WithMessage("Note IDs must be a comma-separated list of positive integers");
+        }
+
+        private static bool BeValidNoteIds(string noteIds)
+        {
+            if (string.IsNullOrWhiteSpace(noteIds))
+                return false;
+
+            var ids = noteIds.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            
+            if (ids.Length == 0)
+                return false;
+
+            foreach (var id in ids)
+            {
+                if (!int.TryParse(id.Trim(), out var noteId) || noteId <= 0)
+                    return false;
+            }
+
+            return true;
         }
     }
 }
