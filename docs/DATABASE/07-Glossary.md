@@ -224,7 +224,7 @@ INSERT INTO template_categories (name, slug, description, icon, sort_order) VALU
 ### 1. Create Tag Template
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_create_tag_template
+CREATE OR ALTER PROCEDURE usp_i_tag_template
     @creator_id INT,
     @name NVARCHAR(255),
     @slug NVARCHAR(255),
@@ -741,7 +741,7 @@ BEGIN
         );
         
         -- Create template with exported structure
-        EXEC sp_create_tag_template
+        EXEC usp_i_tag_template
             @creator_id = @user_id,
             @name = @template_name,
             @slug = @template_slug,
@@ -815,7 +815,7 @@ DECLARE @structure NVARCHAR(MAX) = N'[
     }
 ]';
 
-EXEC sp_create_tag_template
+EXEC usp_i_tag_template
     @creator_id = 1,
     @name = 'GTD Productivity System',
     @slug = 'gtd-productivity',
@@ -993,7 +993,7 @@ GROUP BY t.id, t.name;
 ```sql
 -- Create template
 DECLARE @template_id INT;
-EXEC sp_create_tag_template 
+EXEC usp_i_tag_template 
     @creator_id = 1,
     @name = 'Test Template',
     @slug = 'test-template',
@@ -1033,7 +1033,7 @@ DECLARE @complex_structure NVARCHAR(MAX) = N'[
     }
 ]';
 
-EXEC sp_create_tag_template
+EXEC usp_i_tag_template
     @creator_id = 1,
     @name = 'Complex Hierarchy',
     @slug = 'complex-hierarchy',

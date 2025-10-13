@@ -81,10 +81,10 @@ This documentation is organized into the following files:
 
 ```sql
 -- 1. Create database
-CREATE DATABASE TagTreeDB;
+CREATE DATABASE SuperApp-dev;
 GO
 
-USE TagTreeDB;
+USE SuperApp-dev;
 GO
 
 -- 2. Run schema creation

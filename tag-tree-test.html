@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tag Tree API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .tag-tree {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        
+        .tag-item {
+            padding: 8px;
+            margin: 2px 0;
+            border-radius: 3px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+        
+        .tag-item:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .tag-item.selected {
+            background-color: #e3f2fd;
+            border-left: 3px solid #2196f3;
+        }
+        
+        .tag-item.shared {
+            opacity: 0.8;
+            font-style: italic;
+        }
+        
+        .tag-expand-icon {
+            margin-right: 8px;
+            font-size: 12px;
+            width: 12px;
+            text-align: center;
+        }
+        
+        .tag-name {
+            flex-grow: 1;
+            font-weight: 500;
+        }
+        
+        .tag-usage {
+            font-size: 12px;
+            color: #666;
+            margin-left: 10px;
+        }
+        
+        .tag-shared-icon {
+            margin-left: 5px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .error {
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+        }
+        
+        .controls button {
+            margin-right: 10px;
+            padding: 8px 16px;
+            background-color: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        .controls button:hover {
+            background-color: #1976d2;
+        }
+        
+        .controls label {
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>SuperApp Tag Tree API Test</h1>
+    
+    <div class="controls">
+        <button onclick="loadTagTree()">Load Tag Tree</button>
+        <button onclick="loadFlatTags()">Load Flat Tags</button>
+        <label>
+            <input type="checkbox" id="includeShared" checked> Include Shared Tags
+        </label>
+    </div>
+    
+    <div id="loading" class="loading" style="display: none;">
+        Loading tags...
+    </div>
+    
+    <div id="error" class="error" style="display: none;"></div>
+    
+    <div id="tagTreeContainer" class="tag-tree" style="display: none;">
+        <h3>Hierarchical Tag Tree</h3>
+        <div id="tagTree"></div>
+    </div>
+    
+    <div id="flatTagsContainer" class="tag-tree" style="display: none;">
+        <h3>Flat Tag List</h3>
+        <div id="flatTags"></div>
+    </div>
+
+    <script>
+        // Simple TagTreeService implementation for browser
+        class TagTreeService {
+            constructor(baseUrl = '/api') {
+                this.baseUrl = baseUrl;
+            }
+
+            async getTagTree(includeShared = true) {
+                try {
+                    const url = `${this.baseUrl}/tags/tree?includeShared=${includeShared}`;
+                    
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    return data;
+                } catch (error) {
+                    console.error('Error fetching tag tree:', error);
+                    throw error;
+                }
+            }
+
+            async getTags() {
+                try {
+                    const response = await fetch(`${this.baseUrl}/tags`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    return data;
+                } catch (error) {
+                    console.error('Error fetching tags:', error);
+                    throw error;
+                }
+            }
+        }
+
+        // Global state
+        let tagTree = [];
+        let selectedTagId = null;
+        const tagTreeService = new TagTreeService();
+
+        // Show/hide elements
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('tagTreeContainer').style.display = 'none';
+            document.getElementById('flatTagsContainer').style.display = 'none';
+        }
+
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = message;
+            document.getElementById('tagTreeContainer').style.display = 'none';
+            document.getElementById('flatTagsContainer').style.display = 'none';
+        }
+
+        function showTagTree() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('tagTreeContainer').style.display = 'block';
+            document.getElementById('flatTagsContainer').style.display = 'none';
+        }
+
+        function showFlatTags() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('tagTreeContainer').style.display = 'none';
+            document.getElementById('flatTagsContainer').style.display = 'block';
+        }
+
+        // Load and display tag tree
+        async function loadTagTree() {
+            showLoading();
+            
+            try {
+                const includeShared = document.getElementById('includeShared').checked;
+                const data = await tagTreeService.getTagTree(includeShared);
+                
+                tagTree = data;
+                renderTagTree();
+                showTagTree();
+                
+                console.log('Tag tree loaded:', data);
+            } catch (error) {
+                showError(`Failed to load tag tree: ${error.message}`);
+            }
+        }
+
+        // Load and display flat tags
+        async function loadFlatTags() {
+            showLoading();
+            
+            try {
+                const data = await tagTreeService.getTags();
+                renderFlatTags(data);
+                showFlatTags();
+                
+                console.log('Flat tags loaded:', data);
+            } catch (error) {
+                showError(`Failed to load tags: ${error.message}`);
+            }
+        }
+
+        // Render hierarchical tag tree
+        function renderTagTree() {
+            const container = document.getElementById('tagTree');
+            container.innerHTML = '';
+            
+            if (tagTree.length === 0) {
+                container.innerHTML = '<p>No tags found.</p>';
+                return;
+            }
+            
+            tagTree.forEach(tag => {
+                container.appendChild(createTagElement(tag));
+            });
+        }
+
+        // Create tag element for tree display
+        function createTagElement(tag) {
+            const tagDiv = document.createElement('div');
+            tagDiv.className = 'tag-item';
+            tagDiv.style.marginLeft = `${tag.level * 20}px`;
+            
+            if (tag.accessType === 'shared') {
+                tagDiv.classList.add('shared');
+            }
+            
+            if (selectedTagId === tag.tagId) {
+                tagDiv.classList.add('selected');
+            }
+
+            // Expand/collapse icon
+            const expandIcon = document.createElement('span');
+            expandIcon.className = 'tag-expand-icon';
+            if (tag.childrenCount > 0) {
+                expandIcon.textContent = tag.isExpanded ? '?' : '?';
+                expandIcon.onclick = (e) => {
+                    e.stopPropagation();
+                    toggleTagExpansion(tag.tagId);
+                };
+                expandIcon.style.cursor = 'pointer';
+            }
+            tagDiv.appendChild(expandIcon);
+
+            // Tag name
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'tag-name';
+            nameSpan.textContent = tag.name;
+            if (tag.color) {
+                nameSpan.style.color = tag.color;
+            }
+            tagDiv.appendChild(nameSpan);
+
+            // Usage count
+            const usageSpan = document.createElement('span');
+            usageSpan.className = 'tag-usage';
+            usageSpan.textContent = `(${tag.usageCount} uses)`;
+            tagDiv.appendChild(usageSpan);
+
+            // Shared icon
+            if (tag.accessType === 'shared') {
+                const sharedIcon = document.createElement('span');
+                sharedIcon.className = 'tag-shared-icon';
+                sharedIcon.textContent = '??';
+                sharedIcon.title = 'Shared tag';
+                tagDiv.appendChild(sharedIcon);
+            }
+
+            // Click handler for selection
+            tagDiv.onclick = () => selectTag(tag.tagId);
+
+            // Add children if expanded
+            if (tag.isExpanded && tag.children.length > 0) {
+                tag.children.forEach(child => {
+                    tagDiv.appendChild(createTagElement(child));
+                });
+            }
+
+            return tagDiv;
+        }
+
+        // Render flat tags
+        function renderFlatTags(tags) {
+            const container = document.getElementById('flatTags');
+            container.innerHTML = '';
+            
+            if (tags.length === 0) {
+                container.innerHTML = '<p>No tags found.</p>';
+                return;
+            }
+            
+            tags.forEach(tag => {
+                const tagDiv = document.createElement('div');
+                tagDiv.className = 'tag-item';
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'tag-name';
+                nameSpan.textContent = tag.name;
+                if (tag.color) {
+                    nameSpan.style.color = tag.color;
+                }
+                tagDiv.appendChild(nameSpan);
+
+                if (tag.description) {
+                    const descSpan = document.createElement('span');
+                    descSpan.className = 'tag-usage';
+                    descSpan.textContent = ` - ${tag.description}`;
+                    tagDiv.appendChild(descSpan);
+                }
+
+                container.appendChild(tagDiv);
+            });
+        }
+
+        // Toggle tag expansion
+        function toggleTagExpansion(tagId) {
+            tagTree = toggleExpansionRecursively(tagTree, tagId);
+            renderTagTree();
+        }
+
+        // Select a tag
+        function selectTag(tagId) {
+            selectedTagId = tagId;
+            renderTagTree();
+            console.log('Selected tag ID:', tagId);
+        }
+
+        // Utility function to toggle expansion recursively
+        function toggleExpansionRecursively(tags, targetId) {
+            return tags.map(tag => {
+                if (tag.tagId === targetId) {
+                    return { ...tag, isExpanded: !tag.isExpanded };
+                }
+                
+                if (tag.children && tag.children.length > 0) {
+                    return {
+                        ...tag,
+                        children: toggleExpansionRecursively(tag.children, targetId)
+                    };
+                }
+                
+                return tag;
+            });
+        }
+
+        // Initialize - load tag tree on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadTagTree();
+        });
+    </script>
+</body>
+</html>

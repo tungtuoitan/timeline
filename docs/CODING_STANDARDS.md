@@ -9,6 +9,7 @@ This document outlines the coding standards and conventions used in the SuperApp
 - [Code Organization](#code-organization)
 - [Error Handling](#error-handling)
 - [Documentation Standards](#documentation-standards)
+- [Models vs DTOs](#models-vs-dtos)
 - [Database Access](#database-access)
 - [Testing Standards](#testing-standards)
 - [Performance Guidelines](#performance-guidelines)
@@ -410,6 +411,399 @@ public class NoteRepository : BaseRepository, INoteRepository
     }
 }
 ```
+
+---
+
+## Models vs DTOs
+
+Understanding the distinction between **Models** (Domain Models/Entities) and **DTOs** (Data Transfer Objects) is crucial for building clean, secure, and maintainable applications in the SuperApp backend.
+
+### What is a Model?
+
+A **Model** represents the core business objects in your application and contains business logic.
+
+**Location in SuperApp:** `SuperAppModels\Models\`
+
+**Characteristics:**
+- Contains business logic methods and validation
+- Maps directly to database tables
+- May contain relationships to other entities
+- Includes domain-specific behavior
+- Used internally within the application
+
+**SuperApp Model Example:**
+
+```csharp
+// SuperAppModels\Models\Tag.cs
+public class Tag
+{
+    public int TagId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? Color { get; set; }
+    public string? CreatedBy { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public bool IsActive { get; set; }
+
+    // Business logic methods
+    public void Update(string name, string? description = null, string? color = null)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Name cannot be empty", nameof(name));
+
+        Name = name;
+        Description = description;
+        Color = color;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void ToggleActive()
+    {
+        IsActive = !IsActive;
+        UpdatedAt = DateTime.UtcNow;
+    }
+}
+```
+
+### What is a DTO?
+
+A **DTO** is a simple object used to transfer data between layers, especially for API requests and responses.
+
+**Location in SuperApp:** `SuperAppModels\DTOs\Requests\` and `SuperAppModels\DTOs\Responses\`
+
+**Characteristics:**
+- Data only, no business logic
+- Flat structure without complex relationships
+- Tailored for specific operations (create, update, response)
+- Excludes sensitive information
+- Optimized for serialization/API transfer
+- Contains validation attributes
+
+**SuperApp DTO Examples:**
+
+```csharp
+// SuperAppModels\DTOs\Requests\CreateTagRequest.cs
+public class CreateTagRequest
+{
+    [Required(ErrorMessage = "Name is required")]
+    [StringLength(100, MinimumLength = 1, ErrorMessage = "Name must be between 1 and 100 characters")]
+    public string Name { get; set; } = string.Empty;
+
+    [StringLength(500, ErrorMessage = "Description cannot exceed 500 characters")]
+    public string? Description { get; set; }
+
+    [StringLength(7, ErrorMessage = "Color must be in hex format (#RRGGBB)")]
+    [RegularExpression(@"^#[0-9A-Fa-f]{6}$", ErrorMessage = "Color must be in hex format (#RRGGBB)")]
+    public string? Color { get; set; }
+
+    public string? CreatedBy { get; set; }
+}
+
+// SuperAppModels\DTOs\Responses\TagResponse.cs
+public class TagResponse
+{
+    public int TagId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? Color { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public bool IsActive { get; set; }
+    
+    // No sensitive data like CreatedBy email
+    // No UpdatedAt (not needed for response)
+    // No business logic methods
+}
+```
+
+### Key Differences
+
+| Aspect | Model | DTO |
+|--------|-------|-----|
+| **Purpose** | Business domain representation | Data transfer across boundaries |
+| **Location** | `SuperAppModels\Models\` | `SuperAppModels\DTOs\` |
+| **Complexity** | Complex with relationships | Simple and flat |
+| **Business Logic** | Contains methods and rules | Data only, no logic |
+| **Database** | Maps to database tables | Independent of database |
+| **Relationships** | Navigation properties | No navigation properties |
+| **Security** | May contain sensitive data | Filtered, safe data only |
+| **Validation** | Domain validation in methods | Input validation attributes |
+
+### When to Use Each
+
+**Use Models When:**
+- Working within repositories and services
+- Performing database operations
+- Implementing domain rules and validations
+- Managing entity relationships
+- Need business behavior and methods
+
+**Use DTOs When:**
+- API endpoints (controllers)
+- Transferring data between layers
+- Hiding sensitive information
+- Optimizing network payload
+- Creating specialized views of data
+- Different shapes for different operations
+
+### SuperApp Implementation Example
+
+```csharp
+// Controller - Always use DTOs
+[ApiController]
+[Route("api/[controller]")]
+public class TagsController : ControllerBase
+{
+    private readonly IMediator _mediator;
+
+    // ✅ Good - Using DTOs
+    [HttpPost]
+    public async Task<ActionResult<TagResponse>> CreateTag([FromBody] CreateTagRequest request)
+    {
+        var command = new CreateTagCommand(request);
+        var result = await _mediator.Send(command);
+        return Ok(result);  // Returns TagResponse DTO
+    }
+
+    // ❌ Bad - Exposing Model directly
+    [HttpGet("{id}")]
+    public async Task<Tag> GetTag(int id)  // Don't do this!
+    {
+        // This exposes internal model structure and sensitive data
+    }
+}
+
+// Service/Handler - Map between DTOs and Models
+public class CreateTagCommandHandler : IRequestHandler<CreateTagCommand, TagResponse>
+{
+    private readonly ITagRepository _repository;
+    private readonly IMapper _mapper;
+
+    public async Task<TagResponse> Handle(CreateTagCommand request, CancellationToken cancellationToken)
+    {
+        // Map DTO to Model
+        var tag = new Tag(request.Request.Name, request.Request.CreatedBy)
+        {
+            Description = request.Request.Description,
+            Color = request.Request.Color
+        };
+
+        // Use Model for business operations
+        var savedTag = await _repository.CreateTagAsync(tag);
+
+        // Map Model back to DTO for response
+        return _mapper.Map<TagResponse>(savedTag);
+    }
+}
+
+// Repository - Work with Models
+public class TagRepository : BaseRepository, ITagRepository
+{
+    // ✅ Good - Using Models internally
+    public async Task<Tag> CreateTagAsync(Tag tag)
+    {
+        // Business logic can be applied here
+        tag.ValidateName(); // If such method exists
+        
+        return await ExecuteStoredProcedure(/* ... */);
+    }
+
+    public async Task<List<Tag>> GetTagsAsync()
+    {
+        return await ExecuteStoredProcedure(
+            StoredProcedures.SelectTags,
+            addParameters: (cmd) => Task.CompletedTask,
+            mapResult: MapToList<Tag>  // Maps to Model
+        );
+    }
+}
+```
+
+### Best Practices
+
+#### 1. Never Expose Models in Controllers
+
+```csharp
+// ✅ Good
+[HttpGet("{id}")]
+public async Task<ActionResult<TagResponse>> GetTag(int id)
+{
+    var query = new GetTagByIdQuery(id);
+    var result = await _mediator.Send(query);
+    return Ok(result);  // Returns DTO
+}
+
+// ❌ Bad
+[HttpGet("{id}")]
+public async Task<Tag> GetTag(int id)  // Exposes Model
+{
+    return await _tagRepository.GetByIdAsync(id);
+}
+```
+
+#### 2. Create Specific DTOs for Different Operations
+
+```csharp
+// ✅ Good - Specific DTOs
+public class CreateTagRequest { }     // For creation
+public class UpdateTagRequest { }     // For updates  
+public class TagResponse { }          // For responses
+public class TagListResponse { }      // For listings (minimal data)
+
+// ❌ Bad - Generic DTO
+public class TagDto { }  // Used for everything
+```
+
+#### 3. Use Validation Attributes on Request DTOs
+
+```csharp
+// ✅ Good
+public class CreateNoteRequest
+{
+    [Required(ErrorMessage = "Name is required")]
+    [StringLength(200, MinimumLength = 1)]
+    public string Name { get; set; } = string.Empty;
+
+    [StringLength(5000, ErrorMessage = "Description cannot exceed 5000 characters")]
+    public string? Description { get; set; }
+
+    public List<int>? TagIds { get; set; }
+}
+```
+
+#### 4. Keep DTOs Simple and Focused
+
+```csharp
+// ✅ Good - Focused
+public class CreateNoteRequest
+{
+    public string Name { get; set; }
+    public string? Description { get; set; }
+    public List<int>? TagIds { get; set; }  // Just IDs, not full objects
+}
+
+// ❌ Bad - Too complex
+public class CreateNoteRequest
+{
+    public string Name { get; set; }
+    public string? Description { get; set; }
+    public List<TagResponse> Tags { get; set; }      // Unnecessary nesting
+    public UserResponse User { get; set; }           // Unnecessary 
+    public List<NoteResponse> RelatedNotes { get; set; }  // Unnecessary
+}
+```
+
+#### 5. Use AutoMapper for Model-DTO Conversion
+
+```csharp
+// SuperApp.Application\Common\Mappings\MappingProfile.cs
+public class MappingProfile : Profile
+{
+    public MappingProfile()
+    {
+        // Model to Response DTO
+        CreateMap<Tag, TagResponse>();
+        CreateMap<Note, NoteResponse>()
+            .ForMember(dest => dest.Tags, opt => opt.MapFrom(src => src.Tags));
+
+        // Request DTO to Model
+        CreateMap<CreateTagRequest, Tag>()
+            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => DateTime.UtcNow))
+            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => true));
+    }
+}
+```
+
+### Common Pitfalls to Avoid
+
+#### 1. Exposing Sensitive Data
+
+```csharp
+// ❌ Bad - Exposes sensitive data
+public class UserResponse
+{
+    public int Id { get; set; }
+    public string Email { get; set; }
+    public string PasswordHash { get; set; }  // Never expose this!
+    public string InternalNotes { get; set; }  // Internal data exposed
+}
+
+// ✅ Good - Only safe data
+public class UserResponse
+{
+    public int Id { get; set; }
+    public string Email { get; set; }
+    public DateTime MemberSince { get; set; }
+    public bool IsActive { get; set; }
+}
+```
+
+#### 2. Creating Circular References
+
+```csharp
+// ❌ Bad - Circular reference
+public class NoteResponse
+{
+    public int NoteId { get; set; }
+    public List<TagResponse> Tags { get; set; }
+}
+
+public class TagResponse
+{
+    public int TagId { get; set; }
+    public List<NoteResponse> Notes { get; set; }  // Circular!
+}
+
+// ✅ Good - Use IDs or avoid circular structure
+public class NoteResponse
+{
+    public int NoteId { get; set; }
+    public List<int> TagIds { get; set; }  // Just IDs
+}
+```
+
+#### 3. Reusing DTOs for Multiple Operations
+
+```csharp
+// ❌ Bad - Same DTO for different operations
+public class TagDto
+{
+    public int? TagId { get; set; }      // Null for create, set for update
+    public string Name { get; set; }
+    public string? Description { get; set; }
+    // Confusing and error-prone
+}
+
+// ✅ Good - Specific DTOs
+public class CreateTagRequest
+{
+    public string Name { get; set; }
+    public string? Description { get; set; }
+}
+
+public class UpdateTagRequest
+{
+    public string Name { get; set; }
+    public string? Description { get; set; }
+}
+```
+
+### Summary
+
+- **Models** live in `SuperAppModels\Models\` and contain business logic
+- **DTOs** live in `SuperAppModels\DTOs\` and are for data transfer only
+- **Never expose Models directly in API controllers**
+- **Use specific DTOs for different operations**
+- **Map between Models and DTOs in services/handlers**
+- **Keep DTOs simple, flat, and focused**
+- **Use validation attributes on request DTOs**
+- **Exclude sensitive data from response DTOs**
+
+Following these patterns ensures:
+- **Security**: Sensitive data stays internal
+- **Maintainability**: Clear separation of concerns  
+- **Flexibility**: API changes don't affect domain
+- **Performance**: Optimized data transfer
 
 ---
 

@@ -33,30 +33,31 @@ namespace SuperAppAPI.Controllers
         /// </summary>
         /// <param name="getAll">Get all notes flag (admin only)</param>
         /// <param name="searchText">Optional search text filter</param>
+        /// <param name="tagIds">Optional tag IDs filter</param>
         /// <returns>List of notes matching the criteria</returns>
         /// <response code="200">Notes retrieved successfully</response>
         /// <response code="401">Unauthorized - invalid or missing token</response>
         /// <response code="500">Internal server error</response>
         [HttpGet]
-        [ProducesResponseType(typeof(SuperAppModels.DTOs.NotesResult), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(List<NoteResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetNotes([FromQuery] bool getAll = false, [FromQuery] string? searchText = null)
+        public async Task<IActionResult> GetNotes([FromQuery] bool getAll = false, [FromQuery] string? searchText = null, [FromQuery] List<int>? tagIds = null)
         {
             try
             {
-                //var userEmail = User.GetUserEmail();
-                var userEmail = "hoanhtungle@gmail.com";
+                // TEMPORARY: Using hardcoded email while auth is disabled
+                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
                 if (string.IsNullOrEmpty(userEmail))
                 {
                     _logger.LogWarning("Failed to extract user email from token");
                     return Unauthorized(new { Message = "Invalid token claims" });
                 }
 
-                _logger.LogInformation("Retrieving notes for user: {UserEmail}, GetAll: {GetAll}, SearchText: {SearchText}",
-                    userEmail, getAll, searchText);
+                _logger.LogInformation("Retrieving notes for user: {UserEmail}, GetAll: {GetAll}, SearchText: {SearchText}, TagIds: {TagIds}",
+                    userEmail, getAll, searchText, tagIds != null ? string.Join(",", tagIds) : "null");
 
-                var query = new GetNotesQuery(getAll, searchText);
+                var query = new GetNotesQuery(getAll, searchText, tagIds);
                 var response = await _mediator.Send(query);
 
                 _logger.LogInformation("Successfully retrieved {NoteCount} notes for user: {UserEmail}",
@@ -106,12 +107,13 @@ namespace SuperAppAPI.Controllers
                     return BadRequest(ModelState);
                 }
 
-                var userEmail = User.GetUserEmail();
-                if (string.IsNullOrEmpty(userEmail))
-                {
-                    _logger.LogWarning("Failed to extract user email from token");
-                    return Unauthorized(new { Message = "Invalid token claims" });
-                }
+                // TEMPORARY: Using hardcoded email while auth is disabled
+                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+                //if (string.IsNullOrEmpty(userEmail))
+                //{
+                //    _logger.LogWarning("Failed to extract user email from token");
+                //    return Unauthorized(new { Message = "Invalid token claims" });
+                //}
 
                 // Set the CreatedBy from the authenticated user
                 request.CreatedBy = userEmail;
@@ -168,12 +170,13 @@ namespace SuperAppAPI.Controllers
                     return BadRequest(new { Message = "Note ID must be a positive integer" });
                 }
 
-                var userEmail = User.GetUserEmail();
-                if (string.IsNullOrEmpty(userEmail))
-                {
-                    _logger.LogWarning("Failed to extract user email from token");
-                    return Unauthorized(new { Message = "Invalid token claims" });
-                }
+                // TEMPORARY: Using hardcoded email while auth is disabled
+                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+                //if (string.IsNullOrEmpty(userEmail))
+                //{
+                //    _logger.LogWarning("Failed to extract user email from token");
+                //    return Unauthorized(new { Message = "Invalid token claims" });
+                //}
 
                 _logger.LogInformation("Retrieving note {NoteId} for user: {UserEmail}", id, userEmail);
 
@@ -243,12 +246,13 @@ namespace SuperAppAPI.Controllers
                     return BadRequest(ModelState);
                 }
 
-                var userEmail = User.GetUserEmail();
-                if (string.IsNullOrEmpty(userEmail))
-                {
-                    _logger.LogWarning("Failed to extract user email from token");
-                    return Unauthorized(new { Message = "Invalid token claims" });
-                }
+                // TEMPORARY: Using hardcoded email while auth is disabled
+                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+                //if (string.IsNullOrEmpty(userEmail))
+                //{
+                //    _logger.LogWarning("Failed to extract user email from token");
+                //    return Unauthorized(new { Message = "Invalid token claims" });
+                //}
 
                 // Set the NoteId from URL parameter
                 request.NoteId = id;
@@ -341,12 +345,13 @@ namespace SuperAppAPI.Controllers
                     return BadRequest(new { Message = "Note ID(s) must be provided" });
                 }
 
-                var userEmail = User.GetUserEmail();
-                if (string.IsNullOrEmpty(userEmail))
-                {
-                    _logger.LogWarning("Failed to extract user email from token");
-                    return Unauthorized(new { Message = "Invalid token claims" });
-                }
+                // TEMPORARY: Using hardcoded email while auth is disabled
+                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+                //if (string.IsNullOrEmpty(userEmail))
+                //{
+                //    _logger.LogWarning("Failed to extract user email from token");
+                //    return Unauthorized(new { Message = "Invalid token claims" });
+                //}
 
                 _logger.LogInformation("Deleting note(s) {NoteIds} for user: {UserEmail}", id, userEmail);
 

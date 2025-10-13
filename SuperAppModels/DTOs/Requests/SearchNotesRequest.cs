@@ -13,8 +13,7 @@ namespace SuperAppModels.DTOs.Requests
         [StringLength(100, ErrorMessage = "Type filter cannot exceed 100 characters")]
         public string? Type { get; set; }
 
-        [StringLength(500, ErrorMessage = "Tags filter cannot exceed 500 characters")]
-        public string? Tags { get; set; }
+        public List<int>? TagIds { get; set; }
 
         public bool IncludeArchived { get; set; } = false;
 

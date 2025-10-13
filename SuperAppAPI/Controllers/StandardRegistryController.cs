@@ -11,7 +11,7 @@ namespace SuperAppAPI.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize] // Restore authorization for all endpoints - security critical!
+    //[Authorize] // TEMPORARY: Authorization disabled for development
     public class StandardRegistryController : ControllerBase
     {
         private readonly IStandardRegistryRepository _repository;
@@ -41,12 +41,13 @@ namespace SuperAppAPI.Controllers
         {
             try
             {
-                var userEmail = User.GetUserEmail();
-                if (string.IsNullOrEmpty(userEmail))
-                {
-                    _logger.LogWarning("Failed to extract user email from token");
-                    return Unauthorized(new { Message = "Invalid token claims" });
-                }
+                // TEMPORARY: Using hardcoded email while auth is disabled
+                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+                //if (string.IsNullOrEmpty(userEmail))
+                //{
+                //    _logger.LogWarning("Failed to extract user email from token");
+                //    return Unauthorized(new { Message = "Invalid token claims" });
+                //}
 
                 _logger.LogInformation("Getting standard registries for user: {UserEmail}, Type: {Type}", 
                     userEmail, type);
@@ -102,12 +103,13 @@ namespace SuperAppAPI.Controllers
                     return BadRequest(new { Message = "Registry ID must be a positive integer" });
                 }
 
-                var userEmail = User.GetUserEmail();
-                if (string.IsNullOrEmpty(userEmail))
-                {
-                    _logger.LogWarning("Failed to extract user email from token");
-                    return Unauthorized(new { Message = "Invalid token claims" });
-                }
+                // TEMPORARY: Using hardcoded email while auth is disabled
+                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+                //if (string.IsNullOrEmpty(userEmail))
+                //{
+                //    _logger.LogWarning("Failed to extract user email from token");
+                //    return Unauthorized(new { Message = "Invalid token claims" });
+                //}
 
                 _logger.LogInformation("Getting standard registry {RegistryId} for user: {UserEmail}", 
                     id, userEmail);

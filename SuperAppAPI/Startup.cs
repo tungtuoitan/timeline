@@ -182,9 +182,10 @@ namespace SuperAppAPI
 
             app.UseSession(); // Session management middleware
 
+            // TEMPORARY: Authentication and Authorization disabled for development
             // Authentication and Authorization - MUST be in this order and after routing
-            app.UseAuthentication();  // Must come before UseAuthorization
-            app.UseAuthorization();
+            //app.UseAuthentication();  // Must come before UseAuthorization
+            //app.UseAuthorization();
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();

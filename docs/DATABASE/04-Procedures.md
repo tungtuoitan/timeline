@@ -9,41 +9,41 @@ Complete collection of stored procedures for tag management, tagging operations,
 - [Stored Procedures](#stored-procedures)
   - [Table of Contents](#table-of-contents)
   - [1. Tag Management](#1-tag-management)
-    - [1.1 sp\_create\_tag](#11-sp_create_tag)
-    - [1.2 sp\_update\_tag](#12-sp_update_tag)
-    - [1.3 sp\_move\_tag](#13-sp_move_tag)
-    - [1.4 sp\_delete\_tag](#14-sp_delete_tag)
-    - [1.5 sp\_restore\_tag](#15-sp_restore_tag)
+    - [1.1 usp\_i\_tag](#11-usp_i_tag)
+    - [1.2 usp\_u\_tag](#12-usp_u_tag)
+    - [1.3 usp\_move\_tag](#13-usp_move_tag)
+    - [1.4 usp\_d\_tag](#14-usp_d_tag)
+    - [1.5 usp\_restore\_tag](#15-usp_restore_tag)
   - [2. Tagging Operations](#2-tagging-operations)
-    - [2.1 sp\_tag\_item](#21-sp_tag_item)
-    - [2.2 sp\_untag\_item](#22-sp_untag_item)
-    - [2.3 sp\_bulk\_tag\_items](#23-sp_bulk_tag_items)
-    - [2.4 sp\_replace\_tag](#24-sp_replace_tag)
+    - [2.1 usp\_tag\_item](#21-usp_tag_item)
+    - [2.2 usp\_untag\_item](#22-usp_untag_item)
+    - [2.3 usp\_bulk\_tag\_items](#23-usp_bulk_tag_items)
+    - [2.4 usp\_replace\_tag](#24-usp_replace_tag)
   - [3. Query Operations](#3-query-operations)
-    - [3.1 sp\_get\_user\_tags](#31-sp_get_user_tags)
-    - [3.2 sp\_get\_tag\_subtree](#32-sp_get_tag_subtree)
-    - [3.3 sp\_get\_tag\_breadcrumb](#33-sp_get_tag_breadcrumb)
-    - [3.4 sp\_get\_tagged\_items](#34-sp_get_tagged_items)
-    - [3.5 sp\_search\_tags](#35-sp_search_tags)
-    - [3.6 sp\_get\_tag\_tree](#36-sp_get_tag_tree)
+    - [3.1 usp\_s\_user\_tags](#31-usp_s_user_tags)
+    - [3.2 usp\_s\_tag\_subtree](#32-usp_s_tag_subtree)
+    - [3.3 usp\_s\_tag\_breadcrumb](#33-usp_s_tag_breadcrumb)
+    - [3.4 usp\_s\_tagged\_items](#34-usp_s_tagged_items)
+    - [3.5 usp\_search\_tags](#35-usp_search_tags)
+    - [3.6 usp\_s\_tag\_tree](#36-usp_s_tag_tree)
   - [4. Sharing Operations](#4-sharing-operations)
-    - [4.1 sp\_share\_tag](#41-sp_share_tag)
-    - [4.2 sp\_revoke\_tag\_share](#42-sp_revoke_tag_share)
-    - [4.3 sp\_update\_tag\_share](#43-sp_update_tag_share)
-    - [4.4 sp\_get\_tag\_shares](#44-sp_get_tag_shares)
-    - [4.5 sp\_get\_shared\_tags](#45-sp_get_shared_tags)
-    - [4.6 sp\_share\_tag\_with\_group](#46-sp_share_tag_with_group)
+    - [4.1 usp\_share\_tag](#41-usp_share_tag)
+    - [4.2 usp\_revoke\_tag\_share](#42-usp_revoke_tag_share)
+    - [4.3 usp\_u\_tag\_share](#43-usp_u_tag_share)
+    - [4.4 usp\_s\_tag\_shares](#44-usp_s_tag_shares)
+    - [4.5 usp\_s\_shared\_tags](#45-usp_s_shared_tags)
+    - [4.6 usp\_share\_tag\_with\_group](#46-usp_share_tag_with_group)
 
 ---
 
 ## 1. Tag Management
 
-### 1.1 sp_create_tag
+### 1.1 usp_i_tag
 
 Create a new tag for a user with automatic slug generation and validation.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_create_tag
+CREATE OR ALTER PROCEDURE usp_i_tag
     @user_id INT,
     @name NVARCHAR(255),
     @parent_id INT = NULL,
@@ -205,7 +205,7 @@ GO
 **Usage:**
 ```sql
 -- Create root tag
-EXEC sp_create_tag 
+EXEC usp_i_tag 
     @user_id = 1, 
     @name = 'Work Projects',
     @color = '#0066CC',
@@ -216,7 +216,7 @@ EXEC sp_create_tag
 DECLARE @parent_id INT;
 SELECT @parent_id = id FROM tags WHERE user_id = 1 AND name = 'Work Projects';
 
-EXEC sp_create_tag 
+EXEC usp_i_tag 
     @user_id = 1, 
     @name = 'Client A',
     @parent_id = @parent_id,
@@ -225,12 +225,12 @@ EXEC sp_create_tag
 
 ---
 
-### 1.2 sp_update_tag
+### 1.2 usp_u_tag
 
 Update tag metadata (name, color, icon, description).
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_update_tag
+CREATE OR ALTER PROCEDURE usp_u_tag
     @user_id INT,
     @tag_id INT,
     @name NVARCHAR(255) = NULL,
@@ -344,14 +344,14 @@ GO
 **Usage:**
 ```sql
 -- Update tag color and icon
-EXEC sp_update_tag 
+EXEC usp_u_tag 
     @user_id = 1,
     @tag_id = 5,
     @color = '#FF6600',
     @icon = 'star';
 
 -- Update only name
-EXEC sp_update_tag 
+EXEC usp_u_tag 
     @user_id = 1,
     @tag_id = 5,
     @name = 'Important Work';
@@ -359,12 +359,12 @@ EXEC sp_update_tag
 
 ---
 
-### 1.3 sp_move_tag
+### 1.3 usp_move_tag
 
 Move tag to a new parent (or to root if parent_id is NULL).
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_move_tag
+CREATE OR ALTER PROCEDURE usp_move_tag
     @user_id INT,
     @tag_id INT,
     @new_parent_id INT = NULL
@@ -494,13 +494,13 @@ GO
 **Usage:**
 ```sql
 -- Move tag to new parent
-EXEC sp_move_tag 
+EXEC usp_move_tag 
     @user_id = 1,
     @tag_id = 5,
     @new_parent_id = 10;
 
 -- Move tag to root (remove parent)
-EXEC sp_move_tag 
+EXEC usp_move_tag 
     @user_id = 1,
     @tag_id = 5,
     @new_parent_id = NULL;
@@ -508,12 +508,12 @@ EXEC sp_move_tag
 
 ---
 
-### 1.4 sp_delete_tag
+### 1.4 usp_d_tag
 
 Soft delete a tag and optionally its descendants.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_delete_tag
+CREATE OR ALTER PROCEDURE usp_d_tag
     @user_id INT,
     @tag_id INT,
     @cascade BIT = 1  -- If 1, delete descendants; if 0, re-parent children to parent
@@ -603,13 +603,13 @@ GO
 **Usage:**
 ```sql
 -- Delete tag and all descendants
-EXEC sp_delete_tag 
+EXEC usp_d_tag 
     @user_id = 1,
     @tag_id = 5,
     @cascade = 1;
 
 -- Delete tag but keep children (re-parent to grandparent)
-EXEC sp_delete_tag 
+EXEC usp_d_tag 
     @user_id = 1,
     @tag_id = 5,
     @cascade = 0;
@@ -617,12 +617,12 @@ EXEC sp_delete_tag
 
 ---
 
-### 1.5 sp_restore_tag
+### 1.5 usp_restore_tag
 
 Restore a soft-deleted tag.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_restore_tag
+CREATE OR ALTER PROCEDURE usp_restore_tag
     @user_id INT,
     @tag_id INT,
     @restore_descendants BIT = 1
@@ -701,12 +701,12 @@ GO
 
 ## 2. Tagging Operations
 
-### 2.1 sp_tag_item
+### 2.1 usp_tag_item
 
 Apply a tag to an item.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_tag_item
+CREATE OR ALTER PROCEDURE usp_tag_item
     @user_id INT,
     @tag_id INT,
     @taggable_id BIGINT,
@@ -824,14 +824,14 @@ GO
 **Usage:**
 ```sql
 -- Tag a note
-EXEC sp_tag_item 
+EXEC usp_tag_item 
     @user_id = 1,
     @tag_id = 5,
     @taggable_id = 123,
     @taggable_type = 'Note';
 
 -- Tag a file
-EXEC sp_tag_item 
+EXEC usp_tag_item 
     @user_id = 1,
     @tag_id = 5,
     @taggable_id = 456,
@@ -840,12 +840,12 @@ EXEC sp_tag_item
 
 ---
 
-### 2.2 sp_untag_item
+### 2.2 usp_untag_item
 
 Remove a tag from an item.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_untag_item
+CREATE OR ALTER PROCEDURE usp_untag_item
     @user_id INT,
     @tag_id INT,
     @taggable_id BIGINT,
@@ -915,12 +915,12 @@ GO
 
 ---
 
-### 2.3 sp_bulk_tag_items
+### 2.3 usp_bulk_tag_items
 
 Tag multiple items at once.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_bulk_tag_items
+CREATE OR ALTER PROCEDURE usp_bulk_tag_items
     @user_id INT,
     @tag_id INT,
     @items NVARCHAR(MAX)  -- JSON array: [{"id": 123, "type": "Note"}, ...]
@@ -994,7 +994,7 @@ GO
 **Usage:**
 ```sql
 -- Tag multiple items
-EXEC sp_bulk_tag_items 
+EXEC usp_bulk_tag_items 
     @user_id = 1,
     @tag_id = 5,
     @items = '[
@@ -1006,12 +1006,12 @@ EXEC sp_bulk_tag_items
 
 ---
 
-### 2.4 sp_replace_tag
+### 2.4 usp_replace_tag
 
 Replace one tag with another on all items.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_replace_tag
+CREATE OR ALTER PROCEDURE usp_replace_tag
     @user_id INT,
     @old_tag_id INT,
     @new_tag_id INT
@@ -1084,12 +1084,12 @@ GO
 
 ## 3. Query Operations
 
-### 3.1 sp_get_user_tags
+### 3.1 usp_s_user_tags
 
 Get all tags for a user in tree format.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_get_user_tags
+CREATE OR ALTER PROCEDURE usp_s_user_tags
     @user_id INT,
     @include_deleted BIT = 0,
     @include_shared BIT = 1,
@@ -1177,26 +1177,26 @@ GO
 **Usage:**
 ```sql
 -- Get all tags
-EXEC sp_get_user_tags @user_id = 1;
+EXEC usp_s_user_tags @user_id = 1;
 
 -- Get only root tags
-EXEC sp_get_user_tags @user_id = 1, @parent_id = 0;
+EXEC usp_s_user_tags @user_id = 1, @parent_id = 0;
 
 -- Get children of specific tag
-EXEC sp_get_user_tags @user_id = 1, @parent_id = 5;
+EXEC usp_s_user_tags @user_id = 1, @parent_id = 5;
 
 -- Include deleted tags
-EXEC sp_get_user_tags @user_id = 1, @include_deleted = 1;
+EXEC usp_s_user_tags @user_id = 1, @include_deleted = 1;
 ```
 
 ---
 
-### 3.2 sp_get_tag_subtree
+### 3.2 usp_s_tag_subtree
 
 Get tag and all its descendants with depth information.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_get_tag_subtree
+CREATE OR ALTER PROCEDURE usp_s_tag_subtree
     @user_id INT,
     @root_tag_id INT,
     @max_depth INT = NULL  -- NULL = unlimited
@@ -1261,12 +1261,12 @@ GO
 **Usage:**
 ```sql
 -- Get full subtree
-EXEC sp_get_tag_subtree 
+EXEC usp_s_tag_subtree 
     @user_id = 1,
     @root_tag_id = 5;
 
 -- Get only 2 levels deep
-EXEC sp_get_tag_subtree 
+EXEC usp_s_tag_subtree 
     @user_id = 1,
     @root_tag_id = 5,
     @max_depth = 2;
@@ -1274,12 +1274,12 @@ EXEC sp_get_tag_subtree
 
 ---
 
-### 3.3 sp_get_tag_breadcrumb
+### 3.3 usp_s_tag_breadcrumb
 
 Get breadcrumb path (all ancestors) for a tag.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_get_tag_breadcrumb
+CREATE OR ALTER PROCEDURE usp_s_tag_breadcrumb
     @tag_id INT
 AS
 BEGIN
@@ -1303,18 +1303,18 @@ GO
 
 **Usage:**
 ```sql
-EXEC sp_get_tag_breadcrumb @tag_id = 15;
+EXEC usp_s_tag_breadcrumb @tag_id = 15;
 -- Returns: Root (depth 0) → Parent (depth 1) → Grandparent (depth 2) → Current Tag (depth 3)
 ```
 
 ---
 
-### 3.4 sp_get_tagged_items
+### 3.4 usp_s_tagged_items
 
 Find all items tagged with specific tag(s).
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_get_tagged_items
+CREATE OR ALTER PROCEDURE usp_s_tagged_items
     @user_id INT,
     @tag_id INT = NULL,
     @tag_ids NVARCHAR(MAX) = NULL,  -- JSON array: [1, 5, 10]
@@ -1400,25 +1400,25 @@ GO
 **Usage:**
 ```sql
 -- Get items tagged with tag 5 and its children
-EXEC sp_get_tagged_items 
+EXEC usp_s_tagged_items 
     @user_id = 1,
     @tag_id = 5,
     @include_subtree = 1;
 
 -- Get items tagged with multiple tags
-EXEC sp_get_tagged_items 
+EXEC usp_s_tagged_items 
     @user_id = 1,
     @tag_ids = '[5, 10, 15]',
     @include_subtree = 0;
 
 -- Get only Notes tagged with tag 5
-EXEC sp_get_tagged_items 
+EXEC usp_s_tagged_items 
     @user_id = 1,
     @tag_id = 5,
     @entity_type = 'Note';
 
 -- Pagination
-EXEC sp_get_tagged_items 
+EXEC usp_s_tagged_items 
     @user_id = 1,
     @tag_id = 5,
     @limit = 20,
@@ -1427,12 +1427,12 @@ EXEC sp_get_tagged_items
 
 ---
 
-### 3.5 sp_search_tags
+### 3.5 usp_search_tags
 
 Search tags by name, path, or slug with autocomplete support.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_search_tags
+CREATE OR ALTER PROCEDURE usp_search_tags
     @user_id INT,
     @query NVARCHAR(255),
     @limit INT = 20,
@@ -1506,13 +1506,13 @@ GO
 **Usage:**
 ```sql
 -- Search for tags
-EXEC sp_search_tags 
+EXEC usp_search_tags 
     @user_id = 1,
     @query = 'project',
     @limit = 10;
 
 -- Search only own tags
-EXEC sp_search_tags 
+EXEC usp_search_tags 
     @user_id = 1,
     @query = 'work',
     @include_shared = 0;
@@ -1520,12 +1520,12 @@ EXEC sp_search_tags
 
 ---
 
-### 3.6 sp_get_tag_tree
+### 3.6 usp_s_tag_tree
 
 Get complete tag tree in hierarchical format (for UI tree components).
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_get_tag_tree
+CREATE OR ALTER PROCEDURE usp_s_tag_tree
     @user_id INT,
     @include_shared BIT = 1
 AS
@@ -1610,22 +1610,22 @@ GO
 **Usage:**
 ```sql
 -- Get full tree
-EXEC sp_get_tag_tree @user_id = 1;
+EXEC usp_s_tag_tree @user_id = 1;
 
 -- Get only own tags tree
-EXEC sp_get_tag_tree @user_id = 1, @include_shared = 0;
+EXEC usp_s_tag_tree @user_id = 1, @include_shared = 0;
 ```
 
 ---
 
 ## 4. Sharing Operations
 
-### 4.1 sp_share_tag
+### 4.1 usp_share_tag
 
 Share a tag with another user with granular permissions.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_share_tag
+CREATE OR ALTER PROCEDURE usp_share_tag
     @owner_id INT,
     @tag_id INT,
     @recipient_id INT,
@@ -1774,14 +1774,14 @@ GO
 **Usage:**
 ```sql
 -- Share tag with read-only access
-EXEC sp_share_tag 
+EXEC usp_share_tag 
     @owner_id = 1,
     @tag_id = 5,
     @recipient_id = 2,
     @can_read = 1;
 
 -- Share tag with full access
-EXEC sp_share_tag 
+EXEC usp_share_tag 
     @owner_id = 1,
     @tag_id = 5,
     @recipient_id = 2,
@@ -1791,7 +1791,7 @@ EXEC sp_share_tag
     @can_untag = 1;
 
 -- Share tag with expiration
-EXEC sp_share_tag 
+EXEC usp_share_tag 
     @owner_id = 1,
     @tag_id = 5,
     @recipient_id = 2,
@@ -1800,7 +1800,7 @@ EXEC sp_share_tag
     @expires_at = '2025-12-31 23:59:59';
 
 -- Share only this tag, not children
-EXEC sp_share_tag 
+EXEC usp_share_tag 
     @owner_id = 1,
     @tag_id = 5,
     @recipient_id = 2,
@@ -1810,12 +1810,12 @@ EXEC sp_share_tag
 
 ---
 
-### 4.2 sp_revoke_tag_share
+### 4.2 usp_revoke_tag_share
 
 Revoke a tag share.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_revoke_tag_share
+CREATE OR ALTER PROCEDURE usp_revoke_tag_share
     @owner_id INT,
     @tag_id INT,
     @recipient_id INT = NULL  -- NULL = revoke all shares for this tag
@@ -1888,13 +1888,13 @@ GO
 **Usage:**
 ```sql
 -- Revoke share for specific user
-EXEC sp_revoke_tag_share 
+EXEC usp_revoke_tag_share 
     @owner_id = 1,
     @tag_id = 5,
     @recipient_id = 2;
 
 -- Revoke all shares for a tag
-EXEC sp_revoke_tag_share 
+EXEC usp_revoke_tag_share 
     @owner_id = 1,
     @tag_id = 5,
     @recipient_id = NULL;
@@ -1902,12 +1902,12 @@ EXEC sp_revoke_tag_share
 
 ---
 
-### 4.3 sp_update_tag_share
+### 4.3 usp_u_tag_share
 
 Update permissions of an existing share.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_update_tag_share
+CREATE OR ALTER PROCEDURE usp_u_tag_share
     @owner_id INT,
     @tag_id INT,
     @recipient_id INT,
@@ -1997,14 +1997,14 @@ GO
 **Usage:**
 ```sql
 -- Grant write permission
-EXEC sp_update_tag_share 
+EXEC usp_u_tag_share 
     @owner_id = 1,
     @tag_id = 5,
     @recipient_id = 2,
     @can_write = 1;
 
 -- Extend expiration
-EXEC sp_update_tag_share 
+EXEC usp_u_tag_share 
     @owner_id = 1,
     @tag_id = 5,
     @recipient_id = 2,
@@ -2013,12 +2013,12 @@ EXEC sp_update_tag_share
 
 ---
 
-### 4.4 sp_get_tag_shares
+### 4.4 usp_s_tag_shares
 
 List all shares for a tag.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_get_tag_shares
+CREATE OR ALTER PROCEDURE usp_s_tag_shares
     @owner_id INT,
     @tag_id INT,
     @include_revoked BIT = 0
@@ -2086,12 +2086,12 @@ GO
 **Usage:**
 ```sql
 -- Get active shares
-EXEC sp_get_tag_shares 
+EXEC usp_s_tag_shares 
     @owner_id = 1,
     @tag_id = 5;
 
 -- Include revoked shares
-EXEC sp_get_tag_shares 
+EXEC usp_s_tag_shares 
     @owner_id = 1,
     @tag_id = 5,
     @include_revoked = 1;
@@ -2099,12 +2099,12 @@ EXEC sp_get_tag_shares
 
 ---
 
-### 4.5 sp_get_shared_tags
+### 4.5 usp_s_shared_tags
 
 Get all tags shared WITH current user.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_get_shared_tags
+CREATE OR ALTER PROCEDURE usp_s_shared_tags
     @user_id INT,
     @status NVARCHAR(20) = 'active'  -- 'active', 'expired', 'all'
 AS
@@ -2158,23 +2158,23 @@ GO
 **Usage:**
 ```sql
 -- Get all active shared tags
-EXEC sp_get_shared_tags @user_id = 2;
+EXEC usp_s_shared_tags @user_id = 2;
 
 -- Get expired shares
-EXEC sp_get_shared_tags @user_id = 2, @status = 'expired';
+EXEC usp_s_shared_tags @user_id = 2, @status = 'expired';
 
 -- Get all shares (active + expired)
-EXEC sp_get_shared_tags @user_id = 2, @status = 'all';
+EXEC usp_s_shared_tags @user_id = 2, @status = 'all';
 ```
 
 ---
 
-### 4.6 sp_share_tag_with_group
+### 4.6 usp_share_tag_with_group
 
 Share tag with all members of a group.
 
 ```sql
-CREATE OR ALTER PROCEDURE sp_share_tag_with_group
+CREATE OR ALTER PROCEDURE usp_share_tag_with_group
     @owner_id INT,
     @tag_id INT,
     @group_id INT,
@@ -2259,8 +2259,8 @@ BEGIN
         
         WHILE @@FETCH_STATUS = 0
         BEGIN
-            -- Use sp_share_tag for each member
-            EXEC sp_share_tag 
+            -- Use usp_share_tag for each member
+            EXEC usp_share_tag 
                 @owner_id = @owner_id,
                 @tag_id = @tag_id,
                 @recipient_id = @member_id,
@@ -2306,6 +2306,6 @@ GO
 **Usage:**
 ```sql
 -- Share tag with team
-EXEC sp_share_tag_with_group 
+EXEC usp_share_tag_with_group 
     @owner_id = 1,
     

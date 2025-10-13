@@ -69,49 +69,51 @@ namespace SuperAppAPI
 
                     services.AddHttpContextAccessor();
 
+                    // TEMPORARY: JWT Authentication disabled for development
                     // Configure JWT Authentication
-                    services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                        .AddJwtBearer(options =>
-                        {
-                            options.TokenValidationParameters = new TokenValidationParameters
-                            {
-                                ValidateIssuerSigningKey = true,
-                                IssuerSigningKey = new SymmetricSecurityKey(key),
-                                ValidateIssuer = false,
-                                ValidateAudience = false,
-                                ValidateLifetime = true,
-                                ClockSkew = TimeSpan.Zero
-                            };
-                        });
+                    //services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                    //    .AddJwtBearer(options =>
+                    //    {
+                    //        options.TokenValidationParameters = new TokenValidationParameters
+                    //        {
+                    //            ValidateIssuerSigningKey = true,
+                    //            IssuerSigningKey = new SymmetricSecurityKey(key),
+                    //            ValidateIssuer = false,
+                    //            ValidateAudience = false,
+                    //            ValidateLifetime = true,
+                    //            ClockSkew = TimeSpan.Zero
+                    //        };
+                    //    });
 
-                    services.AddAuthorization();
+                    //services.AddAuthorization();
 
                     // Register MediatR with pipeline behaviors
                     services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(SuperApp.Application.Features.Notes.Queries.GetNotes.GetNotesQuery).Assembly));
                     
                     // Register FluentValidation
                     services.AddValidatorsFromAssembly(typeof(SuperApp.Application.Features.Notes.Commands.CreateNote.CreateNoteValidator).Assembly);
-                    
-                    // Register MediatR pipeline behaviors
-                    services.AddTransient(typeof(IPipelineBehavior<,>), typeof(SuperApp.Application.Common.Behaviors.ValidationBehavior<,>));
-                    services.AddTransient(typeof(IPipelineBehavior<,>), typeof(SuperApp.Application.Common.Behaviors.LoggingBehavior<,>));
 
-                    // Register AutoMapper
+                    // Register AutoMapper manually to avoid ambiguous calls
                     var mapperConfig = new AutoMapper.MapperConfiguration(mc =>
                     {
                         mc.AddProfile(new MappingProfile());
                     });
                     IMapper mapper = mapperConfig.CreateMapper();
                     services.AddSingleton(mapper);
+                    
+                    // Register MediatR pipeline behaviors
+                    services.AddTransient(typeof(IPipelineBehavior<,>), typeof(SuperApp.Application.Common.Behaviors.ValidationBehavior<,>));
+                    services.AddTransient(typeof(IPipelineBehavior<,>), typeof(SuperApp.Application.Common.Behaviors.LoggingBehavior<,>));
 
                     // Register Connection Factory
                     services.AddScoped<IConnectionFactory, ConnectionFactory>();
 
-                    // Register Repositories (keeping these for now as they're used by CQRS handlers)
-                    services.AddScoped<IUserProfileRepository, UserProfileRepository>();
-                    services.AddScoped<IAuthRepository, AuthRepository>();
+                    // Register repositories
                     services.AddScoped<INoteRepository, NoteRepository>();
+                    services.AddScoped<ITagRepository, TagRepository>();
                     services.AddScoped<IStandardRegistryRepository, StandardRegistryRepository>();
+                    services.AddScoped<IAuthRepository, AuthRepository>();
+                    services.AddScoped<IUserProfileRepository, UserProfileRepository>();
 
                     // Services layer removed - using CQRS pattern instead
                     // All controllers now use MediatR commands/queries or repository pattern directly

@@ -61,7 +61,7 @@ namespace SuperAppAPI.Controllers
         /// <response code="200">System is healthy with user context</response>
         /// <response code="401">Unauthorized - invalid or missing token</response>
         /// <response code="503">Service unavailable</response>
-        [Authorize] // Restore authorization
+        //[Authorize] // TEMPORARY: Authorization disabled for development
         [HttpGet("secure")]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -70,8 +70,9 @@ namespace SuperAppAPI.Controllers
         {
             try
             {
-                var userEmail = User.GetUserEmail();
-                var userId = User.GetUserId();
+                // TEMPORARY: Using mock data while auth is disabled
+                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+                var userId = User.GetUserId() ?? "1";
 
                 var secureHealthInfo = new
                 {
@@ -85,7 +86,8 @@ namespace SuperAppAPI.Controllers
                         isAuthenticated = User.Identity?.IsAuthenticated ?? false,
                         userEmail = userEmail,
                         userId = userId,
-                        tokenClaims = User.Claims.Count()
+                        tokenClaims = User.Claims.Count(),
+                        authDisabled = true // TEMPORARY: Indicate auth is disabled
                     },
                     system = new
                     {

@@ -279,22 +279,55 @@ public abstract class BaseRepository
 
 ## Stored Procedures
 
-### Naming Convention
+### Comprehensive Documentation
+
+For complete stored procedure documentation, see: **[Stored Procedures Guide](DATABASE/STORED_PROCEDURES.md)**
+
+The documentation covers:
+- **Advanced Tag System** - Hierarchical tagging with sharing and collaboration
+- **Notes Management** - CRUD operations with complex business logic
+- **User Profile Management** - Profile and authentication procedures
+- **Legacy Systems** - Backward compatibility procedures
+- **Performance Guidelines** - Optimization and best practices
+
+### Current Naming Convention
 
 ```csharp
 public static class StoredProcedures
 {
-    // Format: [dbo].[usp_{operation}_{entity}]
-    public const string SelectNotes = "[dbo].[usp_Select_Notes]";
-    public const string SelectNoteById = "[dbo].[usp_Select_Note_ById]";
-    public const string InsertUpdateNote = "[dbo].[usp_InsertUpdate_Note]";
-    public const string DeleteNote = "[dbo].[usp_Delete_Note]";
+    // Core entity operations
+    public static string spSelectNotes => "[dbo].[usp_s_Notes]";
+    public static string spInsertUpdateNote => "[dbo].[usp_iu_Note]";
+    public static string spDeleteNote => "[dbo].[usp_d_Note]";
     
-    // UserProfile procedures
-    public const string SelectUserProfile = "[dbo].[usp_Select_UserProfile]";
-    public const string InsertUpdateUserProfile = "[dbo].[usp_InsertUpdate_UserProfile]";
+    // Advanced tag system
+    public static string spSelectUserTags => "[dbo].[usp_s_user_tags]";
+    public static string spInsertTag => "[dbo].[usp_i_tag]";
+    public static string spUpdateTag => "[dbo].[usp_u_tag]";
+    public static string spDeleteTag => "[dbo].[usp_d_tag]";
+    public static string spMoveTag => "[dbo].[usp_move_tag]";
+    public static string spShareTag => "[dbo].[usp_share_tag]";
+    
+    // Universal item tagging
+    public static string spTagItem => "[dbo].[usp_tag_item]";
+    public static string spUntagItem => "[dbo].[usp_untag_item]";
+    public static string spSelectTaggedItems => "[dbo].[sp_s_tagged_items]";
+    
+    // User profile management
+    public static string spSelectUserProfileJson => "[dbo].[usp_s_UserProfileJson]";
+    public static string spInsertUpdateUserProfile => "[dbo].[usp_iu_UserProfile]";
 }
 ```
+
+### Operation Prefixes
+
+| Prefix | Purpose | Examples |
+|--------|---------|----------|
+| `s_` | **Select** operations | `usp_s_Notes`, `usp_s_user_tags` |
+| `i_` | **Insert** operations | `usp_i_tag`, `usp_i_Taggable` |
+| `u_` | **Update** operations | `usp_u_tag`, `usp_u_tag_share` |
+| `d_` | **Delete** operations | `usp_d_tag`, `usp_d_Note` |
+| `iu_` | **Insert/Update** operations | `usp_iu_Note`, `usp_iu_UserProfile` |
 
 ### Best Practices
 
@@ -302,7 +335,7 @@ public static class StoredProcedures
 
 ```csharp
 await ExecuteStoredProcedure(
-    StoredProcedures.SelectNotes,
+    StoredProcedures.spSelectNotes,
     addParameters: (cmd) => {
         cmd.Parameters.Add(new SqlParameter("@iv_UserId", userId));
     },
@@ -314,7 +347,7 @@ await ExecuteStoredProcedure(
 
 ```csharp
 await ExecuteStoredProcedure(
-    "usp_Select_Notes", // Hard to maintain, typo-prone
+    "usp_s_Notes", // Hard to maintain, typo-prone
     // ...
 );
 ```
@@ -347,7 +380,7 @@ addParameters: (cmd) =>
 public async Task<ResultOptions> IuNote(Note note)
 {
     var (result, outputParams) = await ExecuteStoredProcedureWithOutputAsync<object?>(
-        StoredProcedures.InsertUpdateNote,
+        StoredProcedures.spInsertUpdateNote,
         addParametersAndGetOutputs: async (command) =>
         {
             // Input parameters
@@ -386,6 +419,224 @@ public async Task<ResultOptions> IuNote(Note note)
 
 ---
 
+## Models vs DTOs in Repository Results
+
+### Rule: Models Must Match Database Schema Exactly
+
+**Domain models should match database table columns exactly.** If the stored procedure returns results that don't match 100% with the model properties, use DTOs instead.
+
+#### ✅ Good - Model matches database schema exactly
+
+```csharp
+// Database table: Notes
+// Columns: NoteId, Name, Description, Type, CreatedBy, CreatedAt, UpdatedAt, IsArchived
+
+public class Note
+{
+    // These match database columns exactly
+    public int NoteId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? Type { get; set; }
+    public string? CreatedBy { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public bool IsArchived { get; set; }
+    
+    // Navigation property - not a database column
+    public List<Tag> Tags { get; set; } = new List<Tag>();
+}
+
+// Repository using model directly (columns match)
+public async Task<List<Note>> GetNotesAsync()
+{
+    return await ExecuteStoredProcedure(
+        StoredProcedures.spSelectNotes,
+        addParameters: (cmd) => Task.CompletedTask,
+        mapResult: MapToList<Note> // ✅ Safe - columns match exactly
+    );
+}
+```
+
+#### ❌ Bad - Using model when columns don't match
+
+```csharp
+// If stored procedure returns: NoteId, Title, Content, AuthorName, CreateDate
+// But Note model has: NoteId, Name, Description, CreatedBy, CreatedAt
+
+public async Task<List<Note>> GetNotesWithCustomColumnsAsync()
+{
+    return await ExecuteStoredProcedure(
+        StoredProcedures.spSelectNotesCustom,
+        addParameters: (cmd) => Task.CompletedTask,
+        mapResult: MapToList<Note> // ❌ Will fail - column names don't match
+    );
+}
+```
+
+#### ✅ Good - Using DTO when columns don't match
+
+```csharp
+// Create specific DTO for custom query results
+public class NoteSearchResultDto
+{
+    public int NoteId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public string AuthorName { get; set; } = string.Empty;
+    public DateTime CreateDate { get; set; }
+}
+
+// Repository using DTO for custom results
+public async Task<List<NoteSearchResultDto>> SearchNotesAsync(string searchTerm)
+{
+    return await ExecuteStoredProcedure(
+        StoredProcedures.spSearchNotesCustom,
+        addParameters: (cmd) =>
+        {
+            cmd.Parameters.Add(new SqlParameter("@SearchTerm", searchTerm));
+            return Task.CompletedTask;
+        },
+        mapResult: MapToList<NoteSearchResultDto> // ✅ Safe - DTO matches result columns
+    );
+}
+```
+
+### When to Use Models vs DTOs in Repositories
+
+| Scenario | Use | Reason |
+|----------|-----|---------|
+| **Standard CRUD operations** | Domain Model | Database columns match model properties exactly |
+| **Simple SELECT statements** | Domain Model | Returns all standard table columns |
+| **Custom queries with JOINs** | DTO | Result columns different from single table |
+| **Aggregated data** | DTO | Calculated fields, counts, summaries |
+| **Reporting queries** | DTO | Flattened data across multiple tables |
+| **Search results** | DTO | Custom column names and computed fields |
+
+### Examples by Scenario
+
+#### Standard CRUD - Use Models
+
+```csharp
+// ✅ Standard operations - use domain models
+public async Task<Note> GetNoteByIdAsync(int id)
+{
+    return await ExecuteStoredProcedure(
+        StoredProcedures.spSelectNoteById,
+        addParameters: (cmd) => cmd.Parameters.Add(new SqlParameter("@NoteId", id)),
+        mapResult: MapToSingle<Note> // Model matches table exactly
+    );
+}
+```
+
+#### Custom Queries - Use DTOs
+
+```csharp
+// ✅ Custom query with JOINs - use DTO
+public class NoteWithTagsDto
+{
+    public int NoteId { get; set; }
+    public string NoteName { get; set; } = string.Empty;
+    public string TagNames { get; set; } = string.Empty;  // Comma-separated
+    public int TagCount { get; set; }                    // Calculated field
+}
+
+public async Task<List<NoteWithTagsDto>> GetNotesWithTagsSummaryAsync()
+{
+    return await ExecuteStoredProcedure(
+        StoredProcedures.spSelectNotesWithTagsSummary,
+        addParameters: (cmd) => Task.CompletedTask,
+        mapResult: MapToList<NoteWithTagsDto> // DTO for custom result structure
+    );
+}
+```
+
+#### Reporting Queries - Use DTOs
+
+```csharp
+// ✅ Reporting/Analytics - use specialized DTOs
+public class NotesReportDto
+{
+    public int TotalNotes { get; set; }
+    public int ArchivedNotes { get; set; }
+    public int ActiveNotes { get; set; }
+    public DateTime ReportDate { get; set; }
+    public string TopTag { get; set; } = string.Empty;
+}
+
+public async Task<NotesReportDto> GetNotesReportAsync()
+{
+    return await ExecuteStoredProcedure(
+        StoredProcedures.spGetNotesReport,
+        addParameters: (cmd) => Task.CompletedTask,
+        mapResult: MapToSingle<NotesReportDto> // Specialized DTO for report data
+    );
+}
+```
+
+### Database Schema Alignment
+
+Keep your domain models synchronized with database schemas:
+
+```csharp
+// ✅ Model exactly matches database table
+// Database: [dbo].[Notes]
+public class Note
+{
+    public int NoteId { get; set; }        // [NoteId] [int] IDENTITY(1,1) NOT NULL
+    public string Name { get; set; }       // [Name] [nvarchar](200) NOT NULL
+    public string? Description { get; set; }// [Description] [nvarchar](max) NULL
+    public string? Type { get; set; }      // [Type] [nvarchar](100) NULL
+    public string? CreatedBy { get; set; } // [CreatedBy] [nvarchar](100) NULL
+    public DateTime CreatedAt { get; set; }// [CreatedAt] [datetime2](7) NOT NULL
+    public DateTime? UpdatedAt { get; set; }// [UpdatedAt] [datetime2](7) NULL
+    public bool IsArchived { get; set; }   // [IsArchived] [bit] NOT NULL
+}
+
+// ✅ Model matches tags table schema
+// Database: [dbo].[tags]  
+public class Tag
+{
+    public int Id { get; set; }            // [id] [int] IDENTITY(1,1) NOT NULL
+    public int UserId { get; set; }        // [user_id] [int] NOT NULL
+    public string Name { get; set; }       // [name] [nvarchar](255) NOT NULL
+    public int? ParentId { get; set; }     // [parent_id] [int] NULL
+    public string? Path { get; set; }      // [path] [nvarchar](4000) NULL
+    public string? Slug { get; set; }      // [slug] [nvarchar](255) NULL
+    public string? Color { get; set; }     // [color] [nvarchar](7) NULL
+    public string? Icon { get; set; }      // [icon] [nvarchar](50) NULL
+    public string? Description { get; set; }// [description] [nvarchar](max) NULL
+    public bool? IsPublic { get; set; }    // [is_public] [bit] NULL
+    public string? PublicSlug { get; set; }// [public_slug] [nvarchar](255) NULL
+    public DateTime? CreatedAt { get; set; }// [created_at] [datetime] NULL
+    public DateTime? UpdatedAt { get; set; }// [updated_at] [datetime] NULL
+    public DateTime? DeletedAt { get; set; }// [deleted_at] [datetime] NULL
+    public int? CreatedBy { get; set; }    // [created_by] [int] NULL
+}
+```
+
+### AutoMapper Considerations
+
+When using DTOs in repositories, you may need different AutoMapper profiles:
+
+```csharp
+// Repository-specific mapping profile
+public class RepositoryMappingProfile : Profile
+{
+    public RepositoryMappingProfile()
+    {
+        // DTO to Domain Model mapping
+        CreateMap<NoteSearchResultDto, Note>()
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Title))
+            .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Content))
+            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.CreateDate))
+            .ForMember(dest => dest.CreatedBy, opt => opt.MapFrom(src => src.AuthorName));
+    }
+}
+```
+
+---
+
 ## Data Mapping
 
 ### Automatic Mapping
@@ -396,7 +647,7 @@ Use the `MapToObject<T>()` extension method for automatic property mapping:
 public async Task<List<Note>> GetNotesAsync()
 {
     return await ExecuteStoredProcedure(
-        StoredProcedures.SelectNotes,
+        StoredProcedures.spSelectNotes,
         addParameters: (cmd) => Task.CompletedTask,
         mapResult: MapToList<Note> // Automatic mapping
     );
@@ -596,7 +847,7 @@ public class NoteRepository : BaseRepository, INoteRepository
             userEmail, getAll, searchText);
 
         return await ExecuteStoredProcedure(
-            StoredProcedures.SelectNotes,
+            StoredProcedures.spSelectNotes,
             addParameters: (cmd) =>
             {
                 cmd.Parameters.Add(new SqlParameter("@iv_UserEmail", userEmail));
@@ -612,7 +863,7 @@ public class NoteRepository : BaseRepository, INoteRepository
     public async Task<Note?> GetNoteByIdAsync(int noteId)
     {
         return await ExecuteStoredProcedure(
-            StoredProcedures.SelectNoteById,
+            StoredProcedures.spSelectNoteById,
             addParameters: (cmd) =>
             {
                 cmd.Parameters.Add(new SqlParameter("@iv_NoteId", noteId));
@@ -633,7 +884,7 @@ public class NoteRepository : BaseRepository, INoteRepository
             note.NoteId, note.Name);
 
         var (_, outputParams) = await ExecuteStoredProcedureWithOutputAsync<object?>(
-            StoredProcedures.InsertUpdateNote,
+            StoredProcedures.spInsertUpdateNote,
             addParametersAndGetOutputs: async (command) =>
             {
                 // Input parameters

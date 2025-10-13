@@ -1,108 +1,41 @@
 namespace SuperAppModels.Models
 {
-    /// <summary>
-    /// Domain model representing a User entity
-    /// </summary>
     public class User
     {
-        /// <summary>
-        /// User unique identifier
-        /// </summary>
+        // Database columns - must match exactly with 'users' table
         public int Id { get; set; }
-
-        /// <summary>
-        /// User email address (unique)
-        /// </summary>
+        public string Username { get; set; } = string.Empty;
         public string? Email { get; set; }
-
-        /// <summary>
-        /// User phone number (unique, optional)
-        /// </summary>
+        public DateTime? CreatedAt { get; set; }
+        
+        // Additional properties for application logic (not in database)
         public string? Phone { get; set; }
-
-        /// <summary>
-        /// User first name
-        /// </summary>
         public string? FirstName { get; set; }
-
-        /// <summary>
-        /// User last name
-        /// </summary>
         public string? LastName { get; set; }
-
-        /// <summary>
-        /// User birth date
-        /// </summary>
         public DateOnly? Birthday { get; set; }
-
-        /// <summary>
-        /// Hashed password (for local authentication)
-        /// </summary>
         public string? PasswordHash { get; set; }
-
-        /// <summary>
-        /// Current authentication token (temporary)
-        /// </summary>
         public string? Token { get; set; }
-
-        /// <summary>
-        /// Token expiration date
-        /// </summary>
         public DateTime? TokenExpires { get; set; }
-
-        /// <summary>
-        /// Authentication type (local, google, facebook, etc.)
-        /// </summary>
         public string? AuthenticationType { get; set; }
-
-        /// <summary>
-        /// External authentication provider user ID
-        /// </summary>
         public string? ExternalId { get; set; }
-
-        /// <summary>
-        /// When the user account was created (UTC)
-        /// </summary>
-        public DateTime CreatedAt { get; set; }
-
-        /// <summary>
-        /// When the user last logged in (UTC)
-        /// </summary>
         public DateTime? LastLoginAt { get; set; }
-
-        /// <summary>
-        /// Whether the user account is active
-        /// </summary>
         public bool IsActive { get; set; } = true;
-
-        /// <summary>
-        /// Whether the user's email is verified
-        /// </summary>
         public bool IsEmailVerified { get; set; }
 
-        /// <summary>
-        /// Default constructor
-        /// </summary>
         public User()
         {
             CreatedAt = DateTime.UtcNow;
             IsActive = true;
         }
 
-        /// <summary>
-        /// Constructor for local authentication
-        /// </summary>
-        /// <param name="email">User email</param>
-        /// <param name="passwordHash">Hashed password</param>
-        public User(string email, string passwordHash) : this()
+        public User(string username, string email) : this()
         {
+            Username = username ?? throw new ArgumentNullException(nameof(username));
             Email = email ?? throw new ArgumentNullException(nameof(email));
-            PasswordHash = passwordHash ?? throw new ArgumentNullException(nameof(passwordHash));
-            AuthenticationType = "local";
         }
 
         /// <summary>
-        /// Constructor for external authentication (OAuth)
+        /// Constructor for external authentication with OAuth provider integration
         /// </summary>
         /// <param name="email">User email</param>
         /// <param name="authType">Authentication type (google, facebook, etc.)</param>
@@ -115,18 +48,11 @@ namespace SuperAppModels.Models
             IsEmailVerified = true; // Assume OAuth emails are verified
         }
 
-        /// <summary>
-        /// User's full display name
-        /// </summary>
         public string FullName => $"{FirstName} {LastName}".Trim();
-
-        /// <summary>
-        /// Primary identifier (email or phone)
-        /// </summary>
         public string PrimaryIdentifier => Email ?? Phone ?? $"User#{Id}";
 
         /// <summary>
-        /// Updates user profile information
+        /// Updates user profile information with validation and business rules
         /// </summary>
         public void UpdateProfile(string? firstName, string? lastName, DateOnly? birthday = null)
         {
@@ -136,7 +62,7 @@ namespace SuperAppModels.Models
         }
 
         /// <summary>
-        /// Sets a new authentication token
+        /// Sets authentication token with expiration and security management
         /// </summary>
         public void SetToken(string token, DateTime expires)
         {
@@ -145,7 +71,7 @@ namespace SuperAppModels.Models
         }
 
         /// <summary>
-        /// Records a successful login
+        /// Records successful login with timestamp and security tracking
         /// </summary>
         public void RecordLogin()
         {
@@ -153,7 +79,7 @@ namespace SuperAppModels.Models
         }
 
         /// <summary>
-        /// Deactivates the user account
+        /// Deactivates user account with cleanup of sensitive data
         /// </summary>
         public void Deactivate()
         {

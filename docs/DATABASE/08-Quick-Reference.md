@@ -427,8 +427,8 @@ ORDER BY p.ancestor_id, p.depth;
 
 ```sql
 -- Full backup
-BACKUP DATABASE TagTreeDB
-TO DISK = 'C:\Backups\TagTreeDB.bak'
+BACKUP DATABASE SuperApp-dev
+TO DISK = 'C:\Backups\SuperApp-dev.bak'
 WITH FORMAT, INIT, COMPRESSION;
 
 -- Backup specific tables
@@ -440,8 +440,8 @@ SELECT * INTO tag_paths_backup FROM tag_paths;
 
 ```sql
 -- Restore database
-RESTORE DATABASE TagTreeDB
-FROM DISK = 'C:\Backups\TagTreeDB.bak'
+RESTORE DATABASE SuperApp-dev
+FROM DISK = 'C:\Backups\SuperApp-dev.bak'
 WITH REPLACE;
 
 -- Restore specific tables
@@ -932,8 +932,8 @@ ORDER BY p.ancestor_id, p.depth;
 
 ```sql
 -- Full backup
-BACKUP DATABASE TagTreeDB
-TO DISK = 'C:\Backups\TagTreeDB.bak'
+BACKUP DATABASE SuperApp-dev
+TO DISK = 'C:\Backups\SuperApp-dev.bak'
 WITH FORMAT, INIT, COMPRESSION;
 
 -- Backup specific tables
@@ -945,8 +945,8 @@ SELECT * INTO tag_paths_backup FROM tag_paths;
 
 ```sql
 -- Restore database
-RESTORE DATABASE TagTreeDB
-FROM DISK = 'C:\Backups\TagTreeDB.bak'
+RESTORE DATABASE SuperApp-dev
+FROM DISK = 'C:\Backups\SuperApp-dev.bak'
 WITH REPLACE;
 
 -- Restore specific tables

@@ -11,12 +11,12 @@ namespace SuperAppModels.DTOs.Requests
         [StringLength(5000, ErrorMessage = "Description cannot exceed 5000 characters")]
         public string? Description { get; set; }
 
-        [StringLength(500, ErrorMessage = "Tags cannot exceed 500 characters")]
-        public string? Tags { get; set; }
-
         [StringLength(100, ErrorMessage = "Type cannot exceed 100 characters")]
         public string? Type { get; set; }
 
+        public List<int>? TagIds { get; set; }
+
+        // Keep as string for backward compatibility - will be converted to user ID internally
         public string? CreatedBy { get; set; }
     }
 }

@@ -27,10 +27,10 @@ namespace SuperApp.Application.Features.Notes.Queries.GetNotes
         {
             try
             {
-                _logger.LogInformation("Getting notes with GetAll: {GetAll}, SearchText: {SearchText}", 
-                    request.GetAll, request.SearchText);
+                _logger.LogInformation("Getting notes with GetAll: {GetAll}, SearchText: {SearchText}, TagIds: {TagIds}", 
+                    request.GetAll, request.SearchText, request.TagIds != null ? string.Join(",", request.TagIds) : "null");
 
-                var notes = await _noteRepository.GetNotes(request.GetAll, request.SearchText ?? string.Empty);
+                var notes = await _noteRepository.GetNotes(request.GetAll, request.SearchText ?? string.Empty, null, request.TagIds);
                 var response = _mapper.Map<List<NoteResponse>>(notes);
 
                 _logger.LogInformation("Successfully retrieved {Count} notes", response.Count);

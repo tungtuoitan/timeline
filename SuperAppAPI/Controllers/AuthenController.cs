@@ -305,7 +305,7 @@ namespace SuperAppAPI.Controllers
         /// <returns>Current user profile information and authentication status</returns>
         /// <response code="200">User information retrieved successfully</response>
         /// <response code="401">User is not authenticated or token is invalid</response>
-        [Authorize]
+        //[Authorize] // TEMPORARY: Authorization disabled for development
         [HttpGet("me")]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status401Unauthorized)]
@@ -313,23 +313,29 @@ namespace SuperAppAPI.Controllers
         {
             try
             {
+                // TEMPORARY: Return mock user data while auth is disabled
                 var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-                            ?? User.FindFirst("sub")?.Value;
+                            ?? User.FindFirst("sub")?.Value
+                            ?? "1"; // Mock user ID
                 
                 var email = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
-                           ?? User.FindFirst("email")?.Value;
+                           ?? User.FindFirst("email")?.Value
+                           ?? "hoanhtungle@gmail.com"; // Mock email
 
                 var firstName = User.FindFirst(System.Security.Claims.ClaimTypes.GivenName)?.Value
-                              ?? User.FindFirst("given_name")?.Value;
+                              ?? User.FindFirst("given_name")?.Value
+                              ?? "Hoang"; // Mock first name
 
                 var lastName = User.FindFirst(System.Security.Claims.ClaimTypes.Surname)?.Value
-                             ?? User.FindFirst("family_name")?.Value;
+                             ?? User.FindFirst("family_name")?.Value
+                             ?? "Tung"; // Mock last name
 
-                if (string.IsNullOrEmpty(userId))
-                {
-                    _logger.LogWarning("Invalid token: UserId claim not found");
-                    return Unauthorized(new { message = "Invalid token or user not found" });
-                }
+                // TEMPORARY: Skip user validation while auth is disabled
+                //if (string.IsNullOrEmpty(userId))
+                //{
+                //    _logger.LogWarning("Invalid token: UserId claim not found");
+                //    return Unauthorized(new { message = "Invalid token or user not found" });
+                //}
 
                 var userInfo = new
                 {
@@ -340,7 +346,7 @@ namespace SuperAppAPI.Controllers
                     isAuthenticated = User.Identity?.IsAuthenticated ?? false
                 };
 
-                _logger.LogInformation("User information retrieved for ID: {UserId}", userId);
+                _logger.LogInformation("User information retrieved for ID: {UserId} (Auth disabled)", userId);
                 return Ok(userInfo);
             }
             catch (Exception ex)

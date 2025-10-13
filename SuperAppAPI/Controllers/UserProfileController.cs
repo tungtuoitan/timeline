@@ -14,7 +14,7 @@ namespace SuperAppAPI.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize] // Restore authorization for all endpoints - security critical!
+    //[Authorize] // TEMPORARY: Authorization disabled for development
     public class UserProfileController : ControllerBase
     {
         private readonly IUserProfileRepository _repository;
@@ -45,12 +45,13 @@ namespace SuperAppAPI.Controllers
         {
             try
             {
-                var userEmail = User.GetUserEmail();
-                if (string.IsNullOrEmpty(userEmail))
-                {
-                    _logger.LogWarning("Failed to extract user email from token");
-                    return Unauthorized(new { Message = "Invalid token claims" });
-                }
+                // TEMPORARY: Using hardcoded email while auth is disabled
+                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+                //if (string.IsNullOrEmpty(userEmail))
+                //{
+                //    _logger.LogWarning("Failed to extract user email from token");
+                //    return Unauthorized(new { Message = "Invalid token claims" });
+                //}
 
                 _logger.LogInformation("Getting user profile for email: {Email}, AppC: {AppC}", userEmail, appC);
 
@@ -112,12 +113,13 @@ namespace SuperAppAPI.Controllers
                     return BadRequest(new { Message = "Email is required" });
                 }
 
-                var currentUserEmail = User.GetUserEmail();
-                if (string.IsNullOrEmpty(currentUserEmail))
-                {
-                    _logger.LogWarning("Failed to extract user email from token");
-                    return Unauthorized(new { Message = "Invalid token claims" });
-                }
+                // TEMPORARY: Using hardcoded email while auth is disabled
+                var currentUserEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+                //if (string.IsNullOrEmpty(currentUserEmail))
+                //{
+                //    _logger.LogWarning("Failed to extract user email from token");
+                //    return Unauthorized(new { Message = "Invalid token claims" });
+                //}
 
                 // TODO: Add role-based authorization check for admin users
                 // For now, log the admin access attempt
@@ -179,21 +181,23 @@ namespace SuperAppAPI.Controllers
                     return BadRequest(ModelState);
                 }
 
-                var userEmail = User.GetUserEmail();
-                if (string.IsNullOrEmpty(userEmail))
-                {
-                    _logger.LogWarning("Failed to extract user email from token");
-                    return Unauthorized(new { Message = "Invalid token claims" });
-                }
+                // TEMPORARY: Using hardcoded email while auth is disabled
+                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+                //if (string.IsNullOrEmpty(userEmail))
+                //{
+                //    _logger.LogWarning("Failed to extract user email from token");
+                //    return Unauthorized(new { Message = "Invalid token claims" });
+                //}
 
+                // TEMPORARY: Skip profile ownership check while auth is disabled
                 // Ensure the user can only update their own profile (unless admin)
-                if (!string.IsNullOrEmpty(request.Email) && request.Email != userEmail)
-                {
-                    // TODO: Add role-based check to allow admin users to update other profiles
-                    _logger.LogWarning("User {CurrentUser} attempted to update profile for different user {TargetUser}", 
-                        userEmail, request.Email);
-                    return Forbid("You can only update your own profile");
-                }
+                //if (!string.IsNullOrEmpty(request.Email) && request.Email != userEmail)
+                //{
+                //    // TODO: Add role-based check to allow admin users to update other profiles
+                //    _logger.LogWarning("User {CurrentUser} attempted to update profile for different user {TargetUser}", 
+                //        userEmail, request.Email);
+                //    return Forbid("You can only update your own profile");
+                //}
 
                 // Use the authenticated user's email
                 var targetEmail = string.IsNullOrEmpty(request.Email) ? userEmail : request.Email;

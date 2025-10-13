@@ -25,13 +25,13 @@ USE master;
 GO
 
 -- Create database (if needed)
-IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'TagTreeDB')
+IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'SuperApp-dev')
 BEGIN
-    CREATE DATABASE TagTreeDB;
+    CREATE DATABASE SuperApp-dev;
 END;
 GO
 
-USE TagTreeDB;
+USE SuperApp-dev;
 GO
 
 -- ============================================
@@ -443,7 +443,7 @@ EXEC sp_get_tagged_items
 ## Uninstall Script
 
 ```sql
-USE TagTreeDB;
+USE SuperApp-dev;
 GO
 
 -- Drop all objects
@@ -474,7 +474,7 @@ DROP TABLE IF EXISTS entity_types;
 
 -- Optional: Drop database
 -- USE master;
--- DROP DATABASE TagTreeDB;
+-- DROP DATABASE SuperApp-dev;
 ```
 
 ---
@@ -511,13 +511,13 @@ USE master;
 GO
 
 -- Create database (if needed)
-IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'TagTreeDB')
+IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'SuperApp-dev')
 BEGIN
-    CREATE DATABASE TagTreeDB;
+    CREATE DATABASE SuperApp-dev;
 END;
 GO
 
-USE TagTreeDB;
+USE SuperApp-dev;
 GO
 
 -- ============================================
@@ -929,7 +929,7 @@ EXEC sp_get_tagged_items
 ## Uninstall Script
 
 ```sql
-USE TagTreeDB;
+USE SuperApp-dev;
 GO
 
 -- Drop all objects
@@ -960,7 +960,7 @@ DROP TABLE IF EXISTS entity_types;
 
 -- Optional: Drop database
 -- USE master;
--- DROP DATABASE TagTreeDB;
+-- DROP DATABASE SuperApp-dev;
 ```
 
 ---

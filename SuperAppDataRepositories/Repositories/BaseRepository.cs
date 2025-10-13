@@ -40,8 +40,22 @@ namespace SuperAppDataRepositories.Repositories
 
                 await addParameters(command);
 
+                // Debug logging for parameters
+                _logger.LogInformation("Executing stored procedure {StoredProcedure} with parameters: {Parameters}",
+                    storedProcedure,
+                    string.Join(", ", command.Parameters.Cast<SqlParameter>().Select(p => $"{p.ParameterName}={p.Value}")));
+
                 using var reader = await command.ExecuteReaderAsync();
-                return await mapResult(reader);
+                var result = await mapResult(reader);
+
+                // Debug logging for result
+                if (result is System.Collections.ICollection collection)
+                {
+                    _logger.LogInformation("Stored procedure {StoredProcedure} returned {ResultCount} items", 
+                        storedProcedure, collection.Count);
+                }
+
+                return result;
             }
             catch (SqlException ex)
             {
@@ -127,6 +141,166 @@ namespace SuperAppDataRepositories.Repositories
                 list.Add(reader.MapToObject<T>());
             }
             return list;
+        }
+
+        /// <summary>
+        /// Maps a SqlDataReader to a list of Tag objects with custom column mapping for lowercase database columns
+        /// </summary>
+        protected async Task<List<SuperAppModels.Models.Tag>> MapToTagListAsync(SqlDataReader reader)
+        {
+            var list = new List<SuperAppModels.Models.Tag>();
+            while (await reader.ReadAsync())
+            {
+                var tag = MapTagFromReader(reader);
+                list.Add(tag);
+            }
+            return list;
+        }
+
+        /// <summary>
+        /// Maps a SqlDataReader to a single Tag object with custom column mapping for lowercase database columns
+        /// </summary>
+        protected async Task<SuperAppModels.Models.Tag?> MapToTagSingleAsync(SqlDataReader reader)
+        {
+            if (await reader.ReadAsync())
+            {
+                return MapTagFromReader(reader);
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Helper method to map a single Tag from SqlDataReader, handling both lowercase and PascalCase column names
+        /// </summary>
+        private SuperAppModels.Models.Tag MapTagFromReader(SqlDataReader reader)
+        {
+            var tag = new SuperAppModels.Models.Tag();
+            
+            // Map database columns to properties, try lowercase first (from usp_s_tags), then PascalCase (from other procedures)
+            tag.Id = TryGetInt32(reader, "id") ?? TryGetInt32(reader, "Id") ?? 0;
+            tag.UserId = TryGetInt32(reader, "user_id") ?? TryGetInt32(reader, "UserId") ?? 0;
+            tag.Name = TryGetString(reader, "name") ?? TryGetString(reader, "Name") ?? string.Empty;
+            tag.ParentId = TryGetNullableInt32(reader, "parent_id") ?? TryGetNullableInt32(reader, "ParentId");
+            tag.Path = TryGetString(reader, "path") ?? TryGetString(reader, "Path");
+            tag.Slug = TryGetString(reader, "slug") ?? TryGetString(reader, "Slug");
+            tag.Color = TryGetString(reader, "color") ?? TryGetString(reader, "Color");
+            tag.Icon = TryGetString(reader, "icon") ?? TryGetString(reader, "Icon");
+            tag.Description = TryGetString(reader, "description") ?? TryGetString(reader, "Description");
+            tag.IsPublic = TryGetNullableBoolean(reader, "is_public") ?? TryGetNullableBoolean(reader, "IsPublic");
+            tag.PublicSlug = TryGetString(reader, "public_slug") ?? TryGetString(reader, "PublicSlug");
+            tag.CreatedAt = TryGetNullableDateTime(reader, "created_at") ?? TryGetNullableDateTime(reader, "CreatedAt");
+            tag.UpdatedAt = TryGetNullableDateTime(reader, "updated_at") ?? TryGetNullableDateTime(reader, "UpdatedAt");
+            tag.DeletedAt = TryGetNullableDateTime(reader, "deleted_at") ?? TryGetNullableDateTime(reader, "DeletedAt");
+            tag.CreatedBy = TryGetNullableInt32(reader, "created_by") ?? TryGetNullableInt32(reader, "CreatedBy");
+            tag.Depth = TryGetNullableInt32(reader, "depth") ?? TryGetNullableInt32(reader, "Depth");
+            
+            return tag;
+        }
+
+        /// <summary>
+        /// Helper methods for safe column reading
+        /// </summary>
+        private int? TryGetInt32(SqlDataReader reader, string columnName)
+        {
+            try
+            {
+                var ordinal = reader.GetOrdinal(columnName);
+                return reader.IsDBNull(ordinal) ? null : reader.GetInt32(ordinal);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private int? TryGetNullableInt32(SqlDataReader reader, string columnName)
+        {
+            try
+            {
+                var ordinal = reader.GetOrdinal(columnName);
+                return reader.IsDBNull(ordinal) ? null : reader.GetInt32(ordinal);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private string? TryGetString(SqlDataReader reader, string columnName)
+        {
+            try
+            {
+                var ordinal = reader.GetOrdinal(columnName);
+                return reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private DateTime? TryGetNullableDateTime(SqlDataReader reader, string columnName)
+        {
+            try
+            {
+                var ordinal = reader.GetOrdinal(columnName);
+                return reader.IsDBNull(ordinal) ? null : reader.GetDateTime(ordinal);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private bool? TryGetNullableBoolean(SqlDataReader reader, string columnName)
+        {
+            try
+            {
+                var ordinal = reader.GetOrdinal(columnName);
+                return reader.IsDBNull(ordinal) ? null : reader.GetBoolean(ordinal);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Maps a SqlDataReader to a list of TagTree objects with custom column mapping
+        /// </summary>
+        protected async Task<List<SuperAppModels.Models.TagTree>> MapToTagTreeListAsync(SqlDataReader reader)
+        {
+            var list = new List<SuperAppModels.Models.TagTree>();
+            while (await reader.ReadAsync())
+            {
+                var tagTree = MapTagTreeFromReader(reader);
+                list.Add(tagTree);
+            }
+            return list;
+        }
+
+        /// <summary>
+        /// Helper method to map a single TagTree from SqlDataReader
+        /// </summary>
+        private SuperAppModels.Models.TagTree MapTagTreeFromReader(SqlDataReader reader)
+        {
+            var tagTree = new SuperAppModels.Models.TagTree();
+            
+            // Map database columns to properties, handling both lowercase and PascalCase
+            tagTree.Id = TryGetInt32(reader, "id") ?? TryGetInt32(reader, "Id") ?? 0;
+            tagTree.UserId = TryGetInt32(reader, "user_id") ?? TryGetInt32(reader, "UserId") ?? 0;
+            tagTree.Name = TryGetString(reader, "name") ?? TryGetString(reader, "Name") ?? string.Empty;
+            tagTree.ParentId = TryGetNullableInt32(reader, "parent_id") ?? TryGetNullableInt32(reader, "ParentId");
+            tagTree.Path = TryGetString(reader, "path") ?? TryGetString(reader, "Path");
+            tagTree.Slug = TryGetString(reader, "slug") ?? TryGetString(reader, "Slug");
+            tagTree.Color = TryGetString(reader, "color") ?? TryGetString(reader, "Color");
+            tagTree.Icon = TryGetString(reader, "icon") ?? TryGetString(reader, "Icon");
+            tagTree.AccessType = TryGetString(reader, "access_type") ?? TryGetString(reader, "AccessType") ?? string.Empty;
+            tagTree.Level = TryGetInt32(reader, "level") ?? TryGetInt32(reader, "Level") ?? 0;
+            tagTree.UsageCount = TryGetInt32(reader, "usage_count") ?? TryGetInt32(reader, "UsageCount") ?? 0;
+            tagTree.ChildrenCount = TryGetInt32(reader, "children_count") ?? TryGetInt32(reader, "ChildrenCount") ?? 0;
+            
+            return tagTree;
         }
 
         /// <summary>

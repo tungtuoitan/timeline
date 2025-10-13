@@ -65,9 +65,56 @@ namespace UserProfileDataRepositories.Repositories
 
         public async Task<User?> GetUserByEmailAsync(string email)
         {
-            // Placeholder implementation
-            await Task.CompletedTask;
-            return null;
+            try
+            {
+                var users = await ExecuteStoredProcedureAsync(
+                    StoredProcedures.spSelectUsers,
+                    addParameters: async (command) =>
+                    {
+                        await Task.CompletedTask;
+                    },
+                    mapResult: async (reader) =>
+                    {
+                        var usersList = new List<UserModel>();
+                        while (await reader.ReadAsync())
+                        {
+                            var userModel = new UserModel
+                            {
+                                Id = Convert.ToInt32(reader["Id"]),
+                                Email = reader["Email"] != DBNull.Value ? reader["Email"].ToString() : null,
+                                Phone = reader["Phone"] != DBNull.Value ? reader["Phone"].ToString() : null,
+                                FirstName = reader["FirstName"] != DBNull.Value ? reader["FirstName"].ToString() : null,
+                                LastName = reader["LastName"] != DBNull.Value ? reader["LastName"].ToString() : null,
+                                Birthday = reader["Birthday"] != DBNull.Value ? DateOnly.FromDateTime((DateTime)reader["Birthday"]) : null,
+                                Password = reader["Password"] != DBNull.Value ? reader["Password"].ToString() : null
+                            };
+                            usersList.Add(userModel);
+                        }
+                        return usersList;
+                    },
+                    useSuperAppConnection: false
+                );
+
+                var userModel = users?.FirstOrDefault(u => string.Equals(u.Email, email, StringComparison.OrdinalIgnoreCase));
+                if (userModel == null) return null;
+
+                // Convert UserModel to User
+                return new User
+                {
+                    Id = userModel.Id,
+                    Username = userModel.Email ?? string.Empty,
+                    Email = userModel.Email,
+                    Phone = userModel.Phone,
+                    FirstName = userModel.FirstName,
+                    LastName = userModel.LastName,
+                    Birthday = userModel.Birthday
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while getting user by email: {Email}", email);
+                return null;
+            }
         }
 
         public async Task<User?> GetUserByIdAsync(int userId)

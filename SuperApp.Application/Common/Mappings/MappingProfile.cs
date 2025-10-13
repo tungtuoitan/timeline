@@ -11,23 +11,15 @@ namespace SuperApp.Application.Common.Mappings
         {
             // Note mappings
             CreateMap<Note, NoteResponse>()
-                .ForMember(dest => dest.NoteId, opt => opt.MapFrom(src => src.NoteId))
-                .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
-                .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
-                .ForMember(dest => dest.Tags, opt => opt.MapFrom(src => src.Tags))
-                .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.Type))
-                .ForMember(dest => dest.CreatedBy, opt => opt.MapFrom(src => src.CreatedBy))
-                .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.CreatedAt))
-                .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.UpdatedAt))
-                .ForMember(dest => dest.IsArchived, opt => opt.MapFrom(src => src.IsArchived));
+                .ForMember(dest => dest.Tags, opt => opt.MapFrom(src => src.Tags));
+                // CreatedBy excluded for security - sensitive data should not be exposed in API responses
             
             CreateMap<CreateNoteRequest, Note>()
                 .ForMember(dest => dest.NoteId, opt => opt.Ignore())
                 .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
                 .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
-                .ForMember(dest => dest.Tags, opt => opt.MapFrom(src => src.Tags))
                 .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.Type))
-                .ForMember(dest => dest.CreatedBy, opt => opt.MapFrom(src => src.CreatedBy))
+                .ForMember(dest => dest.CreatedBy, opt => opt.Ignore()) // Will be set by repository based on email
                 .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => DateTime.UtcNow))
                 .ForMember(dest => dest.UpdatedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.IsArchived, opt => opt.MapFrom(src => false));
@@ -36,7 +28,6 @@ namespace SuperApp.Application.Common.Mappings
                 .ForMember(dest => dest.NoteId, opt => opt.MapFrom(src => src.NoteId))
                 .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
                 .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
-                .ForMember(dest => dest.Tags, opt => opt.MapFrom(src => src.Tags))
                 .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.Type))
                 .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
@@ -81,6 +72,70 @@ namespace SuperApp.Application.Common.Mappings
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => DateTime.UtcNow))
                 .ForMember(dest => dest.IsActive, opt => opt.Ignore());
+
+            // Tag mappings
+            CreateMap<Tag, TagResponse>()
+                .ForMember(dest => dest.TagId, opt => opt.MapFrom(src => src.Id))
+                .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+                .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
+                .ForMember(dest => dest.Color, opt => opt.MapFrom(src => src.Color))
+                .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.CreatedAt ?? DateTime.UtcNow))
+                .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.DeletedAt == null))
+                .ForMember(dest => dest.Depth, opt => opt.MapFrom(src => src.Depth));
+                // CreatedBy and UpdatedAt excluded for security and simplicity
+
+            CreateMap<CreateTagRequest, Tag>()
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
+                .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.UserId))
+                .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+                .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
+                .ForMember(dest => dest.Color, opt => opt.MapFrom(src => src.Color))
+                .ForMember(dest => dest.ParentId, opt => opt.MapFrom(src => src.ParentId))
+                .ForMember(dest => dest.Slug, opt => opt.MapFrom(src => src.Slug))
+                .ForMember(dest => dest.Icon, opt => opt.MapFrom(src => src.Icon))
+                .ForMember(dest => dest.IsPublic, opt => opt.MapFrom(src => src.IsPublic))
+                .ForMember(dest => dest.PublicSlug, opt => opt.MapFrom(src => src.PublicSlug))
+                .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => DateTime.UtcNow))
+                .ForMember(dest => dest.UpdatedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.Path, opt => opt.Ignore())
+                .ForMember(dest => dest.DeletedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.Depth, opt => opt.Ignore());
+
+            CreateMap<UpdateTagRequest, Tag>()
+                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.TagId))
+                .ForMember(dest => dest.UserId, opt => opt.Ignore())
+                .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+                .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
+                .ForMember(dest => dest.Color, opt => opt.MapFrom(src => src.Color))
+                .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => DateTime.UtcNow))
+                .ForMember(dest => dest.IsPublic, opt => opt.Ignore())
+                .ForMember(dest => dest.ParentId, opt => opt.Ignore())
+                .ForMember(dest => dest.Path, opt => opt.Ignore())
+                .ForMember(dest => dest.Slug, opt => opt.Ignore())
+                .ForMember(dest => dest.Icon, opt => opt.Ignore())
+                .ForMember(dest => dest.PublicSlug, opt => opt.Ignore())
+                .ForMember(dest => dest.DeletedAt, opt => opt.Ignore());
+
+            // TagTree mappings
+            CreateMap<TagTree, TagTreeResponse>()
+                .ForMember(dest => dest.TagId, opt => opt.MapFrom(src => src.Id))
+                .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.UserId))
+                .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+                .ForMember(dest => dest.ParentId, opt => opt.MapFrom(src => src.ParentId))
+                .ForMember(dest => dest.Path, opt => opt.MapFrom(src => src.Path))
+                .ForMember(dest => dest.Slug, opt => opt.MapFrom(src => src.Slug))
+                .ForMember(dest => dest.Color, opt => opt.MapFrom(src => src.Color))
+                .ForMember(dest => dest.Icon, opt => opt.MapFrom(src => src.Icon))
+                .ForMember(dest => dest.AccessType, opt => opt.MapFrom(src => src.AccessType))
+                .ForMember(dest => dest.Level, opt => opt.MapFrom(src => src.Level))
+                .ForMember(dest => dest.UsageCount, opt => opt.MapFrom(src => src.UsageCount))
+                .ForMember(dest => dest.ChildrenCount, opt => opt.MapFrom(src => src.ChildrenCount))
+                .ForMember(dest => dest.Children, opt => opt.Ignore()) // Will be populated by business logic
+                .ForMember(dest => dest.IsExpanded, opt => opt.MapFrom(src => false))
+                .ForMember(dest => dest.IsSelected, opt => opt.MapFrom(src => false));
 
             // StandardRegistry mappings
             CreateMap<StandardRegistry, StandardRegistryResponse>()

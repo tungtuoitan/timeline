@@ -23,11 +23,6 @@ namespace SuperApp.Application.Features.Notes.Commands.CreateNote
                 .WithMessage("Description cannot exceed 5000 characters")
                 .When(x => x.Request != null);
 
-            RuleFor(x => x.Request.Tags)
-                .MaximumLength(500)
-                .WithMessage("Tags cannot exceed 500 characters")
-                .When(x => x.Request != null);
-
             RuleFor(x => x.Request.Type)
                 .MaximumLength(100)
                 .WithMessage("Type cannot exceed 100 characters")

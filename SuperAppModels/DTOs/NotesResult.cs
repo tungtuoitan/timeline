@@ -1,15 +1,10 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using SuperAppModels.Models;
+using SuperAppModels.DTOs.Responses;
 
 namespace SuperAppModels.DTOs
 {
     public class NotesResult
     {
-        public List<Note> Notes { get; set; }
-        public ResultOptions Options { get; set; }
+        public List<NoteResponse> Notes { get; set; } = new List<NoteResponse>();
+        public ResultOptions Options { get; set; } = new ResultOptions();
     }
 }

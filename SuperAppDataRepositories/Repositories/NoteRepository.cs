@@ -16,7 +16,7 @@ namespace SuperAppDataRepositories.Repositories
         {
         }
 
-        public async Task<List<Note>> GetNotes(bool getAll = false, string? searchText = null, string? types = null, string? tags = null, string? createdBy = null)
+        public async Task<List<Note>> GetNotes(bool getAll = false, string? searchText = null, string? types = null, List<int>? tagIds = null, int? createdByUserId = null)
         {
             return await ExecuteStoredProcedureAsync(
                 StoredProcedures.spSelectNotes,
@@ -25,14 +25,84 @@ namespace SuperAppDataRepositories.Repositories
                     command.Parameters.Add(new SqlParameter("@iv_getAll", getAll));
                     AddParameterIfNotNull(command, "@iv_SearchText", searchText);
                     AddParameterIfNotNull(command, "@iv_Types", types);
-                    AddParameterIfNotNull(command, "@iv_Tags", tags);
-                    AddParameterIfNotNull(command, "@iv_CreatedBy", createdBy);
+                    AddParameterIfNotNull(command, "@iv_TagIds", tagIds != null ? string.Join(",", tagIds) : null);
+                    AddParameterIfNotNull(command, "@iv_CreatedBy", createdByUserId);
                     await Task.CompletedTask;
                 },
-                mapResult: MapToListAsync<Note>,
+                mapResult: MapNotesWithTagsAsync,
                 useSuperAppConnection: true
             );
         }
+
+        /// <summary>
+        /// Maps notes with embedded JSON tags from the stored procedure result
+        /// </summary>
+        private async Task<List<Note>> MapNotesWithTagsAsync(SqlDataReader reader)
+        {
+            var notes = new List<Note>();
+            
+            while (await reader.ReadAsync())
+            {
+                var note = new Note
+                {
+                    NoteId = reader.GetInt32("id"),
+                    Name = reader.GetString("Name"),
+                    Description = reader.IsDBNull("Description") ? null : reader.GetString("Description"),
+                    Type = reader.IsDBNull("Type") ? null : reader.GetString("Type"),
+                    CreatedBy = reader.IsDBNull("CreatedBy") ? null : reader.GetInt32("CreatedBy"),
+                    CreatedAt = reader.GetDateTime("CreatedAt"),
+                    UpdatedAt = reader.IsDBNull("UpdatedAt") ? null : reader.GetDateTime("UpdatedAt"),
+                    IsArchived = reader.GetBoolean("IsArchived"),
+                    Tags = new List<Tag>()
+                };
+
+                // Parse TagsJSON if present
+                if (!reader.IsDBNull("TagsJSON"))
+                {
+                    var tagsJson = reader.GetString("TagsJSON");
+                    if (!string.IsNullOrEmpty(tagsJson))
+                    {
+                        try
+                        {
+                            var tagData = System.Text.Json.JsonSerializer.Deserialize<List<TagJsonDto>>(tagsJson);
+                            if (tagData != null)
+                            {
+                                note.Tags = tagData.Select(t => new Tag
+                                {
+                                    Id = t.Id,
+                                    Name = t.Name,
+                                    UserId = 0, // Will be populated from actual tag data if needed
+                                    CreatedAt = DateTime.UtcNow // Default values for required fields
+                                }).ToList();
+                            }
+                        }
+                        catch (System.Text.Json.JsonException ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to parse TagsJSON for note {NoteId}: {TagsJson}", 
+                                note.NoteId, tagsJson);
+                            // Continue with empty tags list
+                        }
+                    }
+                }
+
+                notes.Add(note);
+            }
+
+            return notes;
+        }
+
+        /// <summary>
+        /// DTO for deserializing tag JSON from stored procedure
+        /// </summary>
+        private class TagJsonDto
+        {
+            public int Id { get; set; }
+            public string Name { get; set; } = string.Empty;
+        }
+
+
+
+
 
 
 
@@ -40,16 +110,18 @@ namespace SuperAppDataRepositories.Repositories
         {
             try
             {
-                return await ExecuteStoredProcedureAsync(
+                var notes = await ExecuteStoredProcedureAsync(
                     StoredProcedures.spSelectNoteById,
                     addParameters: async (command) =>
                     {
                         command.Parameters.Add(new SqlParameter("@iv_NoteId", noteId));
                         await Task.CompletedTask;
                     },
-                    mapResult: MapToSingleAsync<Note>,
+                    mapResult: MapNotesWithTagsAsync,
                     useSuperAppConnection: true
                 );
+
+                return notes.FirstOrDefault();
             }
             catch (Exception ex)
             {
@@ -58,11 +130,17 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
-        public async Task<Note> CreateNoteAsync(Note note)
+        public async Task<Note> CreateNoteAsync(Note note, List<int>? tagIds = null, int? createdByUserId = null)
         {
             try
             {
-                _logger.LogInformation("Creating new note with title: {Title}", note.Name); // Changed from note.NoteName to note.Name
+                _logger.LogInformation("Creating new note with title: {Title}", note.Name);
+
+                // Set the CreatedBy user ID if provided
+                if (note.CreatedBy == null && createdByUserId.HasValue)
+                {
+                    note.CreatedBy = createdByUserId;
+                }
 
                 var (notes, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
                     StoredProcedures.spInsertUpdateNote,
@@ -93,7 +171,21 @@ namespace SuperAppDataRepositories.Repositories
                     throw new InvalidOperationException("Failed to create note: No note returned from database");
                 }
 
-                _logger.LogInformation("Successfully created note with ID: {NoteId}", createdNote.NoteId);
+                // Associate tags with the note if provided
+                if (tagIds != null && tagIds.Any())
+                {
+                    await AssociateTagsWithNoteAsync(createdNote.NoteId, tagIds, note.CreatedBy);
+                    
+                    // Reload the note to get updated tags from the database
+                    var noteWithTags = await GetNoteById(createdNote.NoteId);
+                    if (noteWithTags != null)
+                    {
+                        createdNote.Tags = noteWithTags.Tags;
+                    }
+                }
+
+                _logger.LogInformation("Successfully created note with ID: {NoteId} with {TagCount} tags", 
+                    createdNote.NoteId, createdNote.Tags.Count);
                 return createdNote;
             }
             catch (Exception ex)
@@ -103,7 +195,39 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
-        public async Task<Note> UpdateNoteAsync(Note note)
+        private async Task AssociateTagsWithNoteAsync(int noteId, List<int> tagIds, int? createdBy)
+        {
+            foreach (var tagId in tagIds)
+            {
+                try
+                {
+                    await ExecuteStoredProcedureAsync(
+                        StoredProcedures.spInsertTaggable,
+                        addParameters: async (command) =>
+                        {
+                            command.Parameters.Add(new SqlParameter("@iv_TaggableId", noteId));
+                            command.Parameters.Add(new SqlParameter("@iv_TaggableType", "Note"));
+                            command.Parameters.Add(new SqlParameter("@iv_TagId", tagId));
+                            AddParameterIfNotNull(command, "@iv_CreatedBy", createdBy);
+                            await Task.CompletedTask;
+                        },
+                        mapResult: async (reader) =>
+                        {
+                            await Task.CompletedTask;
+                            return new List<object>();
+                        },
+                        useSuperAppConnection: true
+                    );
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to associate tag {TagId} with note {NoteId}", tagId, noteId);
+                    // Continue with other tags even if one fails
+                }
+            }
+        }
+
+        public async Task<Note> UpdateNoteAsync(Note note, List<int>? tagIds = null, int? createdByUserId = null)
         {
             try
             {
@@ -112,6 +236,12 @@ namespace SuperAppDataRepositories.Repositories
                 if (note.NoteId <= 0)
                 {
                     throw new ArgumentException("Note ID must be greater than 0 for updates", nameof(note));
+                }
+
+                // Set the CreatedBy user ID if provided (for auditing purposes)
+                if (note.CreatedBy == null && createdByUserId.HasValue)
+                {
+                    note.CreatedBy = createdByUserId;
                 }
 
                 var (notes, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
@@ -141,12 +271,60 @@ namespace SuperAppDataRepositories.Repositories
                     throw new InvalidOperationException("Failed to update note: No note returned from database");
                 }
 
-                _logger.LogInformation("Successfully updated note with ID: {NoteId}", updatedNote.NoteId);
+                // Update tag associations if provided
+                if (tagIds != null)
+                {
+                    // Remove all existing tag associations
+                    await RemoveAllTagAssociationsAsync(updatedNote.NoteId);
+                    
+                    // Add new tag associations
+                    if (tagIds.Any())
+                    {
+                        await AssociateTagsWithNoteAsync(updatedNote.NoteId, tagIds, note.CreatedBy);
+                    }
+                    
+                    // Reload the note to get updated tags from the database
+                    var noteWithTags = await GetNoteById(updatedNote.NoteId);
+                    if (noteWithTags != null)
+                    {
+                        updatedNote.Tags = noteWithTags.Tags;
+                    }
+                }
+
+                _logger.LogInformation("Successfully updated note with ID: {NoteId} with {TagCount} tags", 
+                    updatedNote.NoteId, updatedNote.Tags.Count);
                 return updatedNote;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while updating note with ID: {NoteId}", note.NoteId);
+                throw;
+            }
+        }
+
+        private async Task RemoveAllTagAssociationsAsync(int noteId)
+        {
+            try
+            {
+                await ExecuteStoredProcedureAsync(
+                    StoredProcedures.spDeleteTaggablesByEntity,
+                    addParameters: async (command) =>
+                    {
+                        command.Parameters.Add(new SqlParameter("@iv_TaggableId", noteId));
+                        command.Parameters.Add(new SqlParameter("@iv_TaggableType", "Note"));
+                        await Task.CompletedTask;
+                    },
+                    mapResult: async (reader) =>
+                    {
+                        await Task.CompletedTask;
+                        return new List<object>();
+                    },
+                    useSuperAppConnection: true
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to remove tag associations for note {NoteId}", noteId);
                 throw;
             }
         }
