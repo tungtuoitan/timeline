@@ -22,7 +22,8 @@ namespace SuperApp.Application.Common.Mappings
                 .ForMember(dest => dest.CreatedBy, opt => opt.Ignore()) // Will be set by repository based on email
                 .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => DateTime.UtcNow))
                 .ForMember(dest => dest.UpdatedAt, opt => opt.Ignore())
-                .ForMember(dest => dest.IsArchived, opt => opt.MapFrom(src => false));
+                .ForMember(dest => dest.IsArchived, opt => opt.MapFrom(src => false))
+                .ForMember(dest => dest.Tags, opt => opt.Ignore()); // Tags will be populated by repository
             
             CreateMap<UpdateNoteRequest, Note>()
                 .ForMember(dest => dest.NoteId, opt => opt.MapFrom(src => src.NoteId))
@@ -32,7 +33,8 @@ namespace SuperApp.Application.Common.Mappings
                 .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => DateTime.UtcNow))
-                .ForMember(dest => dest.IsArchived, opt => opt.Ignore());
+                .ForMember(dest => dest.IsArchived, opt => opt.Ignore())
+                .ForMember(dest => dest.Tags, opt => opt.Ignore()); // Tags will be populated by repository
 
             // User mappings
             CreateMap<User, UserResponse>()

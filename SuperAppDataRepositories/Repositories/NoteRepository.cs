@@ -197,7 +197,19 @@ namespace SuperAppDataRepositories.Repositories
 
         private async Task AssociateTagsWithNoteAsync(int noteId, List<int> tagIds, int? createdBy)
         {
-            foreach (var tagId in tagIds)
+            // Filter out invalid tag IDs before processing
+            var validTagIds = tagIds?.Where(id => id > 0).ToList();
+            
+            if (validTagIds == null || !validTagIds.Any())
+            {
+                _logger.LogInformation("No valid tag IDs to associate with note {NoteId}", noteId);
+                return;
+            }
+
+            _logger.LogInformation("Associating {TagCount} valid tags [{TagIds}] with note {NoteId}", 
+                validTagIds.Count, string.Join(",", validTagIds), noteId);
+
+            foreach (var tagId in validTagIds)
             {
                 try
                 {
@@ -218,6 +230,8 @@ namespace SuperAppDataRepositories.Repositories
                         },
                         useSuperAppConnection: true
                     );
+
+                    _logger.LogDebug("Successfully associated tag {TagId} with note {NoteId}", tagId, noteId);
                 }
                 catch (Exception ex)
                 {
@@ -236,6 +250,14 @@ namespace SuperAppDataRepositories.Repositories
                 if (note.NoteId <= 0)
                 {
                     throw new ArgumentException("Note ID must be greater than 0 for updates", nameof(note));
+                }
+
+                // Check if note exists first
+                var existingNote = await GetNoteById(note.NoteId);
+                if (existingNote == null)
+                {
+                    _logger.LogWarning("Note with ID {NoteId} not found for update", note.NoteId);
+                    throw new InvalidOperationException($"Note with ID {note.NoteId} not found");
                 }
 
                 // Set the CreatedBy user ID if provided (for auditing purposes)

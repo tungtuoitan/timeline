@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace SuperAppModels.DTOs.Requests
 {
@@ -16,6 +17,7 @@ namespace SuperAppModels.DTOs.Requests
         [StringLength(100, ErrorMessage = "Type cannot exceed 100 characters")]
         public string? Type { get; set; }
 
+        [JsonPropertyName("tags")]
         public List<int>? TagIds { get; set; }
     }
 }

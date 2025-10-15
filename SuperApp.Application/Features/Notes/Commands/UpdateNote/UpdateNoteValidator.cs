@@ -30,6 +30,11 @@ namespace SuperApp.Application.Features.Notes.Commands.UpdateNote
                 .MaximumLength(100)
                 .WithMessage("Type cannot exceed 100 characters")
                 .When(x => x.Request != null);
+
+            RuleFor(x => x.Request.TagIds)
+                .Must(tagIds => tagIds == null || tagIds.All(id => id > 0))
+                .WithMessage("All tag IDs must be greater than 0")
+                .When(x => x.Request != null);
         }
     }
 }

@@ -118,6 +118,16 @@ namespace SuperAppAPI.Controllers
                 // Set the CreatedBy from the authenticated user
                 request.CreatedBy = userEmail;
 
+                // Clean up TagIds - remove invalid values (0 or negative) that might come from null frontend values
+                if (request.TagIds != null && request.TagIds.Any())
+                {
+                    request.TagIds = request.TagIds.Where(tagId => tagId > 0).Distinct().ToList();
+                    if (!request.TagIds.Any())
+                    {
+                        request.TagIds = null; // Set to null if all values were invalid
+                    }
+                }
+
                 _logger.LogInformation("Creating note '{NoteName}' for user: {UserEmail}", request.Name, userEmail);
 
                 var command = new CreateNoteCommand(request);
@@ -180,10 +190,11 @@ namespace SuperAppAPI.Controllers
 
                 _logger.LogInformation("Retrieving note {NoteId} for user: {UserEmail}", id, userEmail);
 
-                var query = new GetNotesQuery(false, null);
-                var response = await _mediator.Send(query);
+                // Get all notes and filter by ID - this is temporary until we create GetNoteByIdQuery
+                var query = new GetNotesQuery(false, null, null);
+                var allNotes = await _mediator.Send(query);
                 
-                var note = response?.FirstOrDefault();
+                var note = allNotes?.FirstOrDefault(n => n.NoteId == id);
                 if (note == null)
                 {
                     _logger.LogWarning("Note {NoteId} not found or not accessible for user: {UserEmail}", id, userEmail);
@@ -257,6 +268,16 @@ namespace SuperAppAPI.Controllers
                 // Set the NoteId from URL parameter
                 request.NoteId = id;
 
+                // Clean up TagIds - remove invalid values (0 or negative) that might come from null frontend values
+                if (request.TagIds != null && request.TagIds.Any())
+                {
+                    request.TagIds = request.TagIds.Where(tagId => tagId > 0).Distinct().ToList();
+                    if (!request.TagIds.Any())
+                    {
+                        request.TagIds = null; // Set to null if all values were invalid
+                    }
+                }
+
                 if (id == 0)
                 {
                     _logger.LogInformation("Creating new note for user: {UserEmail}", userEmail);
@@ -265,6 +286,9 @@ namespace SuperAppAPI.Controllers
                 {
                     _logger.LogInformation("Updating note {NoteId} for user: {UserEmail}", id, userEmail);
                 }
+
+                _logger.LogInformation("Sending update command for note {NoteId} with tags: [{TagIds}]", 
+                    id, request.TagIds != null ? string.Join(",", request.TagIds) : "null");
 
                 var command = new UpdateNoteCommand(request);
                 var response = await _mediator.Send(command);
