@@ -116,9 +116,9 @@ The documentation provides clear migration paths from legacy procedures to new a
 ## Documentation Updates
 
 ### 1. Created Comprehensive Stored Procedures Documentation
-- **File**: `docs/DATABASE/STORED_PROCEDURES.md`
+- **File**: `docs/DATABASE-FOR-REFERENCES/STORED_PROCEDURES.md`
 - **Content**: Complete documentation for all stored procedures
-- **Sections**: 
+- **Sections**:
   - Overview and naming conventions
   - Detailed procedure documentation by category
   - Parameter standards and error handling
@@ -127,7 +127,7 @@ The documentation provides clear migration paths from legacy procedures to new a
 
 ### 2. Updated Database Access Guide
 - **File**: `docs/DATABASE_ACCESS.md`
-- **Updates**: 
+- **Updates**:
   - Added reference to new stored procedures documentation
   - Updated naming convention examples
   - Added operation prefix table
@@ -162,7 +162,7 @@ The documentation provides clear migration paths from legacy procedures to new a
 2. Existing repository files continue to work (backward compatibility maintained)
 
 ### Documentation Files
-1. `docs/DATABASE/STORED_PROCEDURES.md` - **Created** comprehensive procedure documentation
+1. `docs/DATABASE-FOR-REFERENCES/STORED_PROCEDURES.md` - **Created** comprehensive procedure documentation
 2. `docs/DATABASE_ACCESS.md` - **Updated** with references to new documentation
 
 ## Next Steps

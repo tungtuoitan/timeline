@@ -72,6 +72,7 @@ Use the **[Code Review Checklist](../docs/CODE_REVIEW_CHECKLIST.md)** to ensure 
 SuperApp/
 ├── .github/ copilot-instructions.md        # 👈 You are here
 ├── docs/                           # 📚 All documentation files
+│   ├── DATABASE-FOR-REFERENCES/   # 🗄️ Database reference documentation
 │   ├── SETUP.md
 │   ├── PROJECT_OVERVIEW.md
 │   ├── CODING_STANDARDS.md
