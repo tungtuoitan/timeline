@@ -378,37 +378,146 @@ public class Note
 
 ### 4. SuperApp.Infrastructure (Data Access Layer)
 
-**Purpose:** Implement data access and external service integration
+**Purpose:** Implement data access and external service integration using **Hybrid approach (EF Core + Stored Procedures)**
 
 **Responsibilities:**
-- Repository implementations
-- Database connection management
-- Stored procedure execution
-- Data mapping (SQL to entities)
-- External API integrations
+- **DbContext configuration** (EF Core)
+- **Entity configurations** (Fluent API)
+- **Repository implementations** (EF Core + SP)
+- **Database connection management** (for SPs)
+- **Stored procedure execution** (complex queries only)
+- **Data mapping** (automatic with EF Core)
+- **External API integrations**
+
+**Key Components:**
+```
+SuperApp.Infrastructure/
+├── Data/
+│   ├── ApplicationDbContext.cs           # EF Core DbContext
+│   ├── Configurations/                    # Entity configurations
+│   │   ├── UserConfiguration.cs
+│   │   ├── NoteConfiguration.cs
+│   │   ├── WorkspaceConfiguration.cs
+│   │   └── ...
+│   ├── Migrations/                        # EF Core migrations
+│   └── IConnectionFactory.cs              # For stored procedures only
+│
+├── Repositories/
+│   ├── BaseRepository.cs                  # Hybrid: EF Core + SP support
+│   ├── NoteRepository.cs
+│   ├── WorkspaceRepository.cs
+│   └── ...
+│
+└── StoredProcedures/
+    └── StoredProcedures.cs                # Only complex queries
+```
 
 **What it SHOULD do:**
+
+**✅ EF Core for Simple Operations (80%):**
 ```csharp
 public class NoteRepository : BaseRepository, INoteRepository
 {
+    private readonly ApplicationDbContext _context;
+    private readonly IConnectionFactory _connectionFactory; // For SPs only
+
     public NoteRepository(
+        ApplicationDbContext context,
         IConnectionFactory connectionFactory,
         ILogger<NoteRepository> logger)
-        : base(connectionFactory, logger)
+        : base(context, connectionFactory, logger)
     {
+        _context = context;
     }
 
-    public async Task<List<Note>> GetNotesAsync(bool getAll, string? searchText)
+    // EF Core: Simple CRUD
+    public async Task<Note?> GetNoteByIdAsync(int id)
+    {
+        return await _context.Notes
+            .Include(n => n.Members)
+            .Include(n => n.Versions)
+            .FirstOrDefaultAsync(n => n.NoteId == id);
+    }
+
+    // EF Core: Query with filters
+    public async Task<List<Note>> GetUserNotesAsync(int userId, string? searchText)
+    {
+        var query = _context.Notes
+            .Where(n => n.UserId == userId && !n.IsArchived);
+
+        if (!string.IsNullOrEmpty(searchText))
+            query = query.Where(n => n.Name.Contains(searchText));
+
+        return await query.ToListAsync();
+    }
+
+    // EF Core: Create
+    public async Task<Note> CreateNoteAsync(Note note)
+    {
+        _context.Notes.Add(note);
+        await _context.SaveChangesAsync();
+        return note;
+    }
+
+    // EF Core: Update
+    public async Task<Note> UpdateNoteAsync(Note note)
+    {
+        _context.Notes.Update(note);
+        await _context.SaveChangesAsync();
+        return note;
+    }
+
+    // Stored Procedure: Complex reporting (20%)
+    public async Task<WorkspaceStatisticsDto> GetWorkspaceStatisticsAsync(int workspaceId)
     {
         return await ExecuteStoredProcedure(
-            StoredProcedures.SelectNotes,
+            "usp_get_workspace_statistics",
             addParameters: (cmd) =>
             {
-                cmd.Parameters.Add(new SqlParameter("@iv_getAll", getAll));
-                AddParameterIfNotNull(cmd, "@iv_SearchText", searchText);
+                cmd.Parameters.Add(new SqlParameter("@workspace_id", workspaceId));
+                return Task.CompletedTask;
             },
-            mapResult: MapToList<Note>
+            mapResult: MapToSingle<WorkspaceStatisticsDto>
         );
+    }
+}
+```
+
+**Entity Configuration Example:**
+```csharp
+public class NoteConfiguration : IEntityTypeConfiguration<Note>
+{
+    public void Configure(EntityTypeBuilder<Note> builder)
+    {
+        builder.ToTable("notes");
+
+        builder.HasKey(n => n.NoteId);
+        builder.Property(n => n.NoteId)
+            .HasColumnName("note_id")
+            .ValueGeneratedOnAdd();
+
+        builder.Property(n => n.Name)
+            .HasColumnName("name")
+            .HasMaxLength(500)
+            .IsRequired();
+
+        // Relationships
+        builder.HasOne(n => n.User)
+            .WithMany(u => u.Notes)
+            .HasForeignKey(n => n.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasMany(n => n.Members)
+            .WithOne(m => m.Note)
+            .HasForeignKey(m => m.NoteId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Indexes
+        builder.HasIndex(n => n.UserId);
+        builder.HasIndex(n => n.Slug).IsUnique();
+
+        // Soft delete filter
+        builder.HasQueryFilter(n => n.DeletedAt == null);
     }
 }
 ```
@@ -417,6 +526,7 @@ public class NoteRepository : BaseRepository, INoteRepository
 - ❌ Business logic
 - ❌ HTTP concerns
 - ❌ Presentation logic
+- ❌ Use stored procedures for simple CRUD (use EF Core instead)
 
 ---
 
@@ -481,13 +591,31 @@ All dependencies are registered in `Program.cs`:
 // Program.cs
 var builder = WebApplication.CreateBuilder(args);
 
+// Database - EF Core DbContext
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("SuperAppConnection");
+    options.UseSqlServer(connectionString, sqlOptions =>
+    {
+        sqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
+        sqlOptions.CommandTimeout(120);
+    });
+
+    if (builder.Environment.IsDevelopment())
+    {
+        options.EnableSensitiveDataLogging();
+        options.EnableDetailedErrors();
+    }
+});
+
 // Infrastructure
-builder.Services.AddScoped<IConnectionFactory, ConnectionFactory>();
+builder.Services.AddScoped<IConnectionFactory, ConnectionFactory>(); // For SPs only
 builder.Services.AddScoped<INoteRepository, NoteRepository>();
+builder.Services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
 builder.Services.AddScoped<IAuthRepository, AuthRepository>();
 
 // Application
-builder.Services.AddMediatR(cfg => 
+builder.Services.AddMediatR(cfg =>
     cfg.RegisterServicesFromAssembly(typeof(CreateNoteCommand).Assembly));
 builder.Services.AddAutoMapper(typeof(MappingProfile).Assembly);
 builder.Services.AddValidatorsFromAssembly(typeof(CreateNoteValidator).Assembly);
@@ -634,17 +762,19 @@ public class GetNotesQueryHandler : IRequestHandler<GetNotesQuery, List<NoteDto>
 └──────┬───────────────────────┘
        │ CreateNoteAsync(note)
        ↓
-┌──────────────────────┐
-│  NoteRepository      │
-│  ExecuteStoredProc   │
-└──────┬───────────────┘
-       │ EXEC usp_i_Note
+┌──────────────────────────────┐
+│  NoteRepository               │
+│  ✅ EF Core: _context.Notes   │
+│     .Add(note)                │
+│     .SaveChangesAsync()       │
+└──────┬───────────────────────┘
+       │ INSERT INTO notes
        ↓
-┌──────────────────────┐
-│  SQL Server          │
-│  Database            │
-└──────┬───────────────┘
-       │ Returns note data
+┌──────────────────────────────┐
+│  SQL Server                   │
+│  Database (SuperApp-dev)      │
+└──────┬───────────────────────┘
+       │ Returns note with ID
        ↓
 ┌──────────────────────┐
 │  AutoMapper          │

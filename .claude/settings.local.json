@@ -4,7 +4,8 @@
       "Bash(dotnet build:*)",
       "Bash(del:*)",
       "Bash(git checkout:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(dir docs /b)"
     ],
     "deny": [],
     "ask": []

@@ -12,15 +12,17 @@ SuperApp is a modern backend API built with .NET 8, following Clean Architecture
 
 | Component | Technology | Version | Purpose |
 |-----------|-----------|---------|---------|
-| **Framework** | .NET | 8.0 | Primary application framework |
+| **Framework** | .NET | 9.0 | Primary application framework |
 | **Language** | C# | 12.0 | Programming language |
-| **API Type** | ASP.NET Core Web API | 8.0 | RESTful API implementation |
-| **Database Access** | ADO.NET | Built-in | Direct database access via stored procedures |
+| **API Type** | ASP.NET Core Web API | 9.0 | RESTful API implementation |
+| **ORM** | **Entity Framework Core** | **Latest** | **Primary data access (80% of operations)** |
+| **Database Access** | **EF Core + Stored Procedures** | **Hybrid** | **ORM for CRUD, SPs for complex queries** |
 
 ### Key Libraries & Packages
 
 | Library | Purpose | Documentation |
 |---------|---------|---------------|
+| **Entity Framework Core** | **ORM & Data Access** | **LINQ queries, change tracking, migrations** |
 | **MediatR** | CQRS pattern implementation | Decouples requests from handlers |
 | **FluentValidation** | Input validation | Validates DTOs and commands |
 | **AutoMapper** | Object mapping | Maps between entities and DTOs |
@@ -306,21 +308,47 @@ SuperApp/
 
 ## Data Access Strategy
 
-### Why ADO.NET + Stored Procedures?
+### Hybrid Approach: EF Core + Stored Procedures
 
-SuperApp uses ADO.NET with stored procedures instead of Entity Framework for the following reasons:
+SuperApp uses a **hybrid data access strategy** combining Entity Framework Core (80%) with Stored Procedures (20%):
 
-**Advantages:**
-1. **Performance** - Direct SQL execution with no ORM overhead
-2. **Control** - Full control over SQL queries and optimization
-3. **Stored Procedures** - Business logic can be encapsulated in the database
-4. **Legacy Integration** - Works well with existing database schemas
-5. **Minimal Overhead** - Lightweight data access layer
+**Entity Framework Core for:**
+1. ✅ **Simple CRUD operations** - Type-safe, clean code
+2. ✅ **Standard queries** - LINQ expressions are readable
+3. ✅ **Navigation properties** - Eager/lazy loading built-in
+4. ✅ **Migrations** - Version control for database schema
+5. ✅ **Change tracking** - Automatic entity state management
 
-**Trade-offs:**
-- More manual code for data mapping
-- No automatic migrations
-- Requires database schema management
+**Stored Procedures for:**
+1. 🟡 **Complex aggregations** - Better performance, optimized execution plans
+2. 🟡 **Recursive queries** - CTEs and hierarchical data
+3. 🟡 **Reporting** - Multiple JOINs with complex business logic
+4. 🟡 **Bulk operations** - Performance-critical mass updates
+
+**Example - EF Core (Simple CRUD):**
+```csharp
+// Get note with members
+var note = await _context.Notes
+    .Include(n => n.Members)
+    .Include(n => n.Versions)
+    .FirstOrDefaultAsync(n => n.NoteId == id);
+
+// Create note
+_context.Notes.Add(note);
+await _context.SaveChangesAsync();
+```
+
+**Example - Stored Procedure (Complex Query):**
+```csharp
+// Complex workspace statistics
+var stats = await ExecuteStoredProcedure(
+    "usp_get_workspace_statistics",
+    addParameters: (cmd) => {
+        cmd.Parameters.Add(new SqlParameter("@workspace_id", workspaceId));
+    },
+    mapResult: MapToSingle<WorkspaceStatisticsDto>
+);
+```
 
 ### Repository Pattern
 
@@ -329,17 +357,24 @@ All data access goes through repositories that inherit from `BaseRepository`:
 ```
 BaseRepository (Infrastructure)
     |
+    ├─ ApplicationDbContext (EF Core)
+    ├─ IConnectionFactory (For SPs)
+    |
     v
 NoteRepository : BaseRepository, INoteRepository
+    |
+    ├─ EF Core operations (80%)
+    └─ Stored Procedures (20%)
     |
     v
 INoteRepository (Application - Interface)
 ```
 
 This pattern provides:
+- **EF Core operations** - LINQ, change tracking, navigation properties
+- **Stored Procedure support** - Complex queries when needed
 - Consistent error handling
 - Connection management
-- Parameter handling
 - Result mapping
 - Logging
 

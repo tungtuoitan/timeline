@@ -12,13 +12,18 @@ Welcome to the SuperApp backend documentation. This guide will help you understa
 ### Development Guidelines
 - **[Coding Standards](../docs/CODING_STANDARDS.md)** - Naming conventions, file organization, and code style
 - **[Architecture Guide](../docs/ARCHITECTURE.md)** - Clean architecture principles, folder structure, and dependencies
-- **[Database Access](../docs/DATABASE_ACCESS.md)** - Repository patterns, stored procedures, and connection management
+- **[Database Access](../docs/DATABASE_ACCESS.md)** - **Hybrid approach: EF Core + Stored Procedures**
+- **[EF Core Guide](../docs/EF_CORE_GUIDE.md)** - **Entity Framework Core setup, DbContext, and LINQ queries**
 - **[API Design](../docs/API_DESIGN.md)** - RESTful conventions, DTOs, request/response patterns, and versioning
 
 ### Core Concepts
 - **[Error Handling](../docs/ERROR_HANDLING.md)** - Exception types, logging, and global error middleware
 - **[Authentication & Authorization](../docs/AUTHENTICATION.md)** - JWT, OAuth, password security, and endpoint protection
 - **[Validation](../docs/VALIDATION.md)** - FluentValidation setup, validation patterns, and error responses
+
+### Database Documentation
+- **[Current Database Schema](../docs/DATABASE-CURRENT/INDEX.md)** - 📊 **Currently deployed database** (MVP 1.0) - Production schema documentation
+- **[Database Design Reference](../docs/DATABASE-FOR-REFERENCES/INDEX.md)** - 📐 Complete design with future features and advanced tagging system
 
 ### Quality Assurance
 - **[Testing Guidelines](../docs/TESTING.md)** - Unit tests, integration tests, and testing patterns
@@ -38,10 +43,11 @@ Welcome to the SuperApp backend documentation. This guide will help you understa
 ### For Feature Development
 
 1. Check **[Architecture Guide](../docs/ARCHITECTURE.md)** to understand where code belongs
-2. Follow **[Database Access](../docs/DATABASE_ACCESS.md)** for repository implementation
-3. Apply **[API Design](../docs/API_DESIGN.md)** principles for endpoints
-4. Implement **[Validation](../docs/VALIDATION.md)** for all inputs
-5. Add **[Tests](../docs/TESTING.md)** for new features
+2. Follow **[Database Access](../docs/DATABASE_ACCESS.md)** for hybrid data access strategy
+3. Use **[EF Core Guide](../docs/EF_CORE_GUIDE.md)** for ORM operations (CRUD, simple queries)
+4. Apply **[API Design](../docs/API_DESIGN.md)** principles for endpoints
+5. Implement **[Validation](../docs/VALIDATION.md)** for all inputs
+6. Add **[Tests](../docs/TESTING.md)** for new features
 
 ### For Code Reviews
 
@@ -57,7 +63,8 @@ Use the **[Code Review Checklist](../docs/CODE_REVIEW_CHECKLIST.md)** to ensure 
 | Language | C# | 12.0 |
 | API Pattern | REST API | - |
 | Architecture | Clean Architecture + CQRS | - |
-| Database Access | ADO.NET + Stored Procedures | - |
+| Database Access | **Entity Framework Core + Stored Procedures** | **Hybrid Approach** |
+| ORM | Entity Framework Core | Latest |
 | Authentication | JWT + Google OAuth | - |
 | Logging | Serilog | Latest |
 | Validation | FluentValidation | Latest |
@@ -72,7 +79,8 @@ Use the **[Code Review Checklist](../docs/CODE_REVIEW_CHECKLIST.md)** to ensure 
 SuperApp/
 ├── .github/ copilot-instructions.md        # 👈 You are here
 ├── docs/                           # 📚 All documentation files
-│   ├── DATABASE-FOR-REFERENCES/   # 🗄️ Database reference documentation
+│   ├── DATABASE-CURRENT/          # 📊 Currently deployed database (MVP 1.0) - Production schema
+│   ├── DATABASE-FOR-REFERENCES/   # � Complete database design with future features
 │   ├── SETUP.md
 │   ├── PROJECT_OVERVIEW.md
 │   ├── CODING_STANDARDS.md

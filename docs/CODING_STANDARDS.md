@@ -809,49 +809,245 @@ Following these patterns ensures:
 
 ## Database Access
 
-### Repository Pattern
+### Hybrid Approach: EF Core + Stored Procedures
 
-All repositories must inherit from `BaseRepository`:
+SuperApp uses **Entity Framework Core (80%)** for most operations and **Stored Procedures (20%)** for complex queries.
+
+**For detailed guide, see:** [EF Core Guide](EF_CORE_GUIDE.md) and [Database Access Guide](DATABASE_ACCESS.md)
+
+### Repository Pattern with EF Core
+
+All repositories must inherit from `BaseRepository` which provides both EF Core and SP support:
 
 ```csharp
 public class NoteRepository : BaseRepository, INoteRepository
 {
-    public NoteRepository(IConnectionFactory connectionFactory, ILogger<NoteRepository> logger)
-        : base(connectionFactory, logger)
+    private readonly ApplicationDbContext _context;
+    private readonly IConnectionFactory _connectionFactory; // For SPs only
+
+    public NoteRepository(
+        ApplicationDbContext context,
+        IConnectionFactory connectionFactory,
+        ILogger<NoteRepository> logger)
+        : base(context, connectionFactory, logger)
     {
+        _context = context;
     }
 }
 ```
 
-### Stored Procedures
+### EF Core Operations (Primary - 80%)
 
-Always use stored procedures for database operations:
+**Use EF Core for simple CRUD and standard queries:**
 
 ```csharp
-// ✅ Good
-return await ExecuteStoredProcedure(
-    StoredProcedures.SelectNotes,
-    addParameters: (cmd) =>
-    {
-        cmd.Parameters.Add(new SqlParameter("@iv_UserId", userId));
-        AddParameterIfNotNull(cmd, "@iv_SearchText", searchText);
-    },
-    mapResult: MapToList<Note>
-);
+// ✅ Good - EF Core for simple operations
+public async Task<Note?> GetNoteByIdAsync(int id)
+{
+    return await _context.Notes
+        .Include(n => n.Members)
+        .Include(n => n.Versions)
+        .FirstOrDefaultAsync(n => n.NoteId == id);
+}
 
-// ❌ Bad - Raw SQL
-var sql = $"SELECT * FROM Notes WHERE UserId = {userId}";
+// ✅ Good - EF Core for queries with filters
+public async Task<List<Note>> GetUserNotesAsync(int userId, string? searchText)
+{
+    var query = _context.Notes
+        .Where(n => n.UserId == userId && !n.IsArchived);
+
+    if (!string.IsNullOrEmpty(searchText))
+        query = query.Where(n => n.Name.Contains(searchText));
+
+    return await query.ToListAsync();
+}
+
+// ✅ Good - EF Core for create/update
+public async Task<Note> CreateNoteAsync(Note note)
+{
+    _context.Notes.Add(note);
+    await _context.SaveChangesAsync();
+    return note;
+}
+
+public async Task<Note> UpdateNoteAsync(Note note)
+{
+    _context.Notes.Update(note);
+    await _context.SaveChangesAsync();
+    return note;
+}
+```
+
+### Stored Procedures (Complex Queries - 20%)
+
+**Use stored procedures only for complex operations:**
+
+```csharp
+// ✅ Good - Stored procedure for complex reporting
+public async Task<WorkspaceStatisticsDto> GetWorkspaceStatisticsAsync(int workspaceId)
+{
+    return await ExecuteStoredProcedure(
+        "usp_get_workspace_statistics",
+        addParameters: (cmd) =>
+        {
+            cmd.Parameters.Add(new SqlParameter("@workspace_id", workspaceId));
+            return Task.CompletedTask;
+        },
+        mapResult: MapToSingle<WorkspaceStatisticsDto>
+    );
+}
+
+// ✅ Good - Stored procedure for recursive hierarchy
+public async Task<List<TagHierarchyDto>> GetTagHierarchyAsync(int userId)
+{
+    return await ExecuteStoredProcedure(
+        StoredProcedures.spGetTagHierarchy,
+        addParameters: (cmd) =>
+        {
+            cmd.Parameters.Add(new SqlParameter("@iv_UserId", userId));
+            return Task.CompletedTask;
+        },
+        mapResult: MapToList<TagHierarchyDto>
+    );
+}
+
+// ❌ Bad - Using SP for simple CRUD
+public async Task<Note?> GetNoteByIdAsync(int id)
+{
+    // Don't do this! Use EF Core instead
+    return await ExecuteStoredProcedure(/* ... */);
+}
+```
+
+### Entity Configuration
+
+**Always use Fluent API in separate configuration classes:**
+
+```csharp
+// ✅ Good - Fluent API configuration
+public class NoteConfiguration : IEntityTypeConfiguration<Note>
+{
+    public void Configure(EntityTypeBuilder<Note> builder)
+    {
+        builder.ToTable("notes");
+
+        builder.HasKey(n => n.NoteId);
+        builder.Property(n => n.NoteId)
+            .HasColumnName("note_id")
+            .ValueGeneratedOnAdd();
+
+        builder.Property(n => n.Name)
+            .HasColumnName("name")
+            .HasMaxLength(500)
+            .IsRequired();
+
+        // Relationships
+        builder.HasOne(n => n.User)
+            .WithMany(u => u.Notes)
+            .HasForeignKey(n => n.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Indexes
+        builder.HasIndex(n => n.UserId);
+        builder.HasIndex(n => n.Slug).IsUnique();
+
+        // Soft delete filter
+        builder.HasQueryFilter(n => n.DeletedAt == null);
+    }
+}
+
+// ❌ Bad - Data annotations in domain models
+public class Note
+{
+    [Key]
+    [Column("note_id")]
+    public int NoteId { get; set; }  // Don't do this!
+}
+```
+
+### Query Performance Best Practices
+
+```csharp
+// ✅ Good - Use AsNoTracking for read-only queries
+public async Task<List<Note>> GetNotesReadOnlyAsync(int userId)
+{
+    return await _context.Notes
+        .AsNoTracking()
+        .Where(n => n.UserId == userId)
+        .ToListAsync();
+}
+
+// ✅ Good - Project to DTOs for better performance
+public async Task<List<NoteListDto>> GetNotesDtoAsync(int userId)
+{
+    return await _context.Notes
+        .Where(n => n.UserId == userId)
+        .Select(n => new NoteListDto
+        {
+            NoteId = n.NoteId,
+            Name = n.Name,
+            CreatedAt = n.CreatedAt
+        })
+        .ToListAsync();
+}
+
+// ✅ Good - Use Include for eager loading (prevent N+1)
+public async Task<Note?> GetNoteWithDetailsAsync(int id)
+{
+    return await _context.Notes
+        .Include(n => n.Members)
+        .Include(n => n.Versions)
+        .FirstOrDefaultAsync(n => n.NoteId == id);
+}
+
+// ❌ Bad - Lazy loading causing N+1 problem
+public async Task<List<Note>> GetNotesAsync()
+{
+    var notes = await _context.Notes.ToListAsync();
+    foreach (var note in notes)
+    {
+        var members = note.Members; // Lazy load - separate query!
+    }
+    return notes;
+}
 ```
 
 ### Parameter Safety
 
 ```csharp
-// ✅ Good - Parameterized
+// ✅ Good - EF Core (automatically parameterized)
+var notes = await _context.Notes
+    .Where(n => n.Name.Contains(searchText))
+    .ToListAsync();
+
+// ✅ Good - Stored Procedure (parameterized)
 AddParameterIfNotNull(cmd, "@iv_SearchText", searchText);
 
-// ❌ Bad - SQL Injection risk
-var sql = $"SELECT * FROM Notes WHERE Name LIKE '%{searchText}%'";
+// ❌ Bad - Raw SQL with string interpolation
+var sql = $"SELECT * FROM Notes WHERE Name LIKE '%{searchText}%'"; // SQL Injection risk!
+
+// ❌ Bad - FromSqlRaw with concatenation
+var notes = await _context.Notes
+    .FromSqlRaw($"SELECT * FROM notes WHERE name = '{name}'") // SQL Injection risk!
+    .ToListAsync();
+
+// ✅ Good - FromSqlRaw with parameters (if you must use raw SQL)
+var notes = await _context.Notes
+    .FromSqlRaw("SELECT * FROM notes WHERE name = {0}", name)
+    .ToListAsync();
 ```
+
+### When to Use Each Approach
+
+| Use Case | Technology | Example |
+|----------|-----------|---------|
+| Simple CRUD | ✅ EF Core | `_context.Notes.FindAsync(id)` |
+| Standard queries | ✅ EF Core | `.Where().OrderBy().ToListAsync()` |
+| Navigation properties | ✅ EF Core | `.Include(n => n.Members)` |
+| Complex aggregations | 🟡 Stored Proc | `usp_get_workspace_statistics` |
+| Recursive queries | 🟡 Stored Proc | `usp_get_tag_hierarchy` |
+| Reporting | 🟡 Stored Proc | `usp_generate_monthly_report` |
+| Bulk operations | 🟡 Stored Proc | `usp_archive_old_notes` |
 
 ---
 

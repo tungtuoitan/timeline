@@ -4,15 +4,231 @@
 
 ---
 
+## 🎯 Hybrid Approach: EF Core + Stored Procedures
+
+**Strategy:** Use **Entity Framework Core (ORM)** for 80% of operations, and **Stored Procedures** for complex queries (20%).
+
+| Use Case | Technology | Reason |
+|----------|-----------|---------|
+| **Simple CRUD** | ✅ EF Core | Type-safe, clean code, easy maintenance |
+| **Queries with 2-3 JOINs** | ✅ EF Core | LINQ expressions are readable |
+| **Navigation properties** | ✅ EF Core | Eager/lazy loading built-in |
+| **Complex aggregations** | 🟡 Stored Procedure | Better performance, optimized execution plan |
+| **Reporting queries** | 🟡 Stored Procedure | Complex business logic |
+| **Bulk operations** | 🟡 Stored Procedure | Better performance for large datasets |
+
+**Quick Links:**
+- **[EF Core Guide](EF_CORE_GUIDE.md)** - Complete Entity Framework Core guide
+- **[Current Database Schema](DATABASE-CURRENT/INDEX.md)** - Production database documentation
+
+---
+
 ## Table of Contents
 1. [Database Configuration](#database-configuration)
-2. [Connection Management](#connection-management)
-3. [BaseRepository Pattern](#baserepository-pattern)
+2. [Hybrid Strategy Overview](#hybrid-strategy-overview)
+3. [EF Core Operations](#ef-core-operations)
 4. [Stored Procedures](#stored-procedures)
-5. [Parameter Handling](#parameter-handling)
-6. [Data Mapping](#data-mapping)
-7. [Error Handling](#error-handling)
-8. [Best Practices](#best-practices)
+5. [BaseRepository Pattern](#baserepository-pattern)
+6. [Connection Management](#connection-management)
+7. [Parameter Handling](#parameter-handling)
+8. [Data Mapping](#data-mapping)
+9. [Error Handling](#error-handling)
+10. [Best Practices](#best-practices)
+
+---
+
+## Hybrid Strategy Overview
+
+### When to Use EF Core vs Stored Procedures
+
+```
+📊 Decision Tree:
+
+Is it a simple CRUD operation?
+├─ YES → Use EF Core
+└─ NO → Continue...
+
+Does it involve 2-3 table JOINs with standard relationships?
+├─ YES → Use EF Core (with Include/ThenInclude)
+└─ NO → Continue...
+
+Is it a complex query with:
+  - 5+ table JOINs
+  - Complex aggregations (GROUP BY, HAVING)
+  - Recursive CTEs
+  - Performance-critical operations
+  - Bulk updates/deletes
+├─ YES → Use Stored Procedure
+└─ NO → Use EF Core (try first, optimize later if needed)
+```
+
+### Examples by Category
+
+#### ✅ Use EF Core For:
+
+```csharp
+// 1. Simple CRUD
+var note = await _context.Notes.FindAsync(id);
+
+// 2. Standard queries with filters
+var notes = await _context.Notes
+    .Where(n => n.UserId == userId && !n.IsArchived)
+    .OrderByDescending(n => n.CreatedAt)
+    .ToListAsync();
+
+// 3. Queries with navigation properties
+var workspace = await _context.Workspaces
+    .Include(w => w.Members)
+    .Include(w => w.Items)
+        .ThenInclude(i => i.ChildTag)
+    .FirstOrDefaultAsync(w => w.WorkspaceId == id);
+
+// 4. Dynamic search
+var query = _context.Notes.AsQueryable();
+if (!string.IsNullOrEmpty(searchText))
+    query = query.Where(n => n.Name.Contains(searchText));
+if (tagId.HasValue)
+    query = query.Where(n => n.Items.Any(i => i.ParentTagId == tagId));
+var results = await query.ToListAsync();
+```
+
+#### 🟡 Use Stored Procedures For:
+
+```csharp
+// 1. Complex reporting with multiple aggregations
+var report = await ExecuteStoredProcedure(
+    "usp_get_workspace_statistics_report",
+    // Complex GROUP BY, multiple CTEs, window functions
+);
+
+// 2. Recursive hierarchy queries
+var tagTree = await ExecuteStoredProcedure(
+    "usp_get_tag_hierarchy_with_counts",
+    // Recursive CTE to build full tree with statistics
+);
+
+// 3. Bulk operations
+await ExecuteStoredProcedure(
+    "usp_archive_old_notes",
+    // Bulk update with complex conditions
+);
+
+// 4. Cross-database queries (if using multiple databases)
+var result = await ExecuteStoredProcedure(
+    "usp_sync_user_profile_data",
+    // Joins across SuperApp and UserProfile databases
+);
+```
+
+---
+
+## EF Core Operations
+
+### Basic Setup
+
+For complete EF Core guide, see **[EF_CORE_GUIDE.md](EF_CORE_GUIDE.md)**.
+
+```csharp
+// Repository with EF Core
+public class NoteRepository : BaseRepository, INoteRepository
+{
+    private readonly ApplicationDbContext _context;
+    private readonly IConnectionFactory _connectionFactory; // For SPs only
+
+    public NoteRepository(
+        ApplicationDbContext context,
+        IConnectionFactory connectionFactory,
+        ILogger<NoteRepository> logger)
+        : base(connectionFactory, logger)
+    {
+        _context = context;
+    }
+
+    // EF Core: Simple CRUD
+    public async Task<Note?> GetNoteByIdAsync(int id)
+    {
+        return await _context.Notes
+            .Include(n => n.Members)
+            .Include(n => n.Versions.OrderByDescending(v => v.CreatedAt).Take(5))
+            .FirstOrDefaultAsync(n => n.NoteId == id);
+    }
+
+    // EF Core: Create
+    public async Task<Note> CreateNoteAsync(Note note)
+    {
+        _context.Notes.Add(note);
+        await _context.SaveChangesAsync();
+        return note;
+    }
+
+    // EF Core: Update
+    public async Task<Note> UpdateNoteAsync(Note note)
+    {
+        _context.Notes.Update(note);
+        await _context.SaveChangesAsync();
+        return note;
+    }
+
+    // Stored Procedure: Complex query
+    public async Task<NotesReportDto> GetNotesReportAsync()
+    {
+        return await ExecuteStoredProcedure(
+            StoredProcedures.spGetNotesReport,
+            addParameters: (cmd) => Task.CompletedTask,
+            mapResult: MapToSingle<NotesReportDto>
+        );
+    }
+}
+```
+
+### EF Core Query Patterns
+
+```csharp
+// ✅ Projection to DTO (better performance)
+var noteDtos = await _context.Notes
+    .Where(n => n.UserId == userId)
+    .Select(n => new NoteDto
+    {
+        NoteId = n.NoteId,
+        Name = n.Name,
+        Description = n.Description,
+        MemberCount = n.Members.Count,
+        LatestVersion = n.Versions
+            .OrderByDescending(v => v.CreatedAt)
+            .Select(v => v.VersionNumber)
+            .FirstOrDefault()
+    })
+    .ToListAsync();
+
+// ✅ Pagination
+var notes = await _context.Notes
+    .Where(n => n.UserId == userId)
+    .OrderByDescending(n => n.CreatedAt)
+    .Skip((pageNumber - 1) * pageSize)
+    .Take(pageSize)
+    .ToListAsync();
+
+// ✅ Eager loading (prevent N+1)
+var workspaces = await _context.Workspaces
+    .Include(w => w.Members.Where(m => m.Role == "owner"))
+    .Include(w => w.Items)
+        .ThenInclude(i => i.ChildTag)
+    .Where(w => w.UserId == userId)
+    .ToListAsync();
+
+// ✅ Tracking vs No-Tracking
+// Read-only queries (better performance)
+var notes = await _context.Notes
+    .AsNoTracking()
+    .Where(n => n.UserId == userId)
+    .ToListAsync();
+
+// For updates (use tracking)
+var note = await _context.Notes
+    .FirstOrDefaultAsync(n => n.NoteId == id);
+note.Name = "Updated Name";
+await _context.SaveChangesAsync();
+```
 
 ---
 
@@ -142,25 +358,89 @@ public class ConnectionFactory : IConnectionFactory
 ## BaseRepository Pattern
 
 ### Purpose
-Eliminate 40% code duplication by centralizing common database operations.
+Provide unified access to **both EF Core and Stored Procedures** in a single base class.
 
-### Implementation
+### Hybrid Implementation
 
 ```csharp
 /// <summary>
-/// Base repository providing common database operation patterns and connection management
+/// Base repository providing BOTH EF Core operations and Stored Procedure execution
 /// </summary>
 public abstract class BaseRepository
 {
-    protected readonly IConnectionFactory _connectionFactory;
+    protected readonly ApplicationDbContext _context;
+    protected readonly IConnectionFactory _connectionFactory; // For SPs only
     protected readonly ILogger _logger;
     private const int DefaultCommandTimeout = 1200; // 20 minutes
 
-    protected BaseRepository(IConnectionFactory connectionFactory, ILogger logger)
+    protected BaseRepository(
+        ApplicationDbContext context,
+        IConnectionFactory connectionFactory,
+        ILogger logger)
     {
+        _context = context;
         _connectionFactory = connectionFactory;
         _logger = logger;
     }
+
+    // ===============================================
+    // EF CORE OPERATIONS (Use these 80% of the time)
+    // ===============================================
+
+    /// <summary>
+    /// Get DbSet for entity type (EF Core)
+    /// </summary>
+    protected DbSet<T> Set<T>() where T : class
+        => _context.Set<T>();
+
+    /// <summary>
+    /// Create queryable for complex LINQ queries (EF Core)
+    /// </summary>
+    protected IQueryable<T> Query<T>() where T : class
+        => _context.Set<T>().AsQueryable();
+
+    /// <summary>
+    /// Find entity by ID (EF Core)
+    /// </summary>
+    protected async Task<T?> FindByIdAsync<T>(params object[] keyValues) where T : class
+        => await _context.Set<T>().FindAsync(keyValues);
+
+    /// <summary>
+    /// Add entity (EF Core)
+    /// </summary>
+    protected async Task AddAsync<T>(T entity) where T : class
+    {
+        await _context.Set<T>().AddAsync(entity);
+        await _context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Update entity (EF Core)
+    /// </summary>
+    protected async Task UpdateAsync<T>(T entity) where T : class
+    {
+        _context.Set<T>().Update(entity);
+        await _context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Delete entity (EF Core)
+    /// </summary>
+    protected async Task DeleteAsync<T>(T entity) where T : class
+    {
+        _context.Set<T>().Remove(entity);
+        await _context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Save all changes (EF Core)
+    /// </summary>
+    protected async Task<int> SaveChangesAsync()
+        => await _context.SaveChangesAsync();
+
+    // ===============================================
+    // STORED PROCEDURE OPERATIONS (Use for complex queries)
+    // ===============================================
 
     /// <summary>
     /// Executes a stored procedure with complex parameter mapping and result transformation
