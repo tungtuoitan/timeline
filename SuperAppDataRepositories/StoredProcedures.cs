@@ -50,6 +50,7 @@
         // Tag Hierarchy & Navigation
         public static string spSelectTagTree => "[dbo].[usp_s_tag_tree]";
         public static string spSelectTagTreeWithSharing => "[dbo].[usp_s_tag_tree]";
+        public static string spSelectWorkspaceTagTree => "[dbo].[usp_s_tag_tree]"; // Workspace-specific tag tree
         public static string spSelectTagSubtree => "[dbo].[usp_s_tag_subtree]";
         public static string spSelectTagBreadcrumb => "[dbo].[usp_s_tag_breadcrumb]";
         public static string spMoveTag => "[dbo].[usp_move_tag]";
@@ -73,6 +74,16 @@
         
         // Tag Recovery & Maintenance
         public static string spRestoreTag => "[dbo].[usp_restore_tag]";
+        
+        // ============================================================================
+        // WORKSPACE MANAGEMENT
+        // ============================================================================
+        
+        public static string spSelectWorkspace => "[dbo].[usp_s_workspace]";
+        public static string spSelectUserWorkspaces => "[dbo].[usp_s_user_workspaces]";
+        public static string spInsertWorkspace => "[dbo].[usp_i_workspace]";
+        public static string spUpdateWorkspace => "[dbo].[usp_u_workspace]";
+        public static string spDeleteWorkspace => "[dbo].[usp_d_workspace]";
         
         // ============================================================================
         // ITEM TAGGING SYSTEM

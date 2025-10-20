@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SuperAppModels.Models;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 
 namespace SuperAppDataRepositories.Data
 {

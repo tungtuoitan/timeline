@@ -99,7 +99,7 @@ public class TagsDiagnostic
                 using var command = conn.CreateCommand();
                 command.CommandText = "[dbo].[usp_s_tags]";
                 command.CommandType = CommandType.StoredProcedure;
-                command.Parameters.Add(new SqlParameter("@user_id", 14));
+                command.Parameters.Add(new SqlParameter("@user_id", 1));
                 
                 using var reader = await command.ExecuteReaderAsync();
                 
@@ -146,7 +146,7 @@ public class TagsDiagnostic
                 using var command = conn.CreateCommand();
                 command.CommandText = "[dbo].[usp_s_tags]";
                 command.CommandType = CommandType.StoredProcedure;
-                command.Parameters.Add(new SqlParameter("@user_id", 14));
+                command.Parameters.Add(new SqlParameter("@user_id", 1));
                 
                 using var reader = await command.ExecuteReaderAsync();
                 
@@ -186,13 +186,13 @@ public class TagsDiagnostic
             }
             
             // Test 6: Test with TagRepository (this might fail due to mapping issues)
-            logger.LogInformation("Testing TagRepository.GetTags with userId = 14...");
+            logger.LogInformation("Testing TagRepository.GetTags with userId = 1...");
             try
             {
                 var tagRepository = serviceProvider.GetRequiredService<TagRepository>();
-                var tags = await tagRepository.GetTags(14);
+                var tags = await tagRepository.GetTags(1);
                 
-                logger.LogInformation("Retrieved {TagCount} tags for userId = 14", tags.Count);
+                logger.LogInformation("Retrieved {TagCount} tags for userId = 1", tags.Count);
                 foreach (var tag in tags.Take(3)) // Show only first 3
                 {
                     logger.LogInformation("  Tag: ID={Id}, Name={Name}, UserId={UserId}", 

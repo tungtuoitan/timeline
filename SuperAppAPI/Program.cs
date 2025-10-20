@@ -129,6 +129,7 @@ namespace SuperAppAPI
                     // Register repositories (with EF Core and Connection Factory)
                     services.AddScoped<INoteRepository, NoteRepository>();
                     services.AddScoped<ITagRepository, TagRepository>();
+                    services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
                     services.AddScoped<IStandardRegistryRepository, StandardRegistryRepository>();
                     services.AddScoped<IAuthRepository, AuthRepository>();
                     services.AddScoped<IUserProfileRepository, UserProfileRepository>();

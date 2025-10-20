@@ -34,9 +34,9 @@ public class TestTagsMapping
             logger.LogInformation("Testing Tags mapping fix...");
             
             var tagRepository = serviceProvider.GetRequiredService<TagRepository>();
-            var tags = await tagRepository.GetTags(14);
+            var tags = await tagRepository.GetTags(1);
             
-            logger.LogInformation("SUCCESS! Retrieved {TagCount} tags for userId = 14", tags.Count);
+            logger.LogInformation("SUCCESS! Retrieved {TagCount} tags for userId = 1", tags.Count);
             
             // Show first few tags
             foreach (var tag in tags.Take(5))

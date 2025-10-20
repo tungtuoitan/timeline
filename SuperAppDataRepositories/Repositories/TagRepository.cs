@@ -1,5 +1,5 @@
 using System.Data;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Ins;
 using SuperAppDataRepositories.Extensions;
@@ -372,6 +372,32 @@ namespace SuperAppDataRepositories.Repositories
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while getting tag tree for userId: {UserId}", userId);
+                throw;
+            }
+        }
+
+        public async Task<List<TagTree>> GetWorkspaceTagTreeAsync(int workspaceId, int userId)
+        {
+            try
+            {
+                _logger.LogInformation("Getting workspace tag tree for workspaceId: {WorkspaceId}, userId: {UserId}", 
+                    workspaceId, userId);
+
+                return await ExecuteStoredProcedureAsync(
+                    StoredProcedures.spSelectWorkspaceTagTree,
+                    addParameters: async (command) =>
+                    {
+                        command.Parameters.Add(new SqlParameter("@workspace_id", workspaceId));
+                        command.Parameters.Add(new SqlParameter("@user_id", userId));
+                        await Task.CompletedTask;
+                    },
+                    mapResult: MapToTagTreeListAsync,
+                    useSuperAppConnection: true
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while getting workspace tag tree for workspaceId: {WorkspaceId}, userId: {UserId}", workspaceId, userId);
                 throw;
             }
         }

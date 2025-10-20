@@ -7,6 +7,7 @@ using SuperApp.Application.Features.Tags.Commands.UpdateTag;
 using SuperApp.Application.Features.Tags.Queries.GetTags;
 using SuperApp.Application.Features.Tags.Queries.GetTagById;
 using SuperApp.Application.Features.Tags.Queries.GetTagTree;
+using SuperApp.Application.Features.Tags.Queries.GetWorkspaceTagTree;
 using SuperApp.Application.Features.Notes.Queries.GetNotes;
 using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs.Requests;
@@ -48,7 +49,7 @@ namespace SuperAppAPI.Controllers
             {
                 // TEMPORARY: Using hardcoded userId while auth is disabled
                 // In production, this should be extracted from the JWT token
-                var userId = 14; // Hardcoded for development
+                var userId = 1; // Hardcoded for development
                 
                 _logger.LogInformation("Retrieving tags for userId: {UserId}", userId);
 
@@ -95,7 +96,7 @@ namespace SuperAppAPI.Controllers
             try
             {
                 // TEMPORARY: Using hardcoded userId while auth is disabled
-                var userId = 14; // Hardcoded for development
+                var userId = 1; // Hardcoded for development
                 
                 _logger.LogInformation("Retrieving tag tree for userId: {UserId}, includeShared: {IncludeShared}", 
                     userId, includeShared);
@@ -123,6 +124,66 @@ namespace SuperAppAPI.Controllers
                 _logger.LogError(ex, "Unexpected error occurred while retrieving tag tree");
                 return StatusCode(StatusCodes.Status500InternalServerError, 
                     new { Message = "An error occurred while retrieving tag tree" });
+            }
+        }
+
+        /// <summary>
+        /// Gets workspace information with its complete hierarchical tag tree
+        /// </summary>
+        /// <param name="workspaceId">Workspace ID</param>
+        /// <returns>Workspace details with hierarchical tag tree structure</returns>
+        /// <response code="200">Workspace with tag tree retrieved successfully</response>
+        /// <response code="400">Invalid workspace ID</response>
+        /// <response code="401">Unauthorized - invalid or missing token</response>
+        /// <response code="403">Access denied - no access to workspace</response>
+        /// <response code="404">Workspace not found</response>
+        /// <response code="500">Internal server error</response>
+        [HttpGet("workspace/{workspaceId:int}/tree")]
+        [ProducesResponseType(typeof(WorkspaceWithTagTreeResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetWorkspaceTagTree(int workspaceId)
+        {
+            try
+            {
+                if (workspaceId <= 0)
+                {
+                    _logger.LogWarning("Invalid workspace ID provided: {WorkspaceId}", workspaceId);
+                    return BadRequest(new { Message = "Workspace ID must be a positive integer" });
+                }
+
+                // TEMPORARY: Using hardcoded userId while auth is disabled
+                var userId = 1; // Hardcoded for development
+                
+                _logger.LogInformation("Retrieving workspace tag tree for workspaceId: {WorkspaceId}, userId: {UserId}", 
+                    workspaceId, userId);
+
+                var query = new GetWorkspaceTagTreeQuery(workspaceId, userId);
+                var response = await _mediator.Send(query);
+
+                _logger.LogInformation("Successfully retrieved workspace tag tree with {RootTagCount} root tags for workspaceId: {WorkspaceId}",
+                    response?.Tags?.Count ?? 0, workspaceId);
+
+                return Ok(response);
+            }
+            catch (ArgumentException ex)
+            {
+                _logger.LogWarning(ex, "Invalid argument provided for get workspace tag tree: {WorkspaceId}", workspaceId);
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized access attempt for workspace tag tree: {WorkspaceId}", workspaceId);
+                return Unauthorized(new { Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error occurred while retrieving workspace tag tree for workspaceId: {WorkspaceId}", workspaceId);
+                return StatusCode(StatusCodes.Status500InternalServerError, 
+                    new { Message = "An error occurred while retrieving workspace tag tree" });
             }
         }
 
@@ -216,7 +277,7 @@ namespace SuperAppAPI.Controllers
 
                 // TEMPORARY: Using hardcoded userId while auth is disabled
                 // In production, this should be extracted from the JWT token
-                var userId = 14; // Hardcoded for development
+                var userId = 1; // Hardcoded for development
                 request.UserId = userId;
 
                 _logger.LogInformation("Creating tag '{TagName}' for userId: {UserId}", request.Name, userId);
