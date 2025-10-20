@@ -177,22 +177,22 @@ namespace SuperAppDataRepositories.Repositories
             var tag = new SuperAppModels.Models.Tag();
             
             // Map database columns to properties, try lowercase first (from usp_s_tags), then PascalCase (from other procedures)
-            tag.Id = TryGetInt32(reader, "id") ?? TryGetInt32(reader, "Id") ?? 0;
+            tag.TagId = TryGetInt32(reader, "id") ?? TryGetInt32(reader, "Id") ?? 0;
             tag.UserId = TryGetInt32(reader, "user_id") ?? TryGetInt32(reader, "UserId") ?? 0;
             tag.Name = TryGetString(reader, "name") ?? TryGetString(reader, "Name") ?? string.Empty;
-            tag.ParentId = TryGetNullableInt32(reader, "parent_id") ?? TryGetNullableInt32(reader, "ParentId");
-            tag.Path = TryGetString(reader, "path") ?? TryGetString(reader, "Path");
-            tag.Slug = TryGetString(reader, "slug") ?? TryGetString(reader, "Slug");
+            // tag.ParentId = TryGetNullableInt32(reader, "parent_id") ?? TryGetNullableInt32(reader, "ParentId"); // Not in model
+            // tag.Path = TryGetString(reader, "path") ?? TryGetString(reader, "Path"); // Not in model
+            tag.Slug = TryGetString(reader, "slug") ?? TryGetString(reader, "Slug") ?? string.Empty;
             tag.Color = TryGetString(reader, "color") ?? TryGetString(reader, "Color");
             tag.Icon = TryGetString(reader, "icon") ?? TryGetString(reader, "Icon");
             tag.Description = TryGetString(reader, "description") ?? TryGetString(reader, "Description");
-            tag.IsPublic = TryGetNullableBoolean(reader, "is_public") ?? TryGetNullableBoolean(reader, "IsPublic");
-            tag.PublicSlug = TryGetString(reader, "public_slug") ?? TryGetString(reader, "PublicSlug");
+            // tag.IsPublic = TryGetNullableBoolean(reader, "is_public") ?? TryGetNullableBoolean(reader, "IsPublic"); // Not in model
+            // tag.PublicSlug = TryGetString(reader, "public_slug") ?? TryGetString(reader, "PublicSlug"); // Not in model
             tag.CreatedAt = TryGetNullableDateTime(reader, "created_at") ?? TryGetNullableDateTime(reader, "CreatedAt");
             tag.UpdatedAt = TryGetNullableDateTime(reader, "updated_at") ?? TryGetNullableDateTime(reader, "UpdatedAt");
             tag.DeletedAt = TryGetNullableDateTime(reader, "deleted_at") ?? TryGetNullableDateTime(reader, "DeletedAt");
-            tag.CreatedBy = TryGetNullableInt32(reader, "created_by") ?? TryGetNullableInt32(reader, "CreatedBy");
-            tag.Depth = TryGetNullableInt32(reader, "depth") ?? TryGetNullableInt32(reader, "Depth");
+            // tag.CreatedBy = TryGetNullableInt32(reader, "created_by") ?? TryGetNullableInt32(reader, "CreatedBy"); // Not in model
+            // tag.Depth = TryGetNullableInt32(reader, "depth") ?? TryGetNullableInt32(reader, "Depth"); // Not in model
             
             return tag;
         }

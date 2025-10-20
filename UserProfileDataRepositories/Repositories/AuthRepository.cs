@@ -98,16 +98,14 @@ namespace UserProfileDataRepositories.Repositories
                 var userModel = users?.FirstOrDefault(u => string.Equals(u.Email, email, StringComparison.OrdinalIgnoreCase));
                 if (userModel == null) return null;
 
-                // Convert UserModel to User
+                // Convert UserModel to User (mapping to actual User model properties)
                 return new User
                 {
-                    Id = userModel.Id,
+                    UserId = userModel.Id, // Map Id to UserId
                     Username = userModel.Email ?? string.Empty,
-                    Email = userModel.Email,
-                    Phone = userModel.Phone,
-                    FirstName = userModel.FirstName,
-                    LastName = userModel.LastName,
-                    Birthday = userModel.Birthday
+                    Email = userModel.Email ?? string.Empty,
+                    PasswordHash = string.Empty, // Set default, should be populated from userModel if available
+                    // Removed properties that don't exist in User model: Phone, FirstName, LastName, Birthday
                 };
             }
             catch (Exception ex)

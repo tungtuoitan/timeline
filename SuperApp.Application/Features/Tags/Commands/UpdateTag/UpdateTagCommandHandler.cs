@@ -39,21 +39,21 @@ namespace SuperApp.Application.Features.Tags.Commands.UpdateTag
 
                 // Map update request to existing tag
                 var tagToUpdate = _mapper.Map<Tag>(request.Request);
-                tagToUpdate.CreatedBy = existingTag.CreatedBy; // Preserve original creator
+                // tagToUpdate.CreatedBy = existingTag.CreatedBy; // Preserve original creator - Property not available
                 tagToUpdate.CreatedAt = existingTag.CreatedAt; // Preserve original creation date
                 tagToUpdate.UserId = existingTag.UserId; // Preserve user ID
-                tagToUpdate.ParentId = existingTag.ParentId; // Preserve parent ID
-                tagToUpdate.Path = existingTag.Path; // Preserve path
+                // tagToUpdate.ParentId = existingTag.ParentId; // Preserve parent ID - Property not available
+                // tagToUpdate.Path = existingTag.Path; // Preserve path - Property not available
                 tagToUpdate.Slug = existingTag.Slug; // Preserve slug
                 tagToUpdate.Icon = existingTag.Icon; // Preserve icon
-                tagToUpdate.IsPublic = existingTag.IsPublic; // Preserve public status
-                tagToUpdate.PublicSlug = existingTag.PublicSlug; // Preserve public slug
+                // tagToUpdate.IsPublic = existingTag.IsPublic; // Preserve public status - Property not available
+                // tagToUpdate.PublicSlug = existingTag.PublicSlug; // Preserve public slug - Property not available
                 tagToUpdate.DeletedAt = existingTag.DeletedAt; // Preserve deleted status
 
                 var updatedTag = await _tagRepository.UpdateTagAsync(tagToUpdate);
                 var response = _mapper.Map<TagResponse>(updatedTag);
 
-                _logger.LogInformation("Successfully updated tag with ID: {TagId}", updatedTag.Id);
+                _logger.LogInformation("Successfully updated tag with ID: {TagId}", updatedTag.TagId);
                 return response;
             }
             catch (Exception ex)

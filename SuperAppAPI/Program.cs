@@ -15,6 +15,7 @@ using System.Reflection;
 using AutoMapper;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 
 namespace SuperAppAPI
@@ -88,7 +89,7 @@ namespace SuperAppAPI
                     //services.AddAuthorization();
 
                     // Register MediatR with pipeline behaviors
-                    services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(SuperApp.Application.Features.Notes.Queries.GetNotes.GetNotesQuery).Assembly));
+                    services.AddMediatR(typeof(SuperApp.Application.Features.Notes.Queries.GetNotes.GetNotesQuery).Assembly);
                     
                     // Register FluentValidation
                     services.AddValidatorsFromAssembly(typeof(SuperApp.Application.Features.Notes.Commands.CreateNote.CreateNoteValidator).Assembly);
@@ -105,10 +106,27 @@ namespace SuperAppAPI
                     services.AddTransient(typeof(IPipelineBehavior<,>), typeof(SuperApp.Application.Common.Behaviors.ValidationBehavior<,>));
                     services.AddTransient(typeof(IPipelineBehavior<,>), typeof(SuperApp.Application.Common.Behaviors.LoggingBehavior<,>));
 
-                    // Register Connection Factory
+                    // Register EF Core DbContext
+                    services.AddDbContext<ApplicationDbContext>(options =>
+                    {
+                        var connectionString = hostContext.Configuration.GetConnectionString("SuperAppConnection");
+                        options.UseSqlServer(connectionString, sqlOptions =>
+                        {
+                            sqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
+                            sqlOptions.CommandTimeout(120);
+                        });
+
+                        if (hostContext.HostingEnvironment.IsDevelopment())
+                        {
+                            options.EnableSensitiveDataLogging();
+                            options.EnableDetailedErrors();
+                        }
+                    });
+
+                    // Register Connection Factory (for stored procedures)
                     services.AddScoped<IConnectionFactory, ConnectionFactory>();
 
-                    // Register repositories
+                    // Register repositories (with EF Core and Connection Factory)
                     services.AddScoped<INoteRepository, NoteRepository>();
                     services.AddScoped<ITagRepository, TagRepository>();
                     services.AddScoped<IStandardRegistryRepository, StandardRegistryRepository>();

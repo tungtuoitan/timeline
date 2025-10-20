@@ -1,6 +1,7 @@
 using System.Data;
 using System.Data.SqlClient;
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using SuperAppDataRepositories.Ins;
 using SuperAppDataRepositories.Extensions;
 using SuperAppDataRepositories.Data;
@@ -11,27 +12,68 @@ namespace SuperAppDataRepositories.Repositories
 {
     public class NoteRepository : BaseRepository, INoteRepository
     {
-        public NoteRepository(ILogger<NoteRepository> logger, IConnectionFactory connectionFactory)
+        private readonly ApplicationDbContext _context;
+
+        public NoteRepository(
+            ApplicationDbContext context,
+            ILogger<NoteRepository> logger, 
+            IConnectionFactory connectionFactory)
             : base(connectionFactory, logger)
         {
+            _context = context;
         }
 
-        public async Task<List<Note>> GetNotes(bool getAll = false, string? searchText = null, string? types = null, List<int>? tagIds = null, int? createdByUserId = null)
+        /// <summary>
+        /// Retrieves notes with filtering using EF Core (hybrid approach)
+        /// </summary>
+        public async Task<List<Note>> GetNotes(bool getAll = false, string? searchText = null, List<int>? tagIds = null, int? createdByUserId = null)
         {
-            return await ExecuteStoredProcedureAsync(
-                StoredProcedures.spSelectNotes,
-                addParameters: async (command) =>
+            try
+            {
+                var query = _context.Notes
+                    .AsNoTracking() // Read-only query for better performance
+                    .Where(n => n.DeletedAt == null); // Soft delete filter
+
+                // Apply filters based on parameters
+                if (!getAll && createdByUserId.HasValue)
                 {
-                    command.Parameters.Add(new SqlParameter("@iv_getAll", getAll));
-                    AddParameterIfNotNull(command, "@iv_SearchText", searchText);
-                    AddParameterIfNotNull(command, "@iv_Types", types);
-                    AddParameterIfNotNull(command, "@iv_TagIds", tagIds != null ? string.Join(",", tagIds) : null);
-                    AddParameterIfNotNull(command, "@iv_CreatedBy", createdByUserId);
-                    await Task.CompletedTask;
-                },
-                mapResult: MapNotesWithTagsAsync,
-                useSuperAppConnection: true
-            );
+                    query = query.Where(n => n.UserId == createdByUserId.Value);
+                }
+
+                if (!string.IsNullOrEmpty(searchText))
+                {
+                    query = query.Where(n => n.Name.Contains(searchText) || 
+                                            (n.Content != null && n.Content.Contains(searchText)));
+                }
+
+                // Filter by tags using EF Core with workspace_items table
+                if (tagIds != null && tagIds.Any())
+                {
+                    _logger.LogInformation("Tag filtering requested - using EF Core join with workspace_items");
+                    
+                    // Join with workspace_items to filter notes that are associated with specified tags
+                    query = query.Where(n => _context.WorkspaceItems
+                        .Where(wi => wi.ChildType == "note" 
+                                  && wi.ChildId == n.NoteId 
+                                  && tagIds.Contains(wi.ParentTagId)
+                                  && wi.DeletedAt == null)
+                        .Any());
+                }
+
+                // Order by creation date (most recent first)
+                query = query.OrderByDescending(n => n.CreatedAt);
+
+                var notes = await query.ToListAsync();
+
+                _logger.LogInformation("Retrieved {Count} notes using EF Core", notes.Count);
+                return notes;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while retrieving notes. Parameters: getAll={GetAll}, searchText={SearchText}, tagIds={TagIds}, createdByUserId={CreatedByUserId}", 
+                    getAll, searchText, tagIds != null ? string.Join(",", tagIds) : "null", createdByUserId);
+                throw;
+            }
         }
 
         /// <summary>
@@ -45,18 +87,24 @@ namespace SuperAppDataRepositories.Repositories
             {
                 var note = new Note
                 {
-                    NoteId = reader.GetInt32("id"),
-                    Name = reader.GetString("Name"),
-                    Description = reader.IsDBNull("Description") ? null : reader.GetString("Description"),
-                    Type = reader.IsDBNull("Type") ? null : reader.GetString("Type"),
-                    CreatedBy = reader.IsDBNull("CreatedBy") ? null : reader.GetInt32("CreatedBy"),
-                    CreatedAt = reader.GetDateTime("CreatedAt"),
-                    UpdatedAt = reader.IsDBNull("UpdatedAt") ? null : reader.GetDateTime("UpdatedAt"),
-                    IsArchived = reader.GetBoolean("IsArchived"),
-                    Tags = new List<Tag>()
+                    NoteId = reader.GetInt32("note_id"),
+                    Name = reader.GetString("name"),
+                    Description = reader.IsDBNull("description") ? null : reader.GetString("description"),
+                    Content = reader.IsDBNull("content") ? null : reader.GetString("content"),
+                    UserId = reader.IsDBNull("user_id") ? 0 : reader.GetInt32("user_id"),
+                    CreatedAt = reader.GetDateTime("created_at"),
+                    UpdatedAt = reader.IsDBNull("updated_at") ? null : reader.GetDateTime("updated_at"),
+                    IsArchived = reader.GetBoolean("is_archived"),
+                    Slug = reader.IsDBNull("slug") ? null : reader.GetString("slug"),
+                    Color = reader.IsDBNull("color") ? null : reader.GetString("color"),
+                    Icon = reader.IsDBNull("icon") ? null : reader.GetString("icon"),
+                    IsPinned = reader.IsDBNull("is_pinned") ? false : reader.GetBoolean("is_pinned"),
+                    IsFavorite = reader.IsDBNull("is_favorite") ? false : reader.GetBoolean("is_favorite"),
+                    WordCount = reader.IsDBNull("word_count") ? 0 : reader.GetInt32("word_count"),
+                    VersionCount = reader.IsDBNull("version_count") ? 1 : reader.GetInt32("version_count")
                 };
 
-                // Parse TagsJSON if present
+                // Parse TagsJSON if present (removing Tags property references for now)
                 if (!reader.IsDBNull("TagsJSON"))
                 {
                     var tagsJson = reader.GetString("TagsJSON");
@@ -65,16 +113,7 @@ namespace SuperAppDataRepositories.Repositories
                         try
                         {
                             var tagData = System.Text.Json.JsonSerializer.Deserialize<List<TagJsonDto>>(tagsJson);
-                            if (tagData != null)
-                            {
-                                note.Tags = tagData.Select(t => new Tag
-                                {
-                                    Id = t.Id,
-                                    Name = t.Name,
-                                    UserId = 0, // Will be populated from actual tag data if needed
-                                    CreatedAt = DateTime.UtcNow // Default values for required fields
-                                }).ToList();
-                            }
+                            // TODO: Handle tags relationship properly once Note-Tag relationship is defined
                         }
                         catch (System.Text.Json.JsonException ex)
                         {
@@ -136,10 +175,10 @@ namespace SuperAppDataRepositories.Repositories
             {
                 _logger.LogInformation("Creating new note with title: {Title}", note.Name);
 
-                // Set the CreatedBy user ID if provided
-                if (note.CreatedBy == null && createdByUserId.HasValue)
+                // Set the UserId if provided (replacing CreatedBy concept)
+                if (createdByUserId.HasValue)
                 {
-                    note.CreatedBy = createdByUserId;
+                    note.UserId = createdByUserId.Value;
                 }
 
                 var (notes, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
@@ -174,18 +213,13 @@ namespace SuperAppDataRepositories.Repositories
                 // Associate tags with the note if provided
                 if (tagIds != null && tagIds.Any())
                 {
-                    await AssociateTagsWithNoteAsync(createdNote.NoteId, tagIds, note.CreatedBy);
+                    await AssociateTagsWithNoteAsync(createdNote.NoteId, tagIds, note.UserId);
                     
-                    // Reload the note to get updated tags from the database
-                    var noteWithTags = await GetNoteById(createdNote.NoteId);
-                    if (noteWithTags != null)
-                    {
-                        createdNote.Tags = noteWithTags.Tags;
-                    }
+                    // TODO: Reload the note to get updated tags from the database once Tag relationship is defined
                 }
 
-                _logger.LogInformation("Successfully created note with ID: {NoteId} with {TagCount} tags", 
-                    createdNote.NoteId, createdNote.Tags.Count);
+                _logger.LogInformation("Successfully created note with ID: {NoteId}", 
+                    createdNote.NoteId);
                 return createdNote;
             }
             catch (Exception ex)
@@ -195,7 +229,7 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
-        private async Task AssociateTagsWithNoteAsync(int noteId, List<int> tagIds, int? createdBy)
+        private async Task AssociateTagsWithNoteAsync(int noteId, List<int> tagIds, int createdBy)
         {
             // Filter out invalid tag IDs before processing
             var validTagIds = tagIds?.Where(id => id > 0).ToList();
@@ -260,10 +294,10 @@ namespace SuperAppDataRepositories.Repositories
                     throw new InvalidOperationException($"Note with ID {note.NoteId} not found");
                 }
 
-                // Set the CreatedBy user ID if provided (for auditing purposes)
-                if (note.CreatedBy == null && createdByUserId.HasValue)
+                // Set the UserId if provided (replacing CreatedBy concept)
+                if (createdByUserId.HasValue)
                 {
-                    note.CreatedBy = createdByUserId;
+                    note.UserId = createdByUserId.Value;
                 }
 
                 var (notes, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
@@ -302,19 +336,15 @@ namespace SuperAppDataRepositories.Repositories
                     // Add new tag associations
                     if (tagIds.Any())
                     {
-                        await AssociateTagsWithNoteAsync(updatedNote.NoteId, tagIds, note.CreatedBy);
+                        await AssociateTagsWithNoteAsync(updatedNote.NoteId, tagIds, note.UserId);
                     }
                     
                     // Reload the note to get updated tags from the database
-                    var noteWithTags = await GetNoteById(updatedNote.NoteId);
-                    if (noteWithTags != null)
-                    {
-                        updatedNote.Tags = noteWithTags.Tags;
-                    }
+                    // Note: Tags navigation property handling removed until EF configuration is set up
                 }
 
-                _logger.LogInformation("Successfully updated note with ID: {NoteId} with {TagCount} tags", 
-                    updatedNote.NoteId, updatedNote.Tags.Count);
+                _logger.LogInformation("Successfully updated note with ID: {NoteId}", 
+                    updatedNote.NoteId);
                 return updatedNote;
             }
             catch (Exception ex)

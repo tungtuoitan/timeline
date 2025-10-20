@@ -41,7 +41,7 @@ namespace SuperApp.Application.Features.Notes.Commands.CreateNote
                 if (!string.IsNullOrEmpty(request.Request.CreatedBy))
                 {
                     var user = await _authRepository.GetUserByEmailAsync(request.Request.CreatedBy);
-                    createdByUserId = user?.Id;
+                    createdByUserId = user?.UserId;
                 }
                 
                 var createdNote = await _noteRepository.CreateNoteAsync(note, request.Request.TagIds, createdByUserId);

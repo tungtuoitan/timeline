@@ -5,7 +5,10 @@
       "Bash(del:*)",
       "Bash(git checkout:*)",
       "Bash(tree:*)",
-      "Bash(dir docs /b)"
+      "Bash(dir docs /b)",
+      "Read(//c/Users/Admin/source/super-app/SuperApp-frontend/**)",
+      "Bash(dir \"C:\\Users\\Admin\\source\\super-app\\SuperApp-frontend\" /b)",
+      "Bash(dir \"C:\\Users\\Admin\\source\\super-app\\SuperApp-frontend\\src\" /b)"
     ],
     "deny": [],
     "ask": []

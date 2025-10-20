@@ -3,6 +3,8 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using SuperApp.Application.Common.Behaviors;
 using System.Reflection;
+using AutoMapper;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace SuperApp.Application
 {
@@ -11,7 +13,7 @@ namespace SuperApp.Application
         public static IServiceCollection AddApplication(this IServiceCollection services)
         {
             // Register MediatR
-            services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly()));
+            services.AddMediatR(Assembly.GetExecutingAssembly());
 
             // Register AutoMapper
             services.AddAutoMapper(Assembly.GetExecutingAssembly());

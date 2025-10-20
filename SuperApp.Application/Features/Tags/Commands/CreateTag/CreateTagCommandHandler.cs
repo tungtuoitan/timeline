@@ -43,7 +43,7 @@ namespace SuperApp.Application.Features.Tags.Commands.CreateTag
                 var response = _mapper.Map<TagResponse>(createdTag);
                 
                 _logger.LogInformation("Successfully created tag with ID: {TagId} for user: {UserId}", 
-                    createdTag.Id, request.Request.UserId);
+                    createdTag.TagId, request.Request.UserId);
                 return response;
             }
             catch (Exception ex)

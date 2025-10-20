@@ -55,6 +55,8 @@ namespace SuperAppAPI
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "SuperApp", Version = "v1" });
                 
+                // TEMPORARY: JWT Authentication to Swagger DISABLED for development
+                /*
                 // Add JWT Authentication to Swagger
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
@@ -79,6 +81,7 @@ namespace SuperAppAPI
                         Array.Empty<string>()
                     }
                 });
+                */
             });
             services.AddLogging(config =>
             {
@@ -132,6 +135,15 @@ namespace SuperAppAPI
             });
 
             services.AddHttpContextAccessor(); // cho phép dùng httpContext trong service
+            
+            // TEMPORARY: Explicitly disable any default authentication for development
+            services.Configure<Microsoft.AspNetCore.Authentication.AuthenticationOptions>(options =>
+            {
+                options.DefaultScheme = null;
+                options.DefaultAuthenticateScheme = null;
+                options.DefaultChallengeScheme = null;
+            });
+            
             //services.AddTransient<IBlobAppend, BlobAppend>();
             //services.AddTransient<ILoggerService, LoggerService>();
         }
@@ -143,8 +155,8 @@ namespace SuperAppAPI
         {
             //ILoggerService _loggerService = loggerService ?? throw new ArgumentNullException(nameof(loggerService));
 
-            // Security headers - should be first for all responses
-            app.UseSecurityHeaders();
+            // TEMPORARY: Security headers DISABLED for development debugging
+            // app.UseSecurityHeaders();
 
             // Environment-specific CORS policy
             if (env.IsDevelopment())

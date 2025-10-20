@@ -66,13 +66,13 @@ namespace SuperAppDataRepositories.Repositories
                     {
                         command.Parameters.Add(new SqlParameter("@user_id", tag.UserId));
                         command.Parameters.Add(new SqlParameter("@name", tag.Name));
-                        AddParameterIfNotNull(command, "@parent_id", tag.ParentId);
+                        // AddParameterIfNotNull(command, "@parent_id", tag.ParentId); // Property not in model
                         AddParameterIfNotNull(command, "@slug", tag.Slug);
                         AddParameterIfNotNull(command, "@color", tag.Color);
                         AddParameterIfNotNull(command, "@icon", tag.Icon);
                         AddParameterIfNotNull(command, "@description", tag.Description);
-                        command.Parameters.Add(new SqlParameter("@is_public", tag.IsPublic ?? false));
-                        AddParameterIfNotNull(command, "@public_slug", tag.PublicSlug);
+                        // command.Parameters.Add(new SqlParameter("@is_public", tag.IsPublic ?? false)); // Property not in model
+                        // AddParameterIfNotNull(command, "@public_slug", tag.PublicSlug); // Property not in model
                         await Task.CompletedTask;
                     },
                     mapResult: async (reader) =>
@@ -87,7 +87,7 @@ namespace SuperAppDataRepositories.Repositories
                 // Since the stored procedure doesn't return the created tag, we need to fetch it
                 var createdTags = await GetTags(tag.UserId);
                 var createdTag = createdTags
-                    .Where(t => t.Name == tag.Name && t.ParentId == tag.ParentId)
+                    .Where(t => t.Name == tag.Name) // Removed ParentId check as property doesn't exist
                     .OrderByDescending(t => t.CreatedAt)
                     .FirstOrDefault();
 
@@ -96,7 +96,7 @@ namespace SuperAppDataRepositories.Repositories
                     throw new InvalidOperationException("Failed to create tag: Unable to retrieve created tag from database");
                 }
 
-                _logger.LogInformation("Successfully created tag with ID: {TagId}", createdTag.Id);
+                _logger.LogInformation("Successfully created tag with ID: {TagId}", createdTag.TagId);
                 return createdTag;
             }
             catch (Exception ex)
@@ -110,9 +110,9 @@ namespace SuperAppDataRepositories.Repositories
         {
             try
             {
-                _logger.LogInformation("Updating tag with ID: {TagId}", tag.Id);
+                _logger.LogInformation("Updating tag with ID: {TagId}", tag.TagId);
 
-                if (tag.Id <= 0)
+                if (tag.TagId <= 0)
                 {
                     throw new ArgumentException("Tag ID must be greater than 0 for updates", nameof(tag));
                 }
@@ -144,12 +144,12 @@ namespace SuperAppDataRepositories.Repositories
                     throw new InvalidOperationException("Failed to update tag: No tag returned from database");
                 }
 
-                _logger.LogInformation("Successfully updated tag with ID: {TagId}", updatedTag.Id);
+                _logger.LogInformation("Successfully updated tag with ID: {TagId}", updatedTag.TagId);
                 return updatedTag;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error occurred while updating tag with ID: {TagId}", tag.Id);
+                _logger.LogError(ex, "Error occurred while updating tag with ID: {TagId}", tag.TagId);
                 throw;
             }
         }

@@ -12,16 +12,16 @@ namespace SuperAppDataRepositories.Extensions
             dataTable.Columns.Add(new DataColumn { ColumnName = "Id", DataType = typeof(int) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "Name", DataType = typeof(string) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "Description", DataType = typeof(string), AllowDBNull = true });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "Type", DataType = typeof(string), AllowDBNull = true });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "CreatedBy", DataType = typeof(int), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "Content", DataType = typeof(string), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "UserId", DataType = typeof(int) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "IsArchived", DataType = typeof(bool) });
 
             DataRow row = dataTable.NewRow();
             row["Id"] = note.NoteId;
             row["Name"] = note.Name;
             row["Description"] = (object?)note.Description ?? DBNull.Value;
-            row["Type"] = (object?)note.Type ?? DBNull.Value;
-            row["CreatedBy"] = (object?)note.CreatedBy ?? DBNull.Value;
+            row["Content"] = (object?)note.Content ?? DBNull.Value;
+            row["UserId"] = note.UserId;
             row["IsArchived"] = note.IsArchived;
 
             dataTable.Rows.Add(row);
@@ -108,29 +108,27 @@ namespace SuperAppDataRepositories.Extensions
             dataTable.Columns.Add(new DataColumn { ColumnName = "id", DataType = typeof(int) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "user_id", DataType = typeof(int) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "name", DataType = typeof(string) });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "parent_id", DataType = typeof(int), AllowDBNull = true });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "path", DataType = typeof(string), AllowDBNull = true });
             dataTable.Columns.Add(new DataColumn { ColumnName = "slug", DataType = typeof(string), AllowDBNull = true });
             dataTable.Columns.Add(new DataColumn { ColumnName = "color", DataType = typeof(string), AllowDBNull = true });
             dataTable.Columns.Add(new DataColumn { ColumnName = "icon", DataType = typeof(string), AllowDBNull = true });
             dataTable.Columns.Add(new DataColumn { ColumnName = "description", DataType = typeof(string), AllowDBNull = true });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "is_public", DataType = typeof(bool), AllowDBNull = true });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "public_slug", DataType = typeof(string), AllowDBNull = true });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "created_by", DataType = typeof(int), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "metadata", DataType = typeof(string), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "usage_count", DataType = typeof(int) });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "created_at", DataType = typeof(DateTime), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "updated_at", DataType = typeof(DateTime), AllowDBNull = true });
 
             DataRow row = dataTable.NewRow();
-            row["id"] = tag.Id;
+            row["id"] = tag.TagId;
             row["user_id"] = tag.UserId;
             row["name"] = tag.Name;
-            row["parent_id"] = (object?)tag.ParentId ?? DBNull.Value;
-            row["path"] = (object?)tag.Path ?? DBNull.Value;
             row["slug"] = (object?)tag.Slug ?? DBNull.Value;
             row["color"] = (object?)tag.Color ?? DBNull.Value;
             row["icon"] = (object?)tag.Icon ?? DBNull.Value;
             row["description"] = (object?)tag.Description ?? DBNull.Value;
-            row["is_public"] = (object?)tag.IsPublic ?? DBNull.Value;
-            row["public_slug"] = (object?)tag.PublicSlug ?? DBNull.Value;
-            row["created_by"] = (object?)tag.CreatedBy ?? DBNull.Value;
+            row["metadata"] = (object?)tag.Metadata ?? DBNull.Value;
+            row["usage_count"] = tag.UsageCount;
+            row["created_at"] = (object?)tag.CreatedAt ?? DBNull.Value;
+            row["updated_at"] = (object?)tag.UpdatedAt ?? DBNull.Value;
 
             dataTable.Rows.Add(row);
             return dataTable;
