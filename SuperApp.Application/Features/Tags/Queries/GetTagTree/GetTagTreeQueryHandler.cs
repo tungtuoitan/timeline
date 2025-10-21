@@ -26,10 +26,10 @@ namespace SuperApp.Application.Features.Tags.Queries.GetTagTree
         {
             try
             {
-                _logger.LogInformation("Getting tag tree for UserId: {UserId}, IncludeShared: {IncludeShared}", 
-                    request.UserId, request.IncludeShared);
+                _logger.LogInformation("Getting tag tree for WorkspaceId: {WorkspaceId}, UserId: {UserId}", 
+                    request.WorkspaceId, request.UserId);
 
-                var tagTree = await _tagRepository.GetTagTreeAsync(request.UserId, request.IncludeShared);
+                var tagTree = await _tagRepository.GetTagTreeAsync(request.WorkspaceId, request.UserId);
                 var flatResponse = _mapper.Map<List<TagTreeResponse>>(tagTree);
 
                 // Build hierarchical structure

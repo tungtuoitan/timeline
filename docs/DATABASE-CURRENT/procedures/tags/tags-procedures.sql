@@ -167,7 +167,7 @@ BEGIN
 
     -- Build the hierarchy using CTE
     WITH TagHierarchy AS (
-        -- Root level tags (tags that are parents but not children in this workspace)
+        -- Root level: Tags added DIRECTLY to workspace (parent_tag_id = NULL)
         SELECT 
             wi.item_id,
             wi.name,
@@ -180,25 +180,16 @@ BEGIN
             0 AS depth,
             CAST('/' + CAST(wi.item_id AS VARCHAR(10)) + '/' AS NVARCHAR(4000)) AS path,
             CAST(wi.name AS NVARCHAR(4000)) AS breadcrumb,
-            0 AS sort_order,
+            wsi_root.sort_order,
             CAST(NULL AS INT) AS parent_tag_id
         FROM #WorkspaceItems wi
+        INNER JOIN workspace_items wsi_root 
+            ON wsi_root.workspace_id = @workspace_id
+            AND wsi_root.child_type = 'tag'
+            AND wsi_root.child_id = wi.item_id
+            AND wsi_root.parent_tag_id IS NULL  -- Direct children of workspace
+            AND wsi_root.deleted_at IS NULL
         WHERE wi.item_type = 'tag'
-        AND EXISTS (
-            -- Tag appears as parent in workspace_items
-            SELECT 1 FROM workspace_items wsi
-            WHERE wsi.parent_tag_id = wi.item_id
-            AND wsi.workspace_id = @workspace_id
-            AND wsi.deleted_at IS NULL
-        )
-        AND NOT EXISTS (
-            -- But tag is NOT a child of another tag in this workspace
-            SELECT 1 FROM workspace_items wsi2
-            WHERE wsi2.child_type = 'tag'
-            AND wsi2.child_id = wi.item_id
-            AND wsi2.workspace_id = @workspace_id
-            AND wsi2.deleted_at IS NULL
-        )
 
         UNION ALL
 

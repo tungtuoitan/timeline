@@ -101,5 +101,178 @@ namespace SuperAppDataRepositories.Repositories
                 DeletedAt = reader.GetNullableDateTime("deleted_at")
             };
         }
+
+        /// <summary>
+        /// Validates that a user has the required access level to a workspace
+        /// </summary>
+        public async Task ValidateUserAccessAsync(int workspaceId, int userId, string[] requiredRoles)
+        {
+            _logger.LogInformation(
+                "Validating user {UserId} access to workspace {WorkspaceId} with roles: {Roles}",
+                userId, workspaceId, string.Join(", ", requiredRoles));
+
+            // Check if user is workspace owner
+            var workspace = await _context.Workspaces
+                .AsNoTracking()
+                .FirstOrDefaultAsync(w => w.WorkspaceId == workspaceId && w.DeletedAt == null);
+
+            if (workspace == null)
+            {
+                throw new ArgumentException($"Workspace {workspaceId} not found");
+            }
+
+            // Owner always has access
+            if (workspace.UserId == userId)
+            {
+                _logger.LogInformation("User {UserId} is owner of workspace {WorkspaceId}", userId, workspaceId);
+                return;
+            }
+
+            // Check workspace_members table for access
+            var member = await _context.WorkspaceMembers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => 
+                    m.WorkspaceId == workspaceId && 
+                    m.UserId == userId &&
+                    m.DeletedAt == null);
+
+            if (member == null)
+            {
+                throw new UnauthorizedAccessException(
+                    $"User {userId} does not have access to workspace {workspaceId}");
+            }
+
+            // Check if user's role is in required roles
+            if (!requiredRoles.Contains(member.Role.ToLower()))
+            {
+                throw new UnauthorizedAccessException(
+                    $"User {userId} has role '{member.Role}' but requires one of: {string.Join(", ", requiredRoles)}");
+            }
+
+            _logger.LogInformation(
+                "User {UserId} has valid access to workspace {WorkspaceId} with role '{Role}'",
+                userId, workspaceId, member.Role);
+        }
+
+        /// <summary>
+        /// Adds an item (tag or note) to a workspace using EF Core
+        /// </summary>
+        public async Task<WorkspaceItem> AddItemToWorkspaceAsync(WorkspaceItem item)
+        {
+            _logger.LogInformation(
+                "Adding item to workspace {WorkspaceId}: ParentTagId={ParentTagId}, ChildType={ChildType}, ChildId={ChildId}",
+                item.WorkspaceId, item.ParentTagId, item.ChildType, item.ChildId);
+
+            // Check if item already exists in workspace (duplicate prevention)
+            var exists = await ItemExistsAsync(
+                item.WorkspaceId, 
+                item.ParentTagId, 
+                item.ChildType, 
+                item.ChildId);
+
+            if (exists)
+            {
+                var parentInfo = item.ParentTagId.HasValue ? $"parent tag {item.ParentTagId}" : "root";
+                var message = $"Item already exists in workspace: {item.ChildType} with ID {item.ChildId} " +
+                              $"under {parentInfo} in workspace {item.WorkspaceId}";
+                
+                _logger.LogWarning(
+                    "Duplicate item rejected: WorkspaceId={WorkspaceId}, ParentTagId={ParentTagId}, " +
+                    "ChildType={ChildType}, ChildId={ChildId}",
+                    item.WorkspaceId, item.ParentTagId, item.ChildType, item.ChildId);
+                
+                throw new ArgumentException(message);
+            }
+
+            // Validate child entity exists
+            if (item.ChildType.ToLower() == "tag")
+            {
+                var tagExists = await _context.Tags.AnyAsync(t => t.TagId == item.ChildId && t.DeletedAt == null);
+                if (!tagExists)
+                {
+                    throw new ArgumentException($"Tag with ID {item.ChildId} not found");
+                }
+            }
+            else if (item.ChildType.ToLower() == "note")
+            {
+                var noteExists = await _context.Notes.AnyAsync(n => n.NoteId == item.ChildId && n.DeletedAt == null);
+                if (!noteExists)
+                {
+                    throw new ArgumentException($"Note with ID {item.ChildId} not found");
+                }
+            }
+
+            // Validate parent tag exists if specified
+            if (item.ParentTagId.HasValue)
+            {
+                var parentExists = await _context.Tags.AnyAsync(t => t.TagId == item.ParentTagId && t.DeletedAt == null);
+                if (!parentExists)
+                {
+                    throw new ArgumentException($"Parent tag with ID {item.ParentTagId} not found");
+                }
+            }
+
+            // Add item to workspace
+            _context.WorkspaceItems.Add(item);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation(
+                "Successfully added item {ItemId} to workspace {WorkspaceId}",
+                item.ItemId, item.WorkspaceId);
+
+            return item;
+        }
+
+        /// <summary>
+        /// Checks if a workspace item already exists
+        /// </summary>
+        public async Task<bool> ItemExistsAsync(int workspaceId, int? parentTagId, string childType, int childId)
+        {
+            return await _context.WorkspaceItems
+                .AsNoTracking()
+                .AnyAsync(i => 
+                    i.WorkspaceId == workspaceId &&
+                    i.ParentTagId == parentTagId &&
+                    i.ChildType.ToLower() == childType.ToLower() &&
+                    i.ChildId == childId);
+        }
+
+        /// <summary>
+        /// Gets all items in a workspace
+        /// </summary>
+        public async Task<List<WorkspaceItem>> GetWorkspaceItemsAsync(int workspaceId)
+        {
+            _logger.LogInformation("Getting all items for workspace {WorkspaceId}", workspaceId);
+
+            return await _context.WorkspaceItems
+                .AsNoTracking()
+                .Where(i => i.WorkspaceId == workspaceId)
+                .Include(i => i.ParentTag)
+                .Include(i => i.ChildTag)
+                .Include(i => i.AddedByUser)
+                .OrderBy(i => i.SortOrder)
+                .ThenBy(i => i.CreatedAt)
+                .ToListAsync();
+        }
+
+        /// <summary>
+        /// Removes an item from a workspace
+        /// </summary>
+        public async Task<bool> RemoveItemFromWorkspaceAsync(int itemId)
+        {
+            _logger.LogInformation("Removing item {ItemId} from workspace", itemId);
+
+            var item = await _context.WorkspaceItems.FindAsync(itemId);
+            if (item == null)
+            {
+                return false;
+            }
+
+            _context.WorkspaceItems.Remove(item);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Successfully removed item {ItemId}", itemId);
+            return true;
+        }
     }
 }

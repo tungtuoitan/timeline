@@ -147,7 +147,7 @@ erDiagram
     workspace_items {
         bigint item_id PK "UNIFIED TABLE"
         int workspace_id FK
-        int parent_tag_id FK
+        int parent_tag_id FK "NULL for root items"
         nvarchar child_type FK "tag/note/etc"
         int child_id "tag_id or note_id"
         nvarchar relationship_type
@@ -221,11 +221,12 @@ erDiagram
 4. **User** creates **Notes** with **Members** and **Versions**
 
 ### UNIFIED workspace_items
-- Parent is **always a tag** (`parent_tag_id`)
+- Parent can be **NULL for root items** or **tag** (`parent_tag_id`)
 - Child can be **any entity** (`child_type` + `child_id`)
 - Examples:
-  - Tag "Work" → Tag "Projects": `(parent_tag_id=1, child_type='tag', child_id=2)`
-  - Tag "Projects" → Note "Q1": `(parent_tag_id=2, child_type='note', child_id=5)`
+  - Root Tag "Work": `(parent_tag_id=NULL, child_type='tag', child_id=1, depth=0)`
+  - Tag "Work" → Tag "Projects": `(parent_tag_id=1, child_type='tag', child_id=2, depth=1)`
+  - Tag "Projects" → Note "Q1": `(parent_tag_id=2, child_type='note', child_id=5, depth=2)`
 
 ---
 

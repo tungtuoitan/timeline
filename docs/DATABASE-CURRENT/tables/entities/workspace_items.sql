@@ -18,8 +18,8 @@ CREATE TABLE workspace_items (
     -- Workspace context
     workspace_id INT NOT NULL,
 
-    -- Parent (always a tag)
-    parent_tag_id INT NOT NULL,
+    -- Parent (always a tag, NULL for root-level items)
+    parent_tag_id INT NULL,
 
     -- Child (can be tag or any entity)
     child_type NVARCHAR(50) NOT NULL, -- 'tag', 'note', etc.
@@ -63,6 +63,7 @@ CREATE TABLE workspace_items (
     ),
     CONSTRAINT CK_workspace_items_child_id_positive CHECK (child_id > 0),
     CONSTRAINT CK_workspace_items_depth CHECK (depth >= 0),
+    -- Unique constraint handles NULL parent_tag_id properly
     CONSTRAINT UQ_workspace_items_unique UNIQUE (workspace_id, parent_tag_id, child_type, child_id)
 );
 
@@ -92,11 +93,13 @@ CREATE INDEX IX_workspace_items_roots ON workspace_items(workspace_id, depth, de
 -- NOTES
 -- =============================================
 -- UNIFIED DESIGN:
--- - Parent is ALWAYS a tag (parent_tag_id references tags.tag_id)
+-- - Parent can be NULL for root-level items (depth = 0)
+-- - Parent is a tag (parent_tag_id references tags.tag_id) for nested items
 -- - Child can be ANY entity type (tag, note, etc.)
 -- - Examples:
---   * Tag "Work" contains Tag "Projects": (parent_tag_id=1, child_type='tag', child_id=2)
---   * Tag "Projects" contains Note "Q1 Report": (parent_tag_id=2, child_type='note', child_id=5)
+--   * Root Tag "Work": (parent_tag_id=NULL, child_type='tag', child_id=1, depth=0)
+--   * Tag "Work" contains Tag "Projects": (parent_tag_id=1, child_type='tag', child_id=2, depth=1)
+--   * Tag "Projects" contains Note "Q1 Report": (parent_tag_id=2, child_type='note', child_id=5, depth=2)
 --
 -- TRIGGERS:
 -- - TR_workspace_items_update_stats: Updates workspaces.tag_count, relationship_count

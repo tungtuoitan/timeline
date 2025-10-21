@@ -6,7 +6,6 @@ using SuperApp.Application.Features.Tags.Commands.DeleteTag;
 using SuperApp.Application.Features.Tags.Commands.UpdateTag;
 using SuperApp.Application.Features.Tags.Queries.GetTags;
 using SuperApp.Application.Features.Tags.Queries.GetTagById;
-using SuperApp.Application.Features.Tags.Queries.GetTagTree;
 using SuperApp.Application.Features.Tags.Queries.GetWorkspaceTagTree;
 using SuperApp.Application.Features.Notes.Queries.GetNotes;
 using SuperAppAPI.Extensions;
@@ -76,54 +75,6 @@ namespace SuperAppAPI.Controllers
                 _logger.LogError(ex, "Unexpected error occurred while retrieving tags");
                 return StatusCode(StatusCodes.Status500InternalServerError, 
                     new { Message = "An error occurred while retrieving tags" });
-            }
-        }
-
-        /// <summary>
-        /// Gets hierarchical tag tree for the authenticated user
-        /// </summary>
-        /// <param name="includeShared">Whether to include shared tags from other users</param>
-        /// <returns>Hierarchical tag tree with usage statistics</returns>
-        /// <response code="200">Tag tree retrieved successfully</response>
-        /// <response code="401">Unauthorized - invalid or missing token</response>
-        /// <response code="500">Internal server error</response>
-        [HttpGet("tree")]
-        [ProducesResponseType(typeof(List<TagTreeResponse>), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetTagTree([FromQuery] bool includeShared = true)
-        {
-            try
-            {
-                // TEMPORARY: Using hardcoded userId while auth is disabled
-                var userId = 1; // Hardcoded for development
-                
-                _logger.LogInformation("Retrieving tag tree for userId: {UserId}, includeShared: {IncludeShared}", 
-                    userId, includeShared);
-
-                var query = new GetTagTreeQuery(userId, includeShared);
-                var response = await _mediator.Send(query);
-
-                _logger.LogInformation("Successfully retrieved tag tree with {RootTagCount} root tags for userId: {UserId}",
-                    response?.Count ?? 0, userId);
-
-                return Ok(response);
-            }
-            catch (ArgumentException ex)
-            {
-                _logger.LogWarning(ex, "Invalid argument provided for get tag tree");
-                return BadRequest(new { Message = ex.Message });
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                _logger.LogWarning(ex, "Unauthorized access attempt for get tag tree");
-                return Unauthorized(new { Message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error occurred while retrieving tag tree");
-                return StatusCode(StatusCodes.Status500InternalServerError, 
-                    new { Message = "An error occurred while retrieving tag tree" });
             }
         }
 

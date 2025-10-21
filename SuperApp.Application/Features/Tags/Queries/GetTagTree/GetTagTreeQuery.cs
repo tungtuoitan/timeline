@@ -5,13 +5,13 @@ namespace SuperApp.Application.Features.Tags.Queries.GetTagTree
 {
     public class GetTagTreeQuery : IRequest<List<TagTreeResponse>>
     {
+        public int WorkspaceId { get; set; }
         public int UserId { get; set; }
-        public bool IncludeShared { get; set; } = true;
 
-        public GetTagTreeQuery(int userId, bool includeShared = true)
+        public GetTagTreeQuery(int workspaceId, int userId)
         {
+            WorkspaceId = workspaceId;
             UserId = userId;
-            IncludeShared = includeShared;
         }
     }
 }

@@ -11,7 +11,7 @@ namespace SuperAppDataRepositories.Ins
         Task<bool> DeleteTagAsync(int tagId);
 
         // Tag Tree and Hierarchy methods
-        Task<List<TagTree>> GetTagTreeAsync(int userId, bool includeShared = true);
+        Task<List<TagTree>> GetTagTreeAsync(int workspaceId, int userId);
         Task<List<TagTree>> GetWorkspaceTagTreeAsync(int workspaceId, int userId);
 
         // Note-Tag relationship methods

@@ -15,8 +15,8 @@ namespace SuperAppModels.Models
         // Workspace context
         public int WorkspaceId { get; set; }
 
-        // Parent (always a tag)
-        public int ParentTagId { get; set; }
+        // Parent (always a tag) - NULLABLE for root items
+        public int? ParentTagId { get; set; }
 
         // Child (can be tag or any entity)
         public string ChildType { get; set; } = string.Empty; // 'tag', 'note', etc.

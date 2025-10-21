@@ -1,8 +1,8 @@
 # SuperApp Database - CURRENT IMPLEMENTATION
 
-**Version:** MVP 1.0 (Deployed)
-**Last Updated:** October 15, 2025
-**Status:** ✅ Production Ready
+**Version:** MVP 1.1 (Extended)
+**Last Updated:** October 21, 2025
+**Status:** ✅ Production Ready + Files Support
 
 ---
 
@@ -34,13 +34,15 @@ This folder contains **100% accurate documentation of the CURRENTLY DEPLOYED dat
 - ✅ Notes with markdown content
 - ✅ Note versioning (auto-created on changes)
 - ✅ Note sharing and collaboration
+- ✅ **File/Document management** (NEW in v1.1)
 
 **Scale (Current):**
 - 5 test users
 - 9 tags
 - 5 workspaces
 - 12 notes with versions
-- ~80 total rows
+- 5 files/documents
+- ~90 total rows
 
 ---
 
@@ -79,9 +81,10 @@ This folder contains **100% accurate documentation of the CURRENTLY DEPLOYED dat
        │ N    ⚠️ UNIFIED TABLE
 ┌──────▼─────────────────────┐
 │ workspace_items            │ (0 rows - ready to use)
-│ Handles BOTH:              │
+│ Handles ALL:               │
 │  - Tag → Tag links         │
 │  - Tag → Note links        │
+│  - Tag → File links (NEW)  │
 └────────────────────────────┘
 
 ┌─────────────┐
@@ -95,6 +98,10 @@ This folder contains **100% accurate documentation of the CURRENTLY DEPLOYED dat
 │note_members │  │note_versions│  │entity_types   │
 │(12 rows)    │  │(12 rows)    │  │(3 types)      │
 └─────────────┘  └─────────────┘  └───────────────┘
+
+┌─────────────┐
+│   files     │  (5 rows) ⭐ NEW in v1.1
+└─────────────┘
 ```
 
 ### ⚠️ Key Design Difference: UNIFIED workspace_items
@@ -105,19 +112,20 @@ This folder contains **100% accurate documentation of the CURRENTLY DEPLOYED dat
 
 **ACTUAL Implementation (MVP):**
 - ❌ `workspace_tag_relationships` - NOT deployed
-- ✅ `workspace_items` - **UNIFIED table** handling BOTH tag-tag AND tag-note
+- ✅ `workspace_items` - **UNIFIED table** handling tag-tag, tag-note, AND tag-file
 
 **Why UNIFIED?**
 1. ✅ Simpler (1 table instead of 2)
 2. ✅ Fewer joins
-3. ✅ Sufficient for MVP scale
-4. ⏳ Can split into 2 tables later if needed (Phase 2)
+3. ✅ Supports multiple entity types (tag, note, file)
+4. ✅ Sufficient for MVP scale
+5. ⏳ Can split into specialized tables later if needed (Phase 2)
 
 ---
 
 ## 📈 Implementation Status
 
-### ✅ Deployed Tables (10)
+### ✅ Deployed Tables (11)
 
 | # | Table | Rows | Purpose | File |
 |---|-------|------|---------|------|
@@ -127,10 +135,11 @@ This folder contains **100% accurate documentation of the CURRENTLY DEPLOYED dat
 | 4 | `workspaces` | 5 | Workspace containers | [tables/workspace/workspaces.sql](tables/workspace/workspaces.sql) |
 | 5 | `workspace_members` | 17 | Workspace sharing | [tables/workspace/workspace_members.sql](tables/workspace/workspace_members.sql) |
 | 6 | `workspace_relationship_types` | 5 | Relationship defs | [tables/workspace/workspace_relationship_types.sql](tables/workspace/workspace_relationship_types.sql) |
-| 7 | `workspace_items` | 0 | UNIFIED items (tag+note) | [tables/entities/workspace_items.sql](tables/entities/workspace_items.sql) |
+| 7 | `workspace_items` | 0 | UNIFIED items (tag+note+file) | [tables/entities/workspace_items.sql](tables/entities/workspace_items.sql) |
 | 8 | `notes` | 12 | Markdown notes | [tables/entities/notes.sql](tables/entities/notes.sql) |
 | 9 | `note_members` | 12 | Note sharing | [tables/entities/note_members.sql](tables/entities/note_members.sql) |
 | 10 | `note_versions` | 12 | Version history | [tables/entities/note_versions.sql](tables/entities/note_versions.sql) |
+| 11 | `files` | 5 | File/Document storage | [tables/entities/files.sql](tables/entities/files.sql) |
 
 ### ✅ Deployed Procedures (15)
 
@@ -145,7 +154,7 @@ This folder contains **100% accurate documentation of the CURRENTLY DEPLOYED dat
 - [procedures/items/items-procedures.sql](procedures/items/items-procedures.sql) - 5 items procedures
 - [procedures/tags/tags-procedures.sql](procedures/tags/tags-procedures.sql) - 4 tag procedures
 
-### ✅ Deployed Triggers (8)
+### ✅ Deployed Triggers (9)
 
 | Table | Trigger | Purpose |
 |-------|---------|---------|
@@ -158,8 +167,9 @@ This folder contains **100% accurate documentation of the CURRENTLY DEPLOYED dat
 | | `tr_notes_updated_at` | Update timestamp (with recursion check) |
 | | `tr_notes_add_owner` | Auto-add creator as owner |
 | | `tr_notes_create_version` | Create version snapshot (with recursion check) |
+| **files** (1) ⭐ NEW | `tr_files_generate_slug` | Auto-generate slug from filename (with recursion check) |
 
-**Note:** Notes triggers include `TRIGGER_NESTLEVEL()` checks to prevent recursion.
+**Note:** Notes and files triggers include `TRIGGER_NESTLEVEL()` checks to prevent recursion.
 
 **Files:**
 - [triggers/tags-triggers.sql](triggers/tags-triggers.sql) - 1 tag trigger
@@ -200,7 +210,7 @@ This folder contains **100% accurate documentation of the CURRENTLY DEPLOYED dat
 - **[entity_types.sql](tables/core/entity_types.sql)** - Entity type registry
   - Primary key: `type_name`
   - Seeded with 5 types (tag, note, project, document, task)
-  - Only 'tag' and 'note' enabled in MVP
+  - MVP 1.1: 'tag', 'note', and 'file' enabled
 
 ### Workspace Tables
 
@@ -240,6 +250,14 @@ This folder contains **100% accurate documentation of the CURRENTLY DEPLOYED dat
   - Foreign key: `user_id` → `users`
   - 6 indexes (user, name, slug, archived, pinned, favorite)
   - 4 triggers (slug, updated_at, add_owner, create_version)
+
+- **[files.sql](tables/entities/files.sql)** ⭐ NEW - File/Document storage
+  - Primary key: `file_id`
+  - Foreign key: `user_id` → `users`
+  - 4 indexes (user, slug, created, mimetype)
+  - 1 trigger (generate_slug with recursion check)
+  - Supports: PDF, DOCX, XLSX, PPTX, images
+  - Leaf nodes only (cannot have children)
 
 - **[note_members.sql](tables/entities/note_members.sql)** - Note sharing
   - Primary key: `member_id`
@@ -290,11 +308,12 @@ This folder contains **100% accurate documentation of the CURRENTLY DEPLOYED dat
 4. **Status details:** `../DATABASE/VERIFICATION/*.md` - Deployment verification
 
 **Key facts:**
-- 10 tables deployed (not 13 from design)
-- `workspace_items` is UNIFIED (handles both tag-tag and tag-note)
+- 11 tables deployed (not 13 from design)
+- `workspace_items` is UNIFIED (handles tag-tag, tag-note, AND tag-file)
 - All foreign keys use correct column names (`user_id`, not `id`)
-- Notes triggers have recursion protection
+- Notes and files triggers have recursion protection
 - 0 rows in `workspace_items` (ready for use, but no data yet)
+- Files are leaf nodes (cannot have children in tree)
 
 ---
 

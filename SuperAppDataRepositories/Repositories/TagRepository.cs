@@ -1,5 +1,6 @@
 using System.Data;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Ins;
 using SuperAppDataRepositories.Extensions;
@@ -10,142 +11,98 @@ namespace SuperAppDataRepositories.Repositories
 {
     public class TagRepository : BaseRepository, ITagRepository
     {
-        public TagRepository(ILogger<TagRepository> logger, IConnectionFactory connectionFactory)
+        private readonly ApplicationDbContext _context;
+
+        public TagRepository(
+            ApplicationDbContext context,
+            ILogger<TagRepository> logger, 
+            IConnectionFactory connectionFactory)
             : base(connectionFactory, logger)
         {
+            _context = context;
         }
 
+        // ✅ Refactored to EF Core - Simple query with standard filtering
         public async Task<List<Tag>> GetTags(int userId)
         {
-            _logger.LogInformation("Getting tags for userId: {UserId} using stored procedure: {StoredProcedure}", 
-                userId, StoredProcedures.spSelectTagsWithHierarchy);
+            _logger.LogInformation("Getting tags for userId: {UserId} using EF Core", userId);
 
-            return await ExecuteStoredProcedureAsync(
-                StoredProcedures.spSelectTagsWithHierarchy,
-                addParameters: async (command) =>
-                {
-                    command.Parameters.Add(new SqlParameter("@user_id", userId));
-                    await Task.CompletedTask;
-                },
-                mapResult: MapToTagListAsync, // Use custom mapping for lowercase columns
-                useSuperAppConnection: true
-            );
+            return await _context.Tags
+                .AsNoTracking() // Read-only query for better performance
+                .Where(t => t.UserId == userId && t.DeletedAt == null) // Filter by user and not deleted
+                .OrderBy(t => t.Name) // Order alphabetically by name
+                .ToListAsync();
         }
 
+        // ✅ Refactored to EF Core - Simple CRUD operation
         public async Task<Tag?> GetTagById(int tagId)
         {
-            try
-            {
-                return await ExecuteStoredProcedureAsync(
-                    StoredProcedures.spSelectTagById,
-                    addParameters: async (command) =>
-                    {
-                        command.Parameters.Add(new SqlParameter("@iv_TagId", tagId));
-                        await Task.CompletedTask;
-                    },
-                    mapResult: MapToTagSingleAsync, // Use custom mapping for Tag objects
-                    useSuperAppConnection: true
-                );
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error occurred while getting tag with ID: {TagId}", tagId);
-                throw;
-            }
+            _logger.LogInformation("Getting tag by ID: {TagId} using EF Core", tagId);
+            
+            return await _context.Tags
+                .AsNoTracking() // Read-only query for better performance
+                .FirstOrDefaultAsync(t => t.TagId == tagId);
         }
 
+        // ✅ Refactored to EF Core - Simple CRUD operation
         public async Task<Tag> CreateTagAsync(Tag tag)
         {
             try
             {
-                _logger.LogInformation("Creating new tag with name: {Name} for user: {UserId}", tag.Name, tag.UserId);
+                _logger.LogInformation("Creating new tag with name: {Name} for user: {UserId} using EF Core", tag.Name, tag.UserId);
 
-                await ExecuteStoredProcedureAsync(
-                    StoredProcedures.spInsertTag,
-                    addParameters: async (command) =>
-                    {
-                        command.Parameters.Add(new SqlParameter("@user_id", tag.UserId));
-                        command.Parameters.Add(new SqlParameter("@name", tag.Name));
-                        // AddParameterIfNotNull(command, "@parent_id", tag.ParentId); // Property not in model
-                        AddParameterIfNotNull(command, "@slug", tag.Slug);
-                        AddParameterIfNotNull(command, "@color", tag.Color);
-                        AddParameterIfNotNull(command, "@icon", tag.Icon);
-                        AddParameterIfNotNull(command, "@description", tag.Description);
-                        // command.Parameters.Add(new SqlParameter("@is_public", tag.IsPublic ?? false)); // Property not in model
-                        // AddParameterIfNotNull(command, "@public_slug", tag.PublicSlug); // Property not in model
-                        await Task.CompletedTask;
-                    },
-                    mapResult: async (reader) =>
-                    {
-                        await Task.CompletedTask;
-                        return new List<object>();
-                    },
-                    useSuperAppConnection: true
-                );
+                // Set timestamps
+                tag.CreatedAt = DateTime.UtcNow;
+                tag.UpdatedAt = DateTime.UtcNow;
 
-                // After successful creation, fetch the created tag by name and user_id
-                // Since the stored procedure doesn't return the created tag, we need to fetch it
-                var createdTags = await GetTags(tag.UserId);
-                var createdTag = createdTags
-                    .Where(t => t.Name == tag.Name) // Removed ParentId check as property doesn't exist
-                    .OrderByDescending(t => t.CreatedAt)
-                    .FirstOrDefault();
+                // Add tag to context
+                _context.Tags.Add(tag);
+                
+                // Save changes to database
+                await _context.SaveChangesAsync();
 
-                if (createdTag == null)
-                {
-                    throw new InvalidOperationException("Failed to create tag: Unable to retrieve created tag from database");
-                }
-
-                _logger.LogInformation("Successfully created tag with ID: {TagId}", createdTag.TagId);
-                return createdTag;
+                _logger.LogInformation("Successfully created tag with ID: {TagId}", tag.TagId);
+                return tag;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error occurred while creating tag");
+                _logger.LogError(ex, "Error occurred while creating tag with name: {Name}", tag.Name);
                 throw;
             }
         }
 
+        // ✅ Refactored to EF Core - Simple CRUD operation
         public async Task<Tag> UpdateTagAsync(Tag tag)
         {
             try
             {
-                _logger.LogInformation("Updating tag with ID: {TagId}", tag.TagId);
+                _logger.LogInformation("Updating tag with ID: {TagId} using EF Core", tag.TagId);
 
                 if (tag.TagId <= 0)
                 {
                     throw new ArgumentException("Tag ID must be greater than 0 for updates", nameof(tag));
                 }
 
-                var (tags, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
-                    StoredProcedures.spInsertUpdateTag,
-                    addParametersAndGetOutputs: async (command) =>
-                    {
-                        DataTable tagTable = tag.ToDataTable();
-                        AddStructuredParameter(command, "@Tag", tagTable);
-                        var errorMsg = AddOutputParameter(command, "@ov_ErrorMsg", SqlDbType.VarChar, -1);
-                        await Task.CompletedTask;
-                        return new[] { errorMsg };
-                    },
-                    mapResult: MapToTagListAsync, // Use custom mapping for Tag objects
-                    useSuperAppConnection: true
-                );
-
-                var errorParam = outputParams[0];
-                if (HasError(errorParam, out string errorMessage))
+                // Check if tag exists
+                var existingTag = await _context.Tags.FindAsync(tag.TagId);
+                if (existingTag == null)
                 {
-                    _logger.LogError("Error updating tag: {ErrorMessage}", errorMessage);
-                    throw new InvalidOperationException($"Failed to update tag: {errorMessage}");
+                    throw new InvalidOperationException($"Tag with ID {tag.TagId} not found");
                 }
 
-                var updatedTag = tags.FirstOrDefault();
-                if (updatedTag == null)
-                {
-                    throw new InvalidOperationException("Failed to update tag: No tag returned from database");
-                }
+                // Update properties
+                existingTag.Name = tag.Name;
+                existingTag.Slug = tag.Slug;
+                existingTag.Color = tag.Color;
+                existingTag.Icon = tag.Icon;
+                existingTag.Description = tag.Description;
+                existingTag.UpdatedAt = DateTime.UtcNow;
 
-                _logger.LogInformation("Successfully updated tag with ID: {TagId}", updatedTag.TagId);
-                return updatedTag;
+                // Save changes
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("Successfully updated tag with ID: {TagId}", tag.TagId);
+                return existingTag;
             }
             catch (Exception ex)
             {
@@ -154,40 +111,31 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
+        // ✅ Refactored to EF Core - Simple CRUD operation (soft delete)
         public async Task<bool> DeleteTagAsync(int tagId)
         {
             try
             {
-                _logger.LogInformation("Deleting tag with ID: {TagId}", tagId);
+                _logger.LogInformation("Deleting tag with ID: {TagId} using EF Core", tagId);
 
                 if (tagId <= 0)
                 {
                     throw new ArgumentException("Tag ID must be greater than 0", nameof(tagId));
                 }
 
-                var (_, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
-                    StoredProcedures.spDeleteTag,
-                    addParametersAndGetOutputs: async (command) =>
-                    {
-                        command.Parameters.Add(new SqlParameter("@iv_TagId", tagId));
-                        var errorMsg = AddOutputParameter(command, "@ov_ErrorMsg", SqlDbType.VarChar, -1);
-                        await Task.CompletedTask;
-                        return new[] { errorMsg };
-                    },
-                    mapResult: async (reader) =>
-                    {
-                        await Task.CompletedTask;
-                        return new List<object>();
-                    },
-                    useSuperAppConnection: true
-                );
-
-                var errorParam = outputParams[0];
-                if (HasError(errorParam, out string errorMessage))
+                // Find tag
+                var tag = await _context.Tags.FindAsync(tagId);
+                if (tag == null)
                 {
-                    _logger.LogError("Error deleting tag: {ErrorMessage}", errorMessage);
-                    throw new InvalidOperationException($"Failed to delete tag: {errorMessage}");
+                    throw new InvalidOperationException($"Tag with ID {tagId} not found");
                 }
+
+                // Soft delete
+                tag.DeletedAt = DateTime.UtcNow;
+                tag.UpdatedAt = DateTime.UtcNow;
+
+                // Save changes
+                await _context.SaveChangesAsync();
 
                 _logger.LogInformation("Successfully deleted tag with ID: {TagId}", tagId);
                 return true;
@@ -199,32 +147,46 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
+        /// <summary>
+        /// Gets all tags associated with a specific note through workspace_items
+        /// REFACTORED: Migrated from stored procedure to EF Core for type safety
+        /// </summary>
         public async Task<List<Tag>> GetTagsByNoteId(int noteId)
         {
-            return await ExecuteStoredProcedureAsync(
-                StoredProcedures.spSelectNoteTagsByNoteId,
-                addParameters: async (command) =>
-                {
-                    command.Parameters.Add(new SqlParameter("@iv_NoteId", noteId));
-                    await Task.CompletedTask;
-                },
-                mapResult: MapToTagListAsync, // Use custom mapping for Tag objects
-                useSuperAppConnection: true
-            );
+            _logger.LogInformation("Getting tags for note {NoteId} using EF Core", noteId);
+
+            // Query workspace_items where ChildType='note' and ChildId=noteId
+            // Then get the parent tags
+            return await _context.WorkspaceItems
+                .AsNoTracking()
+                .Where(wi => wi.ChildType == "note" && wi.ChildId == noteId && wi.DeletedAt == null)
+                .Where(wi => wi.ParentTagId != null) // Must have parent tag
+                .Include(wi => wi.ParentTag)
+                .Select(wi => wi.ParentTag)
+                .Distinct() // In case note appears in multiple workspaces with same parent tag
+                .OrderBy(t => t.Name)
+                .ToListAsync();
         }
 
+        /// <summary>
+        /// Gets all notes tagged with a specific tag through workspace_items
+        /// REFACTORED: Migrated from stored procedure to EF Core for type safety and consistency
+        /// </summary>
         public async Task<List<Note>> GetNotesByTagId(int tagId)
         {
-            return await ExecuteStoredProcedureAsync(
-                StoredProcedures.spSelectNoteTagsByTagId,
-                addParameters: async (command) =>
-                {
-                    command.Parameters.Add(new SqlParameter("@iv_TagId", tagId));
-                    await Task.CompletedTask;
-                },
-                mapResult: MapToListAsync<Note>,
-                useSuperAppConnection: true
-            );
+            _logger.LogInformation("Getting notes for tag {TagId} using EF Core", tagId);
+
+            // Query workspace_items where ParentTagId=tagId and ChildType='note'
+            // Then get the child notes
+            return await _context.WorkspaceItems
+                .AsNoTracking()
+                .Where(wi => wi.ParentTagId == tagId && wi.ChildType == "note" && wi.DeletedAt == null)
+                .Include(wi => wi.ChildNote)
+                .Select(wi => wi.ChildNote!)
+                .Distinct() // In case note appears in multiple workspaces under same tag
+                .Where(n => n.DeletedAt == null) // Filter soft-deleted notes
+                .OrderByDescending(n => n.CreatedAt)
+                .ToListAsync();
         }
 
         public async Task<bool> AddNoteTagAsync(int noteId, int tagId, string createdBy)
@@ -350,19 +312,19 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
-        public async Task<List<TagTree>> GetTagTreeAsync(int userId, bool includeShared = true)
+        public async Task<List<TagTree>> GetTagTreeAsync(int workspaceId, int userId)
         {
             try
             {
-                _logger.LogInformation("Getting tag tree for userId: {UserId}, includeShared: {IncludeShared}", 
-                    userId, includeShared);
+                _logger.LogInformation("Getting tag tree for workspaceId: {WorkspaceId}, userId: {UserId}", 
+                    workspaceId, userId);
 
                 return await ExecuteStoredProcedureAsync(
                     StoredProcedures.spSelectTagTreeWithSharing,
                     addParameters: async (command) =>
                     {
+                        command.Parameters.Add(new SqlParameter("@workspace_id", workspaceId));
                         command.Parameters.Add(new SqlParameter("@user_id", userId));
-                        command.Parameters.Add(new SqlParameter("@include_shared", includeShared));
                         await Task.CompletedTask;
                     },
                     mapResult: MapToTagTreeListAsync,
@@ -371,7 +333,7 @@ namespace SuperAppDataRepositories.Repositories
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error occurred while getting tag tree for userId: {UserId}", userId);
+                _logger.LogError(ex, "Error occurred while getting tag tree for workspaceId: {WorkspaceId}, userId: {UserId}", workspaceId, userId);
                 throw;
             }
         }

@@ -24,7 +24,7 @@ namespace SuperAppDataRepositories.Data.Configurations
 
             builder.Property(wi => wi.ParentTagId)
                 .HasColumnName("parent_tag_id")
-                .IsRequired();
+                .IsRequired(false); // Nullable for root-level items
 
             builder.Property(wi => wi.ChildType)
                 .HasColumnName("child_type")
