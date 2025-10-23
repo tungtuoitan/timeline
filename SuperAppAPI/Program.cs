@@ -130,6 +130,7 @@ namespace SuperAppAPI
                     services.AddScoped<INoteRepository, NoteRepository>();
                     services.AddScoped<ITagRepository, TagRepository>();
                     services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
+                    services.AddScoped<IFileRepository, FileRepository>(); // Phase 3.5: File management support
                     services.AddScoped<IStandardRegistryRepository, StandardRegistryRepository>();
                     services.AddScoped<IAuthRepository, AuthRepository>();
                     services.AddScoped<IUserProfileRepository, UserProfileRepository>();

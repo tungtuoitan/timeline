@@ -122,8 +122,9 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasForeignKey(wi => wi.AddedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Note: ChildTag and ChildNote relationships are handled dynamically
-            // based on ChildType and ChildId, not through navigation properties
+            // Note: ChildTag and ChildNote relationships CANNOT be configured with HasOne/HasForeignKey
+            // because they use the same ChildId column but reference different tables based on ChildType.
+            // These must be loaded manually in the repository using separate queries.
         }
     }
 }

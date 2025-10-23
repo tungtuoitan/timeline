@@ -8,7 +8,10 @@
       "Bash(dir docs /b)",
       "Read(//c/Users/Admin/source/super-app/SuperApp-frontend/**)",
       "Bash(dir \"C:\\Users\\Admin\\source\\super-app\\SuperApp-frontend\" /b)",
-      "Bash(dir \"C:\\Users\\Admin\\source\\super-app\\SuperApp-frontend\\src\" /b)"
+      "Bash(dir \"C:\\Users\\Admin\\source\\super-app\\SuperApp-frontend\\src\" /b)",
+      "Bash(findstr:*)",
+      "Bash(dotnet user-secrets:*)",
+      "Bash(powershell:*)"
     ],
     "deny": [],
     "ask": []

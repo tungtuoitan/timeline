@@ -26,6 +26,7 @@ namespace SuperAppDataRepositories.Data
         public DbSet<NoteMember> NoteMembers { get; set; }
         public DbSet<NoteVersion> NoteVersions { get; set; }
         public DbSet<NoteTag> NoteTags { get; set; }
+        public DbSet<SuperAppModels.Models.FileInfo> Files { get; set; }
 
         // System Configuration Tables
         public DbSet<StandardRegistry> StandardRegistries { get; set; }

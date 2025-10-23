@@ -363,5 +363,162 @@ namespace SuperAppDataRepositories.Repositories
                 throw;
             }
         }
+
+        /// <summary>
+        /// Batch move multiple tags to a new parent/position in workspace
+        /// Works with workspace_items table to manage hierarchy
+        /// Uses execution strategy to handle transactions with SQL Server retry logic
+        /// </summary>
+        public async Task BatchMoveTagsAsync(int[] tagIds, int? newParentId, int startIndex, int userId)
+        {
+            // Use execution strategy for retry-compatible transactions
+            var strategy = _context.Database.CreateExecutionStrategy();
+
+            await strategy.ExecuteAsync(async () =>
+            {
+                using var transaction = await _context.Database.BeginTransactionAsync();
+
+                try
+                {
+                    _logger.LogInformation(
+                        "Batch moving {Count} tags to parent {ParentId} at index {StartIndex} for user {UserId}",
+                        tagIds.Length,
+                        newParentId ?? 0,
+                        startIndex,
+                        userId);
+
+                    // 1. Validate all tags exist and belong to the user
+                    var tags = await _context.Tags
+                        .Where(t => tagIds.Contains(t.TagId) && t.UserId == userId && t.DeletedAt == null)
+                        .ToListAsync();
+
+                    if (tags.Count != tagIds.Length)
+                    {
+                        var foundIds = tags.Select(t => t.TagId).ToList();
+                        var missingIds = tagIds.Except(foundIds).ToList();
+                        throw new InvalidOperationException(
+                            $"One or more tags not found or not accessible. Missing IDs: {string.Join(", ", missingIds)}");
+                    }
+
+                    // 2. Get workspace_items for these tags
+                    var workspaceItems = await _context.WorkspaceItems
+                        .Where(wi => tagIds.Contains(wi.ChildId) && wi.ChildType == "tag" && wi.DeletedAt == null)
+                        .ToListAsync();
+
+                    if (workspaceItems.Count == 0)
+                    {
+                        throw new InvalidOperationException("No workspace items found for the specified tags");
+                    }
+
+                    // CRITICAL: Ensure ALL tags have workspace_items entries
+                    if (workspaceItems.Count != tagIds.Length)
+                    {
+                        var foundTagIds = workspaceItems.Select(wi => wi.ChildId).ToList();
+                        var missingTagIds = tagIds.Except(foundTagIds).ToList();
+                        throw new InvalidOperationException(
+                            $"Some tags don't have workspace_items entries. Missing tag IDs: {string.Join(", ", missingTagIds)}");
+                    }
+
+                    // Get workspace_id from first item (all should be in same workspace)
+                    var workspaceId = workspaceItems.First().WorkspaceId;
+
+                    // 3. Validate new parent exists if specified
+                    if (newParentId.HasValue && newParentId.Value > 0)
+                    {
+                        var newParent = await _context.Tags
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(t => t.TagId == newParentId.Value && t.UserId == userId && t.DeletedAt == null);
+
+                        if (newParent == null)
+                        {
+                            throw new InvalidOperationException($"New parent tag with ID {newParentId.Value} not found or not accessible");
+                        }
+
+                        // Check circular dependencies - prevent moving a parent into its own children
+                        foreach (var tagId in tagIds)
+                        {
+                            if (await IsDescendantInWorkspaceAsync(workspaceId, newParentId.Value, tagId))
+                            {
+                                throw new InvalidOperationException(
+                                    $"Cannot move tag {tagId} - circular dependency detected. " +
+                                    $"Tag {newParentId.Value} is a descendant of tag {tagId}");
+                            }
+                        }
+                    }
+
+                    // 4. Update all workspace_items in the specified order
+                    int currentSortOrder = startIndex;
+                    foreach (var tagId in tagIds)
+                    {
+                        var item = workspaceItems.FirstOrDefault(wi => wi.ChildId == tagId);
+                        if (item != null)
+                        {
+                            // Update parent and sort order
+                            item.ParentTagId = newParentId;
+                            item.SortOrder = currentSortOrder++;
+                            item.UpdatedAt = DateTime.UtcNow;
+
+                            _logger.LogDebug("Moving workspace item {ItemId} (tag {TagId}) to parent {ParentId} at sort order {SortOrder}",
+                                item.ItemId, tagId, newParentId ?? 0, item.SortOrder);
+                        }
+                    }
+
+                    // 5. Save all changes
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    _logger.LogInformation(
+                        "Successfully batch moved {Count} tags for user {UserId}",
+                        tagIds.Length,
+                        userId);
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Error during batch move, transaction rolled back. UserId: {UserId}", userId);
+                    throw;
+                }
+            });
+        }
+
+        /// <summary>
+        /// Helper method to check if targetTagId is a descendant of potentialParentTagId in workspace hierarchy
+        /// Used to prevent circular dependencies when moving tags
+        /// </summary>
+        private async Task<bool> IsDescendantInWorkspaceAsync(int workspaceId, int targetTagId, int potentialParentTagId)
+        {
+            // Get all workspace_items for efficient in-memory traversal
+            var allItems = await _context.WorkspaceItems
+                .AsNoTracking()
+                .Where(wi => wi.WorkspaceId == workspaceId && wi.ChildType == "tag" && wi.DeletedAt == null)
+                .Select(wi => new { wi.ChildId, wi.ParentTagId })
+                .ToListAsync();
+
+            // Build parent-child map
+            var childrenMap = allItems
+                .Where(wi => wi.ParentTagId.HasValue)
+                .GroupBy(wi => wi.ParentTagId!.Value)
+                .ToDictionary(g => g.Key, g => g.Select(wi => wi.ChildId).ToList());
+
+            // Recursive search
+            bool CheckDescendants(int currentTagId)
+            {
+                if (currentTagId == targetTagId)
+                    return true;
+
+                if (!childrenMap.ContainsKey(currentTagId))
+                    return false;
+
+                foreach (var childId in childrenMap[currentTagId])
+                {
+                    if (CheckDescendants(childId))
+                        return true;
+                }
+
+                return false;
+            }
+
+            return CheckDescendants(potentialParentTagId);
+        }
     }
 }

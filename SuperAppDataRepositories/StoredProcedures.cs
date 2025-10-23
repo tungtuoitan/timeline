@@ -54,6 +54,7 @@
         public static string spSelectTagSubtree => "[dbo].[usp_s_tag_subtree]";
         public static string spSelectTagBreadcrumb => "[dbo].[usp_s_tag_breadcrumb]";
         public static string spMoveTag => "[dbo].[usp_move_tag]";
+        public static string spMoveItem => "[dbo].[usp_move_item]";
         public static string spReplaceTag => "[dbo].[usp_replace_tag]";
         
         // Tag Search & Discovery

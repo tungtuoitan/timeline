@@ -63,6 +63,7 @@ namespace SuperApp.Application.Features.Workspaces.Commands.AddItemToWorkspace
                             {
                                 Name = request.TagName,
                                 UserId = request.UserId,
+                                Slug = GenerateSlug(request.TagName),
                                 Color = request.Color,
                                 Icon = request.Icon,
                                 CreatedAt = DateTime.UtcNow,
@@ -93,6 +94,7 @@ namespace SuperApp.Application.Features.Workspaces.Commands.AddItemToWorkspace
                         {
                             Name = request.TagName,
                             UserId = request.UserId,
+                            Slug = GenerateSlug(request.TagName),
                             Color = request.Color,
                             Icon = request.Icon,
                             CreatedAt = DateTime.UtcNow,
@@ -164,6 +166,40 @@ namespace SuperApp.Application.Features.Workspaces.Commands.AddItemToWorkspace
                     request.WorkspaceId, request.UserId);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Generates a unique URL-friendly slug from a tag name with timestamp suffix
+        /// </summary>
+        private static string GenerateSlug(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return $"tag-{DateTime.UtcNow.Ticks}";
+
+            // Convert to lowercase
+            var slug = name.ToLowerInvariant();
+
+            // Remove special characters, keep only alphanumeric, spaces, and hyphens
+            slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[^a-z0-9\s-]", "");
+
+            // Replace spaces with hyphens
+            slug = System.Text.RegularExpressions.Regex.Replace(slug, @"\s+", "-");
+
+            // Remove consecutive hyphens
+            slug = System.Text.RegularExpressions.Regex.Replace(slug, @"-+", "-");
+
+            // Trim hyphens from start and end
+            slug = slug.Trim('-');
+
+            // Add timestamp suffix to ensure uniqueness (user_id + slug must be unique)
+            var timestamp = DateTime.UtcNow.Ticks;
+            slug = $"{slug}-{timestamp}";
+
+            // Limit length to 255 characters (database constraint)
+            if (slug.Length > 255)
+                slug = slug.Substring(0, 255).TrimEnd('-');
+
+            return slug;
         }
     }
 }

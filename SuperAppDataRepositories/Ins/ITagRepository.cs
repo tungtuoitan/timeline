@@ -14,6 +14,9 @@ namespace SuperAppDataRepositories.Ins
         Task<List<TagTree>> GetTagTreeAsync(int workspaceId, int userId);
         Task<List<TagTree>> GetWorkspaceTagTreeAsync(int workspaceId, int userId);
 
+        // Batch operations
+        Task BatchMoveTagsAsync(int[] tagIds, int? newParentId, int startIndex, int userId);
+
         // Note-Tag relationship methods
         Task<List<Tag>> GetTagsByNoteId(int noteId);
         Task<List<Note>> GetNotesByTagId(int tagId);
