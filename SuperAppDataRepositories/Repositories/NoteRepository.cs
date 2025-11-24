@@ -238,6 +238,10 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
+        /// <summary>
+        /// Associates tags with a note using EF Core
+        /// REFACTORED: Migrated from stored procedure to EF Core for better performance and consistency
+        /// </summary>
         private async Task AssociateTagsWithNoteAsync(int noteId, List<int> tagIds, int createdBy)
         {
             // Filter out invalid tag IDs before processing
@@ -249,112 +253,97 @@ namespace SuperAppDataRepositories.Repositories
                 return;
             }
 
-            _logger.LogInformation("Associating {TagCount} valid tags [{TagIds}] with note {NoteId}", 
+            _logger.LogInformation("Associating {TagCount} valid tags [{TagIds}] with note {NoteId} using EF Core", 
                 validTagIds.Count, string.Join(",", validTagIds), noteId);
 
-            foreach (var tagId in validTagIds)
+            try
             {
-                try
+                // Create NoteTag associations in bulk
+                var noteTagsToAdd = validTagIds.Select(tagId => new NoteTag
                 {
-                    await ExecuteStoredProcedureAsync(
-                        StoredProcedures.spInsertTaggable,
-                        addParameters: async (command) =>
-                        {
-                            command.Parameters.Add(new SqlParameter("@iv_TaggableId", noteId));
-                            command.Parameters.Add(new SqlParameter("@iv_TaggableType", "Note"));
-                            command.Parameters.Add(new SqlParameter("@iv_TagId", tagId));
-                            AddParameterIfNotNull(command, "@iv_CreatedBy", createdBy);
-                            await Task.CompletedTask;
-                        },
-                        mapResult: async (reader) =>
-                        {
-                            await Task.CompletedTask;
-                            return new List<object>();
-                        },
-                        useSuperAppConnection: true
-                    );
+                    NoteId = noteId,
+                    TagId = tagId,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = createdBy.ToString()
+                }).ToList();
 
-                    _logger.LogDebug("Successfully associated tag {TagId} with note {NoteId}", tagId, noteId);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to associate tag {TagId} with note {NoteId}", tagId, noteId);
-                    // Continue with other tags even if one fails
-                }
+                // Add all associations at once (more efficient than one-by-one)
+                await _context.NoteTags.AddRangeAsync(noteTagsToAdd);
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("Successfully associated {Count} tags with note {NoteId}", 
+                    noteTagsToAdd.Count, noteId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while associating tags with note {NoteId}", noteId);
+                throw;
             }
         }
 
+        /// <summary>
+        /// Updates an existing note using EF Core
+        /// REFACTORED: Migrated from stored procedure to EF Core for simpler, type-safe updates
+        /// </summary>
         public async Task<Note> UpdateNoteAsync(Note note, List<int>? tagIds = null, int? createdByUserId = null)
         {
             try
             {
-                _logger.LogInformation("Updating note with ID: {NoteId}", note.NoteId);
+                _logger.LogInformation("Updating note with ID: {NoteId} using EF Core", note.NoteId);
 
                 if (note.NoteId <= 0)
                 {
                     throw new ArgumentException("Note ID must be greater than 0 for updates", nameof(note));
                 }
 
-                // Check if note exists first
-                var existingNote = await GetNoteById(note.NoteId);
+                // Check if note exists and get tracking entity
+                var existingNote = await _context.Notes
+                    .FirstOrDefaultAsync(n => n.NoteId == note.NoteId && n.DeletedAt == null);
+
                 if (existingNote == null)
                 {
                     _logger.LogWarning("Note with ID {NoteId} not found for update", note.NoteId);
                     throw new InvalidOperationException($"Note with ID {note.NoteId} not found");
                 }
 
-                // Set the UserId if provided (replacing CreatedBy concept)
+                // Update properties
+                existingNote.Name = note.Name;
+                existingNote.Description = note.Description;
+                existingNote.Content = note.Content;
+                existingNote.Slug = note.Slug;
+                existingNote.Color = note.Color;
+                existingNote.Icon = note.Icon;
+                existingNote.IsArchived = note.IsArchived;
+                existingNote.IsPinned = note.IsPinned;
+                existingNote.IsFavorite = note.IsFavorite;
+                existingNote.UpdatedAt = DateTime.UtcNow;
+
+                // Set UserId if provided
                 if (createdByUserId.HasValue)
                 {
-                    note.UserId = createdByUserId.Value;
+                    existingNote.UserId = createdByUserId.Value;
                 }
 
-                var (notes, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
-                    StoredProcedures.spInsertUpdateNote,
-                    addParametersAndGetOutputs: async (command) =>
-                    {
-                        DataTable noteTable = note.ToDataTable();
-                        AddStructuredParameter(command, "@Note", noteTable);
-                        var errorMsg = AddOutputParameter(command, "@ov_ErrorMsg", SqlDbType.VarChar, -1);
-                        await Task.CompletedTask;
-                        return new[] { errorMsg };
-                    },
-                    mapResult: MapToListAsync<Note>,
-                    useSuperAppConnection: true
-                );
-
-                var errorParam = outputParams[0];
-                if (HasError(errorParam, out string errorMessage))
-                {
-                    _logger.LogError("Error updating note: {ErrorMessage}", errorMessage);
-                    throw new InvalidOperationException($"Failed to update note: {errorMessage}");
-                }
-
-                var updatedNote = notes.FirstOrDefault();
-                if (updatedNote == null)
-                {
-                    throw new InvalidOperationException("Failed to update note: No note returned from database");
-                }
+                // Save changes to database
+                await _context.SaveChangesAsync();
 
                 // Update tag associations if provided
                 if (tagIds != null)
                 {
                     // Remove all existing tag associations
-                    await RemoveAllTagAssociationsAsync(updatedNote.NoteId);
+                    await RemoveAllTagAssociationsAsync(existingNote.NoteId);
                     
                     // Add new tag associations
                     if (tagIds.Any())
                     {
-                        await AssociateTagsWithNoteAsync(updatedNote.NoteId, tagIds, note.UserId);
+                        await AssociateTagsWithNoteAsync(existingNote.NoteId, tagIds, existingNote.UserId);
                     }
-                    
-                    // Reload the note to get updated tags from the database
-                    // Note: Tags navigation property handling removed until EF configuration is set up
                 }
 
-                _logger.LogInformation("Successfully updated note with ID: {NoteId}", 
-                    updatedNote.NoteId);
-                return updatedNote;
+                _logger.LogInformation("Successfully updated note with ID: {NoteId} using EF Core", 
+                    existingNote.NoteId);
+                
+                return existingNote;
             }
             catch (Exception ex)
             {
@@ -363,29 +352,41 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
+        /// <summary>
+        /// Removes all tag associations for a note using EF Core
+        /// REFACTORED: Migrated from stored procedure to EF Core for consistency with other operations
+        /// </summary>
         private async Task RemoveAllTagAssociationsAsync(int noteId)
         {
             try
             {
-                await ExecuteStoredProcedureAsync(
-                    StoredProcedures.spDeleteTaggablesByEntity,
-                    addParameters: async (command) =>
-                    {
-                        command.Parameters.Add(new SqlParameter("@iv_TaggableId", noteId));
-                        command.Parameters.Add(new SqlParameter("@iv_TaggableType", "Note"));
-                        await Task.CompletedTask;
-                    },
-                    mapResult: async (reader) =>
-                    {
-                        await Task.CompletedTask;
-                        return new List<object>();
-                    },
-                    useSuperAppConnection: true
-                );
+                _logger.LogInformation("Removing all tag associations for note {NoteId} using EF Core", noteId);
+
+                // Find all note-tag associations
+                var noteTagsToRemove = await _context.NoteTags
+                    .Where(nt => nt.NoteId == noteId)
+                    .ToListAsync();
+
+                if (noteTagsToRemove.Any())
+                {
+                    _logger.LogInformation("Found {Count} tag associations to remove for note {NoteId}", 
+                        noteTagsToRemove.Count, noteId);
+                    
+                    // Remove all associations
+                    _context.NoteTags.RemoveRange(noteTagsToRemove);
+                    await _context.SaveChangesAsync();
+                    
+                    _logger.LogInformation("Successfully removed {Count} tag associations for note {NoteId}", 
+                        noteTagsToRemove.Count, noteId);
+                }
+                else
+                {
+                    _logger.LogInformation("No tag associations found for note {NoteId}", noteId);
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to remove tag associations for note {NoteId}", noteId);
+                _logger.LogError(ex, "Error occurred while removing tag associations for note {NoteId}", noteId);
                 throw;
             }
         }
