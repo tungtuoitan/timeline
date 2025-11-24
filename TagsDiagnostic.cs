@@ -203,60 +203,6 @@ public class TagsDiagnostic
             {
                 logger.LogError(ex, "Error in TagRepository.GetTags - this indicates a mapping issue");
             }
-        }
-        
-        // Helper methods for safe column reading
-        static int? TryGetNullableInt32(SqlDataReader reader, string columnName)
-        {
-            try
-            {
-                var ordinal = reader.GetOrdinal(columnName);
-                return reader.IsDBNull(ordinal) ? null : reader.GetInt32(ordinal);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-        
-        static int TryGetInt32(SqlDataReader reader, string columnName)
-        {
-            try
-            {
-                var ordinal = reader.GetOrdinal(columnName);
-                return reader.IsDBNull(ordinal) ? 0 : reader.GetInt32(ordinal);
-            }
-            catch
-            {
-                return 0;
-            }
-        }
-        
-        static string? TryGetString(SqlDataReader reader, string columnName)
-        {
-            try
-            {
-                var ordinal = reader.GetOrdinal(columnName);
-                return reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-        
-        static DateTime? TryGetDateTime(SqlDataReader reader, string columnName)
-        {
-            try
-            {
-                var ordinal = reader.GetOrdinal(columnName);
-                return reader.IsDBNull(ordinal) ? null : reader.GetDateTime(ordinal);
-            }
-            catch
-            {
-                return null;
-            }
-        }
         
         // Test 7: Check if there are any tags in the database at all
         logger.LogInformation("Checking total tag count in database...");
@@ -292,6 +238,59 @@ public class TagsDiagnostic
         catch (Exception ex)
         {
             logger.LogError(ex, "Tags diagnostic failed");
+        }
+    }
+    
+    // Helper methods for safe column reading
+    static int? TryGetNullableInt32(SqlDataReader reader, string columnName)
+    {
+        try
+        {
+            var ordinal = reader.GetOrdinal(columnName);
+            return reader.IsDBNull(ordinal) ? null : reader.GetInt32(ordinal);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+    
+    static int TryGetInt32(SqlDataReader reader, string columnName)
+    {
+        try
+        {
+            var ordinal = reader.GetOrdinal(columnName);
+            return reader.IsDBNull(ordinal) ? 0 : reader.GetInt32(ordinal);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+    
+    static string? TryGetString(SqlDataReader reader, string columnName)
+    {
+        try
+        {
+            var ordinal = reader.GetOrdinal(columnName);
+            return reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+    
+    static DateTime? TryGetDateTime(SqlDataReader reader, string columnName)
+    {
+        try
+        {
+            var ordinal = reader.GetOrdinal(columnName);
+            return reader.IsDBNull(ordinal) ? null : reader.GetDateTime(ordinal);
+        }
+        catch
+        {
+            return null;
         }
     }
 }

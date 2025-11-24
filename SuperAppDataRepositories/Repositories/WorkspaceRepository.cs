@@ -39,22 +39,35 @@ namespace SuperAppDataRepositories.Repositories
                     w.DeletedAt == null);
         }
 
+        /// <summary>
+        /// Gets all workspaces for a user using EF Core
+        /// REFACTORED: Migrated from stored procedure to EF Core for consistency
+        /// </summary>
         public async Task<List<Workspace>> GetUserWorkspacesAsync(int userId, bool includeArchived = false)
         {
-            _logger.LogInformation("Getting workspaces for user {UserId}, includeArchived: {IncludeArchived}", 
+            _logger.LogInformation("Getting workspaces for user {UserId}, includeArchived: {IncludeArchived} using EF Core",
                 userId, includeArchived);
 
-            return await ExecuteStoredProcedureAsync<List<Workspace>>(
-                StoredProcedures.spSelectUserWorkspaces,
-                addParameters: async (command) =>
-                {
-                    command.Parameters.Add(new SqlParameter("@user_id", userId));
-                    command.Parameters.Add(new SqlParameter("@include_archived", includeArchived));
-                    await Task.CompletedTask;
-                },
-                mapResult: MapToWorkspaceListAsync,
-                useSuperAppConnection: true
-            );
+            var query = _context.Workspaces
+                .AsNoTracking()
+                .Where(w => w.UserId == userId && w.DeletedAt == null);
+
+            // Filter archived workspaces if not requested
+            if (!includeArchived)
+            {
+                query = query.Where(w => !w.IsArchived);
+            }
+
+            // Order by default workspace first, then by name
+            var workspaces = await query
+                .OrderByDescending(w => w.IsDefault)
+                .ThenBy(w => w.Name)
+                .ToListAsync();
+
+            _logger.LogInformation("Retrieved {Count} workspaces for user {UserId} using EF Core",
+                workspaces.Count, userId);
+
+            return workspaces;
         }
 
         /// <summary>
@@ -492,7 +505,8 @@ namespace SuperAppDataRepositories.Repositories
         }
 
         /// <summary>
-        /// Moves workspace item to a different parent using stored procedure
+        /// Moves workspace item to a different parent using EF Core
+        /// REFACTORED: Migrated from stored procedure to EF Core for consistency
         /// </summary>
         public async Task<WorkspaceItem> MoveWorkspaceItemAsync(
             long itemId,
@@ -501,26 +515,138 @@ namespace SuperAppDataRepositories.Repositories
             int? sortOrder = null)
         {
             _logger.LogInformation(
-                "Moving workspace item {ItemId} for user {UserId}: NewParentTagId={NewParentTagId}, SortOrder={SortOrder}",
+                "Moving workspace item {ItemId} for user {UserId}: NewParentTagId={NewParentTagId}, SortOrder={SortOrder} using EF Core",
                 itemId, userId, newParentTagId, sortOrder);
 
-            return await ExecuteStoredProcedureAsync<WorkspaceItem>(
-                StoredProcedures.spMoveItem,
-                addParameters: async (command) =>
+            // Find the workspace item
+            var item = await _context.WorkspaceItems
+                .FirstOrDefaultAsync(wi => wi.ItemId == itemId && wi.DeletedAt == null);
+
+            if (item == null)
+            {
+                throw new KeyNotFoundException($"Workspace item with ID {itemId} not found");
+            }
+
+            // Validate user has access to the workspace
+            await ValidateUserAccessAsync(item.WorkspaceId, userId, new[] { "owner", "editor" });
+
+            // Validate new parent tag exists if specified
+            if (newParentTagId.HasValue)
+            {
+                var parentExists = await _context.Tags
+                    .AnyAsync(t => t.TagId == newParentTagId.Value && t.DeletedAt == null);
+
+                if (!parentExists)
                 {
-                    command.Parameters.Add(new SqlParameter("@item_id", itemId));
-                    command.Parameters.Add(new SqlParameter("@user_id", userId));
-                    command.Parameters.Add(new SqlParameter("@new_parent_tag_id", 
-                        (object?)newParentTagId ?? DBNull.Value));
-                    
-                    if (sortOrder.HasValue)
-                        command.Parameters.Add(new SqlParameter("@sort_order", sortOrder.Value));
-                    
-                    await Task.CompletedTask;
-                },
-                mapResult: MapToWorkspaceItemAsync,
-                useSuperAppConnection: true
-            );
+                    throw new ArgumentException($"Parent tag with ID {newParentTagId.Value} not found");
+                }
+
+                // Check for circular reference (can't move a parent into its own child)
+                if (item.ChildType.ToLower() == "tag")
+                {
+                    var isCircular = await IsCircularReferenceAsync(item.WorkspaceId, item.ChildId, newParentTagId.Value);
+                    if (isCircular)
+                    {
+                        throw new InvalidOperationException("Cannot move item: circular reference detected");
+                    }
+                }
+            }
+
+            // Update the item
+            item.ParentTagId = newParentTagId;
+            item.UpdatedAt = DateTime.UtcNow;
+
+            if (sortOrder.HasValue)
+            {
+                item.SortOrder = sortOrder.Value;
+            }
+
+            // Update item_path based on new parent
+            await UpdateItemPathAsync(item);
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation(
+                "Successfully moved workspace item {ItemId} to parent {NewParentTagId} using EF Core",
+                itemId, newParentTagId);
+
+            return item;
+        }
+
+        /// <summary>
+        /// Checks if moving an item would create a circular reference
+        /// </summary>
+        private async Task<bool> IsCircularReferenceAsync(int workspaceId, int tagId, int newParentTagId)
+        {
+            // If trying to move under itself
+            if (tagId == newParentTagId)
+                return true;
+
+            // Check if newParentTagId is a descendant of tagId
+            var descendants = new HashSet<int>();
+            var toCheck = new Queue<int>();
+            toCheck.Enqueue(tagId);
+
+            while (toCheck.Count > 0)
+            {
+                var currentId = toCheck.Dequeue();
+
+                var childIds = await _context.WorkspaceItems
+                    .AsNoTracking()
+                    .Where(wi => wi.WorkspaceId == workspaceId
+                              && wi.ParentTagId == currentId
+                              && wi.ChildType == "tag"
+                              && wi.DeletedAt == null)
+                    .Select(wi => wi.ChildId)
+                    .ToListAsync();
+
+                foreach (var childId in childIds)
+                {
+                    if (childId == newParentTagId)
+                        return true;
+
+                    if (descendants.Add(childId))
+                    {
+                        toCheck.Enqueue(childId);
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Updates the item_path field based on parent hierarchy
+        /// </summary>
+        private async Task UpdateItemPathAsync(WorkspaceItem item)
+        {
+            if (!item.ParentTagId.HasValue)
+            {
+                // Root level item
+                item.ItemPath = $"/{item.ChildType}_{item.ChildId}";
+                item.Depth = 0;
+            }
+            else
+            {
+                // Find parent's path
+                var parentItem = await _context.WorkspaceItems
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(wi => wi.WorkspaceId == item.WorkspaceId
+                                            && wi.ChildType == "tag"
+                                            && wi.ChildId == item.ParentTagId.Value
+                                            && wi.DeletedAt == null);
+
+                if (parentItem != null && !string.IsNullOrEmpty(parentItem.ItemPath))
+                {
+                    item.ItemPath = $"{parentItem.ItemPath}/{item.ChildType}_{item.ChildId}";
+                    item.Depth = parentItem.Depth + 1;
+                }
+                else
+                {
+                    item.ItemPath = $"/tag_{item.ParentTagId}/{item.ChildType}_{item.ChildId}";
+                    item.Depth = 1;
+                }
+            }
         }
 
         /// <summary>

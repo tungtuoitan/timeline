@@ -31,6 +31,9 @@ namespace SuperAppDataRepositories.Data
         // System Configuration Tables
         public DbSet<StandardRegistry> StandardRegistries { get; set; }
 
+        // User Profile Tables
+        public DbSet<UserProfile> UserProfiles { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

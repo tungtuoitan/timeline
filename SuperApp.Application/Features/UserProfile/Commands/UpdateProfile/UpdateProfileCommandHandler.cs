@@ -1,10 +1,8 @@
 using AutoMapper;
 using MediatR;
 using Microsoft.Extensions.Logging;
-using SuperApp.Application.Features.UserProfile.Commands.UpdateProfile;
+using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs.Responses;
-using SuperAppModels.Models;
-using UserProfileDataRepositories.Ins;
 
 namespace SuperApp.Application.Features.UserProfile.Commands.UpdateProfile
 {
@@ -31,19 +29,13 @@ namespace SuperApp.Application.Features.UserProfile.Commands.UpdateProfile
                 _logger.LogInformation("Updating user profile for user: {Email}", request.UserEmail);
 
                 var userProfile = _mapper.Map<SuperAppModels.Models.UserProfile>(request.Request);
-                userProfile.Email = request.UserEmail; // Ensure email is set
-                
-                var result = await _userProfileRepository.UpdateUserProfileAsync(userProfile);
+                userProfile.Email = request.UserEmail;
 
-                if (result != null)
-                {
-                    var response = _mapper.Map<UserProfileResponse>(result);
-                    _logger.LogInformation("Successfully updated user profile for user: {Email}", request.UserEmail);
-                    return response;
-                }
+                var result = await _userProfileRepository.CreateOrUpdateAsync(userProfile);
 
-                _logger.LogWarning("Failed to update user profile for user: {Email}", request.UserEmail);
-                throw new InvalidOperationException("Failed to update user profile");
+                var response = _mapper.Map<UserProfileResponse>(result);
+                _logger.LogInformation("Successfully updated user profile for user: {Email}", request.UserEmail);
+                return response;
             }
             catch (Exception ex)
             {

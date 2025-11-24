@@ -1,23 +1,26 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
-using SuperApp.Application.Features.Authentication.Commands.Login;
+using SuperApp.Application.Common.Interfaces;
+using SuperApp.Application.Common.Security;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs.Responses;
 using System.Security.Authentication;
-using UserProfileDataRepositories.Ins;
 
 namespace SuperApp.Application.Features.Authentication.Commands.Login
 {
     public class LoginCommandHandler : IRequestHandler<LoginCommand, AuthResponse>
     {
-        private readonly IAuthRepository _authRepository;
+        private readonly IUserRepository _userRepository;
+        private readonly IJwtService _jwtService;
         private readonly ILogger<LoginCommandHandler> _logger;
 
         public LoginCommandHandler(
-            IAuthRepository authRepository,
+            IUserRepository userRepository,
+            IJwtService jwtService,
             ILogger<LoginCommandHandler> logger)
         {
-            _authRepository = authRepository;
+            _userRepository = userRepository;
+            _jwtService = jwtService;
             _logger = logger;
         }
 
@@ -27,16 +30,57 @@ namespace SuperApp.Application.Features.Authentication.Commands.Login
             {
                 _logger.LogInformation("Processing login request for user: {Email}", request.Request.Email);
 
-                var result = await _authRepository.LoginAsync(request.Request);
+                var user = await _userRepository.GetByEmailAsync(request.Request.Email);
 
-                if (result != null && result.Success && result.User != null && !string.IsNullOrEmpty(result.User.Token))
+                if (user == null)
                 {
-                    _logger.LogInformation("Login successful for user: {Email}", request.Request.Email);
-                    return result;
+                    _logger.LogWarning("User not found: {Email}", request.Request.Email);
+                    return new AuthResponse
+                    {
+                        Success = false,
+                        Message = "The email you entered isn't connected to an account."
+                    };
                 }
 
-                _logger.LogWarning("Login failed for user: {Email}", request.Request.Email);
-                throw new AuthenticationException("Invalid credentials");
+                if (!user.IsActive)
+                {
+                    _logger.LogWarning("User account is deactivated: {Email}", request.Request.Email);
+                    return new AuthResponse
+                    {
+                        Success = false,
+                        Message = "This account has been deactivated."
+                    };
+                }
+
+                if (!PasswordHasher.VerifyPassword(request.Request.Password, user.PasswordHash))
+                {
+                    _logger.LogWarning("Invalid password for user: {Email}", request.Request.Email);
+                    return new AuthResponse
+                    {
+                        Success = false,
+                        Message = "Password isn't correct!"
+                    };
+                }
+
+                user.RecordLogin();
+                await _userRepository.UpdateAsync(user);
+
+                var token = _jwtService.GenerateToken(user);
+
+                _logger.LogInformation("Login successful for user: {Email}", request.Request.Email);
+
+                return new AuthResponse
+                {
+                    Success = true,
+                    Message = "Login successfully",
+                    User = new UserData
+                    {
+                        Id = user.UserId,
+                        Email = user.Email,
+                        FirstName = user.DisplayName,
+                        Token = token
+                    }
+                };
             }
             catch (Exception ex)
             {

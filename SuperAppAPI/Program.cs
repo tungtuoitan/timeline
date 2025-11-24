@@ -1,13 +1,10 @@
-﻿
 using SuperAppDataRepositories.Ins;
 using SuperAppDataRepositories.Repositories;
 using SuperAppDataRepositories.Data;
 using SuperApp.Application.Common.Mappings;
+using SuperApp.Application.Common.Interfaces;
+using SuperApp.Application.Common.Services;
 using Serilog;
-using UserProfileDataRepositories.Ins;
-using UserProfileDataRepositories.Repositories;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.Google;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -25,9 +22,9 @@ namespace SuperAppAPI
         public static void Main(string[] args)
         {
             Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Debug() 
-                .WriteTo.Console()  
-                .WriteTo.File("Logs/superapp.log", rollingInterval: RollingInterval.Day) // Log ra file theo ngày
+                .MinimumLevel.Debug()
+                .WriteTo.Console()
+                .WriteTo.File("Logs/superapp.log", rollingInterval: RollingInterval.Day)
                 .CreateLogger();
 
             try{
@@ -58,7 +55,7 @@ namespace SuperAppAPI
                 {
                     var builder = hostContext.Configuration;
                     var jwtSettings = hostContext.Configuration.GetSection("Jwt");
-                    var key = Encoding.UTF8.GetBytes(jwtSettings["Key"]);
+                    var key = Encoding.UTF8.GetBytes(jwtSettings["Key"] ?? "");
 
                     services.AddDistributedMemoryCache();
                     services.AddSession(o =>
@@ -90,7 +87,7 @@ namespace SuperAppAPI
 
                     // Register MediatR with pipeline behaviors
                     services.AddMediatR(typeof(SuperApp.Application.Features.Notes.Queries.GetNotes.GetNotesQuery).Assembly);
-                    
+
                     // Register FluentValidation
                     services.AddValidatorsFromAssembly(typeof(SuperApp.Application.Features.Notes.Commands.CreateNote.CreateNoteValidator).Assembly);
 
@@ -101,7 +98,7 @@ namespace SuperAppAPI
                     });
                     IMapper mapper = mapperConfig.CreateMapper();
                     services.AddSingleton(mapper);
-                    
+
                     // Register MediatR pipeline behaviors
                     services.AddTransient(typeof(IPipelineBehavior<,>), typeof(SuperApp.Application.Common.Behaviors.ValidationBehavior<,>));
                     services.AddTransient(typeof(IPipelineBehavior<,>), typeof(SuperApp.Application.Common.Behaviors.LoggingBehavior<,>));
@@ -123,20 +120,21 @@ namespace SuperAppAPI
                         }
                     });
 
-                    // Register Connection Factory (for stored procedures)
+                    // Register Connection Factory (for stored procedures - if still needed)
                     services.AddScoped<IConnectionFactory, ConnectionFactory>();
 
-                    // Register repositories (with EF Core and Connection Factory)
+                    // Register repositories (with EF Core)
                     services.AddScoped<INoteRepository, NoteRepository>();
                     services.AddScoped<ITagRepository, TagRepository>();
-                    services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
-                    services.AddScoped<IFileRepository, FileRepository>(); // Phase 3.5: File management support
+                    services.AddScoped<SuperAppDataRepositories.Ins.IWorkspaceRepository, WorkspaceRepository>();
+                    services.AddScoped<IFileRepository, FileRepository>();
                     services.AddScoped<IStandardRegistryRepository, StandardRegistryRepository>();
-                    services.AddScoped<IAuthRepository, AuthRepository>();
+                    services.AddScoped<IUserRepository, UserRepository>();
                     services.AddScoped<IUserProfileRepository, UserProfileRepository>();
 
-                    // Services layer removed - using CQRS pattern instead
-                    // All controllers now use MediatR commands/queries or repository pattern directly
+                    // Register Application Services
+                    services.AddScoped<IJwtService, JwtService>();
+                    services.AddScoped<IGoogleAuthService, GoogleAuthService>();
                 });
 
     }

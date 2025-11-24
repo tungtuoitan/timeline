@@ -1,9 +1,8 @@
 using AutoMapper;
 using MediatR;
 using Microsoft.Extensions.Logging;
-using SuperApp.Application.Features.UserProfile.Queries.GetProfile;
+using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs.Responses;
-using UserProfileDataRepositories.Ins;
 
 namespace SuperApp.Application.Features.UserProfile.Queries.GetProfile
 {
@@ -29,7 +28,7 @@ namespace SuperApp.Application.Features.UserProfile.Queries.GetProfile
             {
                 _logger.LogInformation("Getting user profile for user: {Email}", request.UserEmail);
 
-                var userProfile = await _userProfileRepository.GetUserProfileByEmailAsync(request.UserEmail);
+                var userProfile = await _userProfileRepository.GetByEmailAsync(request.UserEmail);
 
                 if (userProfile != null)
                 {

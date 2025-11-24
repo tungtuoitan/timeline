@@ -178,58 +178,38 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
+        /// <summary>
+        /// Creates a new note using EF Core
+        /// REFACTORED: Migrated from stored procedure to EF Core for simpler, type-safe operations
+        /// </summary>
         public async Task<Note> CreateNoteAsync(Note note, List<int>? tagIds = null, int? createdByUserId = null)
         {
             try
             {
-                _logger.LogInformation("Creating new note with title: {Title}", note.Name);
+                _logger.LogInformation("Creating new note with title: {Title} using EF Core", note.Name);
 
-                // Set the UserId if provided (replacing CreatedBy concept)
+                // Set the UserId if provided
                 if (createdByUserId.HasValue)
                 {
                     note.UserId = createdByUserId.Value;
                 }
 
-                var (notes, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
-                    StoredProcedures.spInsertUpdateNote,
-                    addParametersAndGetOutputs: async (command) =>
-                    {
-                        // Set NoteId to 0 for new notes
-                        note.NoteId = 0;
-                        DataTable noteTable = note.ToDataTable();
-                        AddStructuredParameter(command, "@Note", noteTable);
-                        var errorMsg = AddOutputParameter(command, "@ov_ErrorMsg", SqlDbType.VarChar, -1);
-                        await Task.CompletedTask;
-                        return new[] { errorMsg };
-                    },
-                    mapResult: MapToListAsync<Note>,
-                    useSuperAppConnection: true
-                );
+                // Set timestamps
+                note.CreatedAt = DateTime.UtcNow;
+                note.UpdatedAt = DateTime.UtcNow;
 
-                var errorParam = outputParams[0];
-                if (HasError(errorParam, out string errorMessage))
-                {
-                    _logger.LogError("Error creating note: {ErrorMessage}", errorMessage);
-                    throw new InvalidOperationException($"Failed to create note: {errorMessage}");
-                }
-
-                var createdNote = notes.FirstOrDefault();
-                if (createdNote == null)
-                {
-                    throw new InvalidOperationException("Failed to create note: No note returned from database");
-                }
+                // Add note to context
+                _context.Notes.Add(note);
+                await _context.SaveChangesAsync();
 
                 // Associate tags with the note if provided
                 if (tagIds != null && tagIds.Any())
                 {
-                    await AssociateTagsWithNoteAsync(createdNote.NoteId, tagIds, note.UserId);
-                    
-                    // TODO: Reload the note to get updated tags from the database once Tag relationship is defined
+                    await AssociateTagsWithNoteAsync(note.NoteId, tagIds, note.UserId);
                 }
 
-                _logger.LogInformation("Successfully created note with ID: {NoteId}", 
-                    createdNote.NoteId);
-                return createdNote;
+                _logger.LogInformation("Successfully created note with ID: {NoteId} using EF Core", note.NoteId);
+                return note;
             }
             catch (Exception ex)
             {
@@ -391,42 +371,65 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
+        /// <summary>
+        /// Deletes notes by IDs using EF Core (soft delete)
+        /// REFACTORED: Migrated from stored procedure to EF Core for consistency
+        /// </summary>
         public async Task<bool> DeleteNoteAsync(string noteIds)
         {
             try
             {
-                _logger.LogInformation("Deleting notes with IDs: {NoteIds}", noteIds);
+                _logger.LogInformation("Deleting notes with IDs: {NoteIds} using EF Core", noteIds);
 
                 if (string.IsNullOrWhiteSpace(noteIds))
                 {
                     throw new ArgumentException("Note IDs must not be empty", nameof(noteIds));
                 }
 
-                var (_, outputParams) = await ExecuteStoredProcedureWithOutputAsync(
-                    StoredProcedures.spDeleteNote,
-                    addParametersAndGetOutputs: async (command) =>
-                    {
-                        command.Parameters.Add(new SqlParameter("@iv_NoteIds", noteIds));
-                        var errorMsg = AddOutputParameter(command, "@ov_ErrorMsg", SqlDbType.VarChar, -1);
-                        await Task.CompletedTask;
-                        return new[] { errorMsg };
-                    },
-                    mapResult: async (reader) =>
-                    {
-                        await Task.CompletedTask;
-                        return new List<object>();
-                    },
-                    useSuperAppConnection: true
-                );
+                // Parse comma-separated note IDs
+                var ids = noteIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(id => int.TryParse(id.Trim(), out var parsed) ? parsed : 0)
+                    .Where(id => id > 0)
+                    .ToList();
 
-                var errorParam = outputParams[0];
-                if (HasError(errorParam, out string errorMessage))
+                if (!ids.Any())
                 {
-                    _logger.LogError("Error deleting notes: {ErrorMessage}", errorMessage);
-                    throw new InvalidOperationException($"Failed to delete notes: {errorMessage}");
+                    throw new ArgumentException("No valid note IDs provided", nameof(noteIds));
                 }
 
-                _logger.LogInformation("Successfully deleted notes with IDs: {NoteIds}", noteIds);
+                // Find notes to delete
+                var notesToDelete = await _context.Notes
+                    .Where(n => ids.Contains(n.NoteId) && n.DeletedAt == null)
+                    .ToListAsync();
+
+                if (!notesToDelete.Any())
+                {
+                    _logger.LogWarning("No notes found to delete with IDs: {NoteIds}", noteIds);
+                    return false;
+                }
+
+                // Soft delete - set DeletedAt timestamp
+                foreach (var note in notesToDelete)
+                {
+                    note.DeletedAt = DateTime.UtcNow;
+                    note.UpdatedAt = DateTime.UtcNow;
+                }
+
+                // Also remove tag associations for deleted notes
+                var noteTagsToRemove = await _context.NoteTags
+                    .Where(nt => ids.Contains(nt.NoteId))
+                    .ToListAsync();
+
+                if (noteTagsToRemove.Any())
+                {
+                    _context.NoteTags.RemoveRange(noteTagsToRemove);
+                    _logger.LogInformation("Removed {Count} tag associations for deleted notes", noteTagsToRemove.Count);
+                }
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("Successfully soft deleted {Count} notes with IDs: {NoteIds} using EF Core",
+                    notesToDelete.Count, noteIds);
                 return true;
             }
             catch (Exception ex)

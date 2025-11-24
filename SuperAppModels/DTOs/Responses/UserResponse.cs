@@ -28,9 +28,19 @@ namespace SuperAppModels.DTOs.Responses
         public bool IsEmailVerified { get; set; }
 
         /// <summary>
+        /// Display name for the user
+        /// </summary>
+        public string? DisplayName { get; set; }
+
+        /// <summary>
+        /// JWT authentication token
+        /// </summary>
+        public string? Token { get; set; }
+
+        /// <summary>
         /// User's full display name computed from first and last name
         /// </summary>
-        public string FullName => $"{FirstName} {LastName}".Trim();
+        public string FullName => DisplayName ?? $"{FirstName} {LastName}".Trim();
 
         /// <summary>
         /// Primary identifier for the user (email, phone, or fallback to user ID)

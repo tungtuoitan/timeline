@@ -23,11 +23,8 @@
         // ============================================================================
         // NOTES MANAGEMENT
         // ============================================================================
-        
-        public static string spSelectNotes => "[dbo].[usp_s_Notes]";
-        public static string spSelectNoteById => "[dbo].[usp_s_NoteById]";
-        public static string spInsertUpdateNote => "[dbo].[usp_iu_Note]";
-        public static string spDeleteNote => "[dbo].[usp_d_Note]";
+        // REFACTORED: Note operations now use EF Core
+        // Removed: usp_s_Notes, usp_s_NoteById, usp_iu_Note, usp_d_Note
         
         // ============================================================================
         // USER PROFILE MANAGEMENT
@@ -48,14 +45,12 @@
         public static string spDeleteTagAdvanced => "[dbo].[usp_d_tag]";
         
         // Tag Hierarchy & Navigation
+        // KEPT: usp_s_tag_tree (used by GetTagTreeAsync, GetWorkspaceTagTreeAsync)
         public static string spSelectTagTree => "[dbo].[usp_s_tag_tree]";
         public static string spSelectTagTreeWithSharing => "[dbo].[usp_s_tag_tree]";
-        public static string spSelectWorkspaceTagTree => "[dbo].[usp_s_tag_tree]"; // Workspace-specific tag tree
-        public static string spSelectTagSubtree => "[dbo].[usp_s_tag_subtree]";
-        public static string spSelectTagBreadcrumb => "[dbo].[usp_s_tag_breadcrumb]";
-        public static string spMoveTag => "[dbo].[usp_move_tag]";
-        public static string spMoveItem => "[dbo].[usp_move_item]";
-        public static string spReplaceTag => "[dbo].[usp_replace_tag]";
+        public static string spSelectWorkspaceTagTree => "[dbo].[usp_s_tag_tree]";
+        // REFACTORED to EF Core: usp_move_item (MoveWorkspaceItemAsync)
+        // Removed: usp_s_tag_subtree, usp_s_tag_breadcrumb, usp_move_tag, usp_replace_tag
         
         // Tag Search & Discovery
         public static string spSearchTags => "[dbo].[usp_search_tags]";
@@ -79,12 +74,9 @@
         // ============================================================================
         // WORKSPACE MANAGEMENT
         // ============================================================================
-        
-        public static string spSelectWorkspace => "[dbo].[usp_s_workspace]";
-        public static string spSelectUserWorkspaces => "[dbo].[usp_s_user_workspaces]";
-        public static string spInsertWorkspace => "[dbo].[usp_i_workspace]";
-        public static string spUpdateWorkspace => "[dbo].[usp_u_workspace]";
-        public static string spDeleteWorkspace => "[dbo].[usp_d_workspace]";
+        // REFACTORED: Workspace operations now use EF Core
+        // KEPT: usp_update_workspace_item (UpdateWorkspaceItemAsync)
+        // Removed: usp_s_workspace, usp_s_user_workspaces, usp_i_workspace, usp_u_workspace, usp_d_workspace, usp_move_item
         
         // ============================================================================
         // ITEM TAGGING SYSTEM
@@ -113,11 +105,8 @@
         public static string spSelectTaggablesByEntity => "[dbo].[usp_s_TaggablesByEntity]";
         
         // Legacy Note-Tag relationships
-        public static string spSelectNoteTagsByNoteId => "[dbo].[usp_s_NoteTagsByNoteId]";
-        public static string spSelectNoteTagsByTagId => "[dbo].[usp_s_NoteTagsByTagId]";
-        public static string spInsertNoteTag => "[dbo].[usp_i_NoteTag]";
-        public static string spDeleteNoteTag => "[dbo].[usp_d_NoteTag]";
-        public static string spDeleteNoteTagsByNoteId => "[dbo].[usp_d_NoteTagsByNoteId]";
+        // REFACTORED: Note-Tag operations now use EF Core
+        // Removed: usp_s_NoteTagsByNoteId, usp_s_NoteTagsByTagId, usp_i_NoteTag, usp_d_NoteTag, usp_d_NoteTagsByNoteId
         
         // ============================================================================
         // STORED PROCEDURE NAMING CONVENTIONS
