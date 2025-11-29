@@ -7,13 +7,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SuperAppAPI", "SuperAppAPI\
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SuperAppModels", "SuperAppModels\SuperAppModels.csproj", "{CDDD92E3-8B86-4C02-8F65-A62563B3CAA6}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SuperAppDataServices", "SuperAppDataServices\SuperAppDataServices.csproj", "{E4F41E17-BADD-4700-B9A5-098127080C2D}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SuperAppDataRepositories", "SuperAppDataRepositories\SuperAppDataRepositories.csproj", "{8834170F-CB6F-4C19-85B4-B0AC5670B478}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SuperApp.Application", "SuperApp.Application\SuperApp.Application.csproj", "{A1234567-89AB-CDEF-0123-456789ABCDEF}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SuperApp.Tests.Integration", "SuperApp.Tests.Integration\SuperApp.Tests.Integration.csproj", "{8631135B-D1CC-4320-8DDD-41753BA9878F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
