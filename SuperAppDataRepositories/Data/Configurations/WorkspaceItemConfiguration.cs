@@ -33,7 +33,6 @@ namespace SuperAppDataRepositories.Data.Configurations
 
             builder.Property(wi => wi.ItemType)
                 .HasColumnName("item_type")
-                .HasMaxLength(10)
                 .IsRequired();
 
             builder.Property(wi => wi.ChildId)
@@ -78,14 +77,16 @@ namespace SuperAppDataRepositories.Data.Configurations
 
             // Relationships
             builder.HasOne(wi => wi.Workspace)
-                .WithMany()
+                .WithMany(w => w.Items)  // Explicitly map to Workspace.Items collection
                 .HasForeignKey(wi => wi.WorkspaceId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // Parent folder relationship - explicitly specify FK to avoid EF Core auto-generating FolderId1
             builder.HasOne(wi => wi.Folder)
-                .WithMany()
+                .WithMany(f => f.WorkspaceItems)  // Map to Folder.WorkspaceItems collection
                 .HasForeignKey(wi => wi.FolderId)
-                .OnDelete(DeleteBehavior.NoAction);
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);  // Nullable FK for root-level items
 
             // Polymorphic relationships (navigations populated at runtime based on ItemType)
             builder.Ignore(wi => wi.ChildFolder);

@@ -2,15 +2,15 @@ namespace SuperAppModels.Models;
 
 /// <summary>
 /// Entity model representing a file/document in the system
-/// Maps to the 'files' table in database
+/// Maps to the 'files' table in ws schema - EXACTLY matches REBUILD_SIMPLIFIED_SCHEMA.sql
 /// Files are always leaf nodes in the workspace tree (cannot have children)
 /// </summary>
 public class FileInfo : ITimestampEntity
 {
-    // Database columns - must match exactly with 'files' table schema
+    // Database columns - EXACTLY match ws.files schema from REBUILD_SIMPLIFIED_SCHEMA.sql
     
     /// <summary>
-    /// Primary key: file_id (IDENTITY)
+    /// Primary key: id (IDENTITY)
     /// </summary>
     public int FileId { get; set; }
 
@@ -20,74 +20,29 @@ public class FileInfo : ITimestampEntity
     public int UserId { get; set; }
 
     /// <summary>
-    /// Display name of the file (editable by user)
+    /// Display name of the file (255 chars, required)
     /// </summary>
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// Original filename when uploaded (e.g., "Q4_Report.pdf")
+    /// URL to the file (1000 chars)
     /// </summary>
-    public string OriginalFilename { get; set; } = string.Empty;
+    public string? Url { get; set; }
 
     /// <summary>
-    /// Path to the file in storage system
+    /// File size in bytes (nullable)
     /// </summary>
-    public string FilePath { get; set; } = string.Empty;
+    public long? FileSize { get; set; }
 
     /// <summary>
-    /// File size in bytes
+    /// MIME type (e.g., "application/pdf", "image/png") - 100 chars
     /// </summary>
-    public long FileSize { get; set; }
+    public string? MimeType { get; set; }
 
     /// <summary>
-    /// MIME type (e.g., "application/pdf", "image/png")
+    /// File extension (e.g., ".pdf", ".docx", ".png") - 20 chars
     /// </summary>
-    public string MimeType { get; set; } = string.Empty;
-
-    /// <summary>
-    /// File extension (e.g., ".pdf", ".docx", ".png")
-    /// </summary>
-    public string Extension { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Optional description of the file
-    /// </summary>
-    public string? Description { get; set; }
-
-    /// <summary>
-    /// URL-friendly slug (auto-generated from name by trigger)
-    /// </summary>
-    public string? Slug { get; set; }
-
-    /// <summary>
-    /// Whether the file is publicly accessible
-    /// </summary>
-    public bool IsPublic { get; set; } = false;
-
-    /// <summary>
-    /// Whether the file is archived
-    /// </summary>
-    public bool IsArchived { get; set; } = false;
-
-    /// <summary>
-    /// Whether the file is pinned for quick access
-    /// </summary>
-    public bool IsPinned { get; set; } = false;
-
-    /// <summary>
-    /// Whether the file is marked as favorite
-    /// </summary>
-    public bool IsFavorite { get; set; } = false;
-
-    /// <summary>
-    /// Number of times the file has been downloaded
-    /// </summary>
-    public int DownloadCount { get; set; } = 0;
-
-    /// <summary>
-    /// When the file was last downloaded
-    /// </summary>
-    public DateTime? LastDownloadedAt { get; set; }
+    public string? Extension { get; set; }
 
     // Timestamps (ITimestampEntity)
     
@@ -119,83 +74,45 @@ public class FileInfo : ITimestampEntity
     public FileInfo()
     {
         CreatedAt = DateTime.UtcNow;
-        IsPublic = false;
-        IsArchived = false;
-        DownloadCount = 0;
     }
 
     /// <summary>
     /// Constructor with required fields
     /// </summary>
-    public FileInfo(string name, string originalFilename, string filePath, long fileSize, string mimeType, string extension, int userId) : this()
+    public FileInfo(string name, int userId) : this()
     {
-        Name = name;
-        OriginalFilename = originalFilename;
-        FilePath = filePath;
-        FileSize = fileSize;
-        MimeType = mimeType;
-        Extension = extension;
+        Name = name ?? throw new ArgumentNullException(nameof(name));
         UserId = userId;
     }
 
     /// <summary>
-    /// Format file size to human-readable string (e.g., "2.5 MB")
+    /// Updates file metadata
     /// </summary>
-    public string GetFormattedFileSize()
+    public void Update(string? name = null, string? url = null, long? fileSize = null, string? mimeType = null, string? extension = null)
     {
-        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
-        double len = FileSize;
-        int order = 0;
-        while (len >= 1024 && order < sizes.Length - 1)
-        {
-            order++;
-            len = len / 1024;
-        }
-        return $"{len:0.##} {sizes[order]}";
+        if (name != null) Name = name;
+        if (url != null) Url = url;
+        if (fileSize != null) FileSize = fileSize;
+        if (mimeType != null) MimeType = mimeType;
+        if (extension != null) Extension = extension;
+        UpdatedAt = DateTime.UtcNow;
     }
 
     /// <summary>
-    /// Get file icon based on extension/mime type
+    /// Marks the file as deleted with soft delete pattern
     /// </summary>
-    public string GetFileIcon()
+    public void SoftDelete()
     {
-        return Extension.ToLower() switch
-        {
-            ".pdf" => "file-pdf",
-            ".doc" or ".docx" => "file-word",
-            ".xls" or ".xlsx" => "file-excel",
-            ".ppt" or ".pptx" => "file-powerpoint",
-            ".jpg" or ".jpeg" or ".png" or ".gif" or ".svg" => "file-image",
-            ".zip" or ".rar" or ".7z" => "file-archive",
-            ".txt" => "file-text",
-            ".mp4" or ".avi" or ".mov" => "file-video",
-            ".mp3" or ".wav" or ".flac" => "file-audio",
-            _ => "file"
-        };
+        DeletedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.UtcNow;
     }
 
     /// <summary>
-    /// Check if file is an image
+    /// Restores a soft-deleted file
     /// </summary>
-    public bool IsImage()
+    public void Restore()
     {
-        return MimeType.StartsWith("image/");
-    }
-
-    /// <summary>
-    /// Check if file is a document
-    /// </summary>
-    public bool IsDocument()
-    {
-        string[] documentMimes = {
-            "application/pdf",
-            "application/msword",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/vnd.ms-excel",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "application/vnd.ms-powerpoint",
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-        };
-        return documentMimes.Contains(MimeType);
+        DeletedAt = null;
+        UpdatedAt = DateTime.UtcNow;
     }
 }

@@ -48,9 +48,9 @@ namespace SuperAppDataRepositories.Repositories
                 _logger.LogInformation("Found {Count} items in workspace {WorkspaceId}", items.Count, workspaceId);
 
                 // Get distinct IDs for each type
-                var folderIds = items.Where(i => i.ItemType == "2").Select(i => i.ChildId).Distinct().ToList(); // item_type = 2 (folder)
-                var noteIds = items.Where(i => i.ItemType == "3").Select(i => i.ChildId).Distinct().ToList();   // item_type = 3 (note)
-                var fileIds = items.Where(i => i.ItemType == "4").Select(i => i.ChildId).Distinct().ToList();   // item_type = 4 (file)
+                var folderIds = items.Where(i => i.ItemType == 2).Select(i => i.ChildId).Distinct().ToList(); // item_type = 2 (folder)
+                var noteIds = items.Where(i => i.ItemType == 3).Select(i => i.ChildId).Distinct().ToList();   // item_type = 3 (note)
+                var fileIds = items.Where(i => i.ItemType == 4).Select(i => i.ChildId).Distinct().ToList();   // item_type = 4 (file)
 
                 // Load entities
                 var folders = await _context.Folders
@@ -85,22 +85,19 @@ namespace SuperAppDataRepositories.Repositories
                     };
 
                     // Populate name and metadata based on type
-                    if (item.ItemType == "2" && folders.TryGetValue(item.ChildId, out var folder))
+                    if (item.ItemType == 2 && folders.TryGetValue(item.ChildId, out var folder))
                     {
                         treeItem.Name = folder.Name;
-                        treeItem.Slug = folder.Slug;
                         treeItem.Color = folder.Color;
                         treeItem.Icon = folder.Icon;
                     }
-                    else if (item.ItemType == "3" && notes.TryGetValue(item.ChildId, out var note))
+                    else if (item.ItemType == 3 && notes.TryGetValue(item.ChildId, out var note))
                     {
                         treeItem.Name = note.Name;
-                        treeItem.Slug = note.Slug;
                     }
-                    else if (item.ItemType == "4" && files.TryGetValue(item.ChildId, out var file))
+                    else if (item.ItemType == 4 && files.TryGetValue(item.ChildId, out var file))
                     {
                         treeItem.Name = file.Name;
-                        treeItem.Slug = file.Slug;
                     }
 
                     treeItems.Add(treeItem);
@@ -147,14 +144,14 @@ namespace SuperAppDataRepositories.Repositories
         /// <summary>
         /// Helper method to convert TINYINT item_type to string name
         /// </summary>
-        private string GetItemTypeName(string itemType)
+        private string GetItemTypeName(byte itemType)
         {
             return itemType switch
             {
-                "1" => "workspace",
-                "2" => "folder",
-                "3" => "note",
-                "4" => "file",
+                1 => "workspace",
+                2 => "folder",
+                3 => "note",
+                4 => "file",
                 _ => "unknown"
             };
         }

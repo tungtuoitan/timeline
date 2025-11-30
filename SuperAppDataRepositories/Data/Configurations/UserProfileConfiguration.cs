@@ -11,40 +11,57 @@ namespace SuperAppDataRepositories.Data.Configurations
             // Table mapping - urm schema (User Resource Management)
             builder.ToTable("user_profiles", "urm");
 
-            builder.HasKey(up => up.Email);
+            // Primary key
+            builder.HasKey(up => up.Id);
+            builder.Property(up => up.Id)
+                .HasColumnName("id")
+                .ValueGeneratedOnAdd();
 
-            builder.Property(up => up.Email)
-                .HasColumnName("email")
-                .HasMaxLength(255)
+            // Properties - EXACTLY match urm.user_profiles schema
+            builder.Property(up => up.UserId)
+                .HasColumnName("user_id")
                 .IsRequired();
 
-            builder.Property(up => up.AppC)
-                .HasColumnName("app_code")
-                .HasMaxLength(50);
+            builder.Property(up => up.FirstName)
+                .HasColumnName("first_name")
+                .HasMaxLength(100);
 
-            builder.Property(up => up.Parents)
-                .HasColumnName("parents")
-                .HasColumnType("nvarchar(max)");
+            builder.Property(up => up.LastName)
+                .HasColumnName("last_name")
+                .HasMaxLength(100);
 
-            builder.Property(up => up.Priorities)
-                .HasColumnName("priorities")
-                .HasColumnType("nvarchar(max)");
+            builder.Property(up => up.AvatarUrl)
+                .HasColumnName("avatar_url")
+                .HasMaxLength(500);
 
-            builder.Property(up => up.Statuses)
-                .HasColumnName("statuses")
-                .HasColumnType("nvarchar(max)");
+            builder.Property(up => up.Bio)
+                .HasColumnName("bio")
+                .HasMaxLength(1000);
 
-            builder.Property(up => up.Types)
-                .HasColumnName("types")
-                .HasColumnType("nvarchar(max)");
+            builder.Property(up => up.DateOfBirth)
+                .HasColumnName("date_of_birth");
 
-            builder.Property(up => up.RepeatTypes)
-                .HasColumnName("repeat_types")
-                .HasColumnType("nvarchar(max)");
+            builder.Property(up => up.Gender)
+                .HasColumnName("gender")
+                .HasMaxLength(10);
 
-            builder.Property(up => up.IsUpdatedTodays)
-                .HasColumnName("is_updated_todays")
-                .HasMaxLength(50);
+            builder.Property(up => up.Country)
+                .HasColumnName("country")
+                .HasMaxLength(100);
+
+            builder.Property(up => up.City)
+                .HasColumnName("city")
+                .HasMaxLength(100);
+
+            builder.Property(up => up.Timezone)
+                .HasColumnName("timezone")
+                .HasMaxLength(50)
+                .HasDefaultValue("UTC");
+
+            builder.Property(up => up.Language)
+                .HasColumnName("language")
+                .HasMaxLength(10)
+                .HasDefaultValue("en");
 
             builder.Property(up => up.CreatedAt)
                 .HasColumnName("created_at")
@@ -53,15 +70,16 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(up => up.UpdatedAt)
                 .HasColumnName("updated_at");
 
-            builder.Property(up => up.IsActive)
-                .HasColumnName("is_active")
-                .HasDefaultValue(true);
+            // Unique constraint on user_id
+            builder.HasIndex(up => up.UserId)
+                .HasDatabaseName("UQ_user_profiles_user_id")
+                .IsUnique();
 
-            builder.HasIndex(up => up.AppC)
-                .HasDatabaseName("IX_user_profiles_app_code");
-
-            builder.HasIndex(up => up.IsActive)
-                .HasDatabaseName("IX_user_profiles_is_active");
+            // Foreign key relationship
+            builder.HasOne(up => up.User)
+                .WithOne()
+                .HasForeignKey<UserProfile>(up => up.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

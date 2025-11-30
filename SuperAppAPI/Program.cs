@@ -1,17 +1,8 @@
 using SuperAppDataRepositories.Ins;
 using SuperAppDataRepositories.Repositories;
 using SuperAppDataRepositories.Data;
-using SuperApp.Application.Common.Mappings;
-using SuperApp.Application.Common.Interfaces;
-using SuperApp.Application.Common.Services;
 using Serilog;
 using System.Text;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.Reflection;
-using AutoMapper;
-using FluentValidation;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 
@@ -67,6 +58,9 @@ namespace SuperAppAPI
 
                     services.AddHttpContextAccessor();
 
+                    // Register AutoMapper
+                    services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
+
                     // TEMPORARY: JWT Authentication disabled for development
                     // Configure JWT Authentication
                     //services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -112,10 +106,6 @@ namespace SuperAppAPI
                     services.AddScoped<IStandardRegistryRepository, StandardRegistryRepository>();
                     services.AddScoped<IUserRepository, UserRepository>();
                     services.AddScoped<IUserProfileRepository, UserProfileRepository>();
-
-                    // Register Application Services
-                    services.AddScoped<IJwtService, JwtService>();
-                    services.AddScoped<IGoogleAuthService, GoogleAuthService>();
 
                     // Register Business Services
                     services.AddScoped<SuperAppServices.Interfaces.IWorkspaceService, SuperAppServices.Services.WorkspaceService>();

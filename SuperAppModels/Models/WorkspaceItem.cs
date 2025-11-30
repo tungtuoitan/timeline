@@ -10,7 +10,7 @@ namespace SuperAppModels.Models
     public class WorkspaceItem : ITimestampEntity
     {
         // Primary Key
-        public long ItemId { get; set; } // maps to: id INT IDENTITY(1,1) PRIMARY KEY
+        public int ItemId { get; set; } // maps to: id INT IDENTITY(1,1) PRIMARY KEY
 
         // Workspace reference
         public int WorkspaceId { get; set; } // maps to: workspace_id INT NOT NULL
@@ -19,7 +19,7 @@ namespace SuperAppModels.Models
         public int? FolderId { get; set; } // maps to: folder_id INT (FK to ws.folders.id)
 
         // Polymorphic item reference
-        public string ItemType { get; set; } = string.Empty; // maps to: item_type TINYINT (2=folder, 3=note, 4=file)
+        public byte ItemType { get; set; } // maps to: item_type TINYINT (2=folder, 3=note, 4=file)
         public int ChildId { get; set; } // maps to: item_id INT (actual folder_id/note_id/file_id)
 
         // Ownership tracking

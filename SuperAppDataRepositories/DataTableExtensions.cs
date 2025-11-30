@@ -12,17 +12,13 @@ namespace SuperAppDataRepositories.Extensions
             dataTable.Columns.Add(new DataColumn { ColumnName = "Id", DataType = typeof(int) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "Name", DataType = typeof(string) });
             dataTable.Columns.Add(new DataColumn { ColumnName = "Description", DataType = typeof(string), AllowDBNull = true });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "Content", DataType = typeof(string), AllowDBNull = true });
             dataTable.Columns.Add(new DataColumn { ColumnName = "UserId", DataType = typeof(int) });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "IsArchived", DataType = typeof(bool) });
 
             DataRow row = dataTable.NewRow();
             row["Id"] = note.NoteId;
             row["Name"] = note.Name;
             row["Description"] = (object?)note.Description ?? DBNull.Value;
-            row["Content"] = (object?)note.Content ?? DBNull.Value;
             row["UserId"] = note.UserId;
-            row["IsArchived"] = note.IsArchived;
 
             dataTable.Rows.Add(row);
             return dataTable;
@@ -32,19 +28,15 @@ namespace SuperAppDataRepositories.Extensions
         {
             DataTable dataTable = new DataTable();
             dataTable.Columns.Add(new DataColumn { ColumnName = "Id", DataType = typeof(int) });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "Code", DataType = typeof(string) });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "Description", DataType = typeof(string) });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "Type", DataType = typeof(string) });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "Active", DataType = typeof(int) });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "CreatedBy", DataType = typeof(string), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "TypeCode", DataType = typeof(string) });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "Description", DataType = typeof(string), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "IsActive", DataType = typeof(bool) });
 
             DataRow row = dataTable.NewRow();
             row["Id"] = standardRegistry.Id;
-            row["Code"] = standardRegistry.Code;
-            row["Description"] = standardRegistry.Description;
-            row["Type"] = standardRegistry.Type;
-            row["Active"] = standardRegistry.Active;
-            row["CreatedBy"] = (object?)standardRegistry.CreatedBy ?? DBNull.Value;
+            row["TypeCode"] = standardRegistry.TypeCode;
+            row["Description"] = (object?)standardRegistry.Description ?? DBNull.Value;
+            row["IsActive"] = standardRegistry.IsActive;
 
             dataTable.Rows.Add(row);
             return dataTable;
@@ -79,24 +71,32 @@ namespace SuperAppDataRepositories.Extensions
         public static DataTable ToDataTable(this UserProfile userProfile)
         {
             DataTable dataTable = new DataTable();
-            dataTable.Columns.Add(new DataColumn { ColumnName = "Email", DataType = typeof(string) });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "AppC", DataType = typeof(string), AllowDBNull = true });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "Parents", DataType = typeof(string), AllowDBNull = true });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "Priorities", DataType = typeof(string), AllowDBNull = true });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "Statuses", DataType = typeof(string), AllowDBNull = true });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "Types", DataType = typeof(string), AllowDBNull = true });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "RepeatTypes", DataType = typeof(string), AllowDBNull = true });
-            dataTable.Columns.Add(new DataColumn { ColumnName = "IsUpdatedTodays", DataType = typeof(string), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "Id", DataType = typeof(int) });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "UserId", DataType = typeof(int) });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "FirstName", DataType = typeof(string), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "LastName", DataType = typeof(string), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "AvatarUrl", DataType = typeof(string), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "Bio", DataType = typeof(string), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "DateOfBirth", DataType = typeof(DateTime), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "Gender", DataType = typeof(string), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "Country", DataType = typeof(string), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "City", DataType = typeof(string), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "Timezone", DataType = typeof(string), AllowDBNull = true });
+            dataTable.Columns.Add(new DataColumn { ColumnName = "Language", DataType = typeof(string), AllowDBNull = true });
 
             DataRow row = dataTable.NewRow();
-            row["Email"] = userProfile.Email;
-            row["AppC"] = (object?)userProfile.AppC ?? DBNull.Value;
-            row["Parents"] = (object?)userProfile.Parents ?? DBNull.Value;
-            row["Priorities"] = (object?)userProfile.Priorities ?? DBNull.Value;
-            row["Statuses"] = (object?)userProfile.Statuses ?? DBNull.Value;
-            row["Types"] = (object?)userProfile.Types ?? DBNull.Value;
-            row["RepeatTypes"] = (object?)userProfile.RepeatTypes ?? DBNull.Value;
-            row["IsUpdatedTodays"] = (object?)userProfile.IsUpdatedTodays ?? DBNull.Value;
+            row["Id"] = userProfile.Id;
+            row["UserId"] = userProfile.UserId;
+            row["FirstName"] = (object?)userProfile.FirstName ?? DBNull.Value;
+            row["LastName"] = (object?)userProfile.LastName ?? DBNull.Value;
+            row["AvatarUrl"] = (object?)userProfile.AvatarUrl ?? DBNull.Value;
+            row["Bio"] = (object?)userProfile.Bio ?? DBNull.Value;
+            row["DateOfBirth"] = (object?)userProfile.DateOfBirth ?? DBNull.Value;
+            row["Gender"] = (object?)userProfile.Gender ?? DBNull.Value;
+            row["Country"] = (object?)userProfile.Country ?? DBNull.Value;
+            row["City"] = (object?)userProfile.City ?? DBNull.Value;
+            row["Timezone"] = (object?)userProfile.Timezone ?? DBNull.Value;
+            row["Language"] = (object?)userProfile.Language ?? DBNull.Value;
 
             dataTable.Rows.Add(row);
             return dataTable;

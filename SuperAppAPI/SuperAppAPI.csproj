@@ -31,7 +31,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\SuperApp.Application\SuperApp.Application.csproj" />
     <ProjectReference Include="..\SuperAppDataRepositories\SuperAppDataRepositories.csproj" />
     <ProjectReference Include="..\SuperAppModels\SuperAppModels.csproj" />
     <ProjectReference Include="..\SuperAppServices\SuperAppServices.csproj" />

@@ -12,83 +12,43 @@ namespace SuperAppDataRepositories.Data.Configurations
     {
         public void Configure(EntityTypeBuilder<SuperAppModels.Models.FileInfo> builder)
         {
-            // Table mapping - dbo schema
-            builder.ToTable("files", "dbo");
+            // Table mapping - ws schema (Workspace)
+            builder.ToTable("files", "ws");
 
             // Primary key
             builder.HasKey(f => f.FileId);
             builder.Property(f => f.FileId)
-                .HasColumnName("file_id")
+                .HasColumnName("id")
                 .ValueGeneratedOnAdd();
 
-            // Properties mapping
+            // Properties - EXACTLY match ws.files schema
             builder.Property(f => f.UserId)
                 .HasColumnName("user_id")
                 .IsRequired();
 
             builder.Property(f => f.Name)
                 .HasColumnName("name")
-                .HasMaxLength(500)
+                .HasMaxLength(255)
                 .IsRequired();
 
-            builder.Property(f => f.OriginalFilename)
-                .HasColumnName("original_filename")
-                .HasMaxLength(500)
-                .IsRequired();
-
-            builder.Property(f => f.FilePath)
-                .HasColumnName("file_path")
-                .HasMaxLength(1000)
-                .IsRequired();
+            builder.Property(f => f.Url)
+                .HasColumnName("url")
+                .HasMaxLength(1000);
 
             builder.Property(f => f.FileSize)
-                .HasColumnName("file_size")
-                .IsRequired();
+                .HasColumnName("file_size");
 
             builder.Property(f => f.MimeType)
                 .HasColumnName("mime_type")
-                .HasMaxLength(100)
-                .IsRequired();
+                .HasMaxLength(100);
 
             builder.Property(f => f.Extension)
                 .HasColumnName("extension")
-                .HasMaxLength(50)
-                .IsRequired();
-
-            builder.Property(f => f.Description)
-                .HasColumnName("description")
-                .HasMaxLength(1000);
-
-            builder.Property(f => f.Slug)
-                .HasColumnName("slug")
-                .HasMaxLength(550);
-
-            builder.Property(f => f.IsPublic)
-                .HasColumnName("is_public")
-                .HasDefaultValue(false);
-
-            builder.Property(f => f.IsArchived)
-                .HasColumnName("is_archived")
-                .HasDefaultValue(false);
-
-            builder.Property(f => f.IsPinned)
-                .HasColumnName("is_pinned")
-                .HasDefaultValue(false);
-
-            builder.Property(f => f.IsFavorite)
-                .HasColumnName("is_favorite")
-                .HasDefaultValue(false);
-
-            builder.Property(f => f.DownloadCount)
-                .HasColumnName("download_count")
-                .HasDefaultValue(0);
-
-            builder.Property(f => f.LastDownloadedAt)
-                .HasColumnName("last_downloaded_at");
+                .HasMaxLength(20);
 
             builder.Property(f => f.CreatedAt)
                 .HasColumnName("created_at")
-                .HasDefaultValueSql("GETDATE()");
+                .HasDefaultValueSql("GETUTCDATE()");
 
             builder.Property(f => f.UpdatedAt)
                 .HasColumnName("updated_at");
@@ -96,18 +56,16 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(f => f.DeletedAt)
                 .HasColumnName("deleted_at");
 
-            // Indexes
+            // Indexes - match schema
             builder.HasIndex(f => f.UserId)
-                .HasDatabaseName("IX_files_user_id");
-
-            builder.HasIndex(f => f.Slug)
-                .HasDatabaseName("IX_files_slug");
-
-            builder.HasIndex(f => f.CreatedAt)
-                .HasDatabaseName("IX_files_created_at");
+                .HasDatabaseName("IX_files_user")
+                .HasFilter("[deleted_at] IS NULL");
 
             builder.HasIndex(f => f.MimeType)
-                .HasDatabaseName("IX_files_mime_type");
+                .HasDatabaseName("IX_files_type");
+
+            builder.HasIndex(f => f.CreatedAt)
+                .HasDatabaseName("IX_files_created");
 
             // Soft delete query filter
             builder.HasQueryFilter(f => f.DeletedAt == null);

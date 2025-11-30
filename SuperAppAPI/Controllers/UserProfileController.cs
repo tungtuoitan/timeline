@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using AutoMapper;
 using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs;
 using SuperAppDataRepositories.Ins;
@@ -13,13 +14,16 @@ namespace SuperAppAPI.Controllers
     {
         private readonly IUserProfileRepository _repository;
         private readonly ILogger<UserProfileController> _logger;
+        private readonly IMapper _mapper;
 
         public UserProfileController(
             IUserProfileRepository repository,
-            ILogger<UserProfileController> logger)
+            ILogger<UserProfileController> logger,
+            IMapper mapper)
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         }
 
         [HttpGet]
@@ -132,21 +136,22 @@ namespace SuperAppAPI.Controllers
                     return BadRequest(ModelState);
                 }
 
-                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
-                var targetEmail = string.IsNullOrEmpty(request.Email) ? userEmail : request.Email;
-
-                _logger.LogInformation("Updating user profile for email: {Email}, AppC: {AppC}",
-                    targetEmail, request.AppC);
-
-                var userProfile = new UserProfile
+                var userIdClaim = User.GetUserId();
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
                 {
-                    Email = targetEmail,
-                    AppC = request.AppC
-                };
+                    _logger.LogWarning("User ID not found or invalid in claims");
+                    return Unauthorized(new { Message = "User ID not found or invalid in authentication token" });
+                }
+
+                _logger.LogInformation("Updating user profile for userId: {UserId}", userId);
+
+                // Map request to UserProfile entity
+                var userProfile = _mapper.Map<UserProfile>(request);
+                userProfile.UserId = userId;
 
                 var result = await _repository.CreateOrUpdateAsync(userProfile);
 
-                _logger.LogInformation("Successfully updated user profile for email: {Email}", targetEmail);
+                _logger.LogInformation("Successfully updated user profile for userId: {UserId}", userId);
                 return Ok(result);
             }
             catch (ArgumentException ex)

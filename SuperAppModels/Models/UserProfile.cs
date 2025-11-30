@@ -1,54 +1,74 @@
 namespace SuperAppModels.Models
 {
     /// <summary>
-    /// Domain model representing user profile configuration
+    /// Domain model representing user profile - EXACTLY matches urm.user_profiles schema
     /// </summary>
     public class UserProfile
     {
         /// <summary>
-        /// User email (identifier)
+        /// Profile ID (Primary Key)
         /// </summary>
-        public string Email { get; set; } = string.Empty;
+        public int Id { get; set; }
 
         /// <summary>
-        /// Application code
+        /// User ID (Foreign Key to urm.users, Unique)
         /// </summary>
-        public string? AppC { get; set; }
+        public int UserId { get; set; }
 
         /// <summary>
-        /// Parents configuration (JSON or comma-separated values)
+        /// First name
         /// </summary>
-        public string? Parents { get; set; }
+        public string? FirstName { get; set; }
 
         /// <summary>
-        /// Priorities configuration (JSON or comma-separated values)
+        /// Last name
         /// </summary>
-        public string? Priorities { get; set; }
+        public string? LastName { get; set; }
 
         /// <summary>
-        /// Statuses configuration (JSON or comma-separated values)
+        /// Avatar URL
         /// </summary>
-        public string? Statuses { get; set; }
+        public string? AvatarUrl { get; set; }
 
         /// <summary>
-        /// Types configuration (JSON or comma-separated values)
+        /// Biography
         /// </summary>
-        public string? Types { get; set; }
+        public string? Bio { get; set; }
 
         /// <summary>
-        /// Repeat types configuration (JSON or comma-separated values)
+        /// Date of birth
         /// </summary>
-        public string? RepeatTypes { get; set; }
+        public DateTime? DateOfBirth { get; set; }
 
         /// <summary>
-        /// Update status for today
+        /// Gender
         /// </summary>
-        public string? IsUpdatedTodays { get; set; }
+        public string? Gender { get; set; }
+
+        /// <summary>
+        /// Country
+        /// </summary>
+        public string? Country { get; set; }
+
+        /// <summary>
+        /// City
+        /// </summary>
+        public string? City { get; set; }
+
+        /// <summary>
+        /// Timezone (default: UTC)
+        /// </summary>
+        public string? Timezone { get; set; } = "UTC";
+
+        /// <summary>
+        /// Language (default: en)
+        /// </summary>
+        public string? Language { get; set; } = "en";
 
         /// <summary>
         /// When the profile was created (UTC)
         /// </summary>
-        public DateTime CreatedAt { get; set; }
+        public DateTime? CreatedAt { get; set; }
 
         /// <summary>
         /// When the profile was last updated (UTC)
@@ -56,9 +76,9 @@ namespace SuperAppModels.Models
         public DateTime? UpdatedAt { get; set; }
 
         /// <summary>
-        /// Whether the profile is active
+        /// Navigation property to User
         /// </summary>
-        public bool IsActive { get; set; } = true;
+        public User User { get; set; } = null!;
 
         /// <summary>
         /// Default constructor
@@ -66,46 +86,46 @@ namespace SuperAppModels.Models
         public UserProfile()
         {
             CreatedAt = DateTime.UtcNow;
+            Timezone = "UTC";
+            Language = "en";
         }
 
         /// <summary>
-        /// Constructor with email
+        /// Constructor with user ID
         /// </summary>
-        /// <param name="email">User email</param>
-        public UserProfile(string email) : this()
+        /// <param name="userId">User ID</param>
+        public UserProfile(int userId) : this()
         {
-            Email = email ?? throw new ArgumentNullException(nameof(email));
+            UserId = userId;
         }
 
         /// <summary>
-        /// Updates the profile configuration
+        /// Updates the profile information
         /// </summary>
-        public void UpdateConfiguration(
-            string? parents = null,
-            string? priorities = null,
-            string? statuses = null,
-            string? types = null,
-            string? repeatTypes = null,
-            string? isUpdatedTodays = null)
+        public void Update(
+            string? firstName = null,
+            string? lastName = null,
+            string? avatarUrl = null,
+            string? bio = null,
+            DateTime? dateOfBirth = null,
+            string? gender = null,
+            string? country = null,
+            string? city = null,
+            string? timezone = null,
+            string? language = null)
         {
-            if (parents != null) Parents = parents;
-            if (priorities != null) Priorities = priorities;
-            if (statuses != null) Statuses = statuses;
-            if (types != null) Types = types;
-            if (repeatTypes != null) RepeatTypes = repeatTypes;
-            if (isUpdatedTodays != null) IsUpdatedTodays = isUpdatedTodays;
+            if (firstName != null) FirstName = firstName;
+            if (lastName != null) LastName = lastName;
+            if (avatarUrl != null) AvatarUrl = avatarUrl;
+            if (bio != null) Bio = bio;
+            if (dateOfBirth != null) DateOfBirth = dateOfBirth;
+            if (gender != null) Gender = gender;
+            if (country != null) Country = country;
+            if (city != null) City = city;
+            if (timezone != null) Timezone = timezone;
+            if (language != null) Language = language;
             
             UpdatedAt = DateTime.UtcNow;
         }
-
-        /// <summary>
-        /// Checks if the profile has any configuration data
-        /// </summary>
-        public bool HasConfiguration => 
-            !string.IsNullOrWhiteSpace(Parents) ||
-            !string.IsNullOrWhiteSpace(Priorities) ||
-            !string.IsNullOrWhiteSpace(Statuses) ||
-            !string.IsNullOrWhiteSpace(Types) ||
-            !string.IsNullOrWhiteSpace(RepeatTypes);
     }
 }

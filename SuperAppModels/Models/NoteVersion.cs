@@ -50,25 +50,6 @@ namespace SuperAppModels.Models
         }
 
         /// <summary>
-        /// Creates version from existing note
-        /// </summary>
-        public static NoteVersion CreateFromNote(Note note, int versionNumber, int createdBy, string? changeSummary = null)
-        {
-            return new NoteVersion
-            {
-                NoteId = note.NoteId,
-                VersionNumber = versionNumber,
-                Name = note.Name,
-                Description = note.Description,
-                Content = note.Content,
-                WordCount = note.WordCount,
-                ChangeSummary = changeSummary,
-                CreatedBy = createdBy,
-                CreatedAt = DateTime.UtcNow
-            };
-        }
-
-        /// <summary>
         /// Updates change summary
         /// </summary>
         public void SetChangeSummary(string changeSummary)

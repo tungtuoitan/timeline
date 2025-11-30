@@ -2,30 +2,23 @@ namespace SuperAppModels.Models
 {
     public class User : ITimestampEntity
     {
-        // Database columns - must match exactly with 'users' table schema
-        public int UserId { get; set; } // PRIMARY KEY: user_id
-        public string Email { get; set; } = string.Empty; // UNIQUE NOT NULL
-        public string Username { get; set; } = string.Empty; // UNIQUE NOT NULL
-        public string PasswordHash { get; set; } = string.Empty; // NOT NULL
-        
-        // Profile fields
-        public string? DisplayName { get; set; } // display_name
-        public string? AvatarUrl { get; set; } // avatar_url
-        public string? Bio { get; set; } // bio
-        public string? Preferences { get; set; } // preferences (JSON)
+        // Database columns - EXACTLY match urm.users schema from REBUILD_SIMPLIFIED_SCHEMA.sql
+        public int UserId { get; set; } // id (PRIMARY KEY)
+        public string Email { get; set; } = string.Empty; // email (UNIQUE NOT NULL)
+        public string? Phone { get; set; } // phone
+        public string Password { get; set; } = string.Empty; // password (NOT NULL)
+        public string AuthType { get; set; } = "local"; // auth_type ('local', 'google', 'facebook')
         
         // Status flags
         public bool IsActive { get; set; } = true; // is_active
-        public bool EmailVerified { get; set; } // email_verified
         
         // Timestamps (ITimestampEntity)
+        public DateTime? LastLoginAt { get; set; } // last_login_at
         public DateTime? CreatedAt { get; set; } // created_at
         public DateTime? UpdatedAt { get; set; } // updated_at
-        public DateTime? LastLoginAt { get; set; } // last_login_at
         public DateTime? DeletedAt { get; set; } // deleted_at (soft delete)
         
         // Navigation properties for EF Core
-        public ICollection<Tag> Tags { get; set; } = new List<Tag>();
         public ICollection<Workspace> Workspaces { get; set; } = new List<Workspace>();
         public ICollection<Note> Notes { get; set; } = new List<Note>();
 
@@ -33,25 +26,13 @@ namespace SuperAppModels.Models
         {
             CreatedAt = DateTime.UtcNow;
             IsActive = true;
-            EmailVerified = false;
+            AuthType = "local";
         }
 
-        public User(string username, string email, string passwordHash) : this()
+        public User(string email, string password) : this()
         {
-            Username = username ?? throw new ArgumentNullException(nameof(username));
             Email = email ?? throw new ArgumentNullException(nameof(email));
-            PasswordHash = passwordHash ?? throw new ArgumentNullException(nameof(passwordHash));
-        }
-
-        /// <summary>
-        /// Updates user profile information
-        /// </summary>
-        public void UpdateProfile(string? displayName, string? bio, string? avatarUrl = null)
-        {
-            DisplayName = displayName;
-            Bio = bio;
-            AvatarUrl = avatarUrl;
-            UpdatedAt = DateTime.UtcNow;
+            Password = password ?? throw new ArgumentNullException(nameof(password));
         }
 
         /// <summary>
@@ -60,6 +41,7 @@ namespace SuperAppModels.Models
         public void RecordLogin()
         {
             LastLoginAt = DateTime.UtcNow;
+            UpdatedAt = DateTime.UtcNow;
         }
 
         /// <summary>
@@ -69,14 +51,15 @@ namespace SuperAppModels.Models
         {
             IsActive = false;
             DeletedAt = DateTime.UtcNow;
+            UpdatedAt = DateTime.UtcNow;
         }
 
         /// <summary>
-        /// Verifies user email
+        /// Updates password
         /// </summary>
-        public void VerifyEmail()
+        public void UpdatePassword(string newPassword)
         {
-            EmailVerified = true;
+            Password = newPassword ?? throw new ArgumentNullException(nameof(newPassword));
             UpdatedAt = DateTime.UtcNow;
         }
     }

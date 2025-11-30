@@ -14,52 +14,39 @@ namespace SuperAppDataRepositories.Data.Configurations
             // Primary key
             builder.HasKey(u => u.UserId);
             builder.Property(u => u.UserId)
-                .HasColumnName("user_id")
+                .HasColumnName("id")
                 .ValueGeneratedOnAdd();
 
-            // Properties
-            builder.Property(u => u.Username)
-                .HasColumnName("username")
-                .HasMaxLength(255);
-
+            // Properties - EXACTLY match urm.users schema
             builder.Property(u => u.Email)
                 .HasColumnName("email")
-                .HasMaxLength(255);
+                .HasMaxLength(255)
+                .IsRequired();
 
-            builder.Property(u => u.PasswordHash)
-                .HasColumnName("password_hash")
-                .HasMaxLength(255);
+            builder.Property(u => u.Phone)
+                .HasColumnName("phone")
+                .HasMaxLength(20);
 
-            builder.Property(u => u.DisplayName)
-                .HasColumnName("display_name")
-                .HasMaxLength(255);
+            builder.Property(u => u.Password)
+                .HasColumnName("password")
+                .HasMaxLength(255)
+                .IsRequired();
 
-            builder.Property(u => u.AvatarUrl)
-                .HasColumnName("avatar_url")
-                .HasMaxLength(500);
-
-            builder.Property(u => u.Bio)
-                .HasColumnName("bio")
-                .HasMaxLength(1000);
-
-            builder.Property(u => u.Preferences)
-                .HasColumnName("preferences")
-                .HasColumnType("nvarchar(max)");
-
-            builder.Property(u => u.EmailVerified)
-                .HasColumnName("email_verified")
-                .HasDefaultValue(false);
-
-            builder.Property(u => u.LastLoginAt)
-                .HasColumnName("last_login_at");
+            builder.Property(u => u.AuthType)
+                .HasColumnName("auth_type")
+                .HasMaxLength(50)
+                .HasDefaultValue("local");
 
             builder.Property(u => u.IsActive)
                 .HasColumnName("is_active")
                 .HasDefaultValue(true);
 
+            builder.Property(u => u.LastLoginAt)
+                .HasColumnName("last_login_at");
+
             builder.Property(u => u.CreatedAt)
                 .HasColumnName("created_at")
-                .HasDefaultValueSql("GETDATE()");
+                .HasDefaultValueSql("GETUTCDATE()");
 
             builder.Property(u => u.UpdatedAt)
                 .HasColumnName("updated_at");
@@ -67,19 +54,13 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(u => u.DeletedAt)
                 .HasColumnName("deleted_at");
 
-            // Indexes
+            // Indexes - match schema
             builder.HasIndex(u => u.Email)
                 .HasDatabaseName("IX_users_email")
-                .IsUnique()
                 .HasFilter("[deleted_at] IS NULL");
 
-            builder.HasIndex(u => u.Username)
-                .HasDatabaseName("IX_users_username")
-                .IsUnique()
-                .HasFilter("[deleted_at] IS NULL");
-
-            builder.HasIndex(u => u.IsActive)
-                .HasDatabaseName("IX_users_is_active")
+            builder.HasIndex(u => u.Phone)
+                .HasDatabaseName("IX_users_phone")
                 .HasFilter("[deleted_at] IS NULL");
 
             // Soft delete query filter

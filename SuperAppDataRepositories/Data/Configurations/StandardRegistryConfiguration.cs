@@ -9,7 +9,7 @@ public class StandardRegistryConfiguration : IEntityTypeConfiguration<StandardRe
     public void Configure(EntityTypeBuilder<StandardRegistry> builder)
     {
         // Table mapping - dbo schema
-        builder.ToTable("standard_registry", "dbo");
+        builder.ToTable("standard_registries", "dbo");
 
         // Primary key
         builder.HasKey(sr => sr.Id);
@@ -17,53 +17,31 @@ public class StandardRegistryConfiguration : IEntityTypeConfiguration<StandardRe
             .HasColumnName("id")
             .ValueGeneratedOnAdd();
 
-        // Registry properties
-        builder.Property(sr => sr.Code)
-            .HasColumnName("code")
+        // Properties - EXACTLY match dbo.standard_registries schema
+        builder.Property(sr => sr.TypeCode)
+            .HasColumnName("type_code")
             .HasMaxLength(100)
             .IsRequired();
 
         builder.Property(sr => sr.Description)
             .HasColumnName("description")
-            .HasMaxLength(500)
-            .IsRequired();
+            .HasMaxLength(500);
 
-        builder.Property(sr => sr.Type)
-            .HasColumnName("type")
-            .HasMaxLength(100)
-            .IsRequired();
-
-        // Status
-        builder.Property(sr => sr.Active)
-            .HasColumnName("active")
-            .HasDefaultValue(1);
+        builder.Property(sr => sr.IsActive)
+            .HasColumnName("is_active")
+            .HasDefaultValue(true);
 
         // Timestamps
         builder.Property(sr => sr.CreatedAt)
             .HasColumnName("created_at")
-            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            .HasDefaultValueSql("GETUTCDATE()");
 
         builder.Property(sr => sr.UpdatedAt)
             .HasColumnName("updated_at");
 
-        builder.Property(sr => sr.CreatedBy)
-            .HasColumnName("created_by")
-            .HasMaxLength(255);
-
         // Indexes
-        builder.HasIndex(sr => sr.Code)
-            .HasDatabaseName("ix_standard_registry_code")
+        builder.HasIndex(sr => sr.TypeCode)
+            .HasDatabaseName("UQ_standard_registries_type_code")
             .IsUnique();
-
-        builder.HasIndex(sr => sr.Type)
-            .HasDatabaseName("ix_standard_registry_type");
-
-        builder.HasIndex(sr => sr.Active)
-            .HasDatabaseName("ix_standard_registry_active")
-            .HasFilter("active = 1");
-
-        // Composite index for type/code lookups
-        builder.HasIndex(sr => new { sr.Type, sr.Code })
-            .HasDatabaseName("ix_standard_registry_type_code");
     }
 }
