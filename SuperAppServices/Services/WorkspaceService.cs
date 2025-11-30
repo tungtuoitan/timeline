@@ -28,6 +28,31 @@ namespace SuperAppServices.Services
         }
 
         /// <summary>
+        /// Gets all workspaces for a user
+        /// </summary>
+        public async Task<List<WorkspaceListResponse>> GetAllUserWorkspacesAsync(int userId)
+        {
+            try
+            {
+                _logger.LogInformation("Getting all workspaces for UserId: {UserId}", userId);
+
+                var workspaces = await _workspaceRepository.GetAllWorkspacesByUserIdAsync(userId);
+
+                var response = _mapper.Map<List<WorkspaceListResponse>>(workspaces);
+
+                _logger.LogInformation("Successfully retrieved {Count} workspaces for user {UserId}",
+                    response.Count, userId);
+
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while getting workspaces for UserId: {UserId}", userId);
+                throw;
+            }
+        }
+
+        /// <summary>
         /// Gets workspace tree with all items (tags, notes, files)
         /// </summary>
         public async Task<WorkspaceWithTreeResponse> GetWorkspaceTreeAsync(int workspaceId, int userId)
@@ -165,17 +190,21 @@ namespace SuperAppServices.Services
         /// <summary>
         /// Creates a new folder in a workspace
         /// </summary>
-        public async Task<ResultOptions> CreateFolderAsync(int workspaceId, int userId, CreateFolderRequest request)
+        public async Task<ResultOptions> UpsertFolderAsync(int workspaceId, int userId, UpsertFolderRequest request)
         {
             try
             {
-                _logger.LogInformation("Creating folder '{Name}' in workspace {WorkspaceId} for user {UserId}",
-                    request.Name, workspaceId, userId);
+                var isUpdate = request.FolderId.HasValue;
+                var action = isUpdate ? "Updating" : "Creating";
+                
+                _logger.LogInformation("{Action} folder '{Name}' in workspace {WorkspaceId} for user {UserId}",
+                    action, request.Name, workspaceId, userId);
 
-                // Call repository to create folder
-                var result = await _workspaceRepository.CreateFolderAsync(
+                // Call repository to upsert folder
+                var result = await _workspaceRepository.UpsertFolderAsync(
                     workspaceId,
                     userId,
+                    request.FolderId,
                     request.Name,
                     request.Description,
                     request.Color,
@@ -186,34 +215,124 @@ namespace SuperAppServices.Services
                 // Check if repository operation was successful
                 if (!result.Success)
                 {
-                    _logger.LogWarning("Repository failed to create folder: {Message}", result.Message);
+                    _logger.LogWarning("Repository failed to {Action} folder: {Message}", action.ToLower(), result.Message);
                     return result;
                 }
 
                 // Map folder object to response DTO
                 var folderResponse = _mapper.Map<FolderResponse>(result.Object);
 
-                _logger.LogInformation("Successfully created folder {FolderId} in workspace {WorkspaceId}",
-                    result.Reference, workspaceId);
+                var successMessage = isUpdate ? "Folder updated successfully" : "Folder created successfully";
+                _logger.LogInformation("Successfully {Action} folder {FolderId} in workspace {WorkspaceId}",
+                    action.ToLower(), result.Reference, workspaceId);
 
                 // Return ResultOptions with mapped response
                 return new ResultOptions
                 {
                     Success = true,
-                    Message = "Folder created successfully",
+                    Message = successMessage,
                     Reference = result.Reference,
                     Object = folderResponse,
-                    Status = 201
+                    Status = isUpdate ? 200 : 201
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error creating folder '{Name}' in workspace {WorkspaceId}",
+                _logger.LogError(ex, "Error upserting folder '{Name}' in workspace {WorkspaceId}",
                     request.Name, workspaceId);
                 return new ResultOptions
                 {
                     Success = false,
-                    Message = "An error occurred while creating folder",
+                    Message = "An error occurred while upserting folder",
+                    Status = 500
+                };
+            }
+        }
+
+        /// <summary>
+        /// Moves multiple workspace items (folders/notes/files) with cascade support
+        /// </summary>
+        public async Task<ResultOptions> MoveItemsAsync(int workspaceId, int userId, MoveItemsRequest request)
+        {
+            try
+            {
+                _logger.LogInformation("Moving {Count} items in workspace {WorkspaceId} for user {UserId}",
+                    request.Items.Count, workspaceId, userId);
+
+                // Convert request items to tuple list
+                var items = request.Items
+                    .Select(i => (i.ItemType, i.ItemId))
+                    .ToList();
+
+                // Call repository
+                var result = await _workspaceRepository.MoveItemsAsync(
+                    workspaceId,
+                    items,
+                    request.TargetFolderId,
+                    request.TargetWorkspaceId
+                );
+
+                if (result.Success)
+                {
+                    _logger.LogInformation("Successfully moved {Count} items in workspace {WorkspaceId}",
+                        request.Items.Count, workspaceId);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to move items: {Message}", result.Message);
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error moving items in workspace {WorkspaceId}", workspaceId);
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = "An error occurred while moving items",
+                    Status = 500
+                };
+            }
+        }
+
+        /// <summary>
+        /// Deletes multiple workspace items (folders/notes/files) with cascade support
+        /// </summary>
+        public async Task<ResultOptions> DeleteItemsAsync(int workspaceId, int userId, DeleteItemsRequest request)
+        {
+            try
+            {
+                _logger.LogInformation("Deleting {Count} items in workspace {WorkspaceId} for user {UserId}",
+                    request.Items.Count, workspaceId, userId);
+
+                // Convert request items to tuple list
+                var items = request.Items
+                    .Select(i => (i.ItemType, i.ItemId))
+                    .ToList();
+
+                // Call repository
+                var result = await _workspaceRepository.DeleteItemsAsync(workspaceId, items);
+
+                if (result.Success)
+                {
+                    _logger.LogInformation("Successfully deleted {Count} items in workspace {WorkspaceId}",
+                        request.Items.Count, workspaceId);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to delete items: {Message}", result.Message);
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting items in workspace {WorkspaceId}", workspaceId);
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = "An error occurred while deleting items",
                     Status = 500
                 };
             }

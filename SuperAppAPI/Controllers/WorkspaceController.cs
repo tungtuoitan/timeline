@@ -25,19 +25,42 @@ namespace SuperAppAPI.Controllers
         }
 
         /// <summary>
+        /// Gets all workspaces for the current user
+        /// </summary>
+        /// <response code="200">Workspaces retrieved successfully</response>
+        /// <response code="401">Unauthorized - invalid or missing token</response>
+        /// <response code="500">Internal server error</response>
+        [HttpGet]
+        [ProducesResponseType(typeof(List<WorkspaceListResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetAllUserWorkspaces()
+        {
+            try
+            {
+                // TEMPORARY: Using hardcoded userId while auth is disabled
+                var userId = 1; // Hardcoded for development
+
+                _logger.LogInformation("Retrieving all workspaces for userId: {UserId}", userId);
+
+                var response = await _workspaceService.GetAllUserWorkspacesAsync(userId);
+
+                _logger.LogInformation("Successfully retrieved {Count} workspaces for userId: {UserId}",
+                    response.Count, userId);
+
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error occurred while retrieving workspaces");
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    new { Message = "An error occurred while retrieving workspaces" });
+            }
+        }
+
+        /// <summary>
         /// Gets workspace information with its complete hierarchical tree (tags, notes, and files)
         /// </summary>
-        /// <param name="workspaceId">Workspace ID</param>
-        /// <returns>Workspace details with hierarchical tree structure (polymorphic: tags, notes, files)</returns>
-        /// <remarks>
-        /// Returns a workspace with its complete hierarchical structure including:
-        /// - Tags organized in parent-child relationships
-        /// - Notes attached to tags
-        /// - Files attached to tags
-        /// 
-        /// The tree structure is polymorphic, meaning each node can be a tag, note, or file.
-        /// Root items (items without parent) are returned at the top level.
-        /// </remarks>
         /// <response code="200">Workspace tree retrieved successfully</response>
         /// <response code="400">Invalid workspace ID</response>
         /// <response code="401">Unauthorized - invalid or missing token</response>
@@ -93,54 +116,18 @@ namespace SuperAppAPI.Controllers
         }
 
         /// <summary>
-        /// Creates a new folder in a workspace
+        /// Creates a new folder or updates an existing folder in a workspace
         /// </summary>
-        /// <param name="workspaceId">Workspace ID</param>
-        /// <param name="request">Create folder request</param>
-        /// <returns>Result with created folder details</returns>
-        /// <remarks>
-        /// Creates a new folder in the specified workspace.
-        ///
-        /// Example request:
-        ///
-        ///     POST /api/workspace/1/folders
-        ///     {
-        ///        "name": "My Folder",
-        ///        "description": "Optional description",
-        ///        "color": "#F59E0B",
-        ///        "icon": "📁",
-        ///        "parentFolderId": null
-        ///     }
-        ///
-        /// Example response:
-        ///
-        ///     {
-        ///        "success": true,
-        ///        "message": "Folder created successfully",
-        ///        "object": {
-        ///            "id": 123,
-        ///            "userId": 1,
-        ///            "name": "My Folder",
-        ///            "description": "Optional description",
-        ///            "color": "#F59E0B",
-        ///            "icon": "📁",
-        ///            "createdAt": "2025-11-30T10:30:00Z",
-        ///            "updatedAt": null
-        ///        },
-        ///        "status": 200
-        ///     }
-        ///
-        /// </remarks>
-        /// <response code="200">Folder created successfully</response>
+        /// <response code="200">Folder created/updated successfully</response>
         /// <response code="400">Invalid request data</response>
-        /// <response code="404">Workspace not found</response>
+        /// <response code="404">Workspace or folder not found</response>
         /// <response code="500">Internal server error</response>
         [HttpPost("{workspaceId}/folders")]
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> CreateFolder(int workspaceId, [FromBody] CreateFolderRequest request)
+        public async Task<IActionResult> UpsertFolder(int workspaceId, [FromBody] UpsertFolderRequest request)
         {
             if (workspaceId <= 0)
             {
@@ -155,7 +142,7 @@ namespace SuperAppAPI.Controllers
 
             if (!ModelState.IsValid)
             {
-                _logger.LogWarning("Invalid model state for create folder request");
+                _logger.LogWarning("Invalid model state for upsert folder request");
                 return BadRequest(new ResultOptions
                 {
                     Success = false,
@@ -168,10 +155,123 @@ namespace SuperAppAPI.Controllers
             // TEMPORARY: Using hardcoded userId while auth is disabled
             var userId = 1; // Hardcoded for development
 
-            _logger.LogInformation("Creating folder '{Name}' in workspace {WorkspaceId} for user {UserId}",
-                request.Name, workspaceId, userId);
+            var action = request.FolderId.HasValue ? "Updating" : "Creating";
+            _logger.LogInformation("{Action} folder '{Name}' in workspace {WorkspaceId} for user {UserId}",
+                action, request.Name, workspaceId, userId);
 
-            var result = await _workspaceService.CreateFolderAsync(workspaceId, userId, request);
+            var result = await _workspaceService.UpsertFolderAsync(workspaceId, userId, request);
+
+            // Return appropriate status code based on result
+            if (result.Success)
+            {
+                return Ok(result);
+            }
+            else
+            {
+                return StatusCode(result.Status ?? 500, result);
+            }
+        }
+
+        /// <summary>
+        /// Moves multiple workspace items (folders/notes/files) with cascade support
+        /// </summary>
+        /// <response code="200">Items moved successfully</response>
+        /// <response code="400">Invalid request data</response>
+        /// <response code="404">Workspace or items not found</response>
+        /// <response code="500">Internal server error</response>
+        [HttpPatch("{workspaceId}/items/move")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> MoveItems(int workspaceId, [FromBody] MoveItemsRequest request)
+        {
+            if (workspaceId <= 0)
+            {
+                _logger.LogWarning("Invalid workspace ID provided: {WorkspaceId}", workspaceId);
+                return BadRequest(new ResultOptions
+                {
+                    Success = false,
+                    Message = "Workspace ID must be a positive integer",
+                    Status = 400
+                });
+            }
+
+            if (!ModelState.IsValid)
+            {
+                _logger.LogWarning("Invalid model state for move items request");
+                return BadRequest(new ResultOptions
+                {
+                    Success = false,
+                    Message = "Invalid request data",
+                    Object = ModelState,
+                    Status = 400
+                });
+            }
+
+            // TEMPORARY: Using hardcoded userId while auth is disabled
+            var userId = 1; // Hardcoded for development
+
+            _logger.LogInformation("Moving {Count} items in workspace {WorkspaceId} for user {UserId}",
+                request.Items.Count, workspaceId, userId);
+
+            var result = await _workspaceService.MoveItemsAsync(workspaceId, userId, request);
+
+            // Return appropriate status code based on result
+            if (result.Success)
+            {
+                return Ok(result);
+            }
+            else
+            {
+                return StatusCode(result.Status ?? 500, result);
+            }
+        }
+
+        /// <summary>
+        /// Deletes multiple workspace items (folders/notes/files) with cascade support
+        /// </summary>
+        /// <response code="200">Items deleted successfully</response>
+        /// <response code="400">Invalid request data</response>
+        /// <response code="404">Workspace or items not found</response>
+        /// <response code="500">Internal server error</response>
+        [HttpDelete("{workspaceId}/items")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> DeleteItems(int workspaceId, [FromBody] DeleteItemsRequest request)
+        {
+            if (workspaceId <= 0)
+            {
+                _logger.LogWarning("Invalid workspace ID provided: {WorkspaceId}", workspaceId);
+                return BadRequest(new ResultOptions
+                {
+                    Success = false,
+                    Message = "Workspace ID must be a positive integer",
+                    Status = 400
+                });
+            }
+
+            if (!ModelState.IsValid)
+            {
+                _logger.LogWarning("Invalid model state for delete items request");
+                return BadRequest(new ResultOptions
+                {
+                    Success = false,
+                    Message = "Invalid request data",
+                    Object = ModelState,
+                    Status = 400
+                });
+            }
+
+            // TEMPORARY: Using hardcoded userId while auth is disabled
+            var userId = 1; // Hardcoded for development
+
+            _logger.LogInformation("Deleting {Count} items in workspace {WorkspaceId} for user {UserId}",
+                request.Items.Count, workspaceId, userId);
+
+            var result = await _workspaceService.DeleteItemsAsync(workspaceId, userId, request);
 
             // Return appropriate status code based on result
             if (result.Success)

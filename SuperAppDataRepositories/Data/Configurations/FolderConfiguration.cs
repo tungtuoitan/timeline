@@ -76,7 +76,8 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasForeignKey(f => f.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // WorkspaceItem relationships are handled in WorkspaceItemConfiguration
+            // Ignore polymorphic navigation (managed via WorkspaceItem.ItemType)
+            builder.Ignore(f => f.WorkspaceItems);
         }
     }
 }

@@ -24,12 +24,17 @@ namespace SuperAppModels.Models
         public Workspace Workspace { get; set; } = null!;
         public Folder? Folder { get; set; } // Parent folder (nullable for root items)
 
-        // Polymorphic navigation (based on ItemType)
+        // Polymorphic navigation (based on ItemType) - NOT MAPPED to database
         // ItemType = 2: Folder
         // ItemType = 3: Note
         // ItemType = 4: File
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
         public Folder? ChildFolder { get; set; }
+        
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
         public Note? ChildNote { get; set; }
+        
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
         public File? ChildFile { get; set; }
 
         public WorkspaceItem()

@@ -76,6 +76,9 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .WithMany()
                 .HasForeignKey(f => f.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Ignore polymorphic navigation (managed via WorkspaceItem.ItemType)
+            builder.Ignore(f => f.WorkspaceItems);
         }
     }
 }

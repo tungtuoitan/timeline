@@ -4,12 +4,17 @@ using SuperAppModels.DTOs.Requests;
 namespace SuperAppServices.Validators
 {
     /// <summary>
-    /// Validator for CreateFolderRequest
+    /// Validator for UpsertFolderRequest
     /// </summary>
-    public class CreateFolderRequestValidator : AbstractValidator<CreateFolderRequest>
+    public class UpsertFolderRequestValidator : AbstractValidator<UpsertFolderRequest>
     {
-        public CreateFolderRequestValidator()
+        public UpsertFolderRequestValidator()
         {
+            RuleFor(x => x.FolderId)
+                .GreaterThan(0)
+                .WithMessage("Folder ID must be positive")
+                .When(x => x.FolderId.HasValue);
+
             RuleFor(x => x.Name)
                 .NotEmpty()
                 .WithMessage("Folder name is required")

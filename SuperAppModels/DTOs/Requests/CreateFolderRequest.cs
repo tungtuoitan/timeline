@@ -3,10 +3,16 @@ using System.ComponentModel.DataAnnotations;
 namespace SuperAppModels.DTOs.Requests
 {
     /// <summary>
-    /// Request DTO for creating a new folder
+    /// Request DTO for creating or updating a folder
     /// </summary>
-    public class CreateFolderRequest
+    public class UpsertFolderRequest
     {
+        /// <summary>
+        /// Folder ID (optional for create, required for update)
+        /// </summary>
+        [Range(1, int.MaxValue, ErrorMessage = "Folder ID must be positive")]
+        public int? FolderId { get; set; }
+
         /// <summary>
         /// Folder name (required, max 255 characters)
         /// </summary>
