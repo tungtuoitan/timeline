@@ -29,7 +29,7 @@ namespace SuperApp.Application.Features.StandardRegistry.Queries.GetRegistryById
             {
                 _logger.LogInformation("Getting standard registry with ID: {Id}", request.Id);
 
-                var registry = await _standardRegistryRepository.GetStandardRegistryById(request.Id);
+                var registry = await _standardRegistryRepository.GetByIdAsync(request.Id);
 
                 if (registry != null)
                 {

@@ -52,7 +52,7 @@ namespace SuperAppAPI.Controllers
                 _logger.LogInformation("Getting standard registries for user: {UserEmail}, Type: {Type}", 
                     userEmail, type);
 
-                var registries = await _repository.GetStandardRegistries(type);
+                var registries = await _repository.GetAllAsync(type ?? "");
 
                 _logger.LogInformation("Successfully retrieved {RegistryCount} standard registries for user: {UserEmail}", 
                     registries?.Count ?? 0, userEmail);
@@ -116,7 +116,7 @@ namespace SuperAppAPI.Controllers
 
                 // Get all registries and find the specific one by ID
                 // TODO: Add a method to repository to get by ID directly for better performance
-                var allRegistries = await _repository.GetStandardRegistries(null);
+                var allRegistries = await _repository.GetAllAsync("");
                 var registry = allRegistries?.FirstOrDefault(r => r.Id == id);
 
                 if (registry == null)

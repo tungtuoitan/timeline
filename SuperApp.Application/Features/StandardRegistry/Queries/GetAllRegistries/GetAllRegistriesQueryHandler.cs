@@ -29,7 +29,7 @@ namespace SuperApp.Application.Features.StandardRegistry.Queries.GetAllRegistrie
             {
                 _logger.LogInformation("Getting all standard registries");
 
-                var registries = await _standardRegistryRepository.GetAllStandardRegistry();
+                var registries = await _standardRegistryRepository.GetAllAsync("");
                 var response = _mapper.Map<List<StandardRegistryResponse>>(registries);
 
                 _logger.LogInformation("Successfully retrieved {Count} standard registries", response.Count);

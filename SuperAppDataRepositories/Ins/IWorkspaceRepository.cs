@@ -14,5 +14,10 @@ namespace SuperAppDataRepositories.Ins
         /// <param name="userId">User ID for access validation</param>
         /// <returns>Workspace with hierarchical tree structure</returns>
         Task<WorkspaceWithTree?> GetWorkspaceTreeAsync(int workspaceId, int userId);
+
+        /// <summary>
+        /// Gets workspace by ID
+        /// </summary>
+        Task<Workspace?> GetWorkspaceByIdAsync(int workspaceId, int userId);
     }
 }
