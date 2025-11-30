@@ -17,8 +17,8 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.ToTable("folders", "ws");
 
             // Primary key
-            builder.HasKey(f => f.FolderId);
-            builder.Property(f => f.FolderId)
+            builder.HasKey(f => f.Id);
+            builder.Property(f => f.Id)
                 .HasColumnName("id")
                 .ValueGeneratedOnAdd();
 

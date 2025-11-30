@@ -12,8 +12,8 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.ToTable("users", "urm");
 
             // Primary key
-            builder.HasKey(u => u.UserId);
-            builder.Property(u => u.UserId)
+            builder.HasKey(u => u.Id);
+            builder.Property(u => u.Id)
                 .HasColumnName("id")
                 .ValueGeneratedOnAdd();
 

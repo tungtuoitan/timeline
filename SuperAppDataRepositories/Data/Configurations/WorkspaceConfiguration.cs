@@ -12,8 +12,8 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.ToTable("workspaces", "ws");
 
             // Primary key
-            builder.HasKey(w => w.WorkspaceId);
-            builder.Property(w => w.WorkspaceId)
+            builder.HasKey(w => w.Id);
+            builder.Property(w => w.Id)
                 .HasColumnName("id")
                 .ValueGeneratedOnAdd();
 
@@ -41,21 +41,6 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(w => w.DeletedAt)
                 .HasColumnName("deleted_at");
 
-            // IGNORE properties that DON'T exist in DB
-            builder.Ignore(w => w.Color);
-            builder.Ignore(w => w.Icon);
-            builder.Ignore(w => w.Type);
-            builder.Ignore(w => w.MaxDepth);
-            builder.Ignore(w => w.IsDefault);
-            builder.Ignore(w => w.IsPublic);
-            builder.Ignore(w => w.IsTemplate);
-            builder.Ignore(w => w.IsArchived);
-            builder.Ignore(w => w.TagCount);
-            builder.Ignore(w => w.RelationshipCount);
-            builder.Ignore(w => w.MemberCount);
-            builder.Ignore(w => w.Settings);
-            builder.Ignore(w => w.LastAccessedAt);
-
             // Indexes
             builder.HasIndex(w => w.UserId)
                 .HasDatabaseName("IX_workspaces_user")
@@ -74,10 +59,6 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .WithOne(wi => wi.Workspace)
                 .HasForeignKey(wi => wi.WorkspaceId)
                 .OnDelete(DeleteBehavior.Cascade);
-
-            // IGNORE navigation properties for tables that don't exist
-            builder.Ignore(w => w.Members);
-            builder.Ignore(w => w.RelationshipTypes);
         }
     }
 }

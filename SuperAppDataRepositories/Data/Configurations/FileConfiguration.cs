@@ -5,19 +5,20 @@ using SuperAppModels.Models;
 namespace SuperAppDataRepositories.Data.Configurations
 {
     /// <summary>
-    /// Entity Framework Core configuration for FileInfo entity
-    /// Maps to 'files' table in database
+    /// Entity Framework Core configuration for File entity
+    /// Maps to 'files' table in ws schema
+    /// Schema: REBUILD_SIMPLIFIED_SCHEMA.sql
     /// </summary>
-    public class FileConfiguration : IEntityTypeConfiguration<SuperAppModels.Models.FileInfo>
+    public class FileConfiguration : IEntityTypeConfiguration<SuperAppModels.Models.File>
     {
-        public void Configure(EntityTypeBuilder<SuperAppModels.Models.FileInfo> builder)
+        public void Configure(EntityTypeBuilder<SuperAppModels.Models.File> builder)
         {
             // Table mapping - ws schema (Workspace)
             builder.ToTable("files", "ws");
 
             // Primary key
-            builder.HasKey(f => f.FileId);
-            builder.Property(f => f.FileId)
+            builder.HasKey(f => f.Id);
+            builder.Property(f => f.Id)
                 .HasColumnName("id")
                 .ValueGeneratedOnAdd();
 

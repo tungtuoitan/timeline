@@ -12,8 +12,8 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.ToTable("notes", "dbo");
 
             // Primary key
-            builder.HasKey(n => n.NoteId);
-            builder.Property(n => n.NoteId)
+            builder.HasKey(n => n.Id);
+            builder.Property(n => n.Id)
                 .HasColumnName("id")
                 .ValueGeneratedOnAdd();
 

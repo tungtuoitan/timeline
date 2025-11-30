@@ -5,20 +5,20 @@ using SuperAppModels.Models;
 namespace SuperAppDataRepositories.Data.Configurations
 {
     /// <summary>
-    /// EF Core configuration for Tag entity (renamed to Hashtag in database)
+    /// EF Core configuration for Hashtag entity
     /// Maps to: dbo.hashtags table
     /// Schema: REBUILD_SIMPLIFIED_SCHEMA.sql
     /// </summary>
-    public class HashtagConfiguration : IEntityTypeConfiguration<Tag>
+    public class HashtagConfiguration : IEntityTypeConfiguration<Hashtag>
     {
-        public void Configure(EntityTypeBuilder<Tag> builder)
+        public void Configure(EntityTypeBuilder<Hashtag> builder)
         {
             // Table mapping - dbo schema (Default)
             builder.ToTable("hashtags", "dbo");
 
             // Primary key
-            builder.HasKey(h => h.TagId);
-            builder.Property(h => h.TagId)
+            builder.HasKey(h => h.Id);
+            builder.Property(h => h.Id)
                 .HasColumnName("id")
                 .ValueGeneratedOnAdd();
 

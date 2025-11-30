@@ -5,15 +5,14 @@ using SuperAppModels.Models;
 namespace SuperAppDataRepositories.Data.Configurations
 {
     /// <summary>
-    /// EF Core configuration for Entity lookup table (NOT the EntityType model which has different schema)
+    /// EF Core configuration for Entity lookup table
     /// Maps to: dbo.entities table
     /// Schema: REBUILD_SIMPLIFIED_SCHEMA.sql
     /// Stores entity type definitions: 1=workspace, 2=folder, 3=note, 4=file
-    /// NOTE: This is a simple lookup table, different from EntityType model
     /// </summary>
-    public class EntityLookupConfiguration : IEntityTypeConfiguration<EntityLookup>
+    public class EntityConfiguration : IEntityTypeConfiguration<Entity>
     {
-        public void Configure(EntityTypeBuilder<EntityLookup> builder)
+        public void Configure(EntityTypeBuilder<Entity> builder)
         {
             // Table mapping - dbo schema (Default)
             builder.ToTable("entities", "dbo");
@@ -22,7 +21,7 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.HasKey(e => e.Id);
             builder.Property(e => e.Id)
                 .HasColumnName("id")
-                .ValueGeneratedNever(); // TINYINT with explicit values
+                .ValueGeneratedNever(); // TINYINT with explicit values (1-4)
 
             // Properties - EXACTLY match dbo.entities schema
             builder.Property(e => e.Name)
@@ -45,22 +44,11 @@ namespace SuperAppDataRepositories.Data.Configurations
 
             // Seed data - match REBUILD_SIMPLIFIED_SCHEMA.sql
             builder.HasData(
-                new EntityLookup { Id = 1, Name = "workspace", Description = "Workspace/Project container" },
-                new EntityLookup { Id = 2, Name = "folder", Description = "Folder for organizing items" },
-                new EntityLookup { Id = 3, Name = "note", Description = "Note/Document" },
-                new EntityLookup { Id = 4, Name = "file", Description = "File attachment" }
+                new Entity(1, "workspace", "Workspace/Project container"),
+                new Entity(2, "folder", "Folder for organizing items"),
+                new Entity(3, "note", "Note/Document"),
+                new Entity(4, "file", "File attachment")
             );
         }
-    }
-    
-    /// <summary>
-    /// Simple entity lookup model for dbo.entities table
-    /// </summary>
-    public class EntityLookup
-    {
-        public byte Id { get; set; } // TINYINT
-        public string Name { get; set; } = string.Empty;
-        public string? Description { get; set; }
-        public DateTime? CreatedAt { get; set; }
     }
 }

@@ -3,7 +3,7 @@ namespace SuperAppModels.Models
     public class Note : ITimestampEntity
     {
         // Database columns - EXACTLY match dbo.notes schema from REBUILD_SIMPLIFIED_SCHEMA.sql
-        public int NoteId { get; set; } // id (PRIMARY KEY)
+        public int Id { get; set; } // id (PRIMARY KEY)
         public int UserId { get; set; } // user_id (FOREIGN KEY)
         
         // Content - SIMPLIFIED

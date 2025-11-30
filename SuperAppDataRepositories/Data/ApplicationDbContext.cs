@@ -17,11 +17,16 @@ namespace SuperAppDataRepositories.Data
         // Workspace Tables (ws schema)
         public DbSet<Workspace> Workspaces { get; set; }
         public DbSet<Folder> Folders { get; set; }
-        public DbSet<SuperAppModels.Models.FileInfo> Files { get; set; }
+        public DbSet<SuperAppModels.Models.File> Files { get; set; }
         public DbSet<WorkspaceItem> WorkspaceItems { get; set; }
 
         // Entity Tables (dbo schema)
         public DbSet<Note> Notes { get; set; }
+        public DbSet<Hashtag> Hashtags { get; set; }
+        public DbSet<EntityHashtag> EntityHashtags { get; set; }
+
+        // Lookup Tables (dbo schema)
+        public DbSet<Entity> Entities { get; set; }
 
         // System Tables (dbo schema)
         public DbSet<StandardRegistry> StandardRegistries { get; set; }

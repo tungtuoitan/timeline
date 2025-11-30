@@ -8,7 +8,7 @@ namespace SuperAppModels.Models
     public class Folder : ITimestampEntity
     {
         // Database columns - EXACTLY match ws.folders schema from REBUILD_SIMPLIFIED_SCHEMA.sql
-        public int FolderId { get; set; } // id (PRIMARY KEY)
+        public int Id { get; set; } // id (PRIMARY KEY)
         public int UserId { get; set; } // user_id (FOREIGN KEY)
 
         // Folder info

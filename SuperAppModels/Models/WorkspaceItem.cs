@@ -1,5 +1,3 @@
-using System.ComponentModel.DataAnnotations;
-
 namespace SuperAppModels.Models
 {
     /// <summary>
@@ -9,39 +7,42 @@ namespace SuperAppModels.Models
     /// </summary>
     public class WorkspaceItem : ITimestampEntity
     {
-        // Primary Key
-        public int ItemId { get; set; } // maps to: id INT IDENTITY(1,1) PRIMARY KEY
-
-        // Workspace reference
-        public int WorkspaceId { get; set; } // maps to: workspace_id INT NOT NULL
-
-        // Parent folder (for hierarchy) - NULLABLE for root items
-        public int? FolderId { get; set; } // maps to: folder_id INT (FK to ws.folders.id)
-
-        // Polymorphic item reference
-        public byte ItemType { get; set; } // maps to: item_type TINYINT (2=folder, 3=note, 4=file)
-        public int ChildId { get; set; } // maps to: item_id INT (actual folder_id/note_id/file_id)
-
-        // Ownership tracking
-        public bool IsOriginal { get; set; } = true; // maps to: is_original BIT DEFAULT 1
+        // Database columns - EXACTLY match ws.workspace_items schema
+        public int Id { get; set; } // id INT IDENTITY(1,1) PRIMARY KEY
+        public int WorkspaceId { get; set; } // workspace_id INT NOT NULL
+        public int? FolderId { get; set; } // folder_id INT (FK to ws.folders.id, NULLABLE for root items)
+        public byte ItemType { get; set; } // item_type TINYINT (2=folder, 3=note, 4=file)
+        public int ItemId { get; set; } // item_id INT (actual folder_id/note_id/file_id)
+        public bool IsOriginal { get; set; } = true; // is_original BIT DEFAULT 1
 
         // Timestamps (ITimestampEntity)
-        public DateTime? CreatedAt { get; set; } // maps to: created_at DATETIME2 DEFAULT GETUTCDATE()
-        public DateTime? UpdatedAt { get; set; } // maps to: updated_at DATETIME2
-        public DateTime? DeletedAt { get; set; } // maps to: deleted_at DATETIME2
+        public DateTime? CreatedAt { get; set; } // created_at DATETIME2 DEFAULT GETUTCDATE()
+        public DateTime? UpdatedAt { get; set; } // updated_at DATETIME2
+        public DateTime? DeletedAt { get; set; } // deleted_at DATETIME2
 
-        // Navigation properties
+        // Navigation properties for EF Core
         public Workspace Workspace { get; set; } = null!;
-        public Folder? Folder { get; set; } // Parent folder
-        
+        public Folder? Folder { get; set; } // Parent folder (nullable for root items)
+
         // Polymorphic navigation (based on ItemType)
-        public Folder? ChildFolder { get; set; } // when ItemType = "2"
-        public Note? ChildNote { get; set; }     // when ItemType = "3"
-        public FileInfo? ChildFile { get; set; } // when ItemType = "4"
+        // ItemType = 2: Folder
+        // ItemType = 3: Note
+        // ItemType = 4: File
+        public Folder? ChildFolder { get; set; }
+        public Note? ChildNote { get; set; }
+        public File? ChildFile { get; set; }
 
         public WorkspaceItem()
         {
             CreatedAt = DateTime.UtcNow;
+        }
+
+        public WorkspaceItem(int workspaceId, byte itemType, int itemId, int? folderId = null) : this()
+        {
+            WorkspaceId = workspaceId;
+            ItemType = itemType;
+            ItemId = itemId;
+            FolderId = folderId;
         }
 
         /// <summary>

@@ -17,8 +17,8 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.ToTable("workspace_items", "ws");
 
             // Primary key
-            builder.HasKey(wi => wi.ItemId);
-            builder.Property(wi => wi.ItemId)
+            builder.HasKey(wi => wi.Id);
+            builder.Property(wi => wi.Id)
                 .HasColumnName("id")
                 .ValueGeneratedOnAdd();
 
@@ -35,7 +35,7 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("item_type")
                 .IsRequired();
 
-            builder.Property(wi => wi.ChildId)
+            builder.Property(wi => wi.ItemId)
                 .HasColumnName("item_id")
                 .IsRequired();
 
@@ -63,15 +63,15 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasDatabaseName("IX_workspace_items_folder")
                 .HasFilter("[deleted_at] IS NULL");
 
-            builder.HasIndex(wi => new { wi.ItemType, wi.ChildId })
+            builder.HasIndex(wi => new { wi.ItemType, wi.ItemId })
                 .HasDatabaseName("IX_workspace_items_item");
 
-            builder.HasIndex(wi => new { wi.ItemType, wi.ChildId, wi.IsOriginal })
+            builder.HasIndex(wi => new { wi.ItemType, wi.ItemId, wi.IsOriginal })
                 .HasDatabaseName("IX_workspace_items_original")
                 .HasFilter("[is_original] = 1");
 
             // Unique constraint: one item can only exist once per workspace
-            builder.HasIndex(wi => new { wi.WorkspaceId, wi.ItemType, wi.ChildId })
+            builder.HasIndex(wi => new { wi.WorkspaceId, wi.ItemType, wi.ItemId })
                 .HasDatabaseName("UQ_workspace_items_unique")
                 .IsUnique();
 

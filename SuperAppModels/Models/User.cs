@@ -3,7 +3,7 @@ namespace SuperAppModels.Models
     public class User : ITimestampEntity
     {
         // Database columns - EXACTLY match urm.users schema from REBUILD_SIMPLIFIED_SCHEMA.sql
-        public int UserId { get; set; } // id (PRIMARY KEY)
+        public int Id { get; set; } // id (PRIMARY KEY)
         public string Email { get; set; } = string.Empty; // email (UNIQUE NOT NULL)
         public string? Phone { get; set; } // phone
         public string Password { get; set; } = string.Empty; // password (NOT NULL)
