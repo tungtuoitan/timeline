@@ -40,7 +40,14 @@ namespace SuperAppServices.Services
                 _logger.LogInformation("Getting notes with GetAll: {GetAll}, SearchText: {SearchText}, TagIds: {TagIds}",
                     getAll, searchText, tagIds != null ? string.Join(",", tagIds) : "null");
 
-                var notes = await _noteRepository.GetNotes(getAll, searchText ?? string.Empty, tagIds);
+                var filterOptions = new NoteFilterOptions
+                {
+                    GetAll = getAll,
+                    SearchText = searchText,
+                    TagIds = tagIds
+                };
+
+                var notes = await _noteRepository.GetNotesAsync(filterOptions);
                 var response = _mapper.Map<List<NoteResponse>>(notes);
 
                 _logger.LogInformation("Successfully retrieved {Count} notes", response.Count);

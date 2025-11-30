@@ -55,4 +55,22 @@ namespace SuperAppAPI.Exceptions
             };
         }
     }
+
+    public class ConflictException : AppException
+    {
+        public ConflictException(string message) : base(message, 409) { }
+    }
+
+    public class BusinessRuleException : AppException
+    {
+        public BusinessRuleException(string message) : base(message, 422) { }
+    }
+
+    public class DataAccessException : AppException
+    {
+        public DataAccessException(string message) : base(message, 500) { }
+
+        public DataAccessException(string message, Exception innerException) 
+            : base(message, 500, innerException) { }
+    }
 }

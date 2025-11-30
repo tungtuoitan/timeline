@@ -97,7 +97,6 @@ HTTP Request → Controller → Service → Repository → DB (EF/SP)
 ## Error Handling
 
 - Custom exceptions: AppException hierarchy
-- GlobalExceptionMiddleware: Centralized handling
 - Structured logging với Serilog
 
 ## Database

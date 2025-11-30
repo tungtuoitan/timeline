@@ -197,8 +197,8 @@ namespace SuperAppServices.Services
                 var isUpdate = request.FolderId.HasValue;
                 var action = isUpdate ? "Updating" : "Creating";
                 
-                _logger.LogInformation("{Action} folder '{Name}' in workspace {WorkspaceId} for user {UserId}",
-                    action, request.Name, workspaceId, userId);
+                _logger.LogInformation("{Action} folder '{Name}' in workspace {WorkspaceId} for user {UserId}, ParentFolderId: {ParentFolderId}",
+                    action, request.Name, workspaceId, userId, request.ParentFolderId);
 
                 // Call repository to upsert folder
                 var result = await _workspaceRepository.UpsertFolderAsync(

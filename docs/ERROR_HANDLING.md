@@ -55,66 +55,6 @@ throw new BusinessRuleException("Cannot exceed note limit");
 throw new ConflictException("Email already exists");
 ```
 
-## Global Exception Middleware
-
-**Implementation** (SuperAppAPI/Middlewares/GlobalExceptionMiddleware.cs):
-
-```csharp
-public class GlobalExceptionMiddleware
-{
-    private readonly RequestDelegate _next;
-    private readonly ILogger<GlobalExceptionMiddleware> _logger;
-
-    public async Task InvokeAsync(HttpContext context)
-    {
-        try
-        {
-            await _next(context);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unhandled exception occurred");
-            await HandleExceptionAsync(context, ex);
-        }
-    }
-
-    private async Task HandleExceptionAsync(HttpContext context, Exception ex)
-    {
-        var statusCode = ex switch
-        {
-            NotFoundException => StatusCodes.Status404NotFound,
-            ValidationException => StatusCodes.Status400BadRequest,
-            UnauthorizedException => StatusCodes.Status401Unauthorized,
-            ForbiddenException => StatusCodes.Status403Forbidden,
-            BusinessRuleException => StatusCodes.Status422UnprocessableEntity,
-            ConflictException => StatusCodes.Status409Conflict,
-            _ => StatusCodes.Status500InternalServerError
-        };
-
-        var problemDetails = new ProblemDetails
-        {
-            Status = statusCode,
-            Title = GetTitle(statusCode),
-            Detail = ex.Message,
-            Instance = context.Request.Path
-        };
-
-        if (ex is ValidationException validationEx)
-        {
-            problemDetails.Extensions["errors"] = validationEx.Errors;
-        }
-
-        context.Response.ContentType = "application/json";
-        context.Response.StatusCode = statusCode;
-        await context.Response.WriteAsJsonAsync(problemDetails);
-    }
-}
-```
-
-**Registration** (Program.cs):
-```csharp
-app.UseMiddleware<GlobalExceptionMiddleware>();
-```
 
 ## Controller Error Handling
 

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SuperAppAPI.Exceptions;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
@@ -36,26 +37,17 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetAllUserWorkspaces()
         {
-            try
-            {
-                // TEMPORARY: Using hardcoded userId while auth is disabled
-                var userId = 1; // Hardcoded for development
+            // TEMPORARY: Using hardcoded userId while auth is disabled
+            var userId = 1; // Hardcoded for development
 
-                _logger.LogInformation("Retrieving all workspaces for userId: {UserId}", userId);
+            _logger.LogInformation("Retrieving all workspaces for userId: {UserId}", userId);
 
-                var response = await _workspaceService.GetAllUserWorkspacesAsync(userId);
+            var response = await _workspaceService.GetAllUserWorkspacesAsync(userId);
 
-                _logger.LogInformation("Successfully retrieved {Count} workspaces for userId: {UserId}",
-                    response.Count, userId);
+            _logger.LogInformation("Successfully retrieved {Count} workspaces for userId: {UserId}",
+                response.Count, userId);
 
-                return Ok(response);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error occurred while retrieving workspaces");
-                return StatusCode(StatusCodes.Status500InternalServerError,
-                    new { Message = "An error occurred while retrieving workspaces" });
-            }
+            return Ok(response);
         }
 
         /// <summary>
@@ -76,43 +68,24 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetWorkspaceTree(int workspaceId)
         {
-            try
+            if (workspaceId <= 0)
             {
-                if (workspaceId <= 0)
-                {
-                    _logger.LogWarning("Invalid workspace ID provided: {WorkspaceId}", workspaceId);
-                    return BadRequest(new { Message = "Workspace ID must be a positive integer" });
-                }
-
-                // TEMPORARY: Using hardcoded userId while auth is disabled
-                var userId = 1; // Hardcoded for development
-                
-                _logger.LogInformation("Retrieving workspace tree for workspaceId: {WorkspaceId}, userId: {UserId}", 
-                    workspaceId, userId);
-
-                var response = await _workspaceService.GetWorkspaceTreeAsync(workspaceId, userId);
-
-                _logger.LogInformation("Successfully retrieved workspace tree with {RootCount} root items for workspaceId: {WorkspaceId}",
-                    response?.Items?.Count ?? 0, workspaceId);
-
-                return Ok(response);
+                _logger.LogWarning("Invalid workspace ID provided: {WorkspaceId}", workspaceId);
+                throw new BadRequestException("Workspace ID must be a positive integer");
             }
-            catch (ArgumentException ex)
-            {
-                _logger.LogWarning(ex, "Invalid argument provided for get workspace tree: {WorkspaceId}", workspaceId);
-                return BadRequest(new { Message = ex.Message });
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                _logger.LogWarning(ex, "Unauthorized access attempt for workspace tree: {WorkspaceId}", workspaceId);
-                return Unauthorized(new { Message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error occurred while retrieving workspace tree for workspaceId: {WorkspaceId}", workspaceId);
-                return StatusCode(StatusCodes.Status500InternalServerError,
-                    new { Message = "An error occurred while retrieving workspace tree" });
-            }
+
+            // TEMPORARY: Using hardcoded userId while auth is disabled
+            var userId = 1; // Hardcoded for development
+            
+            _logger.LogInformation("Retrieving workspace tree for workspaceId: {WorkspaceId}, userId: {UserId}", 
+                workspaceId, userId);
+
+            var response = await _workspaceService.GetWorkspaceTreeAsync(workspaceId, userId);
+
+            _logger.LogInformation("Successfully retrieved workspace tree with {RootCount} root items for workspaceId: {WorkspaceId}",
+                response?.Items?.Count ?? 0, workspaceId);
+
+            return Ok(response);
         }
 
         /// <summary>

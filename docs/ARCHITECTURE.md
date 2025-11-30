@@ -52,7 +52,6 @@ Controllers/
 └── HealthController.cs
 
 Middleware/
-├── GlobalExceptionMiddleware.cs
 ├── JwtValidationMiddleware.cs
 ├── ValidateTokenMiddleware.cs
 └── SecurityHeadersMiddleware.cs

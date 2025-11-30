@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SuperAppAPI.Exceptions;
 using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
@@ -12,7 +13,7 @@ namespace SuperAppAPI.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    //[Authorize] // Restore authorization for all endpoints - security critical!
+    [Authorize]
     public class NotesController : ControllerBase
     {
         private readonly INoteService _noteService;
@@ -20,8 +21,8 @@ namespace SuperAppAPI.Controllers
 
         public NotesController(INoteService noteService, ILogger<NotesController> logger)
         {
-            _noteService = noteService ?? throw new ArgumentNullException(nameof(noteService));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _noteService = noteService;
+            _logger = logger;
         }
 
         /// <summary>
@@ -37,45 +38,23 @@ namespace SuperAppAPI.Controllers
         [HttpGet]
         [ProducesResponseType(typeof(List<NoteResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetNotes([FromQuery] bool getAll = false, [FromQuery] string? searchText = null, [FromQuery] List<int>? tagIds = null)
+        public async Task<IActionResult> GetNotes(
+            [FromQuery] bool getAll = false, 
+            [FromQuery] string? searchText = null, 
+            [FromQuery] List<int>? tagIds = null)
         {
-            try
-            {
-                // TEMPORARY: Using hardcoded email while auth is disabled
-                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
-                if (string.IsNullOrEmpty(userEmail))
-                {
-                    _logger.LogWarning("Failed to extract user email from token");
-                    return Unauthorized(new { Message = "Invalid token claims" });
-                }
+            var userEmail = User.GetUserEmail();
 
-                _logger.LogInformation("Retrieving notes for user: {UserEmail}, GetAll: {GetAll}, SearchText: {SearchText}, TagIds: {TagIds}",
-                    userEmail, getAll, searchText, tagIds != null ? string.Join(",", tagIds) : "null");
+            _logger.LogInformation(
+                "Retrieving notes for user: {UserEmail}, GetAll: {GetAll}, SearchText: {SearchText}, TagIds: {TagIds}",
+                userEmail, getAll, searchText, tagIds != null ? string.Join(",", tagIds) : "null");
 
-                var response = await _noteService.GetNotesAsync(getAll, searchText, tagIds);
+            var response = await _noteService.GetNotesAsync(getAll, searchText, tagIds);
 
-                _logger.LogInformation("Successfully retrieved {NoteCount} notes for user: {UserEmail}",
-                    response?.Count ?? 0, userEmail);
+            _logger.LogInformation("Successfully retrieved {NoteCount} notes for user: {UserEmail}",
+                response?.Count ?? 0, userEmail);
 
-                return Ok(response);
-            }
-            catch (ArgumentException ex)
-            {
-                _logger.LogWarning(ex, "Invalid argument provided for get notes");
-                return BadRequest(new { Message = ex.Message });
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                _logger.LogWarning(ex, "Unauthorized access attempt for get notes");
-                return Unauthorized(new { Message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error occurred while retrieving notes");
-                return StatusCode(StatusCodes.Status500InternalServerError, 
-                    new { Message = "An error occurred while retrieving notes" });
-            }
+            return Ok(response);
         }
 
         /// <summary>
@@ -96,63 +75,44 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> UpsertNote([FromBody] UpsertNoteRequest request)
         {
-            try
+            if (!ModelState.IsValid)
             {
-                if (!ModelState.IsValid)
+                _logger.LogWarning("Invalid model state for upsert note request");
+                return BadRequest(ModelState);
+            }
+
+            // TEMPORARY: Using hardcoded email while auth is disabled
+            var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+
+            // Set the CreatedBy from the authenticated user
+            request.CreatedBy = userEmail;
+
+            // Clean up TagIds - remove invalid values (0 or negative)
+            if (request.TagIds != null && request.TagIds.Any())
+            {
+                request.TagIds = request.TagIds.Where(tagId => tagId > 0).Distinct().ToList();
+                if (!request.TagIds.Any())
                 {
-                    _logger.LogWarning("Invalid model state for upsert note request");
-                    return BadRequest(ModelState);
-                }
-
-                // TEMPORARY: Using hardcoded email while auth is disabled
-                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
-
-                // Set the CreatedBy from the authenticated user
-                request.CreatedBy = userEmail;
-
-                // Clean up TagIds - remove invalid values (0 or negative)
-                if (request.TagIds != null && request.TagIds.Any())
-                {
-                    request.TagIds = request.TagIds.Where(tagId => tagId > 0).Distinct().ToList();
-                    if (!request.TagIds.Any())
-                    {
-                        request.TagIds = null;
-                    }
-                }
-
-                _logger.LogInformation("Upserting note with ID: {NoteId}, Name: '{NoteName}' for user: {UserEmail}", 
-                    request.NoteId, request.Name, userEmail);
-
-                var response = await _noteService.UpsertNoteAsync(request);
-
-                if (request.NoteId == 0)
-                {
-                    _logger.LogInformation("Note created successfully with ID: {NoteId} for user: {UserEmail}", 
-                        response.NoteId, userEmail);
-                    return CreatedAtAction(nameof(GetNoteById), new { id = response.NoteId }, response);
-                }
-                else
-                {
-                    _logger.LogInformation("Note updated successfully with ID: {NoteId} for user: {UserEmail}", 
-                        response.NoteId, userEmail);
-                    return Ok(response);
+                    request.TagIds = null;
                 }
             }
-            catch (ArgumentException ex)
+
+            _logger.LogInformation("Upserting note with ID: {NoteId}, Name: '{NoteName}' for user: {UserEmail}", 
+                request.NoteId, request.Name, userEmail);
+
+            var response = await _noteService.UpsertNoteAsync(request);
+
+            if (request.NoteId == 0)
             {
-                _logger.LogWarning(ex, "Invalid argument provided for note upsert");
-                return BadRequest(new { Message = ex.Message });
+                _logger.LogInformation("Note created successfully with ID: {NoteId} for user: {UserEmail}", 
+                    response.NoteId, userEmail);
+                return CreatedAtAction(nameof(GetNoteById), new { id = response.NoteId }, response);
             }
-            catch (UnauthorizedAccessException ex)
+            else
             {
-                _logger.LogWarning(ex, "Unauthorized access attempt for note upsert");
-                return Unauthorized(new { Message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error occurred while upserting note");
-                return StatusCode(StatusCodes.Status500InternalServerError, 
-                    new { Message = "An error occurred while processing the note" });
+                _logger.LogInformation("Note updated successfully with ID: {NoteId} for user: {UserEmail}", 
+                    response.NoteId, userEmail);
+                return Ok(response);
             }
         }
 
@@ -172,50 +132,21 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetNoteById(int id)
         {
-            try
+            if (id <= 0)
             {
-                if (id <= 0)
-                {
-                    _logger.LogWarning("Invalid note ID provided: {NoteId}", id);
-                    return BadRequest(new { Message = "Note ID must be a positive integer" });
-                }
+                _logger.LogWarning("Invalid note ID provided: {NoteId}", id);
+                throw new BadRequestException("Note ID must be a positive integer");
+            }
 
-                // TEMPORARY: Using hardcoded email while auth is disabled
-                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
-                //if (string.IsNullOrEmpty(userEmail))
-                //{
-                //    _logger.LogWarning("Failed to extract user email from token");
-                //    return Unauthorized(new { Message = "Invalid token claims" });
-                //}
+            // TEMPORARY: Using hardcoded email while auth is disabled
+            var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
 
-                _logger.LogInformation("Retrieving note {NoteId} for user: {UserEmail}", id, userEmail);
+            _logger.LogInformation("Retrieving note {NoteId} for user: {UserEmail}", id, userEmail);
 
-                var note = await _noteService.GetNoteByIdAsync(id);
+            var note = await _noteService.GetNoteByIdAsync(id);
 
-                _logger.LogInformation("Successfully retrieved note {NoteId} for user: {UserEmail}", id, userEmail);
-                return Ok(note);
-            }
-            catch (ArgumentException ex)
-            {
-                _logger.LogWarning(ex, "Invalid argument provided for get note by ID: {NoteId}", id);
-                return BadRequest(new { Message = ex.Message });
-            }
-            catch (KeyNotFoundException ex)
-            {
-                _logger.LogWarning(ex, "Note {NoteId} not found", id);
-                return NotFound(new { Message = ex.Message });
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                _logger.LogWarning(ex, "Unauthorized access attempt for note {NoteId}", id);
-                return Unauthorized(new { Message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error occurred while retrieving note {NoteId}", id);
-                return StatusCode(StatusCodes.Status500InternalServerError, 
-                    new { Message = "An error occurred while retrieving the note" });
-            }
+            _logger.LogInformation("Successfully retrieved note {NoteId} for user: {UserEmail}", id, userEmail);
+            return Ok(note);
         }
 
         /// <summary>
@@ -267,61 +198,32 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> DeleteNote(string id)
         {
-            try
+            if (string.IsNullOrWhiteSpace(id))
             {
-                if (string.IsNullOrWhiteSpace(id))
-                {
-                    _logger.LogWarning("Empty note ID(s) provided for deletion");
-                    return BadRequest(new { Message = "Note ID(s) must be provided" });
-                }
-
-                // TEMPORARY: Using hardcoded email while auth is disabled
-                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
-                //if (string.IsNullOrEmpty(userEmail))
-                //{
-                //    _logger.LogWarning("Failed to extract user email from token");
-                //    return Unauthorized(new { Message = "Invalid token claims" });
-                //}
-
-                _logger.LogInformation("Deleting note(s) {NoteIds} for user: {UserEmail}", id, userEmail);
-
-                // Parse comma-separated IDs
-                var noteIds = id.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(int.Parse)
-                    .ToList();
-
-                var success = await _noteService.DeleteNotesAsync(noteIds);
-
-                if (!success)
-                {
-                    _logger.LogWarning("Note(s) {NoteIds} not found for deletion for user: {UserEmail}", id, userEmail);
-                    return NotFound(new { Message = $"Note(s) with ID(s) {id} not found" });
-                }
-
-                _logger.LogInformation("Successfully deleted note(s) {NoteIds} for user: {UserEmail}", id, userEmail);
-                return NoContent();
+                _logger.LogWarning("Empty note ID(s) provided for deletion");
+                throw new BadRequestException("Note ID(s) must be provided");
             }
-            catch (ArgumentException ex)
+
+            // TEMPORARY: Using hardcoded email while auth is disabled
+            var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+
+            _logger.LogInformation("Deleting note(s) {NoteIds} for user: {UserEmail}", id, userEmail);
+
+            // Parse comma-separated IDs
+            var noteIds = id.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(int.Parse)
+                .ToList();
+
+            var success = await _noteService.DeleteNotesAsync(noteIds);
+
+            if (!success)
             {
-                _logger.LogWarning(ex, "Invalid argument provided for note deletion, NoteIds: {NoteIds}", id);
-                return BadRequest(new { Message = ex.Message });
+                _logger.LogWarning("Note(s) {NoteIds} not found for deletion for user: {UserEmail}", id, userEmail);
+                throw new NotFoundException($"Note(s) with ID(s) {id} not found");
             }
-            catch (UnauthorizedAccessException ex)
-            {
-                _logger.LogWarning(ex, "Unauthorized access attempt for note deletion, NoteIds: {NoteIds}", id);
-                return Unauthorized(new { Message = ex.Message });
-            }
-            catch (InvalidOperationException ex)
-            {
-                _logger.LogWarning(ex, "Note(s) {NoteIds} not found for deletion", id);
-                return NotFound(new { Message = $"Note(s) with ID(s) {id} not found" });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error occurred while deleting note(s) {NoteIds}", id);
-                return StatusCode(StatusCodes.Status500InternalServerError,
-                    new { Message = "An error occurred while deleting the note(s)" });
-            }
+
+            _logger.LogInformation("Successfully deleted note(s) {NoteIds} for user: {UserEmail}", id, userEmail);
+            return NoContent();
         }
 
     }

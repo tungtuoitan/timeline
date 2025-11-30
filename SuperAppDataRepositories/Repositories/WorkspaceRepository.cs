@@ -135,6 +135,11 @@ namespace SuperAppDataRepositories.Repositories
                     Items = treeItems
                 };
             }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Database error while getting workspace tree for workspaceId: {WorkspaceId}", workspaceId);
+                throw new InvalidOperationException($"Database error while retrieving workspace tree for workspace {workspaceId}", ex);
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting workspace tree for workspaceId: {WorkspaceId}", workspaceId);
@@ -178,6 +183,11 @@ namespace SuperAppDataRepositories.Repositories
 
                 return workspaces;
             }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Database error while getting workspaces for userId: {UserId}", userId);
+                throw new InvalidOperationException($"Database error while retrieving workspaces for user {userId}", ex);
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting workspaces for userId: {UserId}", userId);
@@ -195,8 +205,8 @@ namespace SuperAppDataRepositories.Repositories
                 var isUpdate = folderId.HasValue;
                 var action = isUpdate ? "Updating" : "Creating";
                 
-                _logger.LogInformation("{Action} folder '{Name}' in workspace {WorkspaceId} for user {UserId}",
-                    action, name, workspaceId, userId);
+                _logger.LogInformation("{Action} folder '{Name}' in workspace {WorkspaceId} for user {UserId}, ParentFolderId: {ParentFolderId}",
+                    action, name, workspaceId, userId, parentFolderId);
 
                 // Use execution strategy to handle retries with transactions
                 var strategy = _context.Database.CreateExecutionStrategy();
@@ -259,6 +269,7 @@ namespace SuperAppDataRepositories.Repositories
                             _logger.LogInformation("Folder created with ID: {FolderId}", newFolder.Id);
 
                             // Create workspace_item link (ws.workspace_items table)
+                            _logger.LogInformation("Creating WorkspaceItem with parentFolderId: {ParentFolderId}", parentFolderId);
                             var workspaceItem = new WorkspaceItem(workspaceId, 2, newFolder.Id, parentFolderId)
                             {
                                 IsOriginal = true  // This workspace owns the folder
@@ -291,6 +302,28 @@ namespace SuperAppDataRepositories.Repositories
                     Reference = folder.Id.ToString(),
                     Object = folder,
                     Status = isUpdate ? 200 : 201
+                };
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                _logger.LogError(ex, "Concurrency conflict while upserting folder '{Name}' in workspace {WorkspaceId}", name, workspaceId);
+                
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = "Folder was modified by another user. Please refresh and try again.",
+                    Status = 409
+                };
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Database error while upserting folder '{Name}' in workspace {WorkspaceId}", name, workspaceId);
+                
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = "Database error occurred while saving folder",
+                    Status = 500
                 };
             }
             catch (Exception ex)
