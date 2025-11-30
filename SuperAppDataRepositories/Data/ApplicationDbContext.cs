@@ -10,35 +10,26 @@ namespace SuperAppDataRepositories.Data
         {
         }
 
-        // Core Tables
+        // Core Tables (urm schema)
         public DbSet<User> Users { get; set; }
-        public DbSet<Tag> Tags { get; set; } // Hashtags (maps to tags_new table)
-        public DbSet<EntityType> EntityTypes { get; set; }
-        public DbSet<Folder> Folders { get; set; } // Folders (maps to folders table, renamed from old tags)
+        public DbSet<UserProfile> UserProfiles { get; set; }
 
-        // Workspace Tables
+        // Workspace Tables (ws schema)
         public DbSet<Workspace> Workspaces { get; set; }
-        public DbSet<WorkspaceMember> WorkspaceMembers { get; set; }
-        public DbSet<WorkspaceRelationshipType> WorkspaceRelationshipTypes { get; set; }
+        public DbSet<Folder> Folders { get; set; }
+        public DbSet<SuperAppModels.Models.FileInfo> Files { get; set; }
         public DbSet<WorkspaceItem> WorkspaceItems { get; set; }
 
-        // Entity Tables
+        // Entity Tables (dbo schema)
         public DbSet<Note> Notes { get; set; }
-        public DbSet<NoteMember> NoteMembers { get; set; }
-        public DbSet<NoteVersion> NoteVersions { get; set; }
-        public DbSet<SuperAppModels.Models.FileInfo> Files { get; set; }
 
-        // Tagging System (new polymorphic tagging)
-        public DbSet<EntityTag> EntityTags { get; set; } // Polymorphic tagging for all entities
-
-        // ⚠️ DEPRECATED: NoteTag - migrated to EntityTag
-        // public DbSet<NoteTag> NoteTags { get; set; }
-
-        // System Configuration Tables
+        // System Tables (dbo schema)
         public DbSet<StandardRegistry> StandardRegistries { get; set; }
 
-        // User Profile Tables
-        public DbSet<UserProfile> UserProfiles { get; set; }
+        // ⚠️ REMOVED - Tables không tồn tại trong schema mới:
+        // - Tag/EntityType/EntityTag → Sẽ tạo models mới cho dbo.hashtags, dbo.entities, dbo.entity_hashtags
+        // - WorkspaceMember, WorkspaceRelationshipType → Dropped
+        // - NoteMember, NoteVersion → Dropped
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

@@ -106,15 +106,9 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasConstraintName("FK_notes_users_user_id")
                 .OnDelete(DeleteBehavior.Restrict);
 
-            builder.HasMany(n => n.Members)
-                .WithOne(nm => nm.Note)
-                .HasForeignKey(nm => nm.NoteId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            builder.HasMany(n => n.Versions)
-                .WithOne(nv => nv.Note)
-                .HasForeignKey(nv => nv.NoteId)
-                .OnDelete(DeleteBehavior.Cascade);
+            // IGNORE navigation properties for tables that don't exist
+            builder.Ignore(n => n.Members);
+            builder.Ignore(n => n.Versions);
         }
     }
 }
