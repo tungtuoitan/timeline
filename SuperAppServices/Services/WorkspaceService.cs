@@ -1,6 +1,8 @@
 using AutoMapper;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Ins;
+using SuperAppModels.DTOs;
+using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
 using SuperAppServices.Interfaces;
 
@@ -61,7 +63,7 @@ namespace SuperAppServices.Services
                 // Create response
                 var response = new WorkspaceWithTreeResponse
                 {
-                    WorkspaceId = workspace.WorkspaceId,
+                    WorkspaceId = workspace.Id,
                     UserId = workspace.UserId,
                     Name = workspace.Name,
                     Description = workspace.Description,
@@ -158,6 +160,63 @@ namespace SuperAppServices.Services
             SortItemsRecursively(rootItems);
 
             return rootItems;
+        }
+
+        /// <summary>
+        /// Creates a new folder in a workspace
+        /// </summary>
+        public async Task<ResultOptions> CreateFolderAsync(int workspaceId, int userId, CreateFolderRequest request)
+        {
+            try
+            {
+                _logger.LogInformation("Creating folder '{Name}' in workspace {WorkspaceId} for user {UserId}",
+                    request.Name, workspaceId, userId);
+
+                // Call repository to create folder
+                var result = await _workspaceRepository.CreateFolderAsync(
+                    workspaceId,
+                    userId,
+                    request.Name,
+                    request.Description,
+                    request.Color,
+                    request.Icon,
+                    request.ParentFolderId
+                );
+
+                // Check if repository operation was successful
+                if (!result.Success)
+                {
+                    _logger.LogWarning("Repository failed to create folder: {Message}", result.Message);
+                    return result;
+                }
+
+                // Map folder object to response DTO
+                var folderResponse = _mapper.Map<FolderResponse>(result.Object);
+
+                _logger.LogInformation("Successfully created folder {FolderId} in workspace {WorkspaceId}",
+                    result.Reference, workspaceId);
+
+                // Return ResultOptions with mapped response
+                return new ResultOptions
+                {
+                    Success = true,
+                    Message = "Folder created successfully",
+                    Reference = result.Reference,
+                    Object = folderResponse,
+                    Status = 201
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating folder '{Name}' in workspace {WorkspaceId}",
+                    request.Name, workspaceId);
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = "An error occurred while creating folder",
+                    Status = 500
+                };
+            }
         }
 
         /// <summary>

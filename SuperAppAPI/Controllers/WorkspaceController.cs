@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SuperAppModels.DTOs;
+using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
 using SuperAppServices.Interfaces;
 
@@ -85,8 +87,100 @@ namespace SuperAppAPI.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unexpected error occurred while retrieving workspace tree for workspaceId: {WorkspaceId}", workspaceId);
-                return StatusCode(StatusCodes.Status500InternalServerError, 
+                return StatusCode(StatusCodes.Status500InternalServerError,
                     new { Message = "An error occurred while retrieving workspace tree" });
+            }
+        }
+
+        /// <summary>
+        /// Creates a new folder in a workspace
+        /// </summary>
+        /// <param name="workspaceId">Workspace ID</param>
+        /// <param name="request">Create folder request</param>
+        /// <returns>Result with created folder details</returns>
+        /// <remarks>
+        /// Creates a new folder in the specified workspace.
+        ///
+        /// Example request:
+        ///
+        ///     POST /api/workspace/1/folders
+        ///     {
+        ///        "name": "My Folder",
+        ///        "description": "Optional description",
+        ///        "color": "#F59E0B",
+        ///        "icon": "📁",
+        ///        "parentFolderId": null
+        ///     }
+        ///
+        /// Example response:
+        ///
+        ///     {
+        ///        "success": true,
+        ///        "message": "Folder created successfully",
+        ///        "object": {
+        ///            "id": 123,
+        ///            "userId": 1,
+        ///            "name": "My Folder",
+        ///            "description": "Optional description",
+        ///            "color": "#F59E0B",
+        ///            "icon": "📁",
+        ///            "createdAt": "2025-11-30T10:30:00Z",
+        ///            "updatedAt": null
+        ///        },
+        ///        "status": 200
+        ///     }
+        ///
+        /// </remarks>
+        /// <response code="200">Folder created successfully</response>
+        /// <response code="400">Invalid request data</response>
+        /// <response code="404">Workspace not found</response>
+        /// <response code="500">Internal server error</response>
+        [HttpPost("{workspaceId}/folders")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> CreateFolder(int workspaceId, [FromBody] CreateFolderRequest request)
+        {
+            if (workspaceId <= 0)
+            {
+                _logger.LogWarning("Invalid workspace ID provided: {WorkspaceId}", workspaceId);
+                return BadRequest(new ResultOptions
+                {
+                    Success = false,
+                    Message = "Workspace ID must be a positive integer",
+                    Status = 400
+                });
+            }
+
+            if (!ModelState.IsValid)
+            {
+                _logger.LogWarning("Invalid model state for create folder request");
+                return BadRequest(new ResultOptions
+                {
+                    Success = false,
+                    Message = "Invalid request data",
+                    Object = ModelState,
+                    Status = 400
+                });
+            }
+
+            // TEMPORARY: Using hardcoded userId while auth is disabled
+            var userId = 1; // Hardcoded for development
+
+            _logger.LogInformation("Creating folder '{Name}' in workspace {WorkspaceId} for user {UserId}",
+                request.Name, workspaceId, userId);
+
+            var result = await _workspaceService.CreateFolderAsync(workspaceId, userId, request);
+
+            // Return appropriate status code based on result
+            if (result.Success)
+            {
+                return Ok(result);
+            }
+            else
+            {
+                return StatusCode(result.Status ?? 500, result);
             }
         }
     }

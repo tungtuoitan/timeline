@@ -17,14 +17,14 @@ namespace SuperAppServices.Mappings
                 .ForMember(dest => dest.Tags, opt => opt.Ignore()); // Tags will be set separately if needed
 
             CreateMap<CreateNoteRequest, Note>()
-                .ForMember(dest => dest.NoteId, opt => opt.Ignore())
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.UpdatedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.DeletedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.User, opt => opt.Ignore());
 
             CreateMap<UpdateNoteRequest, Note>()
-                .ForMember(dest => dest.NoteId, opt => opt.Ignore())
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.UpdatedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.DeletedAt, opt => opt.Ignore())
@@ -32,13 +32,16 @@ namespace SuperAppServices.Mappings
                 .ForMember(dest => dest.User, opt => opt.Ignore());
 
             CreateMap<UpsertNoteRequest, Note>()
-                .ForMember(dest => dest.NoteId, opt => opt.MapFrom(src => src.NoteId))
+                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.NoteId))
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.UpdatedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.DeletedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.User, opt => opt.Ignore());
 
-            // Folder mappings (Workspace/Tag)
+            // Folder mappings (NEW - ws.folders schema)
+            CreateMap<Folder, FolderResponse>();
+
+            // Folder mappings (Workspace/Tag - OLD)
             CreateMap<Tag, FolderResponse>();
             CreateMap<Tag, TagResponse>();
             CreateMap<Tag, TagMetadata>();

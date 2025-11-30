@@ -13,6 +13,12 @@ namespace SuperAppModels.DTOs
         public bool Success { get; set; } = true;
         [JsonPropertyName("message")]
         public string? Message { get; set; }
+        [JsonPropertyName("object")]
+        public object? Object { get; set; }
+        [JsonPropertyName("data")]
+        public List<object>? Data { get; set; }
+        [JsonPropertyName("status")]
+        public int? Status { get; set; }
         [JsonPropertyName("reference")]
         public string? Reference { get; set; }
         [JsonPropertyName("reference2")]
@@ -23,10 +29,6 @@ namespace SuperAppModels.DTOs
         public string? Reference4 { get; set; }
         [JsonPropertyName("reference5")]
         public string? Reference5 { get; set; }
-        [JsonPropertyName("object")]
-        public object? Object { get; set; }
-        [JsonPropertyName("status")]
-        public int? Status { get; set; }
 
         /// <summary>
         /// Error message (alias for Message for backward compatibility)

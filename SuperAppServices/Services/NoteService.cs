@@ -94,7 +94,7 @@ namespace SuperAppServices.Services
                     request.TagIds != null ? string.Join(",", request.TagIds) : "null");
 
                 var note = _mapper.Map<Note>(request);
-                note.NoteId = request.NoteId;
+                note.Id = request.NoteId;
 
                 Note resultNote;
 
@@ -113,7 +113,7 @@ namespace SuperAppServices.Services
                 var response = _mapper.Map<NoteResponse>(resultNote);
 
                 _logger.LogInformation("Successfully processed note with ID: {NoteId}, final TagCount: {TagCount}",
-                    resultNote.NoteId, response.Tags?.Count ?? 0);
+                    resultNote.Id, response.Tags?.Count ?? 0);
                 return response;
             }
             catch (InvalidOperationException ex)

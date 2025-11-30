@@ -31,5 +31,11 @@ namespace SuperAppModels.DTOs.Requests
         /// </summary>
         [StringLength(50, ErrorMessage = "Icon cannot exceed 50 characters")]
         public string? Icon { get; set; }
+
+        /// <summary>
+        /// Parent folder ID (optional, null = root level)
+        /// </summary>
+        [Range(1, int.MaxValue, ErrorMessage = "Parent folder ID must be positive")]
+        public int? ParentFolderId { get; set; }
     }
 }
