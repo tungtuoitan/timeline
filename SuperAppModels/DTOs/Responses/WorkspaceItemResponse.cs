@@ -10,6 +10,7 @@ namespace SuperAppModels.DTOs.Responses
         public int ParentTagId { get; set; }
         public string ChildType { get; set; } = string.Empty;
         public int ChildId { get; set; }
+        public bool IsOriginal { get; set; }
         public string? RelationshipType { get; set; }
         public string? Label { get; set; }
         public string? Notes { get; set; }

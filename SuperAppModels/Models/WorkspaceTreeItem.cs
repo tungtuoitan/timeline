@@ -57,6 +57,11 @@ public class WorkspaceTreeItem
     public string AccessType { get; set; } = string.Empty;
 
     /// <summary>
+    /// TRUE if this workspace created/owns the item, FALSE if shared from another workspace
+    /// </summary>
+    public bool IsOriginal { get; set; } = true;
+
+    /// <summary>
     /// Depth level in the tree hierarchy (0 = root level)
     /// </summary>
     public int Level { get; set; }

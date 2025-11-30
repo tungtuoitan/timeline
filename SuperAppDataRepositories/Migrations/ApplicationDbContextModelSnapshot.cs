@@ -22,6 +22,71 @@ namespace SuperAppDataRepositories.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("SuperAppModels.Models.EntityTag", b =>
+                {
+                    b.Property<long>("EntityTagId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("entity_tag_id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("EntityTagId"));
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<int>("EntityId")
+                        .HasColumnType("int")
+                        .HasColumnName("entity_id");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("entity_type");
+
+                    b.Property<int?>("FolderId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TagId")
+                        .HasColumnType("int")
+                        .HasColumnName("tag_id");
+
+                    b.Property<int>("TaggedBy")
+                        .HasColumnType("int")
+                        .HasColumnName("tagged_by");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("EntityTagId");
+
+                    b.HasIndex("FolderId");
+
+                    b.HasIndex("TagId")
+                        .HasDatabaseName("IX_entity_tags_tag");
+
+                    b.HasIndex("TaggedBy")
+                        .HasDatabaseName("IX_entity_tags_user");
+
+                    b.HasIndex("EntityType", "EntityId")
+                        .HasDatabaseName("IX_entity_tags_entity");
+
+                    b.HasIndex("TagId", "EntityType", "EntityId")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_entity_tags_tag_entity")
+                        .HasFilter("[deleted_at] IS NULL");
+
+                    b.ToTable("entity_tags", "dbo");
+                });
+
             modelBuilder.Entity("SuperAppModels.Models.EntityType", b =>
                 {
                     b.Property<string>("TypeName")
@@ -97,7 +162,213 @@ namespace SuperAppDataRepositories.Migrations
                         .HasDatabaseName("ix_entity_types_enabled")
                         .HasFilter("[is_enabled] = 1");
 
-                    b.ToTable("entity_types", (string)null);
+                    b.ToTable("entity_types", "dbo");
+                });
+
+            modelBuilder.Entity("SuperAppModels.Models.FileInfo", b =>
+                {
+                    b.Property<int>("FileId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("file_id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("FileId"));
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("GETDATE()");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<int>("DownloadCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("download_count");
+
+                    b.Property<string>("Extension")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("extension");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("file_path");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint")
+                        .HasColumnName("file_size");
+
+                    b.Property<bool>("IsArchived")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_archived");
+
+                    b.Property<bool>("IsFavorite")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_favorite");
+
+                    b.Property<bool>("IsPinned")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_pinned");
+
+                    b.Property<bool>("IsPublic")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_public");
+
+                    b.Property<DateTime?>("LastDownloadedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("last_downloaded_at");
+
+                    b.Property<string>("MimeType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("mime_type");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("OriginalFilename")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("original_filename");
+
+                    b.Property<string>("Slug")
+                        .HasMaxLength(550)
+                        .HasColumnType("nvarchar(550)")
+                        .HasColumnName("slug");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("FileId");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_files_created_at");
+
+                    b.HasIndex("MimeType")
+                        .HasDatabaseName("IX_files_mime_type");
+
+                    b.HasIndex("Slug")
+                        .HasDatabaseName("IX_files_slug");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_files_user_id");
+
+                    b.ToTable("files", "dbo");
+                });
+
+            modelBuilder.Entity("SuperAppModels.Models.Folder", b =>
+                {
+                    b.Property<int>("FolderId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("folder_id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("FolderId"));
+
+                    b.Property<string>("Color")
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(7)
+                        .HasColumnType("nvarchar(7)")
+                        .HasDefaultValue("#3B82F6")
+                        .HasColumnName("color");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("GETDATE()");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Icon")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("icon");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("metadata");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Slug")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("slug");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("UsageCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("usage_count");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("FolderId");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("IX_folders_name");
+
+                    b.HasIndex("UsageCount")
+                        .HasDatabaseName("IX_folders_usage");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_folders_user");
+
+                    b.HasIndex("UserId", "Slug")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_folders_user_slug")
+                        .HasFilter("[deleted_at] IS NULL");
+
+                    b.ToTable("folders", "dbo");
                 });
 
             modelBuilder.Entity("SuperAppModels.Models.Note", b =>
@@ -207,7 +478,7 @@ namespace SuperAppDataRepositories.Migrations
                     b.HasIndex("UserId")
                         .HasDatabaseName("IX_notes_user_id");
 
-                    b.ToTable("notes", (string)null);
+                    b.ToTable("notes", "dbo");
                 });
 
             modelBuilder.Entity("SuperAppModels.Models.NoteMember", b =>
@@ -281,42 +552,7 @@ namespace SuperAppDataRepositories.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_note_members_note_user");
 
-                    b.ToTable("note_members", (string)null);
-                });
-
-            modelBuilder.Entity("SuperAppModels.Models.NoteTag", b =>
-                {
-                    b.Property<int>("NoteId")
-                        .HasColumnType("int")
-                        .HasColumnName("note_id");
-
-                    b.Property<int>("TagId")
-                        .HasColumnType("int")
-                        .HasColumnName("tag_id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime2")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)")
-                        .HasColumnName("created_by");
-
-                    b.HasKey("NoteId", "TagId");
-
-                    b.HasIndex("CreatedAt")
-                        .HasDatabaseName("ix_note_tags_created");
-
-                    b.HasIndex("NoteId")
-                        .HasDatabaseName("ix_note_tags_note");
-
-                    b.HasIndex("TagId")
-                        .HasDatabaseName("ix_note_tags_tag");
-
-                    b.ToTable("note_tags", (string)null);
+                    b.ToTable("note_members", "dbo");
                 });
 
             modelBuilder.Entity("SuperAppModels.Models.NoteVersion", b =>
@@ -387,7 +623,7 @@ namespace SuperAppDataRepositories.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_note_versions_note_version");
 
-                    b.ToTable("note_versions", (string)null);
+                    b.ToTable("note_versions", "dbo");
                 });
 
             modelBuilder.Entity("SuperAppModels.Models.StandardRegistry", b =>
@@ -454,7 +690,7 @@ namespace SuperAppDataRepositories.Migrations
                     b.HasIndex("Type", "Code")
                         .HasDatabaseName("ix_standard_registry_type_code");
 
-                    b.ToTable("standard_registry", (string)null);
+                    b.ToTable("standard_registry", "dbo");
                 });
 
             modelBuilder.Entity("SuperAppModels.Models.Tag", b =>
@@ -504,7 +740,6 @@ namespace SuperAppDataRepositories.Migrations
                         .HasColumnName("name");
 
                     b.Property<string>("Slug")
-                        .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)")
                         .HasColumnName("slug");
@@ -525,24 +760,20 @@ namespace SuperAppDataRepositories.Migrations
 
                     b.HasKey("TagId");
 
-                    b.HasIndex("CreatedAt")
-                        .HasDatabaseName("IX_tags_created_at");
-
-                    b.HasIndex("Name")
-                        .HasDatabaseName("IX_tags_name");
-
-                    b.HasIndex("UsageCount")
-                        .HasDatabaseName("IX_tags_usage_count");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("IX_tags_user");
+                    b.HasIndex("UserId", "DeletedAt")
+                        .HasDatabaseName("IX_tags_new_user")
+                        .HasFilter("[deleted_at] IS NULL");
 
                     b.HasIndex("UserId", "Slug")
                         .IsUnique()
-                        .HasDatabaseName("UQ_tags_user_slug")
+                        .HasDatabaseName("UQ_tags_new_user_slug")
                         .HasFilter("[deleted_at] IS NULL");
 
-                    b.ToTable("tags", (string)null);
+                    b.HasIndex("UserId", "UsageCount")
+                        .HasDatabaseName("IX_tags_new_usage")
+                        .HasFilter("[deleted_at] IS NULL");
+
+                    b.ToTable("tags_new", "dbo");
                 });
 
             modelBuilder.Entity("SuperAppModels.Models.User", b =>
@@ -637,7 +868,71 @@ namespace SuperAppDataRepositories.Migrations
                         .HasDatabaseName("IX_users_username")
                         .HasFilter("[deleted_at] IS NULL");
 
-                    b.ToTable("users", (string)null);
+                    b.ToTable("users", "urm");
+                });
+
+            modelBuilder.Entity("SuperAppModels.Models.UserProfile", b =>
+                {
+                    b.Property<string>("Email")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("email");
+
+                    b.Property<string>("AppC")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("app_code");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("IsUpdatedTodays")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("is_updated_todays");
+
+                    b.Property<string>("Parents")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("parents");
+
+                    b.Property<string>("Priorities")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("priorities");
+
+                    b.Property<string>("RepeatTypes")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("repeat_types");
+
+                    b.Property<string>("Statuses")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("statuses");
+
+                    b.Property<string>("Types")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("types");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Email");
+
+                    b.HasIndex("AppC")
+                        .HasDatabaseName("IX_user_profiles_app_code");
+
+                    b.HasIndex("IsActive")
+                        .HasDatabaseName("IX_user_profiles_is_active");
+
+                    b.ToTable("user_profiles", "urm");
                 });
 
             modelBuilder.Entity("SuperAppModels.Models.Workspace", b =>
@@ -774,7 +1069,7 @@ namespace SuperAppDataRepositories.Migrations
                     b.HasIndex("UserId")
                         .HasDatabaseName("IX_workspaces_user");
 
-                    b.ToTable("workspaces", (string)null);
+                    b.ToTable("workspaces", "ws");
                 });
 
             modelBuilder.Entity("SuperAppModels.Models.WorkspaceItem", b =>
@@ -827,6 +1122,9 @@ namespace SuperAppDataRepositories.Migrations
                         .HasDefaultValue(0)
                         .HasColumnName("depth");
 
+                    b.Property<int?>("FolderId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Icon")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)")
@@ -847,7 +1145,7 @@ namespace SuperAppDataRepositories.Migrations
                         .HasColumnType("nvarchar(1000)")
                         .HasColumnName("notes");
 
-                    b.Property<int>("ParentTagId")
+                    b.Property<int?>("ParentTagId")
                         .HasColumnType("int")
                         .HasColumnName("parent_tag_id");
 
@@ -878,6 +1176,8 @@ namespace SuperAppDataRepositories.Migrations
 
                     b.HasIndex("ChildTagTagId");
 
+                    b.HasIndex("FolderId");
+
                     b.HasIndex("ItemPath")
                         .HasDatabaseName("IX_workspace_items_path");
 
@@ -898,7 +1198,7 @@ namespace SuperAppDataRepositories.Migrations
                         .HasDatabaseName("UQ_workspace_items_unique")
                         .HasFilter("[deleted_at] IS NULL");
 
-                    b.ToTable("workspace_items", (string)null);
+                    b.ToTable("workspace_items", "ws");
                 });
 
             modelBuilder.Entity("SuperAppModels.Models.WorkspaceMember", b =>
@@ -976,7 +1276,7 @@ namespace SuperAppDataRepositories.Migrations
                         .HasDatabaseName("UQ_workspace_members_unique")
                         .HasFilter("[deleted_at] IS NULL");
 
-                    b.ToTable("workspace_members", (string)null);
+                    b.ToTable("workspace_members", "ws");
                 });
 
             modelBuilder.Entity("SuperAppModels.Models.WorkspaceRelationshipType", b =>
@@ -1086,7 +1386,52 @@ namespace SuperAppDataRepositories.Migrations
                         .HasDatabaseName("UQ_workspace_relationship_types_unique")
                         .HasFilter("[deleted_at] IS NULL");
 
-                    b.ToTable("workspace_relationship_types", (string)null);
+                    b.ToTable("workspace_relationship_types", "ws");
+                });
+
+            modelBuilder.Entity("SuperAppModels.Models.EntityTag", b =>
+                {
+                    b.HasOne("SuperAppModels.Models.Folder", null)
+                        .WithMany("EntityTags")
+                        .HasForeignKey("FolderId");
+
+                    b.HasOne("SuperAppModels.Models.Tag", "Tag")
+                        .WithMany()
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SuperAppModels.Models.User", "TaggedByUser")
+                        .WithMany()
+                        .HasForeignKey("TaggedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tag");
+
+                    b.Navigation("TaggedByUser");
+                });
+
+            modelBuilder.Entity("SuperAppModels.Models.FileInfo", b =>
+                {
+                    b.HasOne("SuperAppModels.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("SuperAppModels.Models.Folder", b =>
+                {
+                    b.HasOne("SuperAppModels.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("SuperAppModels.Models.Note", b =>
@@ -1127,21 +1472,6 @@ namespace SuperAppDataRepositories.Migrations
                     b.Navigation("Note");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("SuperAppModels.Models.NoteTag", b =>
-                {
-                    b.HasOne("SuperAppModels.Models.Note", null)
-                        .WithMany()
-                        .HasForeignKey("NoteId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("SuperAppModels.Models.Tag", null)
-                        .WithMany()
-                        .HasForeignKey("TagId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("SuperAppModels.Models.NoteVersion", b =>
@@ -1202,11 +1532,14 @@ namespace SuperAppDataRepositories.Migrations
                         .WithMany()
                         .HasForeignKey("ChildTagTagId");
 
+                    b.HasOne("SuperAppModels.Models.Folder", null)
+                        .WithMany("WorkspaceItems")
+                        .HasForeignKey("FolderId");
+
                     b.HasOne("SuperAppModels.Models.Tag", "ParentTag")
                         .WithMany()
                         .HasForeignKey("ParentTagId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("SuperAppModels.Models.Workspace", "Workspace")
                         .WithMany("Items")
@@ -1260,6 +1593,13 @@ namespace SuperAppDataRepositories.Migrations
                         .IsRequired();
 
                     b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("SuperAppModels.Models.Folder", b =>
+                {
+                    b.Navigation("EntityTags");
+
+                    b.Navigation("WorkspaceItems");
                 });
 
             modelBuilder.Entity("SuperAppModels.Models.Note", b =>

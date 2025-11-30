@@ -8,7 +8,8 @@ namespace SuperAppDataRepositories.Data.Configurations
     {
         public void Configure(EntityTypeBuilder<UserProfile> builder)
         {
-            builder.ToTable("user_profiles");
+            // Table mapping - urm schema (User Resource Management)
+            builder.ToTable("user_profiles", "urm");
 
             builder.HasKey(up => up.Email);
 

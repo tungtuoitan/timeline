@@ -8,8 +8,8 @@ namespace SuperAppDataRepositories.Data.Configurations
     {
         public void Configure(EntityTypeBuilder<Workspace> builder)
         {
-            // Table mapping
-            builder.ToTable("workspaces");
+            // Table mapping - ws schema (Workspace)
+            builder.ToTable("workspaces", "ws");
 
             // Primary key
             builder.HasKey(w => w.WorkspaceId);

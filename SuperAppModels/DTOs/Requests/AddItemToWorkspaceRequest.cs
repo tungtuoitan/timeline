@@ -67,5 +67,11 @@ namespace SuperAppModels.DTOs.Requests
         /// </summary>
         [StringLength(50, ErrorMessage = "Icon cannot exceed 50 characters")]
         public string? Icon { get; set; }
+
+        /// <summary>
+        /// Indicates if this workspace created/owns the item (true) or if it's shared from another workspace (false)
+        /// Default: true (creating new item)
+        /// </summary>
+        public bool IsOriginal { get; set; } = true;
     }
 }

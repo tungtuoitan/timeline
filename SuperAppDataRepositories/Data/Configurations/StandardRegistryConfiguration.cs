@@ -8,8 +8,8 @@ public class StandardRegistryConfiguration : IEntityTypeConfiguration<StandardRe
 {
     public void Configure(EntityTypeBuilder<StandardRegistry> builder)
     {
-        // Table mapping
-        builder.ToTable("standard_registry");
+        // Table mapping - dbo schema
+        builder.ToTable("standard_registry", "dbo");
 
         // Primary key
         builder.HasKey(sr => sr.Id);

@@ -8,8 +8,9 @@ namespace SuperAppDataRepositories.Data.Configurations
     {
         public void Configure(EntityTypeBuilder<Tag> builder)
         {
-            // Table mapping
-            builder.ToTable("tags");
+            // Table mapping - dbo schema
+            // IMPORTANT: Map to tags_new (hashtags), not tags (which is now folders)
+            builder.ToTable("tags_new", "dbo");
 
             // Primary key
             builder.HasKey(t => t.TagId);
@@ -69,26 +70,19 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(t => t.DeletedAt)
                 .HasColumnName("deleted_at");
 
-            // Indexes
-            builder.HasIndex(t => t.UserId)
-                .HasDatabaseName("IX_tags_user");
-
-            // ⚠️ REMOVED: IX_tags_parent - parent_id not in MVP 1.1
-            // Index will be added in Phase 2 when parent_id column is added
-
-            builder.HasIndex(t => t.Name)
-                .HasDatabaseName("IX_tags_name");
-
-            builder.HasIndex(t => new { t.UserId, t.Slug })
-                .HasDatabaseName("UQ_tags_user_slug")
-                .IsUnique()
+            // Indexes (updated for tags_new table)
+            builder.HasIndex(t => new { t.UserId, t.DeletedAt })
+                .HasDatabaseName("IX_tags_new_user")
                 .HasFilter("[deleted_at] IS NULL");
 
-            builder.HasIndex(t => t.UsageCount)
-                .HasDatabaseName("IX_tags_usage_count");
+            builder.HasIndex(t => new { t.UserId, t.UsageCount })
+                .HasDatabaseName("IX_tags_new_usage")
+                .HasFilter("[deleted_at] IS NULL");
 
-            builder.HasIndex(t => t.CreatedAt)
-                .HasDatabaseName("IX_tags_created_at");
+            builder.HasIndex(t => new { t.UserId, t.Slug })
+                .HasDatabaseName("UQ_tags_new_user_slug")
+                .IsUnique()
+                .HasFilter("[deleted_at] IS NULL");
 
             // Soft delete query filter
             builder.HasQueryFilter(t => t.DeletedAt == null);

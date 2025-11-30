@@ -12,8 +12,9 @@ namespace SuperAppDataRepositories.Data
 
         // Core Tables
         public DbSet<User> Users { get; set; }
-        public DbSet<Tag> Tags { get; set; }
+        public DbSet<Tag> Tags { get; set; } // Hashtags (maps to tags_new table)
         public DbSet<EntityType> EntityTypes { get; set; }
+        public DbSet<Folder> Folders { get; set; } // Folders (maps to folders table, renamed from old tags)
 
         // Workspace Tables
         public DbSet<Workspace> Workspaces { get; set; }
@@ -25,8 +26,13 @@ namespace SuperAppDataRepositories.Data
         public DbSet<Note> Notes { get; set; }
         public DbSet<NoteMember> NoteMembers { get; set; }
         public DbSet<NoteVersion> NoteVersions { get; set; }
-        public DbSet<NoteTag> NoteTags { get; set; }
         public DbSet<SuperAppModels.Models.FileInfo> Files { get; set; }
+
+        // Tagging System (new polymorphic tagging)
+        public DbSet<EntityTag> EntityTags { get; set; } // Polymorphic tagging for all entities
+
+        // ⚠️ DEPRECATED: NoteTag - migrated to EntityTag
+        // public DbSet<NoteTag> NoteTags { get; set; }
 
         // System Configuration Tables
         public DbSet<StandardRegistry> StandardRegistries { get; set; }

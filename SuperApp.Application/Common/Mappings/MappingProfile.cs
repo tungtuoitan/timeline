@@ -148,70 +148,6 @@ namespace SuperApp.Application.Common.Mappings
                 .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.CreatedAt))
                 .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.UpdatedAt));
 
-            // WorkspaceItem mappings
-            // Map AddItemToWorkspaceRequest to WorkspaceItem entity
-            CreateMap<AddItemToWorkspaceRequest, WorkspaceItem>()
-                .ForMember(dest => dest.ItemId, opt => opt.Ignore()) // Auto-generated
-                .ForMember(dest => dest.WorkspaceId, opt => opt.Ignore()) // Set from route parameter
-                .ForMember(dest => dest.ParentTagId, opt => opt.MapFrom(src => src.ParentTagId))
-                .ForMember(dest => dest.ChildType, opt => opt.MapFrom(src => src.ChildType))
-                .ForMember(dest => dest.ChildId, opt => opt.MapFrom(src => src.ChildId))
-                .ForMember(dest => dest.RelationshipType, opt => opt.MapFrom(src => src.RelationshipType))
-                .ForMember(dest => dest.Label, opt => opt.MapFrom(src => src.Label))
-                .ForMember(dest => dest.Notes, opt => opt.MapFrom(src => src.Notes))
-                .ForMember(dest => dest.SortOrder, opt => opt.MapFrom(src => src.SortOrder))
-                .ForMember(dest => dest.Color, opt => opt.MapFrom(src => src.Color))
-                .ForMember(dest => dest.Icon, opt => opt.MapFrom(src => src.Icon))
-                .ForMember(dest => dest.ItemPath, opt => opt.Ignore()) // Computed by trigger/service
-                .ForMember(dest => dest.Depth, opt => opt.MapFrom(src => 0)) // Default root level
-                .ForMember(dest => dest.AddedBy, opt => opt.Ignore()) // Set from JWT userId
-                .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => DateTime.UtcNow))
-                .ForMember(dest => dest.UpdatedAt, opt => opt.Ignore())
-                .ForMember(dest => dest.DeletedAt, opt => opt.Ignore())
-                // Navigation properties ignored - will be populated by Include()
-                .ForMember(dest => dest.Workspace, opt => opt.Ignore())
-                .ForMember(dest => dest.ParentTag, opt => opt.Ignore())
-                .ForMember(dest => dest.AddedByUser, opt => opt.Ignore())
-                .ForMember(dest => dest.ChildTag, opt => opt.Ignore())
-                .ForMember(dest => dest.ChildNote, opt => opt.Ignore());
-
-            // Map WorkspaceItem entity to WorkspaceItemResponse DTO
-            CreateMap<WorkspaceItem, WorkspaceItemResponse>()
-                .ForMember(dest => dest.ItemId, opt => opt.MapFrom(src => src.ItemId))
-                .ForMember(dest => dest.WorkspaceId, opt => opt.MapFrom(src => src.WorkspaceId))
-                .ForMember(dest => dest.ParentTagId, opt => opt.MapFrom(src => src.ParentTagId))
-                .ForMember(dest => dest.ChildType, opt => opt.MapFrom(src => src.ChildType))
-                .ForMember(dest => dest.ChildId, opt => opt.MapFrom(src => src.ChildId))
-                .ForMember(dest => dest.RelationshipType, opt => opt.MapFrom(src => src.RelationshipType))
-                .ForMember(dest => dest.Label, opt => opt.MapFrom(src => src.Label))
-                .ForMember(dest => dest.Notes, opt => opt.MapFrom(src => src.Notes))
-                .ForMember(dest => dest.SortOrder, opt => opt.MapFrom(src => src.SortOrder))
-                .ForMember(dest => dest.Color, opt => opt.MapFrom(src => src.Color))
-                .ForMember(dest => dest.Icon, opt => opt.MapFrom(src => src.Icon))
-                .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.CreatedAt))
-                // Navigation property mappings
-                .ForMember(dest => dest.ParentTagName, opt => opt.MapFrom(src => src.ParentTag != null ? src.ParentTag.Name : null))
-                .ForMember(dest => dest.ChildName, opt => opt.MapFrom(src => 
-                    src.ChildType == "tag" && src.ChildTag != null ? src.ChildTag.Name :
-                    src.ChildType == "note" && src.ChildNote != null ? src.ChildNote.Name :
-                    null))
-                .ForMember(dest => dest.AddedByUserName, opt => opt.MapFrom(src => src.AddedByUser != null ? src.AddedByUser.Username : null));
-
-            // Map WorkspaceItem entity to UpdateWorkspaceItemResponse DTO
-            CreateMap<WorkspaceItem, UpdateWorkspaceItemResponse>()
-                .ForMember(dest => dest.ItemId, opt => opt.MapFrom(src => src.ItemId))
-                .ForMember(dest => dest.WorkspaceId, opt => opt.MapFrom(src => src.WorkspaceId))
-                .ForMember(dest => dest.ParentTagId, opt => opt.MapFrom(src => src.ParentTagId))
-                .ForMember(dest => dest.ChildType, opt => opt.MapFrom(src => src.ChildType))
-                .ForMember(dest => dest.ChildId, opt => opt.MapFrom(src => src.ChildId))
-                .ForMember(dest => dest.Label, opt => opt.MapFrom(src => src.Label))
-                .ForMember(dest => dest.Notes, opt => opt.MapFrom(src => src.Notes))
-                .ForMember(dest => dest.SortOrder, opt => opt.MapFrom(src => src.SortOrder))
-                .ForMember(dest => dest.Color, opt => opt.MapFrom(src => src.Color))
-                .ForMember(dest => dest.Icon, opt => opt.MapFrom(src => src.Icon))
-                .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.UpdatedAt))
-                .ForMember(dest => dest.Message, opt => opt.Ignore()); // Set by handler
-
             // ========================================
             // WORKSPACE TREE MAPPINGS (Phase 3.4)
             // Support for unified tree with tags, notes, AND files
@@ -231,6 +167,7 @@ namespace SuperApp.Application.Common.Mappings
                 .ForMember(dest => dest.Color, opt => opt.MapFrom(src => src.Color))
                 .ForMember(dest => dest.Icon, opt => opt.MapFrom(src => src.Icon))
                 .ForMember(dest => dest.AccessType, opt => opt.MapFrom(src => src.AccessType))
+                .ForMember(dest => dest.IsOriginal, opt => opt.MapFrom(src => src.IsOriginal))
                 .ForMember(dest => dest.Level, opt => opt.MapFrom(src => src.Level))
                 .ForMember(dest => dest.Position, opt => opt.MapFrom(src => src.Position))
                 .ForMember(dest => dest.SortOrder, opt => opt.MapFrom(src => src.Position)) // Alias

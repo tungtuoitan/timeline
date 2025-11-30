@@ -4,17 +4,22 @@ using SuperAppModels.Models;
 
 namespace SuperAppDataRepositories.Data.Configurations
 {
+    /// <summary>
+    /// EF Core configuration for WorkspaceItem entity
+    /// Maps to: ws.workspace_items table
+    /// Schema: REBUILD_SIMPLIFIED_SCHEMA.sql
+    /// </summary>
     public class WorkspaceItemConfiguration : IEntityTypeConfiguration<WorkspaceItem>
     {
         public void Configure(EntityTypeBuilder<WorkspaceItem> builder)
         {
-            // Table mapping
-            builder.ToTable("workspace_items");
+            // Table mapping - ws schema (Workspace)
+            builder.ToTable("workspace_items", "ws");
 
             // Primary key
             builder.HasKey(wi => wi.ItemId);
             builder.Property(wi => wi.ItemId)
-                .HasColumnName("item_id")
+                .HasColumnName("id")
                 .ValueGeneratedOnAdd();
 
             // Properties
@@ -22,58 +27,27 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("workspace_id")
                 .IsRequired();
 
-            builder.Property(wi => wi.ParentTagId)
-                .HasColumnName("parent_tag_id")
+            builder.Property(wi => wi.FolderId)
+                .HasColumnName("folder_id")
                 .IsRequired(false); // Nullable for root-level items
 
-            builder.Property(wi => wi.ChildType)
-                .HasColumnName("child_type")
-                .HasMaxLength(50)
+            builder.Property(wi => wi.ItemType)
+                .HasColumnName("item_type")
+                .HasMaxLength(10)
                 .IsRequired();
 
             builder.Property(wi => wi.ChildId)
-                .HasColumnName("child_id")
+                .HasColumnName("item_id")
                 .IsRequired();
 
-            builder.Property(wi => wi.RelationshipType)
-                .HasColumnName("relationship_type")
-                .HasMaxLength(100);
-
-            builder.Property(wi => wi.Label)
-                .HasColumnName("label")
-                .HasMaxLength(255);
-
-            builder.Property(wi => wi.Notes)
-                .HasColumnName("notes")
-                .HasMaxLength(1000);
-
-            builder.Property(wi => wi.ItemPath)
-                .HasColumnName("item_path")
-                .HasMaxLength(4000);
-
-            builder.Property(wi => wi.Depth)
-                .HasColumnName("depth")
-                .HasDefaultValue(0);
-
-            builder.Property(wi => wi.SortOrder)
-                .HasColumnName("sort_order")
-                .HasDefaultValue(0);
-
-            builder.Property(wi => wi.Color)
-                .HasColumnName("color")
-                .HasMaxLength(7);
-
-            builder.Property(wi => wi.Icon)
-                .HasColumnName("icon")
-                .HasMaxLength(50);
-
-            builder.Property(wi => wi.AddedBy)
-                .HasColumnName("added_by")
+            builder.Property(wi => wi.IsOriginal)
+                .HasColumnName("is_original")
+                .HasDefaultValue(true)
                 .IsRequired();
 
             builder.Property(wi => wi.CreatedAt)
                 .HasColumnName("created_at")
-                .HasDefaultValueSql("GETDATE()");
+                .HasDefaultValueSql("GETUTCDATE()");
 
             builder.Property(wi => wi.UpdatedAt)
                 .HasColumnName("updated_at");
@@ -82,49 +56,41 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("deleted_at");
 
             // Indexes
-            builder.HasIndex(wi => wi.WorkspaceId)
-                .HasDatabaseName("IX_workspace_items_workspace");
-
-            builder.HasIndex(wi => wi.ParentTagId)
-                .HasDatabaseName("IX_workspace_items_parent");
-
-            builder.HasIndex(wi => new { wi.ChildType, wi.ChildId })
-                .HasDatabaseName("IX_workspace_items_child");
-
-            builder.HasIndex(wi => wi.ItemPath)
-                .HasDatabaseName("IX_workspace_items_path");
-
-            builder.HasIndex(wi => new { wi.WorkspaceId, wi.ParentTagId })
-                .HasDatabaseName("IX_workspace_items_workspace_parent");
-
-            // Unique constraint: one item can only be in one location per workspace
-            builder.HasIndex(wi => new { wi.WorkspaceId, wi.ParentTagId, wi.ChildType, wi.ChildId })
-                .HasDatabaseName("UQ_workspace_items_unique")
-                .IsUnique()
+            builder.HasIndex(wi => new { wi.WorkspaceId, wi.DeletedAt })
+                .HasDatabaseName("IX_workspace_items_workspace")
                 .HasFilter("[deleted_at] IS NULL");
 
-            // Soft delete query filter
-            builder.HasQueryFilter(wi => wi.DeletedAt == null);
+            builder.HasIndex(wi => wi.FolderId)
+                .HasDatabaseName("IX_workspace_items_folder")
+                .HasFilter("[deleted_at] IS NULL");
+
+            builder.HasIndex(wi => new { wi.ItemType, wi.ChildId })
+                .HasDatabaseName("IX_workspace_items_item");
+
+            builder.HasIndex(wi => new { wi.ItemType, wi.ChildId, wi.IsOriginal })
+                .HasDatabaseName("IX_workspace_items_original")
+                .HasFilter("[is_original] = 1");
+
+            // Unique constraint: one item can only exist once per workspace
+            builder.HasIndex(wi => new { wi.WorkspaceId, wi.ItemType, wi.ChildId })
+                .HasDatabaseName("UQ_workspace_items_unique")
+                .IsUnique();
 
             // Relationships
             builder.HasOne(wi => wi.Workspace)
-                .WithMany(w => w.Items)
+                .WithMany()
                 .HasForeignKey(wi => wi.WorkspaceId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            builder.HasOne(wi => wi.ParentTag)
-                .WithMany() // Tag can have many children in workspaces
-                .HasForeignKey(wi => wi.ParentTagId)
-                .OnDelete(DeleteBehavior.Restrict);
+            builder.HasOne(wi => wi.Folder)
+                .WithMany()
+                .HasForeignKey(wi => wi.FolderId)
+                .OnDelete(DeleteBehavior.NoAction);
 
-            builder.HasOne(wi => wi.AddedByUser)
-                .WithMany() // User can add many items
-                .HasForeignKey(wi => wi.AddedBy)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            // Note: ChildTag and ChildNote relationships CANNOT be configured with HasOne/HasForeignKey
-            // because they use the same ChildId column but reference different tables based on ChildType.
-            // These must be loaded manually in the repository using separate queries.
+            // Polymorphic relationships (navigations populated at runtime based on ItemType)
+            builder.Ignore(wi => wi.ChildFolder);
+            builder.Ignore(wi => wi.ChildNote);
+            builder.Ignore(wi => wi.ChildFile);
         }
     }
 }

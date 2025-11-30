@@ -124,6 +124,7 @@ namespace SuperApp.Application.Features.Workspaces.Commands.AddItemToWorkspace
                     ParentTagId = request.ParentTagId,
                     ChildType = request.ChildType,
                     ChildId = actualChildId,  // Use actual ID (existing or newly created)
+                    IsOriginal = request.IsOriginal,  // Set ownership flag
                     RelationshipType = request.RelationshipType,
                     Label = request.Label,
                     Notes = request.Notes,

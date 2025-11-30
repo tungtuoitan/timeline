@@ -8,8 +8,8 @@ namespace SuperAppDataRepositories.Data.Configurations
     {
         public void Configure(EntityTypeBuilder<Note> builder)
         {
-            // Table mapping
-            builder.ToTable("notes");
+            // Table mapping - dbo schema
+            builder.ToTable("notes", "dbo");
 
             // Primary key
             builder.HasKey(n => n.NoteId);

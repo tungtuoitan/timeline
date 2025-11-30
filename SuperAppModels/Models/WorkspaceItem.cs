@@ -3,100 +3,45 @@ using System.ComponentModel.DataAnnotations;
 namespace SuperAppModels.Models
 {
     /// <summary>
-    /// UNIFIED table managing ALL items in workspace (tags AND notes)
-    /// Primary table: workspace_items
-    /// Handles both tag-to-tag and tag-to-note relationships
+    /// Polymorphic junction table managing items in workspace (folders, notes, files)
+    /// Primary table: ws.workspace_items
+    /// Schema: REBUILD_SIMPLIFIED_SCHEMA.sql
     /// </summary>
     public class WorkspaceItem : ITimestampEntity
     {
-        // Primary Key - item_id
-        public long ItemId { get; set; }
+        // Primary Key
+        public long ItemId { get; set; } // maps to: id INT IDENTITY(1,1) PRIMARY KEY
 
-        // Workspace context
-        public int WorkspaceId { get; set; }
+        // Workspace reference
+        public int WorkspaceId { get; set; } // maps to: workspace_id INT NOT NULL
 
-        // Parent (always a tag) - NULLABLE for root items
-        public int? ParentTagId { get; set; }
+        // Parent folder (for hierarchy) - NULLABLE for root items
+        public int? FolderId { get; set; } // maps to: folder_id INT (FK to ws.folders.id)
 
-        // Child (can be tag or any entity)
-        public string ChildType { get; set; } = string.Empty; // 'tag', 'note', etc.
-        public int ChildId { get; set; }
+        // Polymorphic item reference
+        public string ItemType { get; set; } = string.Empty; // maps to: item_type TINYINT (2=folder, 3=note, 4=file)
+        public int ChildId { get; set; } // maps to: item_id INT (actual folder_id/note_id/file_id)
 
-        // Relationship metadata
-        public string? RelationshipType { get; set; }
-        public string? Label { get; set; }
-        public string? Notes { get; set; }
-
-        // Materialized path for tree queries
-        public string? ItemPath { get; set; } // e.g., '/1/5/12/'
-        public int Depth { get; set; } = 0; // 0 = root level
-
-        // Display properties
-        public int SortOrder { get; set; } = 0;
-        public string? Color { get; set; }
-        public string? Icon { get; set; }
-
-        // Audit
-        public int AddedBy { get; set; }
+        // Ownership tracking
+        public bool IsOriginal { get; set; } = true; // maps to: is_original BIT DEFAULT 1
 
         // Timestamps (ITimestampEntity)
-        public DateTime? CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
-        public DateTime? DeletedAt { get; set; }
+        public DateTime? CreatedAt { get; set; } // maps to: created_at DATETIME2 DEFAULT GETUTCDATE()
+        public DateTime? UpdatedAt { get; set; } // maps to: updated_at DATETIME2
+        public DateTime? DeletedAt { get; set; } // maps to: deleted_at DATETIME2
 
         // Navigation properties
         public Workspace Workspace { get; set; } = null!;
-        public Tag ParentTag { get; set; } = null!;
-        public User AddedByUser { get; set; } = null!;
-
-        // Dynamic navigation properties based on ChildType
-        public Tag? ChildTag { get; set; }
-        public Note? ChildNote { get; set; }
+        public Folder? Folder { get; set; } // Parent folder
+        
+        // Polymorphic navigation (based on ItemType)
+        public Folder? ChildFolder { get; set; } // when ItemType = "2"
+        public Note? ChildNote { get; set; }     // when ItemType = "3"
+        public FileInfo? ChildFile { get; set; } // when ItemType = "4"
 
         public WorkspaceItem()
         {
             CreatedAt = DateTime.UtcNow;
-        }
-
-        public WorkspaceItem(int workspaceId, int parentTagId, string childType, int childId, int addedBy) : this()
-        {
-            WorkspaceId = workspaceId;
-            ParentTagId = parentTagId;
-            ChildType = childType ?? throw new ArgumentNullException(nameof(childType));
-            ChildId = childId;
-            AddedBy = addedBy;
-        }
-
-        /// <summary>
-        /// Updates relationship metadata
-        /// </summary>
-        public void UpdateRelationship(string? relationshipType = null, string? label = null, string? notes = null)
-        {
-            if (relationshipType != null) RelationshipType = relationshipType;
-            if (label != null) Label = label;
-            if (notes != null) Notes = notes;
-            UpdatedAt = DateTime.UtcNow;
-        }
-
-        /// <summary>
-        /// Updates display properties
-        /// </summary>
-        public void UpdateDisplay(int? sortOrder = null, string? color = null, string? icon = null)
-        {
-            if (sortOrder.HasValue) SortOrder = sortOrder.Value;
-            if (color != null) Color = color;
-            if (icon != null) Icon = icon;
-            UpdatedAt = DateTime.UtcNow;
-        }
-
-        /// <summary>
-        /// Updates materialized path and depth for tree structure
-        /// </summary>
-        public void UpdatePath(string itemPath, int depth)
-        {
-            ItemPath = itemPath;
-            Depth = depth;
-            UpdatedAt = DateTime.UtcNow;
         }
 
         /// <summary>
@@ -109,13 +54,13 @@ namespace SuperAppModels.Models
         }
 
         /// <summary>
-        /// Checks if this item represents a tag-to-tag relationship
+        /// Checks if this workspace created/owns the item
         /// </summary>
-        public bool IsTagToTagRelationship => ChildType == "tag";
+        public bool IsOwner => IsOriginal;
 
         /// <summary>
-        /// Checks if this item represents a tag-to-note relationship
+        /// Checks if this item is shared from another workspace
         /// </summary>
-        public bool IsTagToNoteRelationship => ChildType == "note";
+        public bool IsShared => !IsOriginal;
     }
 }

@@ -12,8 +12,8 @@ namespace SuperAppDataRepositories.Data.Configurations
     {
         public void Configure(EntityTypeBuilder<SuperAppModels.Models.FileInfo> builder)
         {
-            // Table mapping
-            builder.ToTable("files");
+            // Table mapping - dbo schema
+            builder.ToTable("files", "dbo");
 
             // Primary key
             builder.HasKey(f => f.FileId);

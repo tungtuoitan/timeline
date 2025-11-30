@@ -8,8 +8,8 @@ namespace SuperAppDataRepositories.Data.Configurations
     {
         public void Configure(EntityTypeBuilder<User> builder)
         {
-            // Table mapping
-            builder.ToTable("users");
+            // Table mapping - urm schema (User Resource Management)
+            builder.ToTable("users", "urm");
 
             // Primary key
             builder.HasKey(u => u.UserId);

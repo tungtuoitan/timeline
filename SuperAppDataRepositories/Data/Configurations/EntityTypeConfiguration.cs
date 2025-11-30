@@ -8,8 +8,8 @@ public class EntityTypeConfiguration : IEntityTypeConfiguration<EntityType>
 {
     public void Configure(EntityTypeBuilder<EntityType> builder)
     {
-        // Table mapping
-        builder.ToTable("entity_types");
+        // Table mapping - dbo schema
+        builder.ToTable("entity_types", "dbo");
 
         // Primary key (string-based)
         builder.HasKey(et => et.TypeName);

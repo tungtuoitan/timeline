@@ -14,6 +14,7 @@ namespace SuperApp.Application.Features.Workspaces.Commands.AddItemToWorkspace
         public string ChildType { get; init; } = string.Empty;
         public int? ChildId { get; init; }  // Optional when creating new tag
         public string? TagName { get; init; }  // For auto-creating tags
+        public bool IsOriginal { get; init; } = true;  // TRUE when creating new item, FALSE when sharing existing item
         public string? RelationshipType { get; init; }
         public string? Label { get; init; }
         public string? Notes { get; init; }
