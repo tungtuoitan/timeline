@@ -1,46 +1,51 @@
 using AutoMapper;
-using MediatR;
 using Microsoft.Extensions.Logging;
-using SuperApp.Application.Common.Exceptions;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs.Responses;
+using SuperAppServices.Interfaces;
 
-namespace SuperApp.Application.Features.Workspaces.Queries.GetWorkspaceTree
+namespace SuperAppServices.Services
 {
-    public class GetWorkspaceTreeQueryHandler : IRequestHandler<GetWorkspaceTreeQuery, WorkspaceWithTreeResponse>
+    /// <summary>
+    /// Service for workspace operations
+    /// </summary>
+    public class WorkspaceService : IWorkspaceService
     {
         private readonly IWorkspaceRepository _workspaceRepository;
         private readonly IMapper _mapper;
-        private readonly ILogger<GetWorkspaceTreeQueryHandler> _logger;
+        private readonly ILogger<WorkspaceService> _logger;
 
-        public GetWorkspaceTreeQueryHandler(
+        public WorkspaceService(
             IWorkspaceRepository workspaceRepository,
             IMapper mapper,
-            ILogger<GetWorkspaceTreeQueryHandler> logger)
+            ILogger<WorkspaceService> logger)
         {
-            _workspaceRepository = workspaceRepository;
-            _mapper = mapper;
-            _logger = logger;
+            _workspaceRepository = workspaceRepository ?? throw new ArgumentNullException(nameof(workspaceRepository));
+            _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task<WorkspaceWithTreeResponse> Handle(GetWorkspaceTreeQuery request, CancellationToken cancellationToken)
+        /// <summary>
+        /// Gets workspace tree with all items (tags, notes, files)
+        /// </summary>
+        public async Task<WorkspaceWithTreeResponse> GetWorkspaceTreeAsync(int workspaceId, int userId)
         {
             try
             {
                 _logger.LogInformation("Getting workspace tree for WorkspaceId: {WorkspaceId}, UserId: {UserId}",
-                    request.WorkspaceId, request.UserId);
+                    workspaceId, userId);
 
                 // Get workspace info
-                var workspace = await _workspaceRepository.GetWorkspaceByIdAsync(request.WorkspaceId, request.UserId);
+                var workspace = await _workspaceRepository.GetWorkspaceByIdAsync(workspaceId, userId);
                 if (workspace == null)
                 {
                     _logger.LogWarning("Workspace {WorkspaceId} not found for user {UserId}",
-                        request.WorkspaceId, request.UserId);
-                    throw new NotFoundException($"Workspace with ID {request.WorkspaceId} not found");
+                        workspaceId, userId);
+                    throw new KeyNotFoundException($"Workspace with ID {workspaceId} not found");
                 }
 
-                // Get workspace tree (tags, notes, files) using NEW method
-                var treeItems = await _workspaceRepository.GetWorkspaceTreeAsync(request.WorkspaceId, request.UserId);
+                // Get workspace tree (tags, notes, files)
+                var treeItems = await _workspaceRepository.GetWorkspaceTreeAsync(workspaceId, userId);
 
                 // Map to WorkspaceTreeItemResponse using AutoMapper
                 var flatResponse = _mapper.Map<List<WorkspaceTreeItemResponse>>(treeItems);
@@ -73,14 +78,14 @@ namespace SuperApp.Application.Features.Workspaces.Queries.GetWorkspaceTree
                 };
 
                 _logger.LogInformation("Successfully retrieved workspace tree with {ItemCount} root items for workspace {WorkspaceId}",
-                    hierarchicalItems.Count, request.WorkspaceId);
+                    hierarchicalItems.Count, workspaceId);
 
                 return response;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while getting workspace tree for WorkspaceId: {WorkspaceId}, UserId: {UserId}",
-                    request.WorkspaceId, request.UserId);
+                    workspaceId, userId);
                 throw;
             }
         }
@@ -111,9 +116,9 @@ namespace SuperApp.Application.Features.Workspaces.Queries.GetWorkspaceTree
             // Dictionary for O(1) parent lookup - use composite key (ItemType + ItemId)
             // This handles cases where Tag.TagId=127 and Note.NoteId=127 both exist
             var itemDict = flatItems.ToDictionary(
-                i => $"{i.ItemType}_{i.ItemId}", 
+                i => $"{i.ItemType}_{i.ItemId}",
                 i => i);
-            
+
             var rootItems = new List<WorkspaceTreeItemResponse>();
 
             foreach (var item in flatItems)
@@ -127,7 +132,7 @@ namespace SuperApp.Application.Features.Workspaces.Queries.GetWorkspaceTree
                 {
                     // Child item - parent is ALWAYS a tag (only tags can be parents)
                     var parentKey = $"tag_{item.ParentId.Value}";
-                    
+
                     if (itemDict.TryGetValue(parentKey, out var parent))
                     {
                         // Add to parent's children

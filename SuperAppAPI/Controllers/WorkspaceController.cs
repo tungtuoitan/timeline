@@ -1,8 +1,7 @@
-using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SuperApp.Application.Features.Workspaces.Queries.GetWorkspaceTree;
 using SuperAppModels.DTOs.Responses;
+using SuperAppServices.Interfaces;
 
 namespace SuperAppAPI.Controllers
 {
@@ -14,12 +13,12 @@ namespace SuperAppAPI.Controllers
     //[Authorize] // TEMPORARY: Authorization disabled for development
     public class WorkspaceController : ControllerBase
     {
-        private readonly IMediator _mediator;
+        private readonly IWorkspaceService _workspaceService;
         private readonly ILogger<WorkspaceController> _logger;
 
-        public WorkspaceController(IMediator mediator, ILogger<WorkspaceController> logger)
+        public WorkspaceController(IWorkspaceService workspaceService, ILogger<WorkspaceController> logger)
         {
-            _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
+            _workspaceService = workspaceService ?? throw new ArgumentNullException(nameof(workspaceService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -66,8 +65,7 @@ namespace SuperAppAPI.Controllers
                 _logger.LogInformation("Retrieving workspace tree for workspaceId: {WorkspaceId}, userId: {UserId}", 
                     workspaceId, userId);
 
-                var query = new GetWorkspaceTreeQuery(workspaceId, userId);
-                var response = await _mediator.Send(query);
+                var response = await _workspaceService.GetWorkspaceTreeAsync(workspaceId, userId);
 
                 _logger.LogInformation("Successfully retrieved workspace tree with {RootCount} root items for workspaceId: {WorkspaceId}",
                     response?.Items?.Count ?? 0, workspaceId);

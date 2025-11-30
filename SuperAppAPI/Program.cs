@@ -85,24 +85,7 @@ namespace SuperAppAPI
 
                     //services.AddAuthorization();
 
-                    // Register MediatR with pipeline behaviors
-                    services.AddMediatR(typeof(SuperApp.Application.Features.Notes.Queries.GetNotes.GetNotesQuery).Assembly);
-
-                    // Register FluentValidation
-                    services.AddValidatorsFromAssembly(typeof(SuperApp.Application.Features.Notes.Commands.CreateNote.CreateNoteValidator).Assembly);
-
-                    // Register AutoMapper manually to avoid ambiguous calls
-                    var mapperConfig = new AutoMapper.MapperConfiguration(mc =>
-                    {
-                        mc.AddProfile(new MappingProfile());
-                    });
-                    IMapper mapper = mapperConfig.CreateMapper();
-                    services.AddSingleton(mapper);
-
-                    // Register MediatR pipeline behaviors
-                    services.AddTransient(typeof(IPipelineBehavior<,>), typeof(SuperApp.Application.Common.Behaviors.ValidationBehavior<,>));
-                    services.AddTransient(typeof(IPipelineBehavior<,>), typeof(SuperApp.Application.Common.Behaviors.LoggingBehavior<,>));
-
+                
                     // Register EF Core DbContext
                     services.AddDbContext<ApplicationDbContext>(options =>
                     {
@@ -133,6 +116,10 @@ namespace SuperAppAPI
                     // Register Application Services
                     services.AddScoped<IJwtService, JwtService>();
                     services.AddScoped<IGoogleAuthService, GoogleAuthService>();
+
+                    // Register Business Services
+                    services.AddScoped<SuperAppServices.Interfaces.IWorkspaceService, SuperAppServices.Services.WorkspaceService>();
+                    services.AddScoped<SuperAppServices.Interfaces.INoteService, SuperAppServices.Services.NoteService>();
                 });
 
     }
