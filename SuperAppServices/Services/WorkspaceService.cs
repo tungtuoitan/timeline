@@ -45,10 +45,15 @@ namespace SuperAppServices.Services
                 }
 
                 // Get workspace tree (tags, notes, files)
-                var treeItems = await _workspaceRepository.GetWorkspaceTreeAsync(workspaceId, userId);
+                var workspaceWithTree = await _workspaceRepository.GetWorkspaceTreeAsync(workspaceId, userId);
+                if (workspaceWithTree == null)
+                {
+                    _logger.LogWarning("Workspace tree data not found for workspace {WorkspaceId}", workspaceId);
+                    throw new InvalidOperationException($"Failed to retrieve workspace tree for workspace {workspaceId}");
+                }
 
                 // Map to WorkspaceTreeItemResponse using AutoMapper
-                var flatResponse = _mapper.Map<List<WorkspaceTreeItemResponse>>(treeItems);
+                var flatResponse = _mapper.Map<List<WorkspaceTreeItemResponse>>(workspaceWithTree.Items);
 
                 // Build hierarchical structure
                 var hierarchicalItems = BuildHierarchy(flatResponse);

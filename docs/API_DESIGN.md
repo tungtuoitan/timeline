@@ -1,129 +1,188 @@
-# API Design Guide Summary
-
-## Table of Contents
-- [API Design Guide Summary](#api-design-guide-summary)
-  - [Table of Contents](#table-of-contents)
-  - [RESTful Principles](#restful-principles)
-  - [Endpoint Naming](#endpoint-naming)
-  - [HTTP Methods](#http-methods)
-  - [Request/Response DTOs](#requestresponse-dtos)
-  - [Status Codes](#status-codes)
-  - [Pagination](#pagination)
-  - [Filtering and Sorting](#filtering-and-sorting)
-  - [API Versioning](#api-versioning)
-  - [Content Negotiation](#content-negotiation)
-  - [Best Practices Summary](#best-practices-summary)
-    - [✅ DO](#-do)
-    - [❌ DON'T](#-dont)
+# API Design Guide
 
 ## RESTful Principles
 
-- **Resource-Based URLs**: Sử dụng danh từ tập trung vào tài nguyên, tránh động từ. Ví dụ: GET /api/notes, POST /api/notes, PUT /api/notes/{id}.
+- **Resource-Based URLs**: Dùng danh từ số nhiều, tránh động từ
+  - ✅ `GET /api/notes`, `POST /api/notes`, `PUT /api/notes/{id}`
+  - ❌ `GET /api/getNotes`, `POST /api/createNote`
 
-- **Hierarchy and Relationships**: Xây dựng phân cấp rõ ràng như /api/users/{userId}/notes, hoặc sử dụng query params như /api/notes?userId={userId} cho tài nguyên độc lập.
+- **Hierarchy**: `/api/workspaces/{id}/items` hoặc query param `/api/notes?workspaceId={id}`
 
 ## Endpoint Naming
 
-- **Conventions**: Sử dụng [Route("api/[controller]")] cho controller, kết hợp HttpGet, HttpPost, HttpPut, HttpPatch, HttpDelete với path phù hợp.
-
-- **Plural vs Singular**: Luôn dùng danh từ số nhiều cho collections (/api/notes) và single resources (/api/notes/{id}). Tránh mix singular/plural.
-
-- **Special Actions**: Đối với hành động không phải CRUD, thêm action name sau resource, ví dụ: POST /api/notes/{id}/archive, GET /api/notes/search.
+- **Controller Route**: `[Route("api/[controller]")]`
+- **Plural nouns**: `/api/notes`, `/api/workspaces`
+- **Special actions**: `POST /api/notes/{id}/archive`, `GET /api/notes/search`
 
 ## HTTP Methods
 
-- **Standard CRUD Operations**:
-  - GET: Read (idempotent, safe, no body).
-  - POST: Create (non-idempotent, has body, return 201 with Location).
-  - PUT: Full update (idempotent, has body, return 204).
-  - PATCH: Partial update (non-idempotent, has body, return 204).
-  - DELETE: Delete (idempotent, no body, return 204).
-
-- **GET**: Retrieve all or single resource, hỗ trợ query params như searchText.
-
-- **POST**: Create resource, return created DTO.
-
-- **PUT**: Full update với toàn bộ data.
-
-- **PATCH**: Partial update với fields thay đổi.
-
-- **DELETE**: Remove resource.
+| Method | Purpose | Body | Return | Idempotent |
+|--------|---------|------|--------|-----------|
+| GET | Read | No | 200 + Data | Yes |
+| POST | Create | Yes | 201 + Location | No |
+| PUT | Full update | Yes | 200/204 | Yes |
+| PATCH | Partial update | Yes | 200/204 | No |
+| DELETE | Delete | No | 204 | Yes |
 
 ## Request/Response DTOs
 
-- **Never Expose Domain Entities**: Luôn dùng DTOs để map data, tránh lộ domain model.
+**Requests** (SuperAppModels/DTOs/Requests/):
+- CreateNoteRequest, UpdateNoteRequest
+- Validation attributes: [Required], [StringLength]
 
-- **Request DTOs**: Sử dụng records với validation attributes (Required, StringLength), ví dụ: CreateNoteRequest, UpdateNoteRequest, PatchNoteRequest.
+**Responses** (SuperAppModels/DTOs/Responses/):
+- NoteResponse, WorkspaceResponse
+- No sensitive data (passwords, internal IDs)
 
-- **Response DTOs**: Sử dụng records cho data trả về, ví dụ: NoteDto (full), NoteListDto (light for lists), NoteDetailDto (with relations).
+**Never expose domain models directly**
 
-- **Wrapper Response**: Sử dụng Result<T> với Success, Data, Message, Errors để consistent response structure.
+## Standard Response Format
+
+```csharp
+public class ApiResponse<T>
+{
+    public bool Success { get; set; }
+    public T? Data { get; set; }
+    public string? Message { get; set; }
+    public List<string>? Errors { get; set; }
+}
+```
 
 ## Status Codes
 
-- **Success (2xx)**:
-  - 200 OK: Successful GET/PUT/PATCH.
-  - 201 Created: Successful POST.
-  - 204 No Content: Successful DELETE/PUT/PATCH without body.
-  - 202 Accepted: Async processing.
+### Success (2xx)
+- **200 OK**: GET/PUT/PATCH success
+- **201 Created**: POST success + Location header
+- **204 No Content**: DELETE/PUT success without body
+- **202 Accepted**: Async processing
 
-- **Client Error (4xx)**:
-  - 400 Bad Request: Validation errors.
-  - 401 Unauthorized: Auth failed.
-  - 403 Forbidden: Not authorized.
-  - 404 Not Found: Resource missing.
-  - 409 Conflict: Resource conflict.
-  - 422 Unprocessable Entity: Business rule violation.
+### Client Error (4xx)
+- **400 Bad Request**: Validation fail
+- **401 Unauthorized**: Authentication fail
+- **403 Forbidden**: Not authorized for resource
+- **404 Not Found**: Resource not found
+- **409 Conflict**: Duplicate resource
+- **422 Unprocessable Entity**: Business rule violation
 
-- **Server Error (5xx)**:
-  - 500 Internal Server Error: Unexpected.
-  - 503 Service Unavailable: Dependency down.
+### Server Error (5xx)
+- **500 Internal Server Error**: Unexpected error
+- **503 Service Unavailable**: Dependency down
 
 ## Pagination
 
-- **Query Parameters**: Sử dụng pageNumber (default 1), pageSize (default 20), tính skip/take.
+**Query Parameters:**
+```csharp
+public class PaginationRequest
+{
+    public int PageNumber { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+}
+```
 
-- **PagedResult<T>**: Bao gồm Items, PageNumber, PageSize, TotalCount, TotalPages, HasPreviousPage, HasNextPage.
+**Response:**
+```csharp
+public class PagedResponse<T>
+{
+    public List<T> Items { get; set; }
+    public int PageNumber { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
+    public int TotalPages { get; set; }
+    public bool HasPreviousPage { get; set; }
+    public bool HasNextPage { get; set; }
+}
+```
 
-- **Alternative: Link Header**: Thêm X-Total-Count và Link với rel=prev/next/first/last.
+## Filtering & Sorting
 
-## Filtering and Sorting
-
-- **Query Parameter Pattern**: Sử dụng record như NoteFilterRequest với searchText, createdFrom/To, tags, isArchived, sortBy (default CreatedDate), sortOrder (asc/desc).
-
-- **Complex Filtering (Optional)**: Sử dụng OData cho $filter, $orderby, $top, $skip, $select, $expand.
+```csharp
+public class SearchNotesRequest
+{
+    public string? SearchText { get; set; }
+    public DateTime? CreatedFrom { get; set; }
+    public DateTime? CreatedTo { get; set; }
+    public string SortBy { get; set; } = "CreatedDate";
+    public string SortOrder { get; set; } = "desc"; // asc/desc
+}
+```
 
 ## API Versioning
 
-- **URL Path Versioning**: Sử dụng /api/v{version:apiVersion}/[controller], với ApiVersion attribute.
+**URL Path** (recommended):
+```csharp
+[Route("api/v{version:apiVersion}/[controller]")]
+[ApiVersion("1.0")]
+public class NotesController : ControllerBase
+```
 
-- **Header Versioning**: Sử dụng X-API-Version header.
-
-- **Query String Versioning**: Sử dụng ?api-version={version}.
-
-- **Deprecation**: Đánh dấu ApiVersion Deprecated=true, thêm headers api-deprecated-versions và api-supported-versions.
+**Header** (alternative):
+```
+X-API-Version: 1.0
+```
 
 ## Content Negotiation
 
-- **Accept Header**: Hỗ trợ multiple formats như application/json, application/xml.
+- Default: `application/json`
+- Accept header: `Accept: application/json`, `Accept: application/xml`
+- Custom media types: `application/vnd.superapp.note.v1+json`
 
-- **Custom Media Types**: Sử dụng như application/vnd.superapp.note.v1+json cho versioning qua content type.
-
-## Best Practices Summary
+## Best Practices
 
 ### ✅ DO
-1. Sử dụng plural nouns cho resources.
-2. Tuân thủ HTTP methods đúng cho CRUD.
-3. Trả status codes phù hợp.
-4. Sử dụng DTOs, không expose domain.
-5. Thêm API documentation với ProducesResponseType.
-6. Implement pagination cho collections.
-7. Version API.
+1. Dùng plural nouns cho resources
+2. Tuân thủ HTTP methods đúng
+3. Trả status codes phù hợp
+4. Dùng DTOs, không expose domain models
+5. Document với Swagger/OpenAPI
+6. Implement pagination cho collections
+7. Version API từ đầu
+8. Validate inputs
+9. Use consistent error format
+10. Log requests/responses
 
 ### ❌ DON'T
-1. Sử dụng verbs trong URLs.
-2. Mix singular/plural.
-3. Dùng POST cho mọi thứ.
-4. Trả structures khác nhau cho success/error.
-5. Expose implementation details.
-6. Trả 200 cho errors.
+1. Dùng verbs trong URLs
+2. Mix singular/plural
+3. Dùng POST cho mọi thứ
+4. Trả structures khác nhau cho success/error
+5. Expose sensitive data
+6. Trả 200 cho errors
+7. Skip pagination
+8. Hardcode values
+9. Return domain entities
+10. Ignore caching headers
+
+## Example Endpoints
+
+```csharp
+// NotesController
+[HttpGet]                          // GET /api/notes
+[HttpGet("{id}")]                  // GET /api/notes/123
+[HttpPost]                         // POST /api/notes
+[HttpPut("{id}")]                  // PUT /api/notes/123
+[HttpDelete]                       // DELETE /api/notes?ids=1,2,3
+[HttpGet("search")]                // GET /api/notes/search?text=foo
+
+// WorkspaceController
+[HttpGet("{id}/items")]            // GET /api/workspaces/1/items
+[HttpPost("{id}/items")]           // POST /api/workspaces/1/items
+```
+
+## Swagger Documentation
+
+```csharp
+[HttpGet("{id}")]
+[ProducesResponseType(typeof(NoteResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status404NotFound)]
+public async Task<IActionResult> GetNote(int id)
+{
+    var note = await _noteService.GetNoteByIdAsync(id);
+    return Ok(note);
+}
+```
+
+---
+
+**Version:** 2.0
+**Last Updated:** November 2025
+**See Also:** ARCHITECTURE.md, ERROR_HANDLING.md

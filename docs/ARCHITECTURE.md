@@ -1,214 +1,300 @@
+# Architecture Guide
 
----
-# Architecture Guide Summary
+## Tổng quan
 
-## Table of Contents
-1. [Architecture Overview](#architecture-overview)
-2. [Clean Architecture Principles](#clean-architecture-principles)
-3. [Project Structure](#project-structure)
-4. [Layer Responsibilities](#layer-responsibilities)
-5. [Dependency Rules](#dependency-rules)
-6. [CQRS Pattern](#cqrs-pattern)
-7. [Data Flow](#data-flow)
-8. [Benefits of This Architecture](#benefits-of-this-architecture)
+SuperApp sử dụng **Clean Architecture** với 4 layers rõ ràng, dependency pointing inward.
 
-## Architecture Overview
-
-SuperApp sử dụng Clean Architecture với CQRS cho business logic.
-
-### Architecture Diagram
-- SuperApp.API (Presentation): Controllers, Middleware, Program.cs.
-- SuperApp.Application (Business Logic): Commands, Queries, Handlers, DTOs, Validators.
-- SuperApp.Domain (Domain): Entities, Value Objects, Enums (không phụ thuộc).
-- SuperApp.Infrastructure (Data Access): Repositories, Database Access, External Services.
-- SuperApp.Shared (Utilities): Constants, Helpers, Results.
-
-Dependencies: Outer layers depend inward (API/Application/Infrastructure → Domain).
+## Architecture Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     SuperApp.API                             │
-│                  (Presentation Layer)                        │
-│  Controllers, Middleware, Filters, Program.cs               │
-└────────────────────────┬────────────────────────────────────┘
-                         │ depends on ↓
-┌─────────────────────────────────────────────────────────────┐
-│                 SuperApp.Application                         │
-│                  (Business Logic Layer)                      │
-│  Commands, Queries, Handlers, DTOs, Validators              │
-└────────────────────────┬────────────────────────────────────┘
-                         │ depends on ↓
-┌─────────────────────────────────────────────────────────────┐
-│                   SuperApp.Domain                            │
-│                    (Domain Layer)                            │
-│  Entities, Value Objects, Enums (No dependencies!)          │
-└─────────────────────────────────────────────────────────────┘
-                         ↑ depends on
-┌─────────────────────────────────────────────────────────────┐
-│               SuperApp.Infrastructure                        │
-│                 (Data Access Layer)                          │
-│  Repositories, Database Access, External Services           │
-└─────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│                   SuperApp.Shared                            │
-│                 (Cross-Cutting Utilities)                    │
-│  Constants, Helpers, Results, Extensions                    │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│                  SuperAppAPI                         │
+│              (Presentation Layer)                    │
+│    Controllers, Middleware, Extensions               │
+└────────────────────┬────────────────────────────────┘
+                     │ depends on ↓
+┌─────────────────────────────────────────────────────┐
+│               SuperAppServices                       │
+│             (Application Layer)                      │
+│    Services, Business Logic, Mappings                │
+└────────────────────┬────────────────────────────────┘
+                     │ depends on ↓
+┌─────────────────────────────────────────────────────┐
+│                SuperAppModels                        │
+│                (Domain Layer)                        │
+│    Models, DTOs, Enums (No dependencies)            │
+└─────────────────────────────────────────────────────┘
+                     ↑ depends on
+┌─────────────────────────────────────────────────────┐
+│           SuperAppDataRepositories                   │
+│             (Infrastructure Layer)                   │
+│    Repositories, DbContext, Configurations           │
+└─────────────────────────────────────────────────────┘
 ```
 
 ## Clean Architecture Principles
 
-1. **Independence of Frameworks**: Business logic không phụ thuộc framework bên ngoài (có thể thay EF bằng Dapper).
-
-2. **Testability**: Test business rules mà không cần UI, DB, server.
-
-3. **Independence of UI**: Thay UI (web sang mobile) mà không ảnh hưởng business logic.
-
-4. **Independence of Database**: Thay DB (SQL Server sang PostgreSQL) dễ dàng.
-
-5. **Dependency Rule**: Dependencies hướng inward (outer → inner). Inner không biết outer.
+1. **Independence of Frameworks**: Business logic không phụ thuộc EF Core, có thể thay bằng Dapper
+2. **Testability**: Test business rules độc lập không cần UI, DB, server
+3. **Independence of UI**: Thay đổi UI không ảnh hưởng business logic
+4. **Independence of Database**: Dễ dàng thay SQL Server sang PostgreSQL
+5. **Dependency Rule**: Dependencies hướng inward (outer → inner)
 
 ## Project Structure
 
-### Folder Hierarchy Summary
-- src/
-  - SuperApp.API/: Controllers (Notes, Auth,...), Middlewares (Exception, ValidateToken), Filters, Extensions, appsettings, Program.cs.
-  - SuperApp.Application/: Common (Interfaces, Behaviors, Exceptions, Mappings), Features (Notes/Auth/UserProfile/StandardRegistry với Commands/Queries), DTOs (Requests/Responses).
-  - SuperApp.Domain/: Entities (Note, User,...), Enums (AuthType,...), ValueObjects (Email,...).
-  - SuperApp.Infrastructure/: Data (IConnectionFactory), Repositories (Base, Note,...), StoredProcedures.
-  - SuperApp.Shared/: Constants, Helpers (Password, Jwt), Results.
-- tests/
-  - SuperApp.Tests.Unit/: Application (Notes/Auth), Domain.
-  - SuperApp.Tests.Integration/: Infrastructure, API.
+### SuperAppAPI (Presentation)
+```
+Controllers/
+├── NotesController.cs
+├── WorkspaceController.cs
+├── UserProfileController.cs
+├── StandardRegistryController.cs
+└── HealthController.cs
+
+Middleware/
+├── GlobalExceptionMiddleware.cs
+├── JwtValidationMiddleware.cs
+├── ValidateTokenMiddleware.cs
+└── SecurityHeadersMiddleware.cs
+
+Extensions/
+└── ClaimsPrincipalExtensions.cs
+
+Exceptions/
+└── AppException.cs
+```
+
+### SuperAppServices (Application)
+```
+Services/
+├── NoteService.cs
+└── WorkspaceService.cs
+
+Interfaces/
+├── INoteService.cs
+└── IWorkspaceService.cs
+
+Mappings/
+└── MappingProfile.cs
+```
+
+### SuperAppModels (Domain)
+```
+Models/
+├── User.cs, UserProfile.cs
+├── Note.cs, NoteVersion.cs, NoteMember.cs
+├── Workspace.cs, WorkspaceMember.cs, WorkspaceItem.cs
+├── Tag.cs, EntityTag.cs, EntityType.cs
+└── StandardRegistry.cs
+
+DTOs/
+├── Requests/ (CreateNoteRequest, UpdateNoteRequest,...)
+└── Responses/ (NoteResponse, WorkspaceResponse,...)
+
+Enums/
+└── ApplicationEnums.cs
+```
+
+### SuperAppDataRepositories (Infrastructure)
+```
+Repositories/
+├── NoteRepository.cs
+├── WorkspaceRepository.cs
+├── UserRepository.cs
+├── UserProfileRepository.cs
+└── StandardRegistryRepository.cs
+
+Ins/ (Interfaces)
+├── INoteRepository.cs
+├── IWorkspaceRepository.cs
+├── IUserRepository.cs
+├── IUserProfileRepository.cs
+└── IStandardRegistryRepository.cs
+
+Data/
+├── ApplicationDbContext.cs
+├── ConnectionFactory.cs
+├── IConnectionFactory.cs
+└── Configurations/ (Entity Fluent API configs)
+
+Migrations/
+└── yyyyMMddHHmmss_MigrationName.cs
+```
 
 ## Layer Responsibilities
 
-### 1. SuperApp.API (Presentation)
-- Xử lý HTTP requests/responses, route đến handlers.
-- Controllers mỏng, delegate MediatR.
-- Middleware: exception handling, auth.
-- Validation input binding.
-- Swagger documentation.
-- Không: business logic, direct DB access, complex validation.
+### 1. SuperAppAPI (Presentation)
+**Làm gì:**
+- HTTP request/response handling
+- Route đến Services
+- Authentication & Authorization
+- Model binding & validation
+- Swagger documentation
 
-### 2. SuperApp.Application (Business Logic)
-- Implement business logic, workflows.
-- CQRS: Commands/Queries, Handlers.
-- Validators (FluentValidation).
-- DTOs, business rules.
-- Mapping (AutoMapper).
-- Không: HTTP concerns, direct SQL, framework-specific.
+**Không làm:**
+- Business logic
+- Direct database access
+- Complex validations
 
-### 3. SuperApp.Domain (Domain)
-- Core entities, value objects, enums.
-- Domain exceptions, invariants.
-- Không: reference other layers, DB/HTTP/infra concerns.
+### 2. SuperAppServices (Application)
+**Làm gì:**
+- Implement business logic
+- Orchestrate workflows
+- Call repositories
+- Map DTOs ↔ Models
+- Business rule validation
 
-### 4. SuperApp.Infrastructure (Data Access)
-- Hybrid: EF Core (80% simple ops) + Stored Procedures (20% complex).
-- DbContext config, entity configs (Fluent API).
-- Repositories: implement interfaces, execute SP cho complex queries.
-- Data mapping, external integrations.
-- Không: business logic, HTTP/presentation.
+**Không làm:**
+- HTTP concerns
+- Direct SQL queries
+- Framework-specific code
 
-### 5. SuperApp.Shared (Utilities)
-- Constants, helpers (PasswordHash), extensions, Result types.
+### 3. SuperAppModels (Domain)
+**Làm gì:**
+- Define entities & value objects
+- Business rules trong models
+- DTOs cho data transfer
+- Domain enums
+
+**Không làm:**
+- Reference other layers
+- Database/HTTP/Infrastructure concerns
+
+### 4. SuperAppDataRepositories (Infrastructure)
+**Làm gì:**
+- Database access (EF Core + SP)
+- Repository implementations
+- DbContext & configurations
+- Migrations
+- External service integrations
+
+**Không làm:**
+- Business logic
+- HTTP/Presentation concerns
 
 ## Dependency Rules
 
-### Allowed
-- API → Application → Domain.
-- API → Infrastructure (DI registration).
-- Infrastructure → Application (interfaces), Domain.
-- Shared → All layers.
+### ✅ Allowed
+```
+SuperAppAPI → SuperAppServices → SuperAppModels
+SuperAppAPI → SuperAppDataRepositories (DI registration only)
+SuperAppDataRepositories → SuperAppModels
+SuperAppDataRepositories → (Interfaces từ Services nếu cần)
+```
 
-### Forbidden
-- Domain → Any.
-- Application → API, Infrastructure impl.
-- Infrastructure → API.
+### ❌ Forbidden
+```
+SuperAppModels → Any layer
+SuperAppServices → SuperAppAPI
+SuperAppDataRepositories → SuperAppAPI
+```
 
-### DI Registration (Program.cs)
-- AddDbContext<ApplicationDbContext> với SQL Server.
-- Scoped repos (INoteRepository → NoteRepository).
-- MediatR từ assemblies.
-- AutoMapper, Validators.
-- Pipeline behaviors: Validation, Logging.
+## Service Pattern (thay CQRS)
 
-## CQRS Pattern
+SuperApp sử dụng **Service pattern** thay vì CQRS:
 
-- **Commands**: Change state, return void/result (Create/Update/Delete).
-- **Queries**: Read data, no change (Get/Search).
-- Handlers execute logic, call repos.
-- Validators cho commands.
+```csharp
+public interface INoteService
+{
+    Task<List<NoteResponse>> GetNotesAsync(string userEmail);
+    Task<NoteResponse> CreateNoteAsync(CreateNoteRequest request, string userEmail);
+    Task<NoteResponse> UpdateNoteAsync(UpdateNoteRequest request);
+    Task DeleteNotesAsync(DeleteNotesRequest request);
+}
+```
+
+**Workflow:**
+1. Controller nhận request
+2. Gọi Service method
+3. Service thực hiện business logic
+4. Service gọi Repository
+5. Repository truy cập DB (EF/SP)
+6. Map entity → DTO
+7. Return response
 
 ## Data Flow
 
-### Request Flow
-1. HTTP Request → Controller.
-2. Controller tạo Command/Query → MediatR dispatch.
-3. Pipeline: Validation → Logging → Handler.
-4. Handler: business logic → Repository (interface).
-5. Repository: EF/SP → DB.
-6. DB return → Map entity → DTO.
-7. Handler → Controller → HTTP Response.
+```
+HTTP Request
+    ↓
+Controller
+    ↓
+Service (Business Logic)
+    ↓
+Repository (Interface)
+    ↓
+Database (EF Core / Stored Procedure)
+    ↓
+Map Entity → DTO
+    ↓
+HTTP Response
+```
 
-## Benefits of This Architecture
+## DI Registration (Program.cs)
 
-- **Testability**: Mock repos, test handlers independent.
-- **Maintainability**: Changes localized, clear boundaries.
-- **Flexibility**: Swap DB/UI/providers.
-- **Scalability**: CQRS optimize read/write, microservices ready.
-- **Collaboration**: Layers riêng biệt, interfaces contracts.
+```csharp
+// DbContext
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(connectionString));
 
-## Example Flow Diagram
+// Connection Factory
+builder.Services.AddSingleton<IConnectionFactory, ConnectionFactory>();
+
+// Repositories
+builder.Services.AddScoped<INoteRepository, NoteRepository>();
+builder.Services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+
+// Services
+builder.Services.AddScoped<INoteService, NoteService>();
+builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
+
+// AutoMapper
+builder.Services.AddAutoMapper(typeof(MappingProfile));
+```
+
+## Hybrid Data Access
+
+| Use Case | Tech | Reason |
+|----------|------|--------|
+| Simple CRUD | EF Core | Type-safe, maintainable |
+| 2-3 JOINs | EF Core | LINQ readable |
+| Complex queries | SP | Performance, optimized |
+| Reporting/Bulk | SP | Better control |
+
+## Benefits
+
+✅ **Testability:** Mock repositories, test services independently
+✅ **Maintainability:** Clear boundaries, changes localized
+✅ **Flexibility:** Swap DB/UI/providers easily
+✅ **Scalability:** Ready for microservices
+✅ **Collaboration:** Clear layer separation
+
+## Example Flow
 
 ```
-┌──────────────┐
-│   Browser    │
-└──────┬───────┘
-       │ POST /api/notes
-       ↓
-┌──────────────────────┐
-│  NotesController     │
-│  CreateNote(request) │
-└──────┬───────────────┘
-       │ Send(CreateNoteCommand)
-       ↓
-┌──────────────────────────────┐
-│  MediatR Pipeline            │
-│  ├─ ValidationBehavior       │ ← FluentValidation
-│  ├─ LoggingBehavior          │ ← Serilog
-│  └─ CreateNoteCommandHandler │
-└──────┬───────────────────────┘
-       │ CreateNoteAsync(note)
-       ↓
-┌──────────────────────────────┐
-│  NoteRepository               │
-│  ✅ EF Core: _context.Notes   │
-│     .Add(note)                │
-│     .SaveChangesAsync()       │
-└──────┬───────────────────────┘
-       │ INSERT INTO notes
-       ↓
-┌──────────────────────────────┐
-│  SQL Server                   │
-│  Database (SuperApp-dev)      │
-└──────┬───────────────────────┘
-       │ Returns note with ID
-       ↓
-┌──────────────────────┐
-│  AutoMapper          │
-│  Map<NoteDto>(note)  │
-└──────┬───────────────┘
-       │ Returns NoteDto
-       ↓
-┌──────────────────────┐
-│  Controller          │
-│  Ok(noteDto)         │
-└──────┬───────────────┘
-       │ 201 Created
-       ↓
-┌──────────────┐
-│   Browser    │
-└──────────────┘
+Browser: POST /api/notes
+    ↓
+NotesController.CreateNote(request)
+    ↓
+_noteService.CreateNoteAsync(request, userEmail)
+    ↓
+NoteService validates & maps request → Note model
+    ↓
+_noteRepository.CreateNoteAsync(note)
+    ↓
+Repository: _context.Notes.Add(note)
+            _context.SaveChangesAsync()
+    ↓
+Database: INSERT INTO notes
+    ↓
+Map Note → NoteResponse
+    ↓
+Controller: 201 Created + NoteResponse
+```
+
+---
+
+**Version:** 2.0
+**Last Updated:** November 2025
+**See Also:** PROJECT_OVERVIEW.md, DATABASE_ACCESS.md

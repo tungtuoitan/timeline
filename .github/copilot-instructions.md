@@ -1,6 +1,6 @@
 # SuperApp Backend Documentation
 
-Welcome to the SuperApp backend documentation. This guide will help you understand the architecture, coding standards, and best practices for developing and maintaining this .NET 9 Web API application.
+Welcome to the SuperApp backend documentation. This guide will help you understand the architecture, coding standards, and best practices for developing and maintaining this .NET 8 Web API application.
 
 ## 📚 Documentation Index
 
@@ -19,13 +19,6 @@ Welcome to the SuperApp backend documentation. This guide will help you understa
 - **[Authentication & Authorization](../docs/AUTHENTICATION.md)** - JWT, OAuth, password security, and endpoint protection
 - **[Validation](../docs/VALIDATION.md)** - FluentValidation setup, validation patterns, and error responses
 
-### Database Documentation
-- **[Current Database Schema](../docs/DATABASE-CURRENT/INDEX.md)** - 📊 **Currently deployed database** (MVP 1.1) - Production schema with file support
-- **[Database Design Reference](../docs/DATABASE-FOR-REFERENCES/INDEX.md)** - 📐 Complete design with future features
-
-### Quality Assurance
-- **[Security Best Practices](../docs/SECURITY.md)** - Secrets management, SQL injection prevention, and CORS configuration
-
 ---
 
 ## 🚀 Quick Start
@@ -33,7 +26,6 @@ Welcome to the SuperApp backend documentation. This guide will help you understa
 ### For New Developers
 1. Review **[Project Overview](../docs/PROJECT_OVERVIEW.md)** to understand the architecture
 2. Study **[Coding Standards](../docs/CODING_STANDARDS.md)** before writing code
-3. Check **[Database Current Schema](../docs/DATABASE-CURRENT/INDEX.md)** for production database structure
 
 ### For Feature Development
 1. Check **[Architecture Guide](../docs/ARCHITECTURE.md)** to understand where code belongs
@@ -48,7 +40,7 @@ Welcome to the SuperApp backend documentation. This guide will help you understa
 
 | Component | Technology | Version |
 |-----------|-----------|---------|------|
-| Framework | .NET | 9.0 |
+| Framework | .NET | 8.0 |
 | Language | C# | 12.0 |
 | API Pattern | REST API | - |
 | Architecture | Clean Architecture + CQRS | - |
@@ -127,7 +119,6 @@ dotnet user-secrets remove "ConnectionStrings:SuperAppConnection" --project src/
 Before submitting a pull request, ensure:
 
 - [ ] Code follows **[Coding Standards](../docs/CODING_STANDARDS.md)**
-- [ ] No secrets or connection strings in code (see **[Security](../docs/SECURITY.md)**)
 - [ ] XML documentation used only for complex methods and classes, not simple properties
 - [ ] DTOs used instead of domain entities in controllers
 - [ ] Input validation implemented (see **[Validation](../docs/VALIDATION.md)**)

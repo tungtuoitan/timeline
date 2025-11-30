@@ -1,96 +1,279 @@
-# Validation Guide Summary
+# Validation Guide
 
 ## Overview
-- SuperApp uses FluentValidation for input validation: strongly-typed rules, separation from business logic, consistent errors, MediatR integration, easy testing.
-- Key: All commands/queries with user input MUST have validators.
 
-## FluentValidation Setup
-- Installed: FluentValidation.AspNetCore, FluentValidation.DependencyInjectionExtensions.
-- Registration: AddValidatorsFromAssembly in Program.cs; Add ValidationBehavior to MediatR pipeline.
-- ValidationBehavior: Validates before handler; throws ValidationException on failures.
+SuperApp sử dụng **Data Annotations** cho validation trong DTOs.
 
-## Creating Validators
-- Naming: {CommandName}Validator.
-- Structure: Inherit AbstractValidator<T>; define rules in constructor.
-- File: Same folder as command/query.
+## Data Annotations
+
+### Required Fields
+```csharp
+public class CreateNoteRequest
+{
+    [Required(ErrorMessage = "Title is required")]
+    public string Title { get; set; }
+
+    [Required]
+    public string Content { get; set; }
+}
+```
+
+### String Length
+```csharp
+[StringLength(200, MinimumLength = 1, ErrorMessage = "Title must be between 1 and 200 characters")]
+public string Title { get; set; }
+
+[MaxLength(5000)]
+public string Content { get; set; }
+```
+
+### Email
+```csharp
+[Required]
+[EmailAddress(ErrorMessage = "Invalid email format")]
+public string Email { get; set; }
+```
+
+### Range
+```csharp
+[Range(1, int.MaxValue, ErrorMessage = "ID must be greater than 0")]
+public int NoteId { get; set; }
+
+[Range(0, 100)]
+public int Priority { get; set; }
+```
+
+### RegularExpression
+```csharp
+[RegularExpression(@"^[0-9]{10}$", ErrorMessage = "Phone must be 10 digits")]
+public string? Phone { get; set; }
+
+[RegularExpression(@"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$")]
+public string Password { get; set; }
+```
+
+### Compare
+```csharp
+public class SignupRequest
+{
+    [Required]
+    public string Password { get; set; }
+
+    [Required]
+    [Compare("Password", ErrorMessage = "Passwords do not match")]
+    public string ConfirmPassword { get; set; }
+}
+```
+
+### Custom Validation
+```csharp
+public class CreateNoteRequest : IValidatableObject
+{
+    public string Title { get; set; }
+    public string Content { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (Title?.ToLower() == "untitled" && string.IsNullOrWhiteSpace(Content))
+        {
+            yield return new ValidationResult(
+                "Cannot create untitled note without content",
+                new[] { nameof(Title), nameof(Content) }
+            );
+        }
+    }
+}
+```
 
 ## Validation Patterns
-### Required Fields
-- NotEmpty() for strings; NotNull() for nullable types.
 
-### String Validation
-- MinimumLength(n), MaximumLength(n), EmailAddress(), Matches(regex).
+### Nullable Properties
+```csharp
+public string? OptionalField { get; set; }  // Nullable - optional
 
-### Numeric Validation
-- GreaterThan/OrEqualTo, LessThan/OrEqualTo, InclusiveBetween(min,max), ScalePrecision(decimals,totalDigits).
-
-### Date Validation
-- LessThan(date), GreaterThan(date), LessThanOrEqualTo(x => otherDate).
-
-### Collection Validation
-- NotEmpty(), Must(condition for count/distinct), RuleForEach(rule).
+[Required]
+public string RequiredField { get; set; }   // Non-nullable - required
+```
 
 ### Conditional Validation
-- When(condition), Unless(condition).
+```csharp
+public class UpdateNoteRequest
+{
+    public int NoteId { get; set; }
 
-### Dependent Validation
-- Equal(x => otherProp), Cascade(CascadeMode.Stop).
+    [StringLength(200)]
+    public string? Title { get; set; }  // Optional in update
 
-## Common Rules
-- Create reusable extensions: e.g., EmailRule, PhoneRule, PasswordRule with chained rules.
+    public string? Content { get; set; }  // Optional in update
+}
+```
 
-## Custom Validators
-- Sync: Must(BeValidFunc).
-- Async: MustAsync(BeUniqueAsync).
-- Complex: MustAsync on whole object; inject repositories for DB checks.
+### Collection Validation
+```csharp
+[Required]
+[MinLength(1, ErrorMessage = "At least one tag is required")]
+public List<int> TagIds { get; set; }
+```
 
-## Error Messages
-- Default or custom WithMessage("msg").
-- Parameterized: Use {MaxLength}, {PropertyName}.
-- With property values: WithMessage((model, val) => $"msg with {val}").
+## Validation Response
 
-## Validation Pipeline
-- Flow: Request → Controller → MediatR → ValidationBehavior → Handler.
-- Exception: ValidationException with Errors dictionary.
-- Response: 400 JSON with status, message, errors dict.
+**Automatic validation** (ASP.NET Core):
+```csharp
+[ApiController]  // Enables automatic 400 response
+[Route("api/[controller]")]
+public class NotesController : ControllerBase
+{
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] CreateNoteRequest request)
+    {
+        // If validation fails, returns 400 automatically
+        // No need to check ModelState
+        return Ok(await _service.CreateNoteAsync(request));
+    }
+}
+```
 
-## Testing Validators
-- Use TestHelper: TestValidate, ShouldHaveValidationErrorFor, ShouldNotHaveAnyValidationErrors.
-- For async: TestValidateAsync; mock repositories.
-- Test cases: Empty, invalid lengths, duplicates, etc.; use Theory for params.
+**Validation Error Response:**
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7231#section-6.5.1",
+  "title": "One or more validation errors occurred.",
+  "status": 400,
+  "errors": {
+    "Title": ["Title is required"],
+    "Email": ["Invalid email format"]
+  }
+}
+```
 
-## Best Practices
-### DO
-- Create validators for all input commands/queries.
-- Use meaningful/parameterized messages.
-- Validate business rules in validators.
-- Use Cascade.Stop for efficiency.
-- Test thoroughly with edge cases.
+## Common Validation Rules
 
-### DON'T
-- Validate in controllers or handlers.
-- Use magic strings (use constants).
-- Swallow errors.
-- Duplicate logic (use extensions).
+### Email
+```csharp
+[Required]
+[EmailAddress]
+[StringLength(100)]
+public string Email { get; set; }
+```
+
+### Password
+```csharp
+[Required]
+[StringLength(100, MinimumLength = 8)]
+[RegularExpression(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$",
+    ErrorMessage = "Password must contain uppercase, lowercase, number and special character")]
+public string Password { get; set; }
+```
+
+### Phone
+```csharp
+[Phone]
+[RegularExpression(@"^[0-9]{10}$", ErrorMessage = "Phone must be 10 digits")]
+public string? PhoneNumber { get; set; }
+```
+
+### URL
+```csharp
+[Url]
+public string? Website { get; set; }
+```
+
+## Business Validation (Services)
+
+**Validation in service layer:**
+```csharp
+public async Task<NoteResponse> CreateNoteAsync(CreateNoteRequest request, string userEmail)
+{
+    // Business rule validation
+    var noteCount = await _repository.GetUserNoteCountAsync(userEmail);
+    if (noteCount >= 1000)
+    {
+        throw new BusinessRuleException("Maximum note limit reached (1000 notes)");
+    }
+
+    // Check duplicates
+    var exists = await _repository.ExistsByTitleAsync(request.Title, userEmail);
+    if (exists)
+    {
+        throw new ConflictException($"Note with title '{request.Title}' already exists");
+    }
+
+    // Create note
+    var note = new Note
+    {
+        Title = request.Title,
+        Content = request.Content,
+        UserEmail = userEmail
+    };
+
+    await _repository.CreateAsync(note);
+    return _mapper.Map<NoteResponse>(note);
+}
+```
 
 ## Validation Constants
-- Central class: Lengths (e.g., NoteNameMaxLength=200), Ranges (MinAge=0), Patterns (PhonePattern), Messages (RequiredField="{PropertyName} is required").
+
+**Centralized constants:**
+```csharp
+public static class ValidationConstants
+{
+    // Lengths
+    public const int TitleMaxLength = 200;
+    public const int ContentMaxLength = 5000;
+    public const int EmailMaxLength = 100;
+    public const int PasswordMinLength = 8;
+
+    // Patterns
+    public const string PhonePattern = @"^[0-9]{10}$";
+    public const string PasswordPattern = @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$";
+
+    // Messages
+    public const string RequiredMessage = "{0} is required";
+    public const string EmailMessage = "Invalid email format";
+    public const string PasswordMessage = "Password must contain uppercase, lowercase, number and special character";
+}
+```
+
+**Usage:**
+```csharp
+[StringLength(ValidationConstants.TitleMaxLength)]
+public string Title { get; set; }
+```
+
+## Best Practices
+
+### ✅ DO
+- Use Data Annotations cho input validation
+- Validate business rules trong services
+- Use meaningful error messages
+- Centralize validation constants
+- Return 400 cho validation errors
+- Return 422 cho business rule violations
+- Test validation logic
+
+### ❌ DON'T
+- Skip validation
+- Use magic strings/numbers
+- Duplicate validation logic
+- Validate in controllers
+- Swallow validation errors
+- Return 200 with errors
 
 ## Quick Reference
-| Scenario | Rule |
-|----------|------|
-| Required | NotEmpty() |
-| Email | EmailAddress() |
-| Length | Maximum/MinimumLength(n) |
-| Range | InclusiveBetween(min,max) |
-| Positive | GreaterThan(0) |
-| Regex | Matches(pattern) |
-| Enum | IsInEnum() |
-| Unique | MustAsync(BeUnique) |
-| Conditional | When(condition) |
 
-## Related Documentation
-- Error Handling, API Design, Testing Guidelines, Code Examples.
+| Validation | Attribute | Example |
+|------------|-----------|---------|
+| Required | [Required] | `[Required] string Name` |
+| String length | [StringLength] | `[StringLength(200)]` |
+| Range | [Range] | `[Range(1, 100)]` |
+| Email | [EmailAddress] | `[EmailAddress]` |
+| Phone | [Phone] | `[Phone]` |
+| URL | [Url] | `[Url]` |
+| Regex | [RegularExpression] | `[RegularExpression(@"pattern")]` |
+| Compare | [Compare] | `[Compare("Password")]` |
 
-**Version:** 1.0 (Oct 2025)  
-**Maintained By:** Dev Team
+---
+
+**Version:** 2.0
+**Last Updated:** November 2025
+**See Also:** API_DESIGN.md, ERROR_HANDLING.md

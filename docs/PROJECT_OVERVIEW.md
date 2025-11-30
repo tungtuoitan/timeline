@@ -1,160 +1,174 @@
 # Project Overview
 
-## Introduction
+## Giới thiệu
 
-SuperApp is a .NET 8 backend API using Clean Architecture and CQRS pattern.
+SuperApp là .NET 8 backend API sử dụng Clean Architecture với hybrid data access pattern.
 
 ## Technology Stack
 
-### Core Technologies
+### Core
+- .NET 8.0, C# 12.0
+- ASP.NET Core Web API
+- SQL Server
 
-- Framework: .NET 9.0
-- Language: C# 12.0
-- API: ASP.NET Core Web API 9.0
-- ORM: Entity Framework Core (latest) for 80% operations
-- Database Access: Hybrid (EF Core + Stored Procedures)
 
-### Key Libraries
-
-- Entity Framework Core: ORM & Data Access
-- MediatR: CQRS implementation
-- FluentValidation: Input validation
+### Libraries
 - AutoMapper: Object mapping
-- Serilog: Logging
+- Serilog: Structured logging
 - JWT Bearer: Authentication
 - Google OAuth: External auth
 
-### Tools
+## Kiến trúc
 
-- IDE: Visual Studio 2022 / VS Code / Rider
-- Database: SQL Server
-- Version Control: Git
-- Package Manager: NuGet
+Clean Architecture với 4 layers:
 
-## Architecture
+| Layer | Project | Chức năng |
+|-------|---------|-----------|
+| Presentation | **SuperAppAPI** | Controllers, Middleware, Program.cs |
+| Application | **SuperAppServices** | Services, Business Logic, Mappings |
+| Domain | **SuperAppModels** | Models, DTOs, Enums |
+| Infrastructure | **SuperAppDataRepositories** | Repositories, DbContext, Data Access |
 
-Clean Architecture with CQRS.
+**Dependency Rules:** Outer → Inner. Domain không phụ thuộc ai.
 
-Layers:
-- API: Presentation (Controllers, Middleware)
-- Application: Business (Commands, Queries, DTOs)
-- Domain: Core (Entities, Enums)
-- Infrastructure: Data (Repositories, DB Access)
-- Shared: Utilities (Constants, Helpers)
-
-Dependency Rules: Dependencies point inward; Domain has no dependencies.
-
-CQRS: Commands for writes, Queries for reads.
+```
+SuperAppAPI → SuperAppServices → SuperAppModels
+                                      ↑
+SuperAppDataRepositories ─────────────┘
+```
 
 ## Layer Responsibilities
 
-- API: HTTP handling, auth, serialization.
-- Application: Business logic, validation, mapping.
-- Domain: Business entities and rules (framework-agnostic).
-- Infrastructure: Data persistence, repositories, stored procs.
-- Shared: Cross-cutting utilities.
+### SuperAppAPI (Presentation)
+- Controllers: Notes, Workspace, UserProfile, StandardRegistry, Health
+- Middleware: GlobalException, JwtValidation, SecurityHeaders
+- Extensions: ClaimsPrincipal
+- Không chứa business logic
 
-## Project Structure
+### SuperAppServices (Application)
+- Services: NoteService, WorkspaceService
+- Interfaces: INoteService, IWorkspaceService
+- MappingProfile (AutoMapper)
+- Business logic, orchestration
 
-- SuperApp.API: Controllers, Middlewares, Filters.
-- SuperApp.Application: Features (Commands/Queries), DTOs, Interfaces.
-- SuperApp.Domain: Entities, Enums, ValueObjects.
-- SuperApp.Infrastructure: Repositories, StoredProcedures.
-- SuperApp.Shared: Constants, Helpers, Results.
-- SuperApp.Tests: Unit and Integration tests.
+### SuperAppModels (Domain)
+- Models: User, Note, Workspace, Tag, etc.
+- DTOs: Requests/Responses cho API
+- Enums: ApplicationEnums
+- Không có dependencies
+
+### SuperAppDataRepositories (Infrastructure)
+- Repositories: User, Note, Workspace, StandardRegistry, UserProfile
+- ApplicationDbContext (EF Core)
+- Configurations: Entity configurations (Fluent API)
+- ConnectionFactory: Multi-database support
+- Migrations
 
 ## Data Access
 
-Hybrid: EF Core for simple CRUD; Stored Procs for complex queries.
+**Hybrid Strategy:**
+- EF Core (80%): Simple CRUD, 2-3 JOINs
+- Stored Procedures (20%): Complex aggregations, reporting, bulk ops
 
-Repository Pattern: Interfaces in Application, implementations in Infrastructure.
+**Repositories:** Interface trong `Ins/`, implementation trong `Repositories/`
 
-## Authentication
+## Authentication & Authorization
 
-- Local: Email/Phone + Password (BCrypt hashed).
-- OAuth: Google.
-- JWT: Claims (sub, jti, exp); 60-min lifetime.
-- Protection: [Authorize] attribute.
+- Local: Email/Phone + Password (BCrypt hashed)
+- OAuth: Google
+- JWT: Claims-based với 60-min lifetime
+- Protection: Middleware-based validation
 
 ## Request Flow
 
-1. Request → Controller → Command/Query.
-2. MediatR → Validator → Handler.
-3. Handler → Repository → DB (EF/SP).
-4. Map to DTO → Response.
-
-## Design Patterns
-
-- CQRS: Separate Commands/Queries.
-- Repository: Abstracts data access.
-- Dependency Injection: Constructor injection.
-- Mediator: Decouples via MediatR.
+```
+HTTP Request → Controller → Service → Repository → DB (EF/SP)
+                  ↓            ↓          ↓
+              Middleware   Business    Data Access
+                           Logic
+```
 
 ## Configuration
 
-- appsettings.json: Non-sensitive.
-- User Secrets: Sensitive (connections, keys).
-- Environment-specific overrides.
+- appsettings.json: Non-sensitive configs
+- User Secrets: Connection strings, JWT keys, OAuth secrets
+- Environment variables: Production overrides
 
 ## Error Handling
 
-- Exceptions: AppException hierarchy (NotFound, Validation, etc.).
-- Middleware: Global exception handling.
-- Validation: DataAnnotations + FluentValidation.
+- Custom exceptions: AppException hierarchy
+- GlobalExceptionMiddleware: Centralized handling
+- Structured logging với Serilog
 
-## Logging
+## Database
 
-- Serilog: Structured logging.
-- Levels: Trace to Critical.
-- Log: Flows, operations, errors; avoid sensitive data.
+**Databases:**
+- SuperApp-dev / SuperApp-prod
+- UserProfile-dev / UserProfile-prod
+- SuperApp_Test / UserProfile_Test
 
-## Testing
+**Tables:** users, workspaces, workspace_members, workspace_items, notes, note_members, note_versions, tags, entity_types, standard_registry
 
-- Unit: Business logic.
-- Integration: DB/repositories.
-- Mirror source structure.
+## Development Workflow
 
-## Performance
+**Run:**
+```bash
+dotnet run --project SuperAppAPI
+dotnet watch --project SuperAppAPI
+```
 
-- Async I/O.
-- Indexing, pooling.
-- Future: Caching.
+**Build & Test:**
+```bash
+dotnet build
+dotnet test
+```
+
+**Migrations:**
+```bash
+dotnet ef migrations add MigrationName --project SuperAppDataRepositories --startup-project SuperAppAPI
+dotnet ef database update --project SuperAppDataRepositories --startup-project SuperAppAPI
+```
+
+**Secrets:**
+```bash
+dotnet user-secrets set "Key" "Value" --project SuperAppAPI
+```
+
+## Project Dependencies
+
+- SuperAppAPI → SuperAppServices, SuperAppModels, SuperAppDataRepositories
+- SuperAppServices → SuperAppModels, SuperAppDataRepositories
+- SuperAppDataRepositories → SuperAppModels
+- SuperAppModels → (none)
+
+## Best Practices
+
+- Async/await cho I/O operations
+- DTOs cho API boundaries
+- Repository pattern cho data access
+- Dependency injection
+- Structured logging
+- Parameterized queries
 
 ## Security
 
-- Hashed passwords, JWT validation.
-- Parameterized queries.
-- HTTPS, CORS, limits.
+- Password hashing (BCrypt)
+- JWT validation
+- HTTPS enforced
+- CORS configuration
+- SQL injection prevention
+- Security headers
 
-## Scalability
+## Performance
 
-- Stateless API.
-- Future: Replicas, caching, queues.
+- Async operations
+- Connection pooling
+- Query optimization
+- AsNoTracking cho read-only
+- Pagination
 
-## Workflow
+---
 
-- Branches: main, develop, feature.
-- Process: Branch → Implement → Test → PR → Merge.
-
-## Dependencies
-
-- API: Application, Shared.
-- Application: Domain, Shared.
-- Domain: None.
-- Infrastructure: Domain, Application (interfaces), Shared.
-- Shared: None.
-
-## Next Steps
-
-- New devs: Read SETUP.md, examples.
-- Experienced: Review architecture docs.
-
-## Resources
-
-- Internal: SETUP, ARCHITECTURE, etc.
-- External: Clean Arch, CQRS, .NET docs.
-
-## Document Info
-
-- Version: 1.0
-- Updated: October 2025
+**Version:** 2.0
+**Last Updated:** November 2025
+**See Also:** ARCHITECTURE.md, DATABASE_ACCESS.md, API_DESIGN.md

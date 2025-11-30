@@ -1,224 +1,255 @@
 # Error Handling Guide
 
-## Table of Contents
-- [Error Handling Guide](#error-handling-guide)
-  - [Table of Contents](#table-of-contents)
-  - [Exception Hierarchy](#exception-hierarchy)
-    - [Base Exception](#base-exception)
-  - [Custom Exceptions](#custom-exceptions)
-    - [NotFoundException (404)](#notfoundexception-404)
-    - [ValidationException (400)](#validationexception-400)
-    - [UnauthorizedException (401)](#unauthorizedexception-401)
-    - [ForbiddenException (403)](#forbiddenexception-403)
-    - [BusinessRuleException (422)](#businessruleexception-422)
-    - [ConflictException (409)](#conflictexception-409)
-  - [Global Exception Middleware](#global-exception-middleware)
-    - [Implementation](#implementation)
-    - [Registration](#registration)
-  - [Controller Error Handling](#controller-error-handling)
-  - [Repository Error Handling](#repository-error-handling)
-  - [Logging Errors](#logging-errors)
-  - [HTTP Status Codes](#http-status-codes)
-  - [ProblemDetails Standard](#problemdetails-standard)
-  - [Quick Reference](#quick-reference)
-    - [Exceptions](#exceptions)
-    - [Logging](#logging)
-
 ## Exception Hierarchy
 
-### Base Exception
-
+**Base Exception** (SuperAppAPI/Exceptions/AppException.cs):
 ```csharp
 public abstract class AppException : Exception
 {
     public int StatusCode { get; }
     public string? ErrorCode { get; }
 
-    protected AppException(string message, int statusCode, string? errorCode = null) : base(message) { /* ... */ }
+    protected AppException(string message, int statusCode, string? errorCode = null)
+        : base(message)
+    {
+        StatusCode = statusCode;
+        ErrorCode = errorCode;
+    }
 }
 ```
 
 ## Custom Exceptions
 
 ### NotFoundException (404)
-
 ```csharp
-public class NotFoundException : AppException
-{
-    public NotFoundException(string message) : base(message, 404, "NOT_FOUND") { }
-    public NotFoundException(string entityName, object key) : base($"{entityName} with key '{key}' not found", 404, "NOT_FOUND") { }
-}
+throw new NotFoundException("Note not found");
+throw new NotFoundException("Note", noteId);
 ```
 
 ### ValidationException (400)
-
 ```csharp
-public class ValidationException : AppException
+var errors = new Dictionary<string, string[]>
 {
-    public IDictionary<string, string[]> Errors { get; }
-    public ValidationException(IDictionary<string, string[]> errors) : base("Validation errors", 400, "VALIDATION_ERROR") { Errors = errors; }
-}
+    { "Title", new[] { "Title is required" } }
+};
+throw new ValidationException(errors);
 ```
 
 ### UnauthorizedException (401)
-
 ```csharp
-public class UnauthorizedException : AppException
-{
-    public UnauthorizedException(string message = "Unauthorized") : base(message, 401, "UNAUTHORIZED") { }
-}
+throw new UnauthorizedException("Invalid credentials");
 ```
 
 ### ForbiddenException (403)
-
 ```csharp
-public class ForbiddenException : AppException
-{
-    public ForbiddenException(string message = "Forbidden") : base(message, 403, "FORBIDDEN") { }
-}
+throw new ForbiddenException("Not authorized to access this resource");
 ```
 
 ### BusinessRuleException (422)
-
 ```csharp
-public class BusinessRuleException : AppException
-{
-    public BusinessRuleException(string message, string? errorCode = null) : base(message, 422, errorCode ?? "BUSINESS_RULE_VIOLATION") { }
-}
+throw new BusinessRuleException("Cannot exceed note limit");
 ```
 
 ### ConflictException (409)
-
 ```csharp
-public class ConflictException : AppException
-{
-    public ConflictException(string message) : base(message, 409, "CONFLICT") { }
-}
+throw new ConflictException("Email already exists");
 ```
 
 ## Global Exception Middleware
 
-### Implementation
-
-Catches exceptions, logs, and returns ProblemDetails.
+**Implementation** (SuperAppAPI/Middlewares/GlobalExceptionMiddleware.cs):
 
 ```csharp
 public class GlobalExceptionMiddleware
 {
+    private readonly RequestDelegate _next;
+    private readonly ILogger<GlobalExceptionMiddleware> _logger;
+
     public async Task InvokeAsync(HttpContext context)
     {
-        try { await _next(context); }
-        catch (Exception ex) { _logger.LogError(ex, "Unhandled exception"); await HandleExceptionAsync(context, ex); }
+        try
+        {
+            await _next(context);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unhandled exception occurred");
+            await HandleExceptionAsync(context, ex);
+        }
     }
 
     private async Task HandleExceptionAsync(HttpContext context, Exception ex)
     {
-        // Maps to status and ProblemDetails based on exception type
+        var statusCode = ex switch
+        {
+            NotFoundException => StatusCodes.Status404NotFound,
+            ValidationException => StatusCodes.Status400BadRequest,
+            UnauthorizedException => StatusCodes.Status401Unauthorized,
+            ForbiddenException => StatusCodes.Status403Forbidden,
+            BusinessRuleException => StatusCodes.Status422UnprocessableEntity,
+            ConflictException => StatusCodes.Status409Conflict,
+            _ => StatusCodes.Status500InternalServerError
+        };
+
+        var problemDetails = new ProblemDetails
+        {
+            Status = statusCode,
+            Title = GetTitle(statusCode),
+            Detail = ex.Message,
+            Instance = context.Request.Path
+        };
+
+        if (ex is ValidationException validationEx)
+        {
+            problemDetails.Extensions["errors"] = validationEx.Errors;
+        }
+
+        context.Response.ContentType = "application/json";
+        context.Response.StatusCode = statusCode;
+        await context.Response.WriteAsJsonAsync(problemDetails);
     }
 }
 ```
 
-### Registration
-
+**Registration** (Program.cs):
 ```csharp
 app.UseMiddleware<GlobalExceptionMiddleware>();
 ```
 
 ## Controller Error Handling
 
-Let middleware handle exceptions; don't catch in controllers.
+**Don't catch exceptions in controllers** - Let middleware handle:
 
 ```csharp
+// ✅ Good - Let middleware handle exceptions
 [HttpGet("{id}")]
-public async Task<ActionResult<NoteDto>> GetNote(int id)
+public async Task<IActionResult> GetNote(int id)
 {
-    var result = await _mediator.Send(new GetNoteByIdQuery(id));
-    return Ok(result);
+    var note = await _noteService.GetNoteByIdAsync(id);
+    return Ok(note);
+}
+
+// ❌ Bad - Don't catch in controller
+[HttpGet("{id}")]
+public async Task<IActionResult> GetNote(int id)
+{
+    try
+    {
+        var note = await _noteService.GetNoteByIdAsync(id);
+        return Ok(note);
+    }
+    catch (Exception ex)
+    {
+        return StatusCode(500, ex.Message);
+    }
 }
 ```
 
 ## Repository Error Handling
 
-Use BaseRepository for SQL handling; check output params for business errors.
-
+**Database Errors:**
 ```csharp
-public async Task<int> CreateNoteAsync(Note note)
+try
 {
-    return await ExecuteNonQuery(/* ... */, extractResult: (cmd) =>
-    {
-        var errorMsg = cmd.Parameters["@ov_ErrorMsg"].Value?.ToString();
-        if (!string.IsNullOrEmpty(errorMsg)) throw new BusinessRuleException(errorMsg);
-        return (int)cmd.Parameters["@ov_NoteId"].Value;
-    });
+    await _context.SaveChangesAsync();
+}
+catch (DbUpdateConcurrencyException ex)
+{
+    _logger.LogError(ex, "Concurrency conflict for Note {NoteId}", note.NoteId);
+    throw new ConflictException("Note was modified by another user");
+}
+catch (DbUpdateException ex)
+{
+    _logger.LogError(ex, "Database error saving Note");
+    throw new DataAccessException("Failed to save note");
 }
 ```
 
-## Logging Errors
+## Logging
 
-Use structured logging.
-
+**Structured Logging:**
 ```csharp
 _logger.LogError(ex, "Failed to create note for user {UserId}", userId);
+_logger.LogWarning("User {UserId} attempted to access note {NoteId}", userId, noteId);
+_logger.LogInformation("Note {NoteId} created successfully", noteId);
 ```
 
-Levels: Trace, Debug, Information, Warning, Error, Critical.
+**Log Levels:**
+- **Trace**: Detailed debug info
+- **Debug**: Development diagnostics
+- **Information**: Normal flow
+- **Warning**: Handled issues
+- **Error**: Exceptions
+- **Critical**: System failures
 
-Avoid logging sensitive data.
+**Don't log:**
+- Passwords
+- JWT tokens
+- API keys
+- Personal sensitive data
 
 ## HTTP Status Codes
 
-| Code | Name | Use | Example |
-|------|------|-----|---------|
-| 200 | OK | GET/PUT success | Retrieved note |
-| 201 | Created | POST success | Note created |
-| 204 | No Content | DELETE success | Note deleted |
-| 400 | Bad Request | Validation fail | Invalid data |
-| 401 | Unauthorized | Auth fail | Invalid token |
-| 403 | Forbidden | Not authorized | No permission |
-| 404 | Not Found | Missing resource | Note not found |
-| 409 | Conflict | Duplicate | Name exists |
-| 422 | Unprocessable | Rule violation | Limit exceeded |
-| 500 | Internal Error | Unexpected | DB failure |
+| Code | Name | Use |
+|------|------|-----|
+| 200 | OK | Successful GET/PUT/PATCH |
+| 201 | Created | Successful POST |
+| 204 | No Content | Successful DELETE |
+| 400 | Bad Request | Validation errors |
+| 401 | Unauthorized | Authentication failed |
+| 403 | Forbidden | Not authorized |
+| 404 | Not Found | Resource missing |
+| 409 | Conflict | Duplicate/conflict |
+| 422 | Unprocessable | Business rule violation |
+| 500 | Internal Error | Unexpected error |
 
-## ProblemDetails Standard
+## ProblemDetails Response
 
-Standard error response:
-
+**Standard format:**
 ```json
 {
   "type": "https://httpstatuses.com/404",
   "title": "Not Found",
   "status": 404,
-  "detail": "Note not found",
-  "instance": "GET /api/notes/123",
-  "errorCode": "NOT_FOUND"
+  "detail": "Note with id '123' not found",
+  "instance": "/api/notes/123"
 }
 ```
 
-Validation errors include "errors" dictionary.
+**Validation errors:**
+```json
+{
+  "type": "https://httpstatuses.com/400",
+  "title": "Validation Error",
+  "status": 400,
+  "errors": {
+    "Title": ["Title is required"],
+    "Content": ["Content must be less than 5000 characters"]
+  }
+}
+```
 
-Development shows stack trace; production hides details.
+## Best Practices
 
-## Quick Reference
+### ✅ DO
+- Use specific exception types
+- Log errors với structured logging
+- Return consistent error format
+- Hide sensitive details in production
+- Use ProblemDetails standard
+- Include correlation IDs
+- Log with context (userId, noteId, etc.)
 
-### Exceptions
+### ❌ DON'T
+- Catch and swallow exceptions
+- Return stack traces in production
+- Use generic Exception catches
+- Log sensitive data
+- Return different formats for different errors
+- Expose internal implementation details
 
-| Exception | Status | Use |
-|-----------|--------|-----|
-| NotFound | 404 | Resource missing |
-| Validation | 400 | Input invalid |
-| Unauthorized | 401 | Auth failed |
-| Forbidden | 403 | No permission |
-| BusinessRule | 422 | Rule violation |
-| Conflict | 409 | Resource conflict |
+---
 
-### Logging
-
-| Level | Use |
-|-------|-----|
-| Trace | Detailed dev |
-| Debug | Flow |
-| Info | Normal events |
-| Warning | Handled issues |
-| Error | Exceptions |
-| Critical | Failures |
+**Version:** 2.0
+**Last Updated:** November 2025
+**See Also:** API_DESIGN.md, AUTHENTICATION.md

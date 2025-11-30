@@ -1,166 +1,289 @@
-# Authentication & Authorization Guide
-
-## Table of Contents
-- [Authentication \& Authorization Guide](#authentication--authorization-guide)
-  - [Table of Contents](#table-of-contents)
-  - [Overview](#overview)
-  - [JWT Token Authentication](#jwt-token-authentication)
-    - [Token Structure](#token-structure)
-    - [Generating Tokens](#generating-tokens)
-    - [Login Flow](#login-flow)
-  - [Google OAuth Integration](#google-oauth-integration)
-  - [Password Security](#password-security)
-  - [Protecting Endpoints](#protecting-endpoints)
-  - [Authorization Patterns](#authorization-patterns)
-  - [Token Management](#token-management)
-  - [Security Best Practices](#security-best-practices)
-  - [Troubleshooting](#troubleshooting)
-  - [Quick Reference](#quick-reference)
-  - [Related Documentation](#related-documentation)
-  - [Document Information](#document-information)
-  - [Appendix](#appendix)
-    - [A. Complete Login Example](#a-complete-login-example)
-    - [B. Token Flow](#b-token-flow)
-    - [C. Stored Procedures](#c-stored-procedures)
-    - [D. Env Config](#d-env-config)
-    - [E. Testing Checklist](#e-testing-checklist)
+# Authentication & Authorization
 
 ## Overview
 
-Dual auth: JWT for email/password, Google OAuth.
-
-Tech: ASP.NET Identity (JWT), Google OAuth Client, BCrypt hashing, Serilog logging.
+SuperApp hỗ trợ 2 phương thức authentication:
+1. **Local**: Email/Phone + Password
+2. **OAuth**: Google
 
 ## JWT Token Authentication
 
 ### Token Structure
 
-Claims: sub (user ID), jti (unique ID), exp/iat (timestamps), iss/aud.
+**Claims:**
+- `sub`: User ID
+- `jti`: Unique token ID
+- `exp`: Expiration time
+- `iat`: Issued at
+- `iss`: Issuer
+- `aud`: Audience
 
-Config: appsettings.json (Issuer, Audience, ExpiryMinutes=60); secrets (Key).
+**Configuration** (appsettings.json):
+```json
+{
+  "Jwt": {
+    "Issuer": "SuperApp",
+    "Audience": "SuperAppUsers",
+    "ExpiryMinutes": 60
+  }
+}
+```
 
-### Generating Tokens
+**User Secrets:**
+```json
+{
+  "Jwt": {
+    "Key": "your-secret-key-min-32-chars"
+  }
+}
+```
 
-IJwtTokenService: GenerateToken(userId) using SymmetricSecurityKey, HmacSha256.
+### Token Generation
 
-ValidateToken: TokenValidationParameters (key, iss, aud, lifetime).
+```csharp
+public string GenerateToken(int userId)
+{
+    var claims = new[]
+    {
+        new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+    };
 
-### Login Flow
+    var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtKey));
+    var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-Handler: Get user, verify password, generate token.
+    var token = new JwtSecurityToken(
+        issuer: _issuer,
+        audience: _audience,
+        claims: claims,
+        expires: DateTime.UtcNow.AddMinutes(60),
+        signingCredentials: creds
+    );
 
-Middleware: AddAuthentication(JwtBearer), events for failed/challenge.
+    return new JwtSecurityTokenHandler().WriteToken(token);
+}
+```
 
-## Google OAuth Integration
+### Middleware Setup (Program.cs)
 
-Config: appsettings (ClientId, RedirectUri, Scope); secrets (ClientSecret).
+```csharp
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+        };
+    });
 
-IGoogleOAuthService: VerifyGoogleTokenAsync(idToken) via tokeninfo endpoint.
-
-Handler: Verify token, get/create user, generate JWT.
-
-Endpoint: POST /auth/google with IdToken.
+// Middleware order
+app.UseHttpsRedirection();
+app.UseRouting();
+app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
+```
 
 ## Password Security
 
-BCrypt (work factor 12).
+**BCrypt Hashing:**
+```csharp
+// Hash password
+string hashedPassword = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 12);
 
-HashPassword(password), VerifyPassword(password, hash).
+// Verify password
+bool isValid = BCrypt.Net.BCrypt.Verify(password, hashedPassword);
+```
 
-Policy: Min 8 chars, upper/lower/number/special; confirm match.
+**Password Policy:**
+- Min 8 characters
+- At least 1 uppercase
+- At least 1 lowercase
+- At least 1 number
+- At least 1 special character
 
-Never store plain, log, or compare hashes directly.
+**Best Practices:**
+- Never store plain passwords
+- Never log passwords
+- Don't compare hashes directly (use BCrypt.Verify)
+
+## Google OAuth Integration
+
+**Configuration:**
+```json
+{
+  "OAuth": {
+    "Google": {
+      "ClientId": "your-client-id.apps.googleusercontent.com",
+      "RedirectUri": "http://localhost:5000/auth/google/callback"
+    }
+  }
+}
+```
+
+**User Secrets:**
+```json
+{
+  "OAuth": {
+    "Google": {
+      "ClientSecret": "your-client-secret"
+    }
+  }
+}
+```
+
+**Verify Google Token:**
+```csharp
+public async Task<GoogleUserInfo> VerifyGoogleTokenAsync(string idToken)
+{
+    var tokenInfoUrl = $"https://oauth2.googleapis.com/tokeninfo?id_token={idToken}";
+    var response = await _httpClient.GetAsync(tokenInfoUrl);
+
+    if (!response.IsSuccessStatusCode)
+        throw new UnauthorizedException("Invalid Google token");
+
+    var userInfo = await response.Content.ReadFromJsonAsync<GoogleUserInfo>();
+    return userInfo;
+}
+```
+
+**Login Flow:**
+1. Client sends Google ID token
+2. Backend verifies token với Google
+3. Get/Create user in database
+4. Generate JWT token
+5. Return JWT to client
 
 ## Protecting Endpoints
 
-[Authorize] on controller/method; [AllowAnonymous] for public.
+**Controller Level:**
+```csharp
+[Authorize]
+[Route("api/[controller]")]
+public class NotesController : ControllerBase
+{
+    // All endpoints require authentication
+}
+```
 
-Access user: User.FindFirst(ClaimTypes.NameIdentifier)?.Value.
+**Action Level:**
+```csharp
+[HttpGet("public")]
+[AllowAnonymous]
+public IActionResult GetPublicData()
+{
+    // Public endpoint
+}
 
-ICurrentUserService: UserId, UserEmail, IsAuthenticated via HttpContextAccessor.
+[HttpGet("private")]
+[Authorize]
+public IActionResult GetPrivateData()
+{
+    // Requires authentication
+}
+```
+
+**Get Current User:**
+```csharp
+// In controller
+var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+// Using extension
+var userId = User.GetUserId();
+```
 
 ## Authorization Patterns
 
-Roles: [Authorize(Roles="Admin")].
+### Role-Based
+```csharp
+[Authorize(Roles = "Admin")]
+public IActionResult AdminOnly()
+{
+    // Only Admin role
+}
+```
 
-Policies: AddPolicy in services (RequireRole, RequireClaim).
+### Policy-Based
+```csharp
+// Register policy
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("RequireAdmin", policy =>
+        policy.RequireRole("Admin"));
+});
 
-Resource-based: AuthorizationHandler for ops like Update/Delete.
+// Use policy
+[Authorize(Policy = "RequireAdmin")]
+public IActionResult AdminEndpoint()
+{
+}
+```
 
-## Token Management
+### Resource-Based
+```csharp
+// Check ownership in service
+public async Task<Note> GetNoteAsync(int noteId, string userEmail)
+{
+    var note = await _repository.GetByIdAsync(noteId);
 
-Refresh: GenerateRefreshToken (random64), RefreshTokenAsync (validate, new access/refresh).
+    if (note.UserEmail != userEmail)
+        throw new ForbiddenException("Not authorized to access this note");
 
-Revocation: Cache revoked jti until exp; check IsTokenRevokedAsync.
+    return note;
+}
+```
 
 ## Security Best Practices
 
-- Exclude sensitive in DTOs.
-- Validate inputs (FluentValidation).
-- Rate limiting on auth endpoints.
-- Secure cookies (HttpOnly, Secure, SameSite=Strict).
-- Log events (structured, no passwords).
-- HTTPS/HSTS in prod.
+### ✅ DO
+- Use HTTPS in production
+- Hash passwords với BCrypt (work factor ≥ 12)
+- Validate JWT lifetime
+- Use secure secret keys (min 32 chars)
+- Implement rate limiting on auth endpoints
+- Log authentication events
+- Use HttpOnly cookies for refresh tokens
+- Implement token revocation
+- Validate all inputs
+
+### ❌ DON'T
+- Store passwords in plain text
+- Log passwords or tokens
+- Expose sensitive data in DTOs
+- Use weak secret keys
+- Skip HTTPS
+- Trust client-provided data
+- Return detailed auth errors (info leak)
 
 ## Troubleshooting
 
-- 401: Check key, exp, header, middleware order.
-- Password fail: Use VerifyPassword.
-- Google invalid: Check ClientId, URI, consent.
-- Claims missing: Add HttpContextAccessor.
-- CORS: AllowCredentials, order before auth.
+| Issue | Solution |
+|-------|----------|
+| 401 Unauthorized | Check token validity, expiration, secret key |
+| Token expired | Implement refresh token flow |
+| Invalid signature | Verify Jwt:Key matches between token gen & validation |
+| Claims missing | Ensure HttpContextAccessor is registered |
+| CORS errors | Check CORS policy, order middleware correctly |
 
-## Quick Reference
+## Middleware Order (Critical)
 
-Middleware: Https > Routing > Cors > Auth > Authorization > Controllers.
+```
+1. UseHttpsRedirection
+2. UseRouting
+3. UseCors
+4. UseAuthentication    ← Before Authorization
+5. UseAuthorization     ← Before Controllers
+6. MapControllers
+```
 
-Testing: curl for token/login.
+---
 
-Decode: jwt.io or JwtSecurityTokenHandler.
-
-## Related Documentation
-
-- API Design, Error Handling, Security, Code Examples, Testing.
-
-## Document Information
-
-- Version: 1.0
-- Last Updated: October 2025
-- Owner: Dev Team
-- Review: Quarterly
-
-## Appendix
-
-### A. Complete Login Example
-
-Controller: POST login/register/google, GET profile.
-
-DTOs: LoginRequest (email/pass), RegisterRequest (email/pass/confirm/name), GoogleLoginRequest (idToken).
-
-Responses: Token, ExpiresIn, Type, Email/Name.
-
-Command/Validator/Handler: Validate, get user, verify, token, update login.
-
-Repo: GetUserByEmail, CreateUser, UpdateLastLogin (SPs).
-
-### B. Token Flow
-
-Client > Controller > Handler > Repo/Verify > Token > Response.
-
-### C. Stored Procedures
-
-usp_s_UserByEmail, usp_i_User, usp_u_UserLastLogin.
-
-### D. Env Config
-
-Dev: Debug logging, longer expiry.
-
-Prod: Info logging, 60 min expiry.
-
-Secrets: Jwt:Key, OAuth:Google:ClientSecret.
-
-### E. Testing Checklist
-
-- Units, hashing, token claims/valid, expired/invalid reject.
-- Protected/anon endpoints, claims access.
-- Google, rate limit, logging, no secrets commit, HTTPS.
+**Version:** 2.0
+**Last Updated:** November 2025
+**See Also:** ERROR_HANDLING.md, API_DESIGN.md

@@ -74,6 +74,16 @@ namespace SuperAppServices.Mappings
             // WorkspaceItem mappings
             CreateMap<WorkspaceItem, WorkspaceItemResponse>();
 
+            // WorkspaceTreeItem mappings
+            CreateMap<WorkspaceTreeItem, WorkspaceTreeItemResponse>()
+                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.ItemId))
+                .ForMember(dest => dest.SortOrder, opt => opt.MapFrom(src => src.Position))
+                .ForMember(dest => dest.Depth, opt => opt.MapFrom(src => src.Level))
+                .ForMember(dest => dest.Metadata, opt => opt.Ignore())
+                .ForMember(dest => dest.Children, opt => opt.Ignore())
+                .ForMember(dest => dest.IsExpanded, opt => opt.Ignore())
+                .ForMember(dest => dest.IsSelected, opt => opt.Ignore());
+
             // StandardRegistry mappings
             CreateMap<StandardRegistry, StandardRegistryResponse>();
             CreateMap<StandardRegistryRequest, StandardRegistry>()

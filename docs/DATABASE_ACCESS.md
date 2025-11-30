@@ -1,76 +1,141 @@
 # Database Access Guide
 
-## Hybrid Approach
+## Hybrid Strategy
 
-Strategy: EF Core (80%) for simple ops; Stored Procedures (20%) for complex.
+SuperApp sử dụng **80% EF Core** + **20% Stored Procedures**
 
 | Use Case | Tech | Reason |
 |----------|------|--------|
-| Simple CRUD | EF Core | Type-safe, maintainable |
-| 2-3 JOINs | EF Core | Readable LINQ |
-| Complex aggregations | SP | Performance |
-| Reporting/Bulk | SP | Optimized |
+| Simple CRUD (1 table) | EF Core | Type-safe, maintainable |
+| 2-3 JOINs | EF Core | LINQ readable |
+| Complex (5+ JOINs, CTEs) | SP | Performance optimized |
+| Aggregations/Reports | SP | SQL control |
+| Bulk operations | SP | Efficiency |
 
-Decision Tree:
-- Simple CRUD? → EF Core
-- 2-3 JOINs? → EF Core
-- Complex (5+ JOINs, CTEs, bulk)? → SP
+**Decision Tree:**
+```
+Simple CRUD? → EF Core
+2-3 JOINs?   → EF Core
+Complex?     → Stored Procedure
+```
 
-Examples:
-- EF: FindAsync, Where/OrderBy, Include.
-- SP: Statistics report, hierarchy, bulk archive.
+## EF Core Setup
 
-## Table of Contents
-- [Database Access Guide](#database-access-guide)
-  - [Hybrid Approach](#hybrid-approach)
-  - [Table of Contents](#table-of-contents)
-  - [EF Core Operations](#ef-core-operations)
-  - [Database Configuration](#database-configuration)
-  - [Connection Management](#connection-management)
-  - [BaseRepository Pattern](#baserepository-pattern)
-  - [Stored Procedures](#stored-procedures)
-  - [Parameter Handling](#parameter-handling)
-  - [Models vs DTOs](#models-vs-dtos)
-  - [Data Mapping](#data-mapping)
-  - [Error Handling](#error-handling)
-  - [Best Practices](#best-practices)
-  - [Repository Example](#repository-example)
-
-## EF Core Operations
-
-Setup: See EF_CORE_GUIDE.md.
-
+**DbContext** (SuperAppDataRepositories/Data/ApplicationDbContext.cs):
 ```csharp
-public class NoteRepository : BaseRepository, INoteRepository
+public class ApplicationDbContext : DbContext
 {
-    private readonly ApplicationDbContext _context;
+    public DbSet<Note> Notes { get; set; }
+    public DbSet<Workspace> Workspaces { get; set; }
+    public DbSet<User> Users { get; set; }
+    // ... other DbSets
 
-    public NoteRepository(ApplicationDbContext context, IConnectionFactory connFactory, ILogger<NoteRepository> logger)
-        : base(context, connFactory, logger) { _context = context; }
-
-    public async Task<Note?> GetNoteByIdAsync(int id) => await _context.Notes.Include(n => n.Members).FirstOrDefaultAsync(n => n.NoteId == id);
-    public async Task<Note> CreateNoteAsync(Note note) { _context.Notes.Add(note); await _context.SaveChangesAsync(); return note; }
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+    }
 }
 ```
 
-Query Patterns:
-- Projection: Select to DTO.
-- Pagination: Skip/Take.
-- Eager: Include/ThenInclude.
-- NoTracking: For read-only.
+**Registration** (SuperAppAPI/Program.cs):
+```csharp
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(connectionString));
+```
 
-## Database Configuration
+## Repository Pattern
 
-DB Names:
-- Dev: SuperApp-dev, UserProfile-dev
-- Prod: SuperApp-prod, UserProfile-prod
-- Test: SuperApp_Test, UserProfile_Test
+**Interface** (SuperAppDataRepositories/Ins/INoteRepository.cs):
+```csharp
+public interface INoteRepository
+{
+    Task<Note?> GetByIdAsync(int id);
+    Task<List<Note>> GetNotesAsync(string userEmail);
+    Task<Note> CreateAsync(Note note);
+    Task UpdateAsync(Note note);
+    Task DeleteAsync(int id);
+}
+```
 
-Connections: appsettings.json (empty), user secrets/env vars for creds.
+**Implementation** (SuperAppDataRepositories/Repositories/NoteRepository.cs):
+```csharp
+public class NoteRepository : INoteRepository
+{
+    private readonly ApplicationDbContext _context;
+
+    public async Task<Note?> GetByIdAsync(int id)
+    {
+        return await _context.Notes
+            .Include(n => n.Members)
+            .FirstOrDefaultAsync(n => n.NoteId == id);
+    }
+
+    public async Task<Note> CreateAsync(Note note)
+    {
+        _context.Notes.Add(note);
+        await _context.SaveChangesAsync();
+        return note;
+    }
+}
+```
+
+## EF Core Query Patterns
+
+### Basic Queries
+```csharp
+// Find by ID
+var note = await _context.Notes.FindAsync(id);
+
+// Where + ToList
+var notes = await _context.Notes
+    .Where(n => n.UserId == userId)
+    .ToListAsync();
+
+// Single or default
+var note = await _context.Notes
+    .FirstOrDefaultAsync(n => n.NoteId == id);
+```
+
+### Eager Loading
+```csharp
+var workspace = await _context.Workspaces
+    .Include(w => w.Members)
+    .Include(w => w.Items)
+        .ThenInclude(i => i.Tag)
+    .FirstOrDefaultAsync(w => w.WorkspaceId == id);
+```
+
+### Projection
+```csharp
+var noteDtos = await _context.Notes
+    .Where(n => n.UserId == userId)
+    .Select(n => new NoteResponse
+    {
+        NoteId = n.NoteId,
+        Title = n.Title,
+        Content = n.Content
+    })
+    .ToListAsync();
+```
+
+### Pagination
+```csharp
+var notes = await _context.Notes
+    .Skip((pageNumber - 1) * pageSize)
+    .Take(pageSize)
+    .ToListAsync();
+```
+
+### No Tracking (read-only)
+```csharp
+var notes = await _context.Notes
+    .AsNoTracking()
+    .ToListAsync();
+```
 
 ## Connection Management
 
-IConnectionFactory:
+**IConnectionFactory** (SuperAppDataRepositories/Data/IConnectionFactory.cs):
 ```csharp
 public interface IConnectionFactory
 {
@@ -79,129 +144,160 @@ public interface IConnectionFactory
 }
 ```
 
-Impl:
-```csharp
-public class ConnectionFactory : IConnectionFactory
-{
-    public async Task<SqlConnection> CreateSuperAppConnectionAsync()
-    {
-        var conn = new SqlConnection(_configuration.GetConnectionString("SuperAppConnection"));
-        await conn.OpenAsync(); return conn;
-    }
-    // Similar for UserProfile
-}
-```
-
-## BaseRepository Pattern
-
-Unified for EF/SP.
-```csharp
-public abstract class BaseRepository
-{
-    protected readonly ApplicationDbContext _context;
-    protected readonly IConnectionFactory _connectionFactory;
-    protected readonly ILogger _logger;
-
-    protected BaseRepository(ApplicationDbContext context, IConnectionFactory connFactory, ILogger logger) { /* assign */ }
-
-    // EF: Set<T>(), Query<T>(), FindByIdAsync, AddAsync, UpdateAsync, DeleteAsync, SaveChangesAsync.
-
-    // SP: ExecuteStoredProcedure<T>(string sp, Func<SqlCommand, Task> addParams, Func<SqlDataReader, Task<T>> mapResult, bool useSuperApp = true)
-    // ExecuteNonQuery<TResult>(string sp, Func<SqlCommand, Task> addParams, Func<SqlCommand, TResult> extractResult)
-
-    protected async Task<List<T>> MapToList<T>(SqlDataReader reader) where T : new() { /* read and map */ }
-    protected async Task<T?> MapToSingleOrDefault<T>(SqlDataReader reader) where T : class, new() { /* read one */ }
-}
-```
-
 ## Stored Procedures
 
-See STORED_PROCEDURES.md.
+**Naming Convention:** `usp_[prefix]_[Entity]`
 
-Naming: usp_[prefix]_[entity], e.g., usp_s_Notes.
+Prefixes:
+- `s_` = SELECT
+- `i_` = INSERT
+- `u_` = UPDATE
+- `d_` = DELETE
+- `iu_` = INSERT/UPDATE (upsert)
 
-Prefixes: s_ (select), i_ (insert), u_ (update), d_ (delete), iu_ (insert/update).
+Examples:
+- `usp_s_Notes` - Get notes
+- `usp_iu_Note` - Create/Update note
+- `usp_d_Notes` - Delete notes
 
-Constants:
+**Execution:**
 ```csharp
-public static class StoredProcedures
+public async Task<List<Note>> GetNotesViaSP(string userEmail)
 {
-    public static string spSelectNotes => "[dbo].[usp_s_Notes]";
-    // etc.
+    using var conn = await _connectionFactory.CreateSuperAppConnectionAsync();
+    using var cmd = new SqlCommand("usp_s_Notes", conn)
+    {
+        CommandType = CommandType.StoredProcedure
+    };
+
+    cmd.Parameters.Add(new SqlParameter("@iv_UserEmail", userEmail));
+
+    using var reader = await cmd.ExecuteReaderAsync();
+    var notes = new List<Note>();
+
+    while (await reader.ReadAsync())
+    {
+        notes.Add(new Note
+        {
+            NoteId = reader.GetInt32("note_id"),
+            Title = reader.GetString("title"),
+            Content = reader.GetString("content")
+        });
+    }
+
+    return notes;
 }
 ```
 
-Use: Always via constants.
+## Database Configuration
 
-## Parameter Handling
+**Databases:**
+- Dev: `SuperApp-dev`, `UserProfile-dev`
+- Prod: `SuperApp-prod`, `UserProfile-prod`
+- Test: `SuperApp_Test`, `UserProfile_Test`
 
-Input:
-```csharp
-addParameters: (cmd) => { cmd.Parameters.Add(new SqlParameter("@iv_UserId", userId)); AddParameterIfNotNull(cmd, "@iv_SearchText", searchText); }
-```
-
-Output:
-```csharp
-var (result, outputParams) = await ExecuteStoredProcedureWithOutputAsync(/* ... */);
-var success = (bool)outputParams[0].Value;
-var errorMsg = outputParams[1].Value?.ToString();
-```
-
-## Models vs DTOs
-
-Models: Match DB schema exactly; use for standard CRUD.
-
-DTOs: For custom queries, aggregations, reports.
-
-| Scenario | Use | Reason |
-|----------|-----|--------|
-| CRUD | Model | Matches table |
-| Custom JOINs | DTO | Diff columns |
-| Aggregates | DTO | Calculated fields |
-
-Examples: Note model matches Notes table; Use NoteWithTagsDto for summaries.
-
-AutoMapper: Separate profiles for DTO-Model.
-
-## Data Mapping
-
-Automatic: MapToList<T> / MapToSingle<T> (property matching).
-
-Manual: Custom logic in mapResult func.
-
-## Error Handling
-
-SQL Exceptions:
-```csharp
-catch (SqlException ex)
+**Connection Strings** (User Secrets):
+```json
 {
-    switch (ex.Number) { case 2: throw TimeoutException; case 18456: throw Unauthorized; default: throw; }
+  "ConnectionStrings": {
+    "SuperAppConnection": "Server=.;Database=SuperApp-dev;Trusted_Connection=True;",
+    "UserProfileConnection": "Server=.;Database=UserProfile-dev;Trusted_Connection=True;"
+  }
 }
 ```
 
-Business: Check output errorMsg, throw domain exceptions.
+## Entity Configurations
+
+**Fluent API** (SuperAppDataRepositories/Data/Configurations/):
+```csharp
+public class NoteConfiguration : IEntityTypeConfiguration<Note>
+{
+    public void Configure(EntityTypeBuilder<Note> builder)
+    {
+        builder.ToTable("notes");
+        builder.HasKey(n => n.NoteId);
+        builder.Property(n => n.Title).HasMaxLength(200).IsRequired();
+        builder.Property(n => n.Content).HasColumnType("nvarchar(max)");
+
+        builder.HasOne(n => n.User)
+            .WithMany()
+            .HasForeignKey(n => n.UserId);
+    }
+}
+```
+
+## Migrations
+
+```bash
+# Add migration
+dotnet ef migrations add MigrationName \
+  --project SuperAppDataRepositories \
+  --startup-project SuperAppAPI
+
+# Update database
+dotnet ef database update \
+  --project SuperAppDataRepositories \
+  --startup-project SuperAppAPI
+
+# Generate SQL script
+dotnet ef migrations script \
+  --project SuperAppDataRepositories \
+  --startup-project SuperAppAPI
+```
 
 ## Best Practices
 
-- Use IConnectionFactory.
-- Parameterized params.
-- Async everywhere.
-- Using for disposal.
-- Structured logging.
+### ✅ DO
+- Use async/await
+- Use `using` for DbContext/connections
+- Parameterize all queries
+- Use AsNoTracking for read-only
+- Project to DTOs in queries
+- Use transactions for multi-operations
+- Log SQL errors
+- Use IConnectionFactory
+- Index frequently queried columns
 
-## Repository Example
+### ❌ DON'T
+- Use string interpolation in SQL
+- Call .Result or .Wait()
+- Load unnecessary data
+- Skip error handling
+- Hardcode connection strings
+- Expose DbContext outside repositories
+- Use N+1 queries (use Include)
+
+## Error Handling
 
 ```csharp
-public class NoteRepository : BaseRepository, INoteRepository
+try
 {
-    public async Task<List<Note>> GetNotesAsync(string userEmail, bool getAll, string? searchText)
-    {
-        return await ExecuteStoredProcedure(StoredProcedures.spSelectNotes, addParameters: (cmd) => { /* params */ }, mapResult: MapToList<Note>);
-    }
-
-    public async Task<ResultOptions> IuNote(Note note)
-    {
-        // Execute with outputs, extract success/error/noteId
-    }
+    await _context.SaveChangesAsync();
+}
+catch (DbUpdateConcurrencyException ex)
+{
+    _logger.LogError(ex, "Concurrency conflict");
+    throw new ConflictException("Resource was modified");
+}
+catch (DbUpdateException ex)
+{
+    _logger.LogError(ex, "Database update failed");
+    throw new DataAccessException("Failed to save changes");
 }
 ```
+
+## Performance Tips
+
+1. **Use AsNoTracking** cho read-only queries
+2. **Projection**: Select chỉ fields cần thiết
+3. **Pagination**: Luôn dùng Skip/Take
+4. **Avoid N+1**: Dùng Include
+5. **SplitQuery**: Cho multiple includes
+6. **Compiled Queries**: Cho repeated queries
+7. **Indexing**: Index foreign keys, search columns
+
+---
+
+**Version:** 2.0
+**Last Updated:** November 2025
+**See Also:** EF_CORE_GUIDE.md, ARCHITECTURE.md

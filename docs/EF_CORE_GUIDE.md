@@ -1,137 +1,342 @@
 # Entity Framework Core Guide
 
-## Table of Contents
-
-- [Entity Framework Core Guide](#entity-framework-core-guide)
-  - [Table of Contents](#table-of-contents)
-  - [Overview](#overview)
-  - [Setup \& Configuration](#setup--configuration)
-  - [DbContext](#dbcontext)
-  - [Entity Configurations](#entity-configurations)
-  - [Migrations](#migrations)
-  - [CRUD Operations](#crud-operations)
-  - [Querying Patterns](#querying-patterns)
-  - [Relationships \& Navigation Properties](#relationships--navigation-properties)
-  - [Performance Optimization](#performance-optimization)
-  - [Best Practices](#best-practices)
-  - [Common Patterns](#common-patterns)
-
 ## Overview
 
-EF Core: Object-database mapper for .NET, supports LINQ, change tracking, migrations.
+EF Core là ORM chính cho SuperApp, sử dụng cho **80% operations** (CRUD, simple queries).
 
-Benefits for SuperApp: Type safety, productivity, LINQ queries.
-
-Database: 10 tables (users, tags, entity_types, workspaces, workspace_members, workspace_relationship_types, workspace_items, notes, note_members, note_versions).
-
-## Setup & Configuration
-
-Install packages: Microsoft.EntityFrameworkCore, .SqlServer, .Tools, .Design.
-
-Connection strings in appsettings.json / user secrets.
-
-Register DbContext in Program.cs:
-
-```csharp
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-{
-    options.UseSqlServer(connectionString, sqlOptions => { /* retries, timeout */ });
-    if (Development) { options.EnableSensitiveDataLogging(); }
-});
-```
+**Packages:**
+- Microsoft.EntityFrameworkCore
+- Microsoft.EntityFrameworkCore.SqlServer
+- Microsoft.EntityFrameworkCore.Tools
+- Microsoft.EntityFrameworkCore.Design
 
 ## DbContext
 
-ApplicationDbContext: DbSets for all entities.
+**ApplicationDbContext** (SuperAppDataRepositories/Data/ApplicationDbContext.cs):
+```csharp
+public class ApplicationDbContext : DbContext
+{
+    public DbSet<User> Users { get; set; }
+    public DbSet<Note> Notes { get; set; }
+    public DbSet<Workspace> Workspaces { get; set; }
+    public DbSet<Tag> Tags { get; set; }
+    // ... other DbSets
 
-OnModelCreating: Apply configurations from assembly.
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        // Apply all configurations from assembly
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+    }
 
-Override SaveChangesAsync: Update timestamps for ITimestampEntity.
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        // Auto-update timestamps
+        var entries = ChangeTracker.Entries()
+            .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
+
+        foreach (var entry in entries)
+        {
+            if (entry.Entity is ITimestampEntity entity)
+            {
+                if (entry.State == EntityState.Added)
+                    entity.CreatedAt = DateTime.UtcNow;
+                entity.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
+        return await base.SaveChangesAsync(cancellationToken);
+    }
+}
+```
+
+**Registration** (Program.cs):
+```csharp
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+{
+    options.UseSqlServer(connectionString, sqlOptions =>
+    {
+        sqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
+        sqlOptions.CommandTimeout(30);
+    });
+
+    if (builder.Environment.IsDevelopment())
+    {
+        options.EnableSensitiveDataLogging();
+        options.EnableDetailedErrors();
+    }
+});
+```
 
 ## Entity Configurations
 
-Use Fluent API in separate classes.
+**Fluent API** (SuperAppDataRepositories/Data/Configurations/):
 
-Example: UserConfiguration - Table, PK, properties, indexes, query filter (soft delete), relationships.
+```csharp
+public class NoteConfiguration : IEntityTypeConfiguration<Note>
+{
+    public void Configure(EntityTypeBuilder<Note> builder)
+    {
+        // Table
+        builder.ToTable("notes");
 
-Example: NoteConfiguration - Similar, with navigation to User, Members, Versions.
+        // Primary Key
+        builder.HasKey(n => n.NoteId);
 
-Example: WorkspaceItemConfiguration - Unified table for tag/note relationships, unique constraints.
+        // Properties
+        builder.Property(n => n.Title)
+            .HasMaxLength(200)
+            .IsRequired();
 
-## Migrations
+        builder.Property(n => n.Content)
+            .HasColumnType("nvarchar(max)");
 
-Add: dotnet ef migrations add Name --project Infrastructure --startup-project API
+        // Relationships
+        builder.HasOne(n => n.User)
+            .WithMany()
+            .HasForeignKey(n => n.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
 
-Update: dotnet ef database update
+        builder.HasMany(n => n.Members)
+            .WithOne()
+            .HasForeignKey(nm => nm.NoteId);
 
-Script: dotnet ef migrations script
+        // Indexes
+        builder.HasIndex(n => n.UserId);
+        builder.HasIndex(n => n.CreatedAt);
 
-Remove: dotnet ef migrations remove
-
-Scaffold: dotnet ef dbcontext scaffold "conn" Microsoft.EntityFrameworkCore.SqlServer ...
+        // Query Filters (Soft Delete)
+        builder.HasQueryFilter(n => n.DeletedAt == null);
+    }
+}
+```
 
 ## CRUD Operations
 
-Create: _context.Notes.Add(note); await SaveChangesAsync();
+### Create
+```csharp
+// Single
+var note = new Note { Title = "New Note", Content = "..." };
+_context.Notes.Add(note);
+await _context.SaveChangesAsync();
 
-With related: Add members in loop.
+// Multiple
+var notes = new List<Note> { note1, note2 };
+_context.Notes.AddRange(notes);
+await _context.SaveChangesAsync();
+```
 
-Bulk: AddRange.
+### Read
+```csharp
+// By ID
+var note = await _context.Notes.FindAsync(id);
 
-Read: FindAsync(id); Where().ToListAsync(); Include() for eager loading; AsNoTracking(); Select(DTO); Pagination with Skip/Take.
+// First or default
+var note = await _context.Notes
+    .FirstOrDefaultAsync(n => n.NoteId == id);
 
-Update: Update(note); or modify properties; ExecuteUpdate for bulk (EF7+).
+// Where
+var notes = await _context.Notes
+    .Where(n => n.UserId == userId)
+    .ToListAsync();
 
-Delete: Remove(note); Soft: set DeletedAt; ExecuteDelete for bulk.
+// Include relations
+var note = await _context.Notes
+    .Include(n => n.Members)
+    .Include(n => n.Versions)
+    .FirstOrDefaultAsync(n => n.NoteId == id);
+```
 
-## Querying Patterns
+### Update
+```csharp
+// Tracked entity
+var note = await _context.Notes.FindAsync(id);
+note.Title = "Updated Title";
+await _context.SaveChangesAsync();
 
-Dynamic: Build query with if conditions for filters/sorting.
+// Untracked entity
+_context.Notes.Update(note);
+await _context.SaveChangesAsync();
 
-GroupBy: Select aggregates.
+// Bulk update (EF7+)
+await _context.Notes
+    .Where(n => n.UserId == userId)
+    .ExecuteUpdateAsync(s => s.SetProperty(n => n.IsArchived, true));
+```
 
-Any/Exists: AnyAsync().
+### Delete
+```csharp
+// Hard delete
+var note = await _context.Notes.FindAsync(id);
+_context.Notes.Remove(note);
+await _context.SaveChangesAsync();
 
-Raw SQL: FromSqlRaw().
+// Soft delete
+note.DeletedAt = DateTime.UtcNow;
+await _context.SaveChangesAsync();
 
-## Relationships & Navigation Properties
+// Bulk delete (EF7+)
+await _context.Notes
+    .Where(n => n.DeletedAt < cutoffDate)
+    .ExecuteDeleteAsync();
+```
 
-One-to-Many: User.Notes, Note.User.
+## Query Patterns
 
-Many-to-Many: Note.Members, with junction NoteMember.
+### Projection
+```csharp
+var dtos = await _context.Notes
+    .Where(n => n.UserId == userId)
+    .Select(n => new NoteResponse
+    {
+        NoteId = n.NoteId,
+        Title = n.Title,
+        CreatedAt = n.CreatedAt
+    })
+    .ToListAsync();
+```
 
-Self-Referencing: Tag.Parent/Children.
+### Pagination
+```csharp
+var pageSize = 20;
+var pageNumber = 1;
 
-Query: Include/ThenInclude.
+var notes = await _context.Notes
+    .OrderByDescending(n => n.CreatedAt)
+    .Skip((pageNumber - 1) * pageSize)
+    .Take(pageSize)
+    .ToListAsync();
+```
+
+### AsNoTracking (Read-Only)
+```csharp
+var notes = await _context.Notes
+    .AsNoTracking()
+    .Where(n => n.UserId == userId)
+    .ToListAsync();
+```
+
+### GroupBy
+```csharp
+var stats = await _context.Notes
+    .GroupBy(n => n.UserId)
+    .Select(g => new
+    {
+        UserId = g.Key,
+        Count = g.Count(),
+        LastCreated = g.Max(n => n.CreatedAt)
+    })
+    .ToListAsync();
+```
+
+## Relationships
+
+### One-to-Many
+```csharp
+// User has many Notes
+builder.HasMany(u => u.Notes)
+    .WithOne(n => n.User)
+    .HasForeignKey(n => n.UserId);
+```
+
+### Many-to-Many (with junction table)
+```csharp
+// Note <-> User (NoteMember junction)
+builder.HasMany(n => n.Members)
+    .WithOne()
+    .HasForeignKey(nm => nm.NoteId);
+```
+
+### Self-Referencing
+```csharp
+// Tag parent/children
+builder.HasOne(t => t.Parent)
+    .WithMany(t => t.Children)
+    .HasForeignKey(t => t.ParentId);
+```
+
+## Migrations
+
+```bash
+# Add migration
+dotnet ef migrations add InitialCreate \
+  --project SuperAppDataRepositories \
+  --startup-project SuperAppAPI
+
+# Update database
+dotnet ef database update \
+  --project SuperAppDataRepositories \
+  --startup-project SuperAppAPI
+
+# Generate SQL script
+dotnet ef migrations script \
+  --project SuperAppDataRepositories \
+  --startup-project SuperAppAPI \
+  --output migration.sql
+
+# Remove last migration
+dotnet ef migrations remove \
+  --project SuperAppDataRepositories \
+  --startup-project SuperAppAPI
+```
 
 ## Performance Optimization
 
-AsNoTracking for read-only.
+### 1. AsNoTracking
+```csharp
+// Use for read-only queries
+var notes = await _context.Notes.AsNoTracking().ToListAsync();
+```
 
-Project to DTOs.
+### 2. Projection
+```csharp
+// Select only needed fields
+var titles = await _context.Notes
+    .Select(n => n.Title)
+    .ToListAsync();
+```
 
-Pagination.
+### 3. SplitQuery
+```csharp
+// For multiple includes
+var workspace = await _context.Workspaces
+    .Include(w => w.Members)
+    .Include(w => w.Items)
+    .AsSplitQuery()
+    .FirstOrDefaultAsync();
+```
 
-Avoid N+1: Use Include.
+### 4. Compiled Queries
+```csharp
+private static readonly Func<ApplicationDbContext, int, Task<Note?>> _getNoteById =
+    EF.CompileAsyncQuery((ApplicationDbContext context, int id) =>
+        context.Notes.FirstOrDefault(n => n.NoteId == id));
 
-Compiled Queries: EF.CompileAsyncQuery.
-
-SplitQuery for multiple includes.
+// Usage
+var note = await _getNoteById(_context, noteId);
+```
 
 ## Best Practices
 
-Use async methods.
+### ✅ DO
+- Use async methods (.ToListAsync, .SaveChangesAsync)
+- Use AsNoTracking for read-only
+- Use Include for eager loading
+- Project to DTOs
+- Use pagination
+- Use transactions for multi-operations
+- Use Fluent API in separate configuration classes
+- Use query filters for soft deletes
 
-DI for DbContext.
+### ❌ DON'T
+- Use .Result or .Wait()
+- Load unnecessary data
+- Use N+1 queries (use Include)
+- Expose DbContext outside repositories
+- Use string concatenation for SQL
+- Skip migrations
 
-Transactions for multi-ops.
+---
 
-Soft deletes with query filters.
-
-Value converters for enums.
-
-## Common Patterns
-
-Repository: Implements EF ops + SPs.
-
-Unit of Work: Wraps repositories, handles transactions.
+**Version:** 2.0
+**Last Updated:** November 2025
+**See Also:** DATABASE_ACCESS.md, ARCHITECTURE.md
