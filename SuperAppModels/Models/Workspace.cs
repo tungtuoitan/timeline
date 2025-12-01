@@ -22,7 +22,7 @@ namespace SuperAppModels.Models
 
         // Navigation properties for EF Core
         public User User { get; set; } = null!;
-        public ICollection<WorkspaceItem> Items { get; set; } = new List<WorkspaceItem>();
+        public ICollection<WorkspaceItemEntity> Items { get; set; } = new List<WorkspaceItemEntity>();
 
         public Workspace()
         {

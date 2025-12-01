@@ -8,10 +8,10 @@ namespace SuperAppModels.DTOs.Requests
     public class UpsertFolderRequest
     {
         /// <summary>
-        /// Folder ID (optional for create, required for update)
+        /// Folder ID to update (optional for create, required for update)
         /// </summary>
-        [Range(1, int.MaxValue, ErrorMessage = "Folder ID must be positive")]
-        public int? FolderId { get; set; }
+        [Range(1, int.MaxValue, ErrorMessage = "Id must be positive")]
+        public int? Id { get; set; }
 
         /// <summary>
         /// Folder name (required, max 255 characters)
@@ -41,7 +41,7 @@ namespace SuperAppModels.DTOs.Requests
         /// <summary>
         /// Parent folder ID (optional, null = root level)
         /// </summary>
-        [Range(1, int.MaxValue, ErrorMessage = "Parent folder ID must be positive")]
-        public int? ParentFolderId { get; set; }
+        [Range(1, int.MaxValue, ErrorMessage = "ParentId must be positive")]
+        public int? ParentId { get; set; }
     }
 }

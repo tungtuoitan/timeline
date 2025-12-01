@@ -1,4 +1,5 @@
 using SuperAppModels.DTOs;
+using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
 
 namespace SuperAppDataRepositories.Ins
@@ -29,27 +30,23 @@ namespace SuperAppDataRepositories.Ins
         Task<List<Workspace>> GetAllWorkspacesByUserIdAsync(int userId);
 
         /// <summary>
-        /// Creates a new folder in a workspace
+        /// Creates or updates a folder in a workspace
         /// </summary>
         /// <param name="workspaceId">Workspace ID</param>
         /// <param name="userId">User ID (folder owner)</param>
-        /// <param name="name">Folder name</param>
-        /// <param name="description">Folder description</param>
-        /// <param name="color">Folder color (hex format)</param>
-        /// <param name="icon">Folder icon</param>
-        /// <param name="parentFolderId">Parent folder ID (null = root level)</param>
-        /// <returns>Created folder</returns>
-        Task<ResultOptions> UpsertFolderAsync(int workspaceId, int userId, int? folderId, string name, string? description, string? color, string? icon, int? parentFolderId);
+        /// <param name="request">Folder upsert request data</param>
+        /// <returns>Result with folder ID</returns>
+        Task<ResultOptions> UpsertFolderAsync(int workspaceId, int userId, UpsertFolderRequest request);
 
         /// <summary>
         /// Moves multiple workspace items (folders/notes/files) with cascade support
         /// </summary>
         /// <param name="sourceWorkspaceId">Source workspace ID</param>
         /// <param name="items">List of items to move (type + id)</param>
-        /// <param name="targetFolderId">Target folder ID (null = root level)</param>
+        /// <param name="targetParentId">Target parent folder ID (null = root level)</param>
         /// <param name="targetWorkspaceId">Target workspace ID (null = same workspace)</param>
-        /// <returns>Result with affected count</returns>
-        Task<ResultOptions> MoveItemsAsync(int sourceWorkspaceId, List<(byte ItemType, int ItemId)> items, int? targetFolderId, int? targetWorkspaceId);
+        /// <returns>ResultOptions with affected count</returns>
+        Task<ResultOptions> MoveItemsAsync(int sourceWorkspaceId, List<(byte ItemType, int ItemId)> items, int? targetParentId, int? targetWorkspaceId);
 
         /// <summary>
         /// Deletes multiple workspace items (folders/notes/files) with cascade support

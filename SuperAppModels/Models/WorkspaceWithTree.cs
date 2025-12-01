@@ -11,6 +11,6 @@ namespace SuperAppModels.Models
         public int UserId { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
-        public List<WorkspaceTreeItem> Items { get; set; } = new List<WorkspaceTreeItem>();
+        public List<WorkspaceItem> Items { get; set; } = new List<WorkspaceItem>();
     }
 }

@@ -5,13 +5,13 @@ using SuperAppModels.Models;
 namespace SuperAppDataRepositories.Data.Configurations
 {
     /// <summary>
-    /// EF Core configuration for WorkspaceItem entity
+    /// EF Core configuration for WorkspaceItemEntity entity
     /// Maps to: ws.workspace_items table
     /// Schema: REBUILD_SIMPLIFIED_SCHEMA.sql
     /// </summary>
-    public class WorkspaceItemConfiguration : IEntityTypeConfiguration<WorkspaceItem>
+    public class WorkspaceItemConfiguration : IEntityTypeConfiguration<WorkspaceItemEntity>
     {
-        public void Configure(EntityTypeBuilder<WorkspaceItem> builder)
+        public void Configure(EntityTypeBuilder<WorkspaceItemEntity> builder)
         {
             // Table mapping - ws schema (Workspace)
             builder.ToTable("workspace_items", "ws");
@@ -27,8 +27,8 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("workspace_id")
                 .IsRequired();
 
-            builder.Property(wi => wi.FolderId)
-                .HasColumnName("folder_id")
+            builder.Property(wi => wi.ParentId)
+                .HasColumnName("parent_id")
                 .IsRequired(false); // Nullable for root-level items
 
             builder.Property(wi => wi.ItemType)
@@ -59,8 +59,8 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasDatabaseName("IX_workspace_items_workspace")
                 .HasFilter("[deleted_at] IS NULL");
 
-            builder.HasIndex(wi => wi.FolderId)
-                .HasDatabaseName("IX_workspace_items_folder")
+            builder.HasIndex(wi => wi.ParentId)
+                .HasDatabaseName("IX_workspace_items_parent")
                 .HasFilter("[deleted_at] IS NULL");
 
             builder.HasIndex(wi => new { wi.ItemType, wi.ItemId })
@@ -81,10 +81,10 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasForeignKey(wi => wi.WorkspaceId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Parent folder relationship - explicitly specify FK to avoid EF Core auto-generating FolderId1
+            // Parent folder relationship - explicitly specify FK to avoid EF Core auto-generating ParentId1
             builder.HasOne(wi => wi.Folder)
                 .WithMany(f => f.WorkspaceItems)  // Map to Folder.WorkspaceItems collection
-                .HasForeignKey(wi => wi.FolderId)
+                .HasForeignKey(wi => wi.ParentId)
                 .OnDelete(DeleteBehavior.NoAction)
                 .IsRequired(false);  // Nullable FK for root-level items
 

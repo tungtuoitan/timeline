@@ -18,7 +18,7 @@ namespace SuperAppDataRepositories.Data
         public DbSet<Workspace> Workspaces { get; set; }
         public DbSet<Folder> Folders { get; set; }
         public DbSet<SuperAppModels.Models.File> Files { get; set; }
-        public DbSet<WorkspaceItem> WorkspaceItems { get; set; }
+        public DbSet<WorkspaceItemEntity> WorkspaceItems { get; set; }
 
         // Entity Tables (dbo schema)
         public DbSet<Note> Notes { get; set; }

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
+using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
 using System.Data;
 using System.Text.Json;
@@ -47,11 +48,11 @@ namespace SuperAppDataRepositories.Repositories
                 // Get all workspace items - Project to avoid navigation loading
                 var items = await _context.WorkspaceItems
                     .Where(i => i.WorkspaceId == workspaceId)
-                    .Select(i => new WorkspaceItem
+                    .Select(i => new WorkspaceItemEntity
                     {
                         Id = i.Id,
                         WorkspaceId = i.WorkspaceId,
-                        FolderId = i.FolderId,
+                        ParentId = i.ParentId,
                         ItemType = i.ItemType,
                         ItemId = i.ItemId,
                         IsOriginal = i.IsOriginal,
@@ -85,18 +86,17 @@ namespace SuperAppDataRepositories.Repositories
                     .ToDictionaryAsync(f => f.Id);
 
                 // Build tree items
-                var treeItems = new List<WorkspaceTreeItem>();
+                var treeItems = new List<WorkspaceItem>();
 
                 foreach (var item in items)
                 {
-                    var treeItem = new WorkspaceTreeItem
+                    var treeItem = new WorkspaceItem
                     {
-                        ItemId = item.Id,
-                        ChildId = item.ItemId,
+                        ItemId = item.ItemId,
                         ItemType = GetItemTypeName(item.ItemType), // Convert TINYINT to string
                         UserId = userId,
                         Name = "",
-                        ParentId = item.FolderId, // folder_id from ws.folders
+                        ParentId = item.ParentId, // parent_id from ws.workspace_items
                         Level = 0,
                         Position = 0,
                         AccessType = item.IsOriginal ? "owner" : "shared",
@@ -196,17 +196,17 @@ namespace SuperAppDataRepositories.Repositories
         }
 
         /// <summary>
-        /// Creates a new folder in a workspace
+        /// Creates or updates a folder in a workspace
         /// </summary>
-        public async Task<ResultOptions> UpsertFolderAsync(int workspaceId, int userId, int? folderId, string name, string? description, string? color, string? icon, int? parentFolderId)
+        public async Task<ResultOptions> UpsertFolderAsync(int workspaceId, int userId, UpsertFolderRequest request)
         {
             try
             {
-                var isUpdate = folderId.HasValue;
+                var isUpdate = request.Id.HasValue;
                 var action = isUpdate ? "Updating" : "Creating";
                 
-                _logger.LogInformation("{Action} folder '{Name}' in workspace {WorkspaceId} for user {UserId}, ParentFolderId: {ParentFolderId}",
-                    action, name, workspaceId, userId, parentFolderId);
+                _logger.LogInformation("{Action} folder '{Name}' in workspace {WorkspaceId} for user {UserId}, ParentId: {ParentId}",
+                    action, request.Name, workspaceId, userId, request.ParentId);
 
                 // Use execution strategy to handle retries with transactions
                 var strategy = _context.Database.CreateExecutionStrategy();
@@ -223,17 +223,17 @@ namespace SuperAppDataRepositories.Repositories
                         {
                             // Update existing folder
                             var existingFolder = await _context.Folders
-                                .FirstOrDefaultAsync(f => f.Id == folderId.Value && f.UserId == userId);
+                                .FirstOrDefaultAsync(f => f.Id == request.Id.Value && f.UserId == userId);
 
                             if (existingFolder == null)
                             {
-                                throw new Exception($"Folder with ID {folderId} not found or access denied");
+                                throw new Exception($"Folder with ID {request.Id} not found or access denied");
                             }
 
-                            existingFolder.Name = name;
-                            existingFolder.Description = description;
-                            existingFolder.Color = color ?? existingFolder.Color;
-                            existingFolder.Icon = icon ?? existingFolder.Icon;
+                            existingFolder.Name = request.Name;
+                            existingFolder.Description = request.Description;
+                            existingFolder.Color = request.Color ?? existingFolder.Color;
+                            existingFolder.Icon = request.Icon ?? existingFolder.Icon;
                             existingFolder.UpdatedAt = DateTime.UtcNow;
 
                             await _context.SaveChangesAsync();
@@ -241,14 +241,14 @@ namespace SuperAppDataRepositories.Repositories
 
                             // Update parent folder if changed
                             var workspaceItem = await _context.WorkspaceItems
-                                .FirstOrDefaultAsync(wi => wi.WorkspaceId == workspaceId && wi.ItemType == 2 && wi.ItemId == folderId.Value);
+                                .FirstOrDefaultAsync(wi => wi.WorkspaceId == workspaceId && wi.ItemType == 2 && wi.ItemId == request.Id.Value);
 
-                            if (workspaceItem != null && workspaceItem.FolderId != parentFolderId)
+                            if (workspaceItem != null && workspaceItem.ParentId != request.ParentId)
                             {
-                                workspaceItem.FolderId = parentFolderId;
+                                workspaceItem.ParentId = request.ParentId;
                                 workspaceItem.UpdatedAt = DateTime.UtcNow;
                                 await _context.SaveChangesAsync();
-                                _logger.LogInformation("WorkspaceItem parent updated for folder {FolderId}", folderId.Value);
+                                _logger.LogInformation("WorkspaceItem parent updated for folder {FolderId}", request.Id.Value);
                             }
 
                             resultFolder = existingFolder;
@@ -256,11 +256,11 @@ namespace SuperAppDataRepositories.Repositories
                         else
                         {
                             // Create new folder
-                            var newFolder = new Folder(name, userId)
+                            var newFolder = new Folder(request.Name, userId)
                             {
-                                Description = description,
-                                Color = color ?? "#F59E0B",  // Default amber color
-                                Icon = icon ?? "📁"           // Default folder emoji
+                                Description = request.Description,
+                                Color = request.Color ?? "#F59E0B",  // Default amber color
+                                Icon = request.Icon ?? "📁"           // Default folder emoji
                             };
 
                             _context.Folders.Add(newFolder);
@@ -269,8 +269,8 @@ namespace SuperAppDataRepositories.Repositories
                             _logger.LogInformation("Folder created with ID: {FolderId}", newFolder.Id);
 
                             // Create workspace_item link (ws.workspace_items table)
-                            _logger.LogInformation("Creating WorkspaceItem with parentFolderId: {ParentFolderId}", parentFolderId);
-                            var workspaceItem = new WorkspaceItem(workspaceId, 2, newFolder.Id, parentFolderId)
+                            _logger.LogInformation("Creating WorkspaceItemEntity with parentId: {ParentId}", request.ParentId);
+                            var workspaceItem = new WorkspaceItemEntity(workspaceId, 2, newFolder.Id, request.ParentId)
                             {
                                 IsOriginal = true  // This workspace owns the folder
                             };
@@ -278,7 +278,7 @@ namespace SuperAppDataRepositories.Repositories
                             _context.WorkspaceItems.Add(workspaceItem);
                             await _context.SaveChangesAsync();
 
-                            _logger.LogInformation("WorkspaceItem created with ID: {ItemId} linking folder {FolderId} to workspace {WorkspaceId}",
+                            _logger.LogInformation("WorkspaceItemEntity created with ID: {ItemId} linking folder {FolderId} to workspace {WorkspaceId}",
                                 workspaceItem.Id, newFolder.Id, workspaceId);
 
                             resultFolder = newFolder;
@@ -306,7 +306,7 @@ namespace SuperAppDataRepositories.Repositories
             }
             catch (DbUpdateConcurrencyException ex)
             {
-                _logger.LogError(ex, "Concurrency conflict while upserting folder '{Name}' in workspace {WorkspaceId}", name, workspaceId);
+                _logger.LogError(ex, "Concurrency conflict while upserting folder '{Name}' in workspace {WorkspaceId}", request.Name, workspaceId);
                 
                 return new ResultOptions
                 {
@@ -317,7 +317,7 @@ namespace SuperAppDataRepositories.Repositories
             }
             catch (DbUpdateException ex)
             {
-                _logger.LogError(ex, "Database error while upserting folder '{Name}' in workspace {WorkspaceId}", name, workspaceId);
+                _logger.LogError(ex, "Database error while upserting folder '{Name}' in workspace {WorkspaceId}", request.Name, workspaceId);
                 
                 return new ResultOptions
                 {
@@ -328,7 +328,7 @@ namespace SuperAppDataRepositories.Repositories
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error upserting folder '{Name}' in workspace {WorkspaceId}", name, workspaceId);
+                _logger.LogError(ex, "Error upserting folder '{Name}' in workspace {WorkspaceId}", request.Name, workspaceId);
                 
                 return new ResultOptions
                 {
@@ -343,12 +343,12 @@ namespace SuperAppDataRepositories.Repositories
         /// Moves multiple workspace items (folders/notes/files) with cascade support
         /// Uses stored procedure sp_MoveWorkspaceItems for recursive hierarchy handling
         /// </summary>
-        public async Task<ResultOptions> MoveItemsAsync(int sourceWorkspaceId, List<(byte ItemType, int ItemId)> items, int? targetFolderId, int? targetWorkspaceId)
+        public async Task<ResultOptions> MoveItemsAsync(int sourceWorkspaceId, List<(byte ItemType, int ItemId)> items, int? targetParentId, int? targetWorkspaceId)
         {
             try
             {
-                _logger.LogInformation("Moving {Count} items from workspace {SourceWorkspaceId} to folder {TargetFolderId} in workspace {TargetWorkspaceId}",
-                    items.Count, sourceWorkspaceId, targetFolderId, targetWorkspaceId ?? sourceWorkspaceId);
+                _logger.LogInformation("Moving {Count} items from workspace {SourceWorkspaceId} to parent {TargetParentId} in workspace {TargetWorkspaceId}",
+                    items.Count, sourceWorkspaceId, targetParentId, targetWorkspaceId ?? sourceWorkspaceId);
 
                 // Serialize items to JSON for stored procedure
                 var itemsJson = JsonSerializer.Serialize(items.Select(i => new { itemType = i.ItemType, itemId = i.ItemId }));
@@ -356,13 +356,13 @@ namespace SuperAppDataRepositories.Repositories
                 // Execute stored procedure
                 var sourceWorkspaceIdParam = new SqlParameter("@SourceWorkspaceId", sourceWorkspaceId);
                 var itemsParam = new SqlParameter("@Items", SqlDbType.NVarChar, -1) { Value = itemsJson };
-                var targetFolderIdParam = new SqlParameter("@TargetFolderId", SqlDbType.Int) { Value = (object?)targetFolderId ?? DBNull.Value };
+                var targetParentIdParam = new SqlParameter("@TargetParentId", SqlDbType.Int) { Value = (object?)targetParentId ?? DBNull.Value };
                 var targetWorkspaceIdParam = new SqlParameter("@TargetWorkspaceId", SqlDbType.Int) { Value = (object?)targetWorkspaceId ?? DBNull.Value };
 
                 // Execute and get result
                 var result = await _context.Database.ExecuteSqlRawAsync(
-                    "EXEC [ws].[sp_MoveWorkspaceItems] @SourceWorkspaceId, @Items, @TargetFolderId, @TargetWorkspaceId",
-                    sourceWorkspaceIdParam, itemsParam, targetFolderIdParam, targetWorkspaceIdParam
+                    "EXEC [ws].[sp_MoveWorkspaceItems] @SourceWorkspaceId, @Items, @TargetParentId, @TargetWorkspaceId",
+                    sourceWorkspaceIdParam, itemsParam, targetParentIdParam, targetWorkspaceIdParam
                 );
 
                 _logger.LogInformation("Successfully moved {Count} items (including children)", result);

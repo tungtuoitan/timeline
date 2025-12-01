@@ -10,10 +10,10 @@ namespace SuperAppServices.Validators
     {
         public UpsertFolderRequestValidator()
         {
-            RuleFor(x => x.FolderId)
+            RuleFor(x => x.Id)
                 .GreaterThan(0)
                 .WithMessage("Folder ID must be positive")
-                .When(x => x.FolderId.HasValue);
+                .When(x => x.Id.HasValue);
 
             RuleFor(x => x.Name)
                 .NotEmpty()
@@ -36,10 +36,10 @@ namespace SuperAppServices.Validators
                 .WithMessage("Icon cannot exceed 50 characters")
                 .When(x => x.Icon != null);
 
-            RuleFor(x => x.ParentFolderId)
+            RuleFor(x => x.ParentId)
                 .GreaterThan(0)
                 .WithMessage("Parent folder ID must be positive")
-                .When(x => x.ParentFolderId.HasValue);
+                .When(x => x.ParentId.HasValue);
         }
     }
 }

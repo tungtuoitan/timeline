@@ -16,10 +16,10 @@ namespace SuperAppModels.DTOs.Requests
         public List<ItemIdentifier> Items { get; set; } = new();
 
         /// <summary>
-        /// Target folder ID (null = move to root level)
+        /// Target parent folder ID (null = move to root level)
         /// </summary>
-        [Range(1, int.MaxValue, ErrorMessage = "Target folder ID must be positive")]
-        public int? TargetFolderId { get; set; }
+        [Range(1, int.MaxValue, ErrorMessage = "Target parent ID must be positive")]
+        public int? TargetParentId { get; set; }
 
         /// <summary>
         /// Target workspace ID (null = same workspace, value = move to different workspace)

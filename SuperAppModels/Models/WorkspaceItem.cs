@@ -1,72 +1,83 @@
-namespace SuperAppModels.Models
+namespace SuperAppModels.Models;
+
+/// <summary>
+/// Database model for workspace tree items (internal use)
+/// Maps to workspace tree query results
+/// </summary>
+public class WorkspaceItem
 {
     /// <summary>
-    /// Polymorphic junction table managing items in workspace (folders, notes, files)
-    /// Primary table: ws.workspace_items
-    /// Schema: REBUILD_SIMPLIFIED_SCHEMA.sql
+    /// Type of the item: 'tag', 'note', or 'file'
     /// </summary>
-    public class WorkspaceItem : ITimestampEntity
-    {
-        // Database columns - EXACTLY match ws.workspace_items schema
-        public int Id { get; set; } // id INT IDENTITY(1,1) PRIMARY KEY
-        public int WorkspaceId { get; set; } // workspace_id INT NOT NULL
-        public int? FolderId { get; set; } // folder_id INT (FK to ws.folders.id, NULLABLE for root items)
-        public byte ItemType { get; set; } // item_type TINYINT (2=folder, 3=note, 4=file)
-        public int ItemId { get; set; } // item_id INT (actual folder_id/note_id/file_id)
-        public bool IsOriginal { get; set; } = true; // is_original BIT DEFAULT 1
+    public string ItemType { get; set; } = string.Empty;
 
-        // Timestamps (ITimestampEntity)
-        public DateTime? CreatedAt { get; set; } // created_at DATETIME2 DEFAULT GETUTCDATE()
-        public DateTime? UpdatedAt { get; set; } // updated_at DATETIME2
-        public DateTime? DeletedAt { get; set; } // deleted_at DATETIME2
+    /// <summary>
+    /// Workspace item ID (workspace_items.item_id) - used for deletion
+    /// </summary>
+    public long ItemId { get; set; }
 
-        // Navigation properties for EF Core
-        public Workspace Workspace { get; set; } = null!;
-        public Folder? Folder { get; set; } // Parent folder (nullable for root items)
+    /// <summary>
+    /// ID of the user who owns/created this item
+    /// </summary>
+    public int UserId { get; set; }
 
-        // Polymorphic navigation (based on ItemType) - NOT MAPPED to database
-        // ItemType = 2: Folder
-        // ItemType = 3: Note
-        // ItemType = 4: File
-        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
-        public Folder? ChildFolder { get; set; }
-        
-        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
-        public Note? ChildNote { get; set; }
-        
-        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
-        public File? ChildFile { get; set; }
+    /// <summary>
+    /// Display name of the item
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
 
-        public WorkspaceItem()
-        {
-            CreatedAt = DateTime.UtcNow;
-        }
+    /// <summary>
+    /// ID of the parent tag (null for root-level items)
+    /// </summary>
+    public int? ParentId { get; set; }
 
-        public WorkspaceItem(int workspaceId, byte itemType, int itemId, int? folderId = null) : this()
-        {
-            WorkspaceId = workspaceId;
-            ItemType = itemType;
-            ItemId = itemId;
-            FolderId = folderId;
-        }
+    /// <summary>
+    /// URL-friendly slug for the item
+    /// </summary>
+    public string? Slug { get; set; }
 
-        /// <summary>
-        /// Marks item as deleted (soft delete)
-        /// </summary>
-        public void SoftDelete()
-        {
-            DeletedAt = DateTime.UtcNow;
-            UpdatedAt = DateTime.UtcNow;
-        }
+    /// <summary>
+    /// Hex color code for display (e.g., #FF5733)
+    /// </summary>
+    public string? Color { get; set; }
 
-        /// <summary>
-        /// Checks if this workspace created/owns the item
-        /// </summary>
-        public bool IsOwner => IsOriginal;
+    /// <summary>
+    /// Icon name or class for display
+    /// </summary>
+    public string? Icon { get; set; }
 
-        /// <summary>
-        /// Checks if this item is shared from another workspace
-        /// </summary>
-        public bool IsShared => !IsOriginal;
-    }
+    /// <summary>
+    /// Access type: 'owner' or 'shared'
+    /// </summary>
+    public string AccessType { get; set; } = string.Empty;
+
+    /// <summary>
+    /// TRUE if this workspace created/owns the item, FALSE if shared from another workspace
+    /// </summary>
+    public bool IsOriginal { get; set; } = true;
+
+    /// <summary>
+    /// Depth level in the tree hierarchy (0 = root level)
+    /// </summary>
+    public int Level { get; set; }
+
+    /// <summary>
+    /// Position/order within the same parent
+    /// </summary>
+    public int Position { get; set; }
+
+    /// <summary>
+    /// When the item was created
+    /// </summary>
+    public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    /// When the item was last updated
+    /// </summary>
+    public DateTime? UpdatedAt { get; set; }
+
+    /// <summary>
+    /// Additional metadata (JSON or serialized object)
+    /// </summary>
+    public string? MetadataJson { get; set; }
 }

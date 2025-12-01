@@ -79,8 +79,8 @@ namespace SuperAppServices.Services
                     throw new InvalidOperationException($"Failed to retrieve workspace tree for workspace {workspaceId}");
                 }
 
-                // Map to WorkspaceTreeItemResponse using AutoMapper
-                var flatResponse = _mapper.Map<List<WorkspaceTreeItemResponse>>(workspaceWithTree.Items);
+                // Map to WorkspaceItemResponse using AutoMapper
+                var flatResponse = _mapper.Map<List<WorkspaceItemResponse>>(workspaceWithTree.Items);
 
                 // Build hierarchical structure
                 var hierarchicalItems = BuildHierarchy(flatResponse);
@@ -127,7 +127,7 @@ namespace SuperAppServices.Services
         /// Uses dictionary-based parent lookup for O(1) performance
         /// Uses composite key (ItemType + ItemId) to handle cases where different item types have the same ID
         /// </summary>
-        private List<WorkspaceTreeItemResponse> BuildHierarchy(List<WorkspaceTreeItemResponse> flatItems)
+        private List<WorkspaceItemResponse> BuildHierarchy(List<WorkspaceItemResponse> flatItems)
         {
             // Log duplicate detection for debugging
             var duplicates = flatItems
@@ -151,7 +151,7 @@ namespace SuperAppServices.Services
                 i => $"{i.ItemType}_{i.ItemId}",
                 i => i);
 
-            var rootItems = new List<WorkspaceTreeItemResponse>();
+            var rootItems = new List<WorkspaceItemResponse>();
 
             foreach (var item in flatItems)
             {
@@ -194,22 +194,17 @@ namespace SuperAppServices.Services
         {
             try
             {
-                var isUpdate = request.FolderId.HasValue;
+                var isUpdate = request.Id.HasValue;
                 var action = isUpdate ? "Updating" : "Creating";
                 
-                _logger.LogInformation("{Action} folder '{Name}' in workspace {WorkspaceId} for user {UserId}, ParentFolderId: {ParentFolderId}",
-                    action, request.Name, workspaceId, userId, request.ParentFolderId);
+                _logger.LogInformation("{Action} folder '{Name}' in workspace {WorkspaceId} for user {UserId}, ParentId: {ParentId}",
+                    action, request.Name, workspaceId, userId, request.ParentId);
 
                 // Call repository to upsert folder
                 var result = await _workspaceRepository.UpsertFolderAsync(
                     workspaceId,
                     userId,
-                    request.FolderId,
-                    request.Name,
-                    request.Description,
-                    request.Color,
-                    request.Icon,
-                    request.ParentFolderId
+                    request
                 );
 
                 // Check if repository operation was successful
@@ -268,7 +263,7 @@ namespace SuperAppServices.Services
                 var result = await _workspaceRepository.MoveItemsAsync(
                     workspaceId,
                     items,
-                    request.TargetFolderId,
+                    request.TargetParentId,
                     request.TargetWorkspaceId
                 );
 
@@ -341,7 +336,7 @@ namespace SuperAppServices.Services
         /// <summary>
         /// Sort items alphabetically by name (case-insensitive), recursively
         /// </summary>
-        private void SortItemsRecursively(List<WorkspaceTreeItemResponse> items)
+        private void SortItemsRecursively(List<WorkspaceItemResponse> items)
         {
             items.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
 

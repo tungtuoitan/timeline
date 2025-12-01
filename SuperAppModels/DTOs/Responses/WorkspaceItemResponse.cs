@@ -1,31 +1,117 @@
-namespace SuperAppModels.DTOs.Responses
+namespace SuperAppModels.DTOs.Responses;
+
+/// <summary>
+/// Represents a single item (tag/note/file) in the workspace tree hierarchy
+/// Polymorphic response that can represent different item types with type-specific metadata
+/// </summary>
+public class WorkspaceItemResponse
 {
     /// <summary>
-    /// Response for workspace item operations
+    /// Type of the item: 'tag', 'note', or 'file'
     /// </summary>
-    public class WorkspaceItemResponse
-    {
-        public long ItemId { get; set; }
-        public int WorkspaceId { get; set; }
-        public int ParentTagId { get; set; }
-        public string ChildType { get; set; } = string.Empty;
-        public int ChildId { get; set; }
-        public bool IsOriginal { get; set; }
-        public string? RelationshipType { get; set; }
-        public string? Label { get; set; }
-        public string? Notes { get; set; }
-        public string? ItemPath { get; set; }
-        public int Depth { get; set; }
-        public int SortOrder { get; set; }
-        public string? Color { get; set; }
-        public string? Icon { get; set; }
-        public int AddedBy { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
+    public string ItemType { get; set; } = string.Empty;
 
-        // Navigation properties
-        public string? ParentTagName { get; set; }
-        public string? ChildName { get; set; }
-        public string? AddedByUserName { get; set; }
-    }
+    /// <summary>
+    /// Workspace item ID (workspace_items.item_id) - used for deletion
+    /// </summary>
+    public long ItemId { get; set; }
+
+    /// <summary>
+    /// Workspace item ID (alias for ItemId, for backward compatibility)
+    /// </summary>
+    public long Id { get; set; }
+
+    /// <summary>
+    /// ID of the user who owns/created this item
+    /// </summary>
+    public int UserId { get; set; }
+
+    /// <summary>
+    /// Display name of the item
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// ID of the parent tag (null for root-level items)
+    /// Note: Only tags can be parents; notes and files are always leaf nodes
+    /// </summary>
+    public int? ParentId { get; set; }
+
+    /// <summary>
+    /// URL-friendly slug for the item
+    /// </summary>
+    public string? Slug { get; set; }
+
+    /// <summary>
+    /// Hex color code for display (e.g., #FF5733)
+    /// </summary>
+    public string? Color { get; set; }
+
+    /// <summary>
+    /// Icon name or class for display
+    /// </summary>
+    public string? Icon { get; set; }
+
+    /// <summary>
+    /// Access type: 'owner' (created by user) or 'shared' (shared with user)
+    /// </summary>
+    public string AccessType { get; set; } = string.Empty;
+
+    /// <summary>
+    /// TRUE if this workspace created/owns the item, FALSE if shared from another workspace
+    /// </summary>
+    public bool IsOriginal { get; set; } = true;
+
+    /// <summary>
+    /// Depth level in the tree hierarchy (0 = root level)
+    /// </summary>
+    public int Level { get; set; }
+
+    /// <summary>
+    /// Position/order within the same parent (for custom sorting)
+    /// </summary>
+    public int Position { get; set; }
+
+    /// <summary>
+    /// Sort order (alias for Position, for backward compatibility)
+    /// </summary>
+    public int SortOrder { get; set; }
+
+    /// <summary>
+    /// Depth in tree hierarchy (alias for Level, for backward compatibility)
+    /// </summary>
+    public int Depth { get; set; }
+
+    /// <summary>
+    /// Type-specific metadata (TagMetadata/NoteMetadata/FileMetadata)
+    /// Cast to appropriate type based on ItemType
+    /// </summary>
+    public object? Metadata { get; set; }
+
+    /// <summary>
+    /// Child items in the tree hierarchy
+    /// Empty for notes and files (leaf nodes only)
+    /// Can contain tags/notes/files for tag items
+    /// </summary>
+    public List<WorkspaceItemResponse> Children { get; set; } = new List<WorkspaceItemResponse>();
+
+    /// <summary>
+    /// UI state: Whether the item is currently expanded in the tree view
+    /// </summary>
+    public bool IsExpanded { get; set; } = false;
+
+    /// <summary>
+    /// UI state: Whether the item is currently selected
+    /// </summary>
+    public bool IsSelected { get; set; } = false;
+
+    /// <summary>
+    /// When the item was created
+    /// </summary>
+    public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    /// When the item was last updated
+    /// </summary>
+    public DateTime? UpdatedAt { get; set; }
 }

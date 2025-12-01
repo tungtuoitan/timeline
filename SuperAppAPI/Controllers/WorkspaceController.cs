@@ -128,7 +128,7 @@ namespace SuperAppAPI.Controllers
             // TEMPORARY: Using hardcoded userId while auth is disabled
             var userId = 1; // Hardcoded for development
 
-            var action = request.FolderId.HasValue ? "Updating" : "Creating";
+            var action = request.Id.HasValue ? "Updating" : "Creating";
             _logger.LogInformation("{Action} folder '{Name}' in workspace {WorkspaceId} for user {UserId}",
                 action, request.Name, workspaceId, userId);
 

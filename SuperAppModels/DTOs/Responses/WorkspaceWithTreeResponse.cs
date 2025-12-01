@@ -108,5 +108,5 @@ public class WorkspaceWithTreeResponse
     /// Notes and files are always leaf nodes (no children)
     /// Tags can have children of any type (tags/notes/files)
     /// </summary>
-    public List<WorkspaceTreeItemResponse> Items { get; set; } = new List<WorkspaceTreeItemResponse>();
+    public List<WorkspaceItemResponse> Items { get; set; } = new List<WorkspaceItemResponse>();
 }

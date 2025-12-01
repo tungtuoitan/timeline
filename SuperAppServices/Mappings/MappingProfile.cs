@@ -77,11 +77,8 @@ namespace SuperAppServices.Mappings
             // Workspace mappings
             CreateMap<Workspace, WorkspaceListResponse>();
 
-            // WorkspaceItem mappings
-            CreateMap<WorkspaceItem, WorkspaceItemResponse>();
-
-            // WorkspaceTreeItem mappings
-            CreateMap<WorkspaceTreeItem, WorkspaceTreeItemResponse>()
+            // WorkspaceItem mappings (tree view model -> response DTO)
+            CreateMap<WorkspaceItem, WorkspaceItemResponse>()
                 .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.ItemId))
                 .ForMember(dest => dest.SortOrder, opt => opt.MapFrom(src => src.Position))
                 .ForMember(dest => dest.Depth, opt => opt.MapFrom(src => src.Level))
