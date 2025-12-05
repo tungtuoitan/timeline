@@ -103,10 +103,10 @@ public class WorkspaceWithTreeResponse
     public DateTime? UpdatedAt { get; set; }
 
     /// <summary>
-    /// Hierarchical tree structure for this workspace
-    /// Contains root-level items (tags/notes/files) with their children recursively
-    /// Notes and files are always leaf nodes (no children)
-    /// Tags can have children of any type (tags/notes/files)
+    /// FLAT list of all workspace items (tags/notes/files)
+    /// ⚠️ NOTE: Backend returns FLAT data with ParentId relationships
+    /// Frontend builds hierarchical tree using ParentId field
+    /// Benefits: smaller payload, easier caching, simpler updates, more flexible
     /// </summary>
     public List<WorkspaceItemResponse> Items { get; set; } = new List<WorkspaceItemResponse>();
 }

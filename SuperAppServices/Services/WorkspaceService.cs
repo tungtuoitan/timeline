@@ -82,8 +82,8 @@ namespace SuperAppServices.Services
                 // Map to WorkspaceItemResponse using AutoMapper
                 var flatResponse = _mapper.Map<List<WorkspaceItemResponse>>(workspaceWithTree.Items);
 
-                // Build hierarchical structure
-                var hierarchicalItems = BuildHierarchy(flatResponse);
+                // ✅ Return FLAT data - Frontend will build hierarchy when needed
+                // This improves: payload size, caching, real-time updates, flexibility
 
                 // Create response
                 var response = new WorkspaceWithTreeResponse
@@ -106,11 +106,11 @@ namespace SuperAppServices.Services
                     Settings = null,
                     CreatedAt = workspace.CreatedAt ?? DateTime.UtcNow,
                     UpdatedAt = workspace.UpdatedAt,
-                    Items = hierarchicalItems // Polymorphic tree items (tags, notes, files)
+                    Items = flatResponse // ✅ FLAT list with parentId - Frontend builds hierarchy
                 };
 
-                _logger.LogInformation("Successfully retrieved workspace tree with {ItemCount} root items for workspace {WorkspaceId}",
-                    hierarchicalItems.Count, workspaceId);
+                _logger.LogInformation("Successfully retrieved workspace tree with {ItemCount} items for workspace {WorkspaceId}",
+                    flatResponse.Count, workspaceId);
 
                 return response;
             }
@@ -122,70 +122,7 @@ namespace SuperAppServices.Services
             }
         }
 
-        /// <summary>
-        /// Build hierarchical tree structure from flat list
-        /// Uses dictionary-based parent lookup for O(1) performance
-        /// Uses composite key (ItemType + ItemId) to handle cases where different item types have the same ID
-        /// </summary>
-        private List<WorkspaceItemResponse> BuildHierarchy(List<WorkspaceItemResponse> flatItems)
-        {
-            // Log duplicate detection for debugging
-            var duplicates = flatItems
-                .GroupBy(i => new { i.ItemType, i.ItemId })
-                .Where(g => g.Count() > 1)
-                .ToList();
-
-            if (duplicates.Any())
-            {
-                foreach (var dup in duplicates)
-                {
-                    _logger.LogWarning(
-                        "Found {Count} duplicate items with ItemType={ItemType}, ItemId={ItemId}",
-                        dup.Count(), dup.Key.ItemType, dup.Key.ItemId);
-                }
-            }
-
-            // Dictionary for O(1) parent lookup - use composite key (ItemType + ItemId)
-            // This handles cases where Tag.TagId=127 and Note.NoteId=127 both exist
-            var itemDict = flatItems.ToDictionary(
-                i => $"{i.ItemType}_{i.ItemId}",
-                i => i);
-
-            var rootItems = new List<WorkspaceItemResponse>();
-
-            foreach (var item in flatItems)
-            {
-                if (item.ParentId == null)
-                {
-                    // Root item (no parent)
-                    rootItems.Add(item);
-                }
-                else
-                {
-                    // Child item - parent is ALWAYS a tag (only tags can be parents)
-                    var parentKey = $"tag_{item.ParentId.Value}";
-
-                    if (itemDict.TryGetValue(parentKey, out var parent))
-                    {
-                        // Add to parent's children
-                        parent.Children.Add(item);
-                    }
-                    else
-                    {
-                        // Orphan (parent tag not found) - treat as root
-                        _logger.LogWarning(
-                            "Item {ItemType}_{ItemId} has ParentId={ParentId} (tag) which was not found. Treating as root.",
-                            item.ItemType, item.ItemId, item.ParentId);
-                        rootItems.Add(item);
-                    }
-                }
-            }
-
-            // Sort children recursively
-            SortItemsRecursively(rootItems);
-
-            return rootItems;
-        }
+       
 
         /// <summary>
         /// Creates a new folder in a workspace
@@ -256,7 +193,7 @@ namespace SuperAppServices.Services
 
                 // Convert request items to tuple list
                 var items = request.Items
-                    .Select(i => (i.ItemType, i.ItemId))
+                    .Select(i => (i.Type, i.Id))
                     .ToList();
 
                 // Call repository
@@ -303,7 +240,7 @@ namespace SuperAppServices.Services
 
                 // Convert request items to tuple list
                 var items = request.Items
-                    .Select(i => (i.ItemType, i.ItemId))
+                    .Select(i => (i.Type, i.Id))
                     .ToList();
 
                 // Call repository
@@ -330,22 +267,6 @@ namespace SuperAppServices.Services
                     Message = "An error occurred while deleting items",
                     Status = 500
                 };
-            }
-        }
-
-        /// <summary>
-        /// Sort items alphabetically by name (case-insensitive), recursively
-        /// </summary>
-        private void SortItemsRecursively(List<WorkspaceItemResponse> items)
-        {
-            items.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
-
-            foreach (var item in items)
-            {
-                if (item.Children.Any())
-                {
-                    SortItemsRecursively(item.Children);
-                }
             }
         }
     }

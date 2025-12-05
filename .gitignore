@@ -364,5 +364,5 @@ FodyWeavers.xsd
 
 
 # Migragion folder
-Migrations/
-Migrations/**/
+# Migrations/
+# Migrations/**/

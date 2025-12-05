@@ -351,7 +351,7 @@ namespace SuperAppDataRepositories.Repositories
                     items.Count, sourceWorkspaceId, targetParentId, targetWorkspaceId ?? sourceWorkspaceId);
 
                 // Serialize items to JSON for stored procedure
-                var itemsJson = JsonSerializer.Serialize(items.Select(i => new { itemType = i.ItemType, itemId = i.ItemId }));
+                var itemsJson = JsonSerializer.Serialize(items.Select(i => new { type = i.ItemType, id = i.ItemId }));
 
                 // Execute stored procedure
                 var sourceWorkspaceIdParam = new SqlParameter("@SourceWorkspaceId", sourceWorkspaceId);
@@ -408,7 +408,7 @@ namespace SuperAppDataRepositories.Repositories
                     items.Count, workspaceId);
 
                 // Serialize items to JSON for stored procedure
-                var itemsJson = JsonSerializer.Serialize(items.Select(i => new { itemType = i.ItemType, itemId = i.ItemId }));
+                var itemsJson = JsonSerializer.Serialize(items.Select(i => new { type = i.ItemType, id = i.ItemId }));
 
                 // Execute stored procedure
                 var workspaceIdParam = new SqlParameter("@WorkspaceId", workspaceId);

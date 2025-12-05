@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace SuperAppModels.DTOs.Requests
 {
@@ -25,14 +26,16 @@ namespace SuperAppModels.DTOs.Requests
             /// </summary>
             [Required(ErrorMessage = "Item type is required")]
             [Range(2, 4, ErrorMessage = "Item type must be 2 (folder), 3 (note), or 4 (file)")]
-            public byte ItemType { get; set; }
+            [JsonPropertyName("type")]
+            public byte Type { get; set; }
 
             /// <summary>
             /// Item ID
             /// </summary>
             [Required(ErrorMessage = "Item ID is required")]
             [Range(1, int.MaxValue, ErrorMessage = "Item ID must be positive")]
-            public int ItemId { get; set; }
+            [JsonPropertyName("id")]
+            public int Id { get; set; }
         }
     }
 }

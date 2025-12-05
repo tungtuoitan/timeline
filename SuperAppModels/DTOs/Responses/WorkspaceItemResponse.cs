@@ -90,8 +90,9 @@ public class WorkspaceItemResponse
 
     /// <summary>
     /// Child items in the tree hierarchy
-    /// Empty for notes and files (leaf nodes only)
-    /// Can contain tags/notes/files for tag items
+    /// ⚠️ NOTE: Backend returns FLAT data - this array is always empty from API
+    /// Frontend builds hierarchy using ParentId relationships
+    /// This property exists for frontend use after buildHierarchy() is called
     /// </summary>
     public List<WorkspaceItemResponse> Children { get; set; } = new List<WorkspaceItemResponse>();
 
