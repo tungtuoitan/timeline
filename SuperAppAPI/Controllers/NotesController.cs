@@ -13,7 +13,8 @@ namespace SuperAppAPI.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
+    // TEMPORARY: [Authorize] disabled while authentication is disabled for development
+    // [Authorize]
     public class NotesController : ControllerBase
     {
         private readonly INoteService _noteService;
@@ -149,37 +150,7 @@ namespace SuperAppAPI.Controllers
             return Ok(note);
         }
 
-        /// <summary>
-        /// Updates an existing note (alternative endpoint with PUT {id})
-        /// </summary>
-        /// <param name="id">Note ID to update</param>
-        /// <param name="request">Note data for update</param>
-        /// <returns>Updated note details</returns>
-        /// <response code="200">Note updated successfully</response>
-        /// <response code="400">Invalid input data</response>
-        /// <response code="401">Unauthorized - invalid or missing token</response>
-        /// <response code="404">Note not found or not accessible</response>
-        /// <response code="500">Internal server error</response>
-        [HttpPut("{id:int}")]
-        [ProducesResponseType(typeof(NoteResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UpdateNote(int id, [FromBody] UpsertNoteRequest request)
-        {
-            if (id <= 0)
-            {
-                _logger.LogWarning("Invalid note ID provided for update: {NoteId}", id);
-                return BadRequest(new { Message = "Note ID must be positive" });
-            }
-
-            // Set the NoteId from URL parameter
-            request.NoteId = id;
-
-            return await UpsertNote(request);
-        }
-
+      
         /// <summary>
         /// Deletes one or more notes for the authenticated user
         /// </summary>

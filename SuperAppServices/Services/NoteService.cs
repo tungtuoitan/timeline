@@ -107,7 +107,12 @@ namespace SuperAppServices.Services
 
                 if (request.NoteId == 0)
                 {
-                    _logger.LogInformation("Creating new note with name: '{Name}'", request.Name);
+                    // TEMPORARY: Set UserId = 1 for development (auth disabled)
+                    // TODO: Get userId from authenticated user when auth is enabled
+                    note.UserId = 1;
+
+                    _logger.LogInformation("Creating new note with name: '{Name}', UserId: {UserId}",
+                        request.Name, note.UserId);
                     resultNote = await _noteRepository.CreateNoteAsync(note, request.TagIds, null);
                 }
                 else

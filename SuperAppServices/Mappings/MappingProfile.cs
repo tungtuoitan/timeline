@@ -14,6 +14,7 @@ namespace SuperAppServices.Mappings
         {
             // Note mappings
             CreateMap<Note, NoteResponse>()
+                .ForMember(dest => dest.NoteId, opt => opt.MapFrom(src => src.Id)) // Map Id -> NoteId
                 .ForMember(dest => dest.Tags, opt => opt.Ignore()); // Tags will be set separately if needed
 
             CreateMap<CreateNoteRequest, Note>()
