@@ -34,10 +34,11 @@ namespace SuperAppDataRepositories.Repositories
                 _logger.LogInformation("Getting workspace tree for workspaceId: {WorkspaceId}, userId: {UserId}",
                     workspaceId, userId);
 
-                // Get workspace
+                // Get workspace - ✅ Include deleted workspaces
                 var workspace = await _context.Workspaces
-                    .Where(w => w.Id == workspaceId && w.DeletedAt == null)
+                    .Where(w => w.Id == workspaceId)
                     .FirstOrDefaultAsync();
+                    // Frontend will handle display logic
 
                 if (workspace == null)
                 {
@@ -45,7 +46,8 @@ namespace SuperAppDataRepositories.Repositories
                     return null;
                 }
 
-                // Get all workspace items - Project to avoid navigation loading
+                // Get all workspace items - ✅ Include deleted items
+                // Frontend will handle display logic
                 var items = await _context.WorkspaceItems
                     .Where(i => i.WorkspaceId == workspaceId)
                     .Select(i => new WorkspaceItemEntity
@@ -69,20 +71,28 @@ namespace SuperAppDataRepositories.Repositories
                 var noteIds = items.Where(i => i.ItemType == 3).Select(i => i.ItemId).Distinct().ToList();   // item_type = 3 (note)
                 var fileIds = items.Where(i => i.ItemType == 4).Select(i => i.ItemId).Distinct().ToList();   // item_type = 4 (file)
 
+                // ✅ Include deleted folders - Frontend will handle display logic
                 var folders = await _context.Folders
                     .AsNoTracking()
                     .Where(f => folderIds.Contains(f.Id))
                     .ToDictionaryAsync(f => f.Id);
 
+                // ✅ Include deleted notes - Frontend will handle display logic
                 var notes = await _context.Notes
                     .AsNoTracking()
                     .Where(n => noteIds.Contains(n.Id))
                     .ToDictionaryAsync(n => n.Id);
 
+                // ✅ Include deleted files - Frontend will handle display logic
                 var files = await _context.Files
                     .AsNoTracking()
                     .Where(f => fileIds.Contains(f.Id))
-                    .Select(f => new SuperAppModels.Models.File { Id = f.Id, Name = f.Name })
+                    .Select(f => new SuperAppModels.Models.File 
+                    { 
+                        Id = f.Id, 
+                        Name = f.Name,
+                        DeletedAt = f.DeletedAt // ✅ Include DeletedAt
+                    })
                     .ToDictionaryAsync(f => f.Id);
 
                 // Build tree items
@@ -101,23 +111,39 @@ namespace SuperAppDataRepositories.Repositories
                         Level = 0,
                         Position = 0,
                         AccessType = item.IsOriginal ? "owner" : "shared",
-                        IsOriginal = item.IsOriginal
+                        IsOriginal = item.IsOriginal,
+                        DeletedAt = item.DeletedAt // ✅ Include DeletedAt from workspace_items
                     };
 
-                    // Populate name and metadata based on type
+                    // Populate name, metadata, and DeletedAt based on type
                     if (item.ItemType == 2 && folders.TryGetValue(item.ItemId, out var folder))
                     {
                         treeItem.Name = folder.Name;
                         treeItem.Color = folder.Color;
                         treeItem.Icon = folder.Icon;
+                        // ✅ Use entity DeletedAt if relationship is not deleted but entity is
+                        if (treeItem.DeletedAt == null && folder.DeletedAt != null)
+                        {
+                            treeItem.DeletedAt = folder.DeletedAt;
+                        }
                     }
                     else if (item.ItemType == 3 && notes.TryGetValue(item.ItemId, out var note))
                     {
                         treeItem.Name = note.Name;
+                        // ✅ Use entity DeletedAt if relationship is not deleted but entity is
+                        if (treeItem.DeletedAt == null && note.DeletedAt != null)
+                        {
+                            treeItem.DeletedAt = note.DeletedAt;
+                        }
                     }
                     else if (item.ItemType == 4 && files.TryGetValue(item.ItemId, out var file))
                     {
                         treeItem.Name = file.Name;
+                        // ✅ Use entity DeletedAt if relationship is not deleted but entity is
+                        if (treeItem.DeletedAt == null && file.DeletedAt != null)
+                        {
+                            treeItem.DeletedAt = file.DeletedAt;
+                        }
                     }
 
                     treeItems.Add(treeItem);
@@ -155,8 +181,9 @@ namespace SuperAppDataRepositories.Repositories
         {
             try
             {
+                // ✅ Include deleted workspace - Frontend will handle display logic
                 return await _context.Workspaces
-                    .Where(w => w.Id == workspaceId && w.DeletedAt == null)
+                    .Where(w => w.Id == workspaceId)
                     .FirstOrDefaultAsync();
             }
             catch (Exception ex)
@@ -175,8 +202,9 @@ namespace SuperAppDataRepositories.Repositories
             {
                 _logger.LogInformation("Getting all workspaces for userId: {UserId}", userId);
 
+                // ✅ Include deleted workspaces - Frontend will handle display logic
                 var workspaces = await _context.Workspaces
-                    .Where(w => w.UserId == userId && w.DeletedAt == null)
+                    .Where(w => w.UserId == userId)
                     .OrderBy(w => w.CreatedAt)
                     .ToListAsync();
 

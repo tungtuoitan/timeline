@@ -41,8 +41,8 @@ namespace SuperAppDataRepositories.Repositories
                     filterOptions.PageNumber, filterOptions.PageSize);
 
                 var query = _context.Notes
-                    .AsNoTracking()
-                    .Where(n => n.DeletedAt == null);
+                    .AsNoTracking();
+                    // ✅ Include deleted notes - Frontend will handle display logic
 
                 // Filter by user ID if provided
                 if (filterOptions.UserId.HasValue)
@@ -117,7 +117,8 @@ namespace SuperAppDataRepositories.Repositories
 
                 var note = await _context.Notes
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(n => n.Id == noteId && n.DeletedAt == null);
+                    .FirstOrDefaultAsync(n => n.Id == noteId);
+                    // ✅ Include deleted note - Frontend will handle display logic
 
                 if (note == null)
                 {

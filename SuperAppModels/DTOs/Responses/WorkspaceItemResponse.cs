@@ -115,4 +115,9 @@ public class WorkspaceItemResponse
     /// When the item was last updated
     /// </summary>
     public DateTime? UpdatedAt { get; set; }
+
+    /// <summary>
+    /// When the item was deleted (soft delete) - null if not deleted
+    /// </summary>
+    public DateTime? DeletedAt { get; set; }
 }

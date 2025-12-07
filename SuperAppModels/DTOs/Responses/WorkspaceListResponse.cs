@@ -35,4 +35,9 @@ public class WorkspaceListResponse
     /// When the workspace was last updated
     /// </summary>
     public DateTime? UpdatedAt { get; set; }
+
+    /// <summary>
+    /// When the workspace was deleted (soft delete) - null if not deleted
+    /// </summary>
+    public DateTime? DeletedAt { get; set; }
 }

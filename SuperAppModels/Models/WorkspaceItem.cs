@@ -82,6 +82,11 @@ public class WorkspaceItem
     public DateTime? UpdatedAt { get; set; }
 
     /// <summary>
+    /// When the item was deleted (soft delete) - null if not deleted
+    /// </summary>
+    public DateTime? DeletedAt { get; set; }
+
+    /// <summary>
     /// Additional metadata (JSON or serialized object)
     /// </summary>
     public string? MetadataJson { get; set; }
