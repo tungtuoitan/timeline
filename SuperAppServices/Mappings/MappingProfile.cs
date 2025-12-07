@@ -14,7 +14,7 @@ namespace SuperAppServices.Mappings
         {
             // Note mappings
             CreateMap<Note, NoteResponse>()
-                .ForMember(dest => dest.NoteId, opt => opt.MapFrom(src => src.Id)) // Map Id -> NoteId
+                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id)) // Map Id -> Id
                 .ForMember(dest => dest.Tags, opt => opt.Ignore()); // Tags will be set separately if needed
 
             CreateMap<CreateNoteRequest, Note>()
@@ -33,7 +33,7 @@ namespace SuperAppServices.Mappings
                 .ForMember(dest => dest.User, opt => opt.Ignore());
 
             CreateMap<UpsertNoteRequest, Note>()
-                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.NoteId))
+                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.UpdatedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.DeletedAt, opt => opt.Ignore())
@@ -80,7 +80,10 @@ namespace SuperAppServices.Mappings
 
             // WorkspaceItem mappings (tree view model -> response DTO)
             CreateMap<WorkspaceItem, WorkspaceItemResponse>()
-                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.ItemId))
+                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.ItemId)) // Entity ID
+                .ForMember(dest => dest.ItemId, opt => opt.MapFrom(src => src.ItemId)) // Entity ID (explicit)
+                .ForMember(dest => dest.RelationshipId, opt => opt.MapFrom(src => src.RelationshipId)) // Relationship ID
+                .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.Type)) // Type
                 .ForMember(dest => dest.SortOrder, opt => opt.MapFrom(src => src.Position))
                 .ForMember(dest => dest.Depth, opt => opt.MapFrom(src => src.Level))
                 .ForMember(dest => dest.Metadata, opt => opt.Ignore())

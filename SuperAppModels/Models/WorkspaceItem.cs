@@ -7,12 +7,17 @@ namespace SuperAppModels.Models;
 public class WorkspaceItem
 {
     /// <summary>
-    /// Type of the item: 'tag', 'note', or 'file'
+    /// Relationship ID (workspace_items.id) - used for workspace operations
     /// </summary>
-    public string ItemType { get; set; } = string.Empty;
+    public int? RelationshipId { get; set; }
 
     /// <summary>
-    /// Workspace item ID (workspace_items.item_id) - used for deletion
+    /// Type of the item: 'folder', 'note', or 'file'
+    /// </summary>
+    public string Type { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Entity ID (folder/note/file ID from respective tables)
     /// </summary>
     public long ItemId { get; set; }
 

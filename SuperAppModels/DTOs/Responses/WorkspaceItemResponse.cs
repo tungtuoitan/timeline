@@ -1,23 +1,28 @@
 namespace SuperAppModels.DTOs.Responses;
 
 /// <summary>
-/// Represents a single item (tag/note/file) in the workspace tree hierarchy
+/// Represents a single item (folder/note/file) in the workspace tree hierarchy
 /// Polymorphic response that can represent different item types with type-specific metadata
 /// </summary>
 public class WorkspaceItemResponse
 {
     /// <summary>
-    /// Type of the item: 'tag', 'note', or 'file'
+    /// Relationship ID (workspace_items.id) - used for workspace-specific operations
     /// </summary>
-    public string ItemType { get; set; } = string.Empty;
+    public int? RelationshipId { get; set; }
 
     /// <summary>
-    /// Workspace item ID (workspace_items.item_id) - used for deletion
+    /// Type of the item: 'folder', 'note', or 'file'
+    /// </summary>
+    public string Type { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Entity ID (folder/note/file ID from respective tables)
     /// </summary>
     public long ItemId { get; set; }
 
     /// <summary>
-    /// Workspace item ID (alias for ItemId, for backward compatibility)
+    /// Entity ID (alias for ItemId, for backward compatibility)
     /// </summary>
     public long Id { get; set; }
 

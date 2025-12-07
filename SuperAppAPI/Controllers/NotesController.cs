@@ -98,21 +98,21 @@ namespace SuperAppAPI.Controllers
                 }
             }
 
-            _logger.LogInformation("Upserting note with ID: {NoteId}, Name: '{NoteName}' for user: {UserEmail}", 
-                request.NoteId, request.Name, userEmail);
+            _logger.LogInformation("Upserting note with ID: {NoteId}, Name: '{NoteName}' for user: {UserEmail}",
+                request.Id, request.Name, userEmail);
 
             var response = await _noteService.UpsertNoteAsync(request);
 
-            if (request.NoteId == 0)
+            if (request.Id == 0)
             {
-                _logger.LogInformation("Note created successfully with ID: {NoteId} for user: {UserEmail}", 
-                    response.NoteId, userEmail);
-                return CreatedAtAction(nameof(GetNoteById), new { id = response.NoteId }, response);
+                _logger.LogInformation("Note created successfully with ID: {NoteId} for user: {UserEmail}",
+                    response.Id, userEmail);
+                return CreatedAtAction(nameof(GetNoteById), new { id = response.Id }, response);
             }
             else
             {
-                _logger.LogInformation("Note updated successfully with ID: {NoteId} for user: {UserEmail}", 
-                    response.NoteId, userEmail);
+                _logger.LogInformation("Note updated successfully with ID: {NoteId} for user: {UserEmail}",
+                    response.Id, userEmail);
                 return Ok(response);
             }
         }

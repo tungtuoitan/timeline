@@ -5,7 +5,7 @@ namespace SuperAppModels.DTOs.Requests
 {
     public class UpdateNoteRequest
     {
-        public int NoteId { get; set; }
+        public int Id { get; set; }
 
         [Required(ErrorMessage = "Name is required")]
         [StringLength(200, MinimumLength = 1, ErrorMessage = "Name must be between 1 and 200 characters")]

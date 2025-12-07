@@ -96,16 +96,16 @@ namespace SuperAppServices.Services
             try
             {
                 _logger.LogInformation("Processing note with ID: {NoteId}, Name: '{Name}', TagIds: [{TagIds}]",
-                    request.NoteId,
+                    request.Id,
                     request.Name,
                     request.TagIds != null ? string.Join(",", request.TagIds) : "null");
 
                 var note = _mapper.Map<Note>(request);
-                note.Id = request.NoteId;
+                note.Id = request.Id;
 
                 Note resultNote;
 
-                if (request.NoteId == 0)
+                if (request.Id == 0)
                 {
                     // TEMPORARY: Set UserId = 1 for development (auth disabled)
                     // TODO: Get userId from authenticated user when auth is enabled
@@ -118,7 +118,7 @@ namespace SuperAppServices.Services
                 else
                 {
                     _logger.LogInformation("Updating existing note with ID: {NoteId}, Name: '{Name}'",
-                        request.NoteId, request.Name);
+                        request.Id, request.Name);
                     resultNote = await _noteRepository.UpdateNoteAsync(note, request.TagIds, null);
                 }
 
@@ -130,17 +130,17 @@ namespace SuperAppServices.Services
             }
             catch (InvalidOperationException ex)
             {
-                _logger.LogWarning(ex, "Invalid operation while processing note with ID: {NoteId}", request.NoteId);
+                _logger.LogWarning(ex, "Invalid operation while processing note with ID: {NoteId}", request.Id);
                 throw;
             }
             catch (ArgumentException ex)
             {
-                _logger.LogWarning(ex, "Invalid argument while processing note with ID: {NoteId}", request.NoteId);
+                _logger.LogWarning(ex, "Invalid argument while processing note with ID: {NoteId}", request.Id);
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unexpected error occurred while processing note with ID: {NoteId}", request.NoteId);
+                _logger.LogError(ex, "Unexpected error occurred while processing note with ID: {NoteId}", request.Id);
                 throw;
             }
         }

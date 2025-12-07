@@ -92,8 +92,9 @@ namespace SuperAppDataRepositories.Repositories
                 {
                     var treeItem = new WorkspaceItem
                     {
-                        ItemId = item.ItemId,
-                        ItemType = GetItemTypeName(item.ItemType), // Convert TINYINT to string
+                        RelationshipId = item.Id, // workspace_items.id (relationship ID)
+                        ItemId = item.ItemId, // Entity ID (folder/note/file ID)
+                        Type = GetItemTypeName(item.ItemType), // Convert TINYINT to string
                         UserId = userId,
                         Name = "",
                         ParentId = item.ParentId, // parent_id from ws.workspace_items
