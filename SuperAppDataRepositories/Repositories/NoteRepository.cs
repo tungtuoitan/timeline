@@ -183,169 +183,167 @@ namespace SuperAppDataRepositories.Repositories
         }
 
         /// <summary>
-        /// Creates a new note with optional tags and parent
+        /// Creates or updates a note with optional tags and parent (upsert)
         /// </summary>
-        public async Task<ResultOptions> CreateNoteAsync(Note note, List<int>? tagIds, int? parentId)
+        public async Task<ResultOptions> UpsertNoteAsync(Note note, List<int>? tagIds, int? parentId)
         {
             try
             {
                 if (note == null)
                     throw new ArgumentNullException(nameof(note));
 
-                _logger.LogInformation("Creating note with Name: '{Name}', UserId: {UserId}, TagIds: [{TagIds}], ParentId: {ParentId}",
-                    note.Name, note.UserId, tagIds != null ? string.Join(",", tagIds) : "null", parentId);
+                bool isUpdate = note.Id > 0;
 
-                // Ensure timestamps
-                note.CreatedAt = DateTime.UtcNow;
-                note.UpdatedAt = null;
-                note.DeletedAt = null;
-
-                _context.Notes.Add(note);
-                await _context.SaveChangesAsync();
-
-                // TODO: Add tag associations when entity_tags relationship is implemented
-                // if (tagIds != null && tagIds.Any())
-                // {
-                //     foreach (var tagId in tagIds)
-                //     {
-                //         _context.EntityTags.Add(new EntityTag
-                //         {
-                //             EntityType = 3, // note
-                //             EntityId = note.Id,
-                //             TagId = tagId
-                //         });
-                //     }
-                //     await _context.SaveChangesAsync();
-                // }
-
-                _logger.LogInformation("Successfully created note with ID: {NoteId}", note.Id);
-                return new ResultOptions
+                if (isUpdate)
                 {
-                    Success = true,
-                    Message = "Note created successfully",
-                    Object = note,
-                    Status = 201
-                };
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                _logger.LogError(ex, "Concurrency conflict while creating note");
-                return new ResultOptions
-                {
-                    Success = false,
-                    Message = "Concurrency conflict occurred while creating note",
-                    Status = 500
-                };
-            }
-            catch (DbUpdateException ex)
-            {
-                _logger.LogError(ex, "Database error while creating note");
-                return new ResultOptions
-                {
-                    Success = false,
-                    Message = "Database error occurred while creating note",
-                    Status = 500
-                };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error creating note with Name: '{Name}'", note.Name);
-                return new ResultOptions
-                {
-                    Success = false,
-                    Message = ex.Message,
-                    Status = 500
-                };
-            }
-        }
+                    // UPDATE existing note
+                    _logger.LogInformation("Updating note ID: {NoteId}, Name: '{Name}', UserId: {UserId}, TagIds: [{TagIds}], ParentId: {ParentId}",
+                        note.Id, note.Name, note.UserId, tagIds != null ? string.Join(",", tagIds) : "null", parentId);
 
-        /// <summary>
-        /// Updates an existing note with optional tags and parent
-        /// </summary>
-        public async Task<ResultOptions> UpdateNoteAsync(Note note, List<int>? tagIds, int? parentId)
-        {
-            try
-            {
-                if (note == null)
-                    throw new ArgumentNullException(nameof(note));
+                    var existingNote = await _context.Notes
+                        .FirstOrDefaultAsync(n => n.Id == note.Id && n.DeletedAt == null);
 
-                _logger.LogInformation("Updating note ID: {NoteId}, Name: '{Name}', TagIds: [{TagIds}], ParentId: {ParentId}",
-                    note.Id, note.Name, tagIds != null ? string.Join(",", tagIds) : "null", parentId);
+                    if (existingNote == null)
+                    {
+                        _logger.LogWarning("Note not found for update with ID: {NoteId}", note.Id);
+                        return new ResultOptions
+                        {
+                            Success = false,
+                            Message = $"Note with ID {note.Id} not found",
+                            Status = 404
+                        };
+                    }
 
-                var existingNote = await _context.Notes
-                    .FirstOrDefaultAsync(n => n.Id == note.Id && n.DeletedAt == null);
+                    // Validate UserId exists before update
+                    var userExists = await _context.Users.AnyAsync(u => u.Id == note.UserId);
+                    if (!userExists)
+                    {
+                        _logger.LogError("User not found with ID: {UserId}", note.UserId);
+                        return new ResultOptions
+                        {
+                            Success = false,
+                            Message = $"User with ID {note.UserId} not found",
+                            Status = 400
+                        };
+                    }
 
-                if (existingNote == null)
-                {
-                    _logger.LogWarning("Note not found for update with ID: {NoteId}", note.Id);
+                    // Update properties
+                    existingNote.Name = note.Name;
+                    existingNote.Description = note.Description;
+                    existingNote.UserId = note.UserId;
+                    existingNote.UpdatedAt = DateTime.UtcNow;
+
+                    await _context.SaveChangesAsync();
+
+                    // TODO: Update tag associations when entity_tags relationship is implemented
+                    // if (tagIds != null)
+                    // {
+                    //     // Remove existing tags
+                    //     var existingTags = _context.EntityTags
+                    //         .Where(et => et.EntityType == 3 && et.EntityId == note.Id);
+                    //     _context.EntityTags.RemoveRange(existingTags);
+                    //     
+                    //     // Add new tags
+                    //     foreach (var tagId in tagIds)
+                    //     {
+                    //         _context.EntityTags.Add(new EntityTag
+                    //         {
+                    //             EntityType = 3,
+                    //             EntityId = note.Id,
+                    //             TagId = tagId
+                    //         });
+                    //     }
+                    //     await _context.SaveChangesAsync();
+                    // }
+
+                    _logger.LogInformation("Successfully updated note with ID: {NoteId}", note.Id);
                     return new ResultOptions
                     {
-                        Success = false,
-                        Message = $"Note with ID {note.Id} not found",
-                        Status = 404
+                        Success = true,
+                        Message = "Note updated successfully",
+                        Object = existingNote,
+                        Status = 200
                     };
                 }
-
-                // Update properties
-                existingNote.Name = note.Name;
-                existingNote.Description = note.Description;
-                existingNote.UpdatedAt = DateTime.UtcNow;
-
-                await _context.SaveChangesAsync();
-
-                // TODO: Update tag associations when entity_tags relationship is implemented
-                // if (tagIds != null)
-                // {
-                //     // Remove existing tags
-                //     var existingTags = _context.EntityTags
-                //         .Where(et => et.EntityType == 3 && et.EntityId == note.Id);
-                //     _context.EntityTags.RemoveRange(existingTags);
-                //     
-                //     // Add new tags
-                //     foreach (var tagId in tagIds)
-                //     {
-                //         _context.EntityTags.Add(new EntityTag
-                //         {
-                //             EntityType = 3,
-                //             EntityId = note.Id,
-                //             TagId = tagId
-                //         });
-                //     }
-                //     await _context.SaveChangesAsync();
-                // }
-
-                _logger.LogInformation("Successfully updated note with ID: {NoteId}", note.Id);
-                return new ResultOptions
+                else
                 {
-                    Success = true,
-                    Message = "Note updated successfully",
-                    Object = existingNote,
-                    Status = 200
-                };
+                    // CREATE new note
+                    _logger.LogInformation("Creating note with Name: '{Name}', UserId: {UserId}, TagIds: [{TagIds}], ParentId: {ParentId}",
+                        note.Name, note.UserId, tagIds != null ? string.Join(",", tagIds) : "null", parentId);
+
+                    // Validate UserId exists before create
+                    var userExists = await _context.Users.AnyAsync(u => u.Id == note.UserId);
+                    if (!userExists)
+                    {
+                        _logger.LogError("User not found with ID: {UserId}", note.UserId);
+                        return new ResultOptions
+                        {
+                            Success = false,
+                            Message = $"User with ID {note.UserId} not found",
+                            Status = 400
+                        };
+                    }
+
+                    // Ensure timestamps
+                    note.CreatedAt = DateTime.UtcNow;
+                    note.UpdatedAt = null;
+                    note.DeletedAt = null;
+
+                    _context.Notes.Add(note);
+                    await _context.SaveChangesAsync();
+
+                    // TODO: Add tag associations when entity_tags relationship is implemented
+                    // if (tagIds != null && tagIds.Any())
+                    // {
+                    //     foreach (var tagId in tagIds)
+                    //     {
+                    //         _context.EntityTags.Add(new EntityTag
+                    //         {
+                    //             EntityType = 3, // note
+                    //             EntityId = note.Id,
+                    //             TagId = tagId
+                    //         });
+                    //     }
+                    //     await _context.SaveChangesAsync();
+                    // }
+
+                    _logger.LogInformation("Successfully created note with ID: {NoteId}", note.Id);
+                    return new ResultOptions
+                    {
+                        Success = true,
+                        Message = "Note created successfully",
+                        Object = note,
+                        Status = 201
+                    };
+                }
             }
             catch (DbUpdateConcurrencyException ex)
             {
-                _logger.LogError(ex, "Concurrency conflict while updating note ID: {NoteId}", note.Id);
+                _logger.LogError(ex, "Concurrency conflict while upserting note ID: {NoteId}", note.Id);
                 return new ResultOptions
                 {
                     Success = false,
-                    Message = $"Note {note.Id} was modified by another user",
+                    Message = note.Id > 0 
+                        ? $"Note {note.Id} was modified by another user" 
+                        : "Concurrency conflict occurred while creating note",
                     Status = 409
                 };
             }
             catch (DbUpdateException ex)
             {
-                _logger.LogError(ex, "Database error while updating note ID: {NoteId}", note.Id);
+                _logger.LogError(ex, "Database error while upserting note ID: {NoteId}, UserId: {UserId}", 
+                    note.Id, note.UserId);
                 return new ResultOptions
                 {
                     Success = false,
-                    Message = "Database error occurred while updating note",
+                    Message = "Database error occurred while saving note",
                     Status = 500
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating note ID: {NoteId}", note.Id);
+                _logger.LogError(ex, "Error upserting note ID: {NoteId}, Name: '{Name}'", 
+                    note.Id, note.Name);
                 return new ResultOptions
                 {
                     Success = false,

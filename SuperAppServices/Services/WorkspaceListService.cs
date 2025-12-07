@@ -153,20 +153,8 @@ namespace SuperAppServices.Services
                     workspace.UserId = request.UserId.Value;
                 }
 
-                ResultOptions result;
-
-                if (workspace.Id > 0)
-                {
-                    // Update existing workspace
-                    _logger.LogInformation("Updating workspace with ID: {WorkspaceId}", workspace.Id);
-                    result = await _workspaceListRepository.UpdateWorkspaceAsync(workspace);
-                }
-                else
-                {
-                    // Create new workspace
-                    _logger.LogInformation("Creating new workspace with Name: '{Name}'", workspace.Name);
-                    result = await _workspaceListRepository.CreateWorkspaceAsync(workspace);
-                }
+                // Upsert workspace (create or update)
+                var result = await _workspaceListRepository.UpsertWorkspaceAsync(workspace);
 
                 if (!result.Success)
                 {
@@ -208,20 +196,20 @@ namespace SuperAppServices.Services
         }
 
         /// <summary>
-        /// Delete workspaces by IDs
+        /// Delete workspaces by IDs with cascade to all items (folders/notes/files)
         /// </summary>
-        public async Task<ResultOptions> DeleteWorkspacesAsync(List<int> workspaceIds, bool isHardDelete = false)
+        public async Task<ResultOptions> DeleteWorkspacesAsync(string workspaceIds, bool isHardDelete = false)
         {
             try
             {
                 _logger.LogInformation("Deleting workspaces with IDs: {WorkspaceIds} (HardDelete: {IsHardDelete})",
-                    string.Join(",", workspaceIds), isHardDelete);
+                    workspaceIds, isHardDelete);
 
-                var result = await _workspaceListRepository.DeleteWorkspacesBatchAsync(workspaceIds, isHardDelete);
+                var result = await _workspaceListRepository.DeleteWorkspacesCascadeAsync(workspaceIds, isHardDelete);
 
                 if (result.Success)
                 {
-                    _logger.LogInformation("Successfully deleted workspaces");
+                    _logger.LogInformation("Successfully deleted workspaces with cascade");
                 }
 
                 return result;

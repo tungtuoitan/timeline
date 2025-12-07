@@ -82,6 +82,7 @@ namespace SuperAppAPI.Controllers
 
             // TEMPORARY: Using hardcoded email while auth is disabled
             var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+            request.UserId = 1;
 
             _logger.LogInformation("Upserting workspace with ID: {WorkspaceId}, Name: '{WorkspaceName}' for user: {UserEmail}",
                 request.Id, request.Name, userEmail);
@@ -129,12 +130,12 @@ namespace SuperAppAPI.Controllers
 
       
         /// <summary>
-        /// Deletes one or more workspaces for the authenticated user
+        /// Deletes one or more workspaces with CASCADE to all items (folders/notes/files) for the authenticated user
         /// </summary>
         /// <param name="id">Workspace ID to delete (supports comma-separated IDs, e.g., "1,2,3")</param>
         /// <param name="isHardDelete">Hard delete flag: true = permanently delete, false = soft delete (default)</param>
-        /// <returns>No content on successful deletion</returns>
-        /// <response code="204">Workspace(s) deleted successfully</response>
+        /// <returns>Success status with deleted count</returns>
+        /// <response code="200">Workspace(s) deleted successfully with all items</response>
         /// <response code="400">Invalid workspace ID(s)</response>
         /// <response code="401">Unauthorized - invalid or missing token</response>
         /// <response code="404">Workspace(s) not found or not accessible</response>
@@ -156,15 +157,11 @@ namespace SuperAppAPI.Controllers
             // TEMPORARY: Using hardcoded email while auth is disabled
             var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
 
-            _logger.LogInformation("Deleting workspace(s) {WorkspaceIds} for user: {UserEmail} (HardDelete: {IsHardDelete})", 
+            _logger.LogInformation("Deleting workspace(s) {WorkspaceIds} for user: {UserEmail} with CASCADE (HardDelete: {IsHardDelete})", 
                 id, userEmail, isHardDelete);
 
-            // Parse comma-separated IDs
-            var workspaceIds = id.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                .Select(int.Parse)
-                .ToList();
-
-            var response = await _workspaceListService.DeleteWorkspacesAsync(workspaceIds, isHardDelete);
+            // Pass the string directly (no parsing needed - SP handles it)
+            var response = await _workspaceListService.DeleteWorkspacesAsync(id, isHardDelete);
 
             _logger.LogInformation("Delete workspaces result for user: {UserEmail}, Success: {Success}", userEmail, response.Success);
             return Ok(response);

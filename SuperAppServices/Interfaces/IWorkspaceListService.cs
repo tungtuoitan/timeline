@@ -31,12 +31,12 @@ namespace SuperAppServices.Interfaces
         Task<ResultOptions> UpsertWorkspaceAsync(UpsertWorkspaceRequest request);
 
         /// <summary>
-        /// Delete workspaces by IDs
+        /// Delete workspaces by IDs with cascade to all items
         /// </summary>
-        /// <param name="workspaceIds">List of workspace IDs to delete</param>
+        /// <param name="workspaceIds">Comma-separated workspace IDs (e.g., "1,2,3")</param>
         /// <param name="isHardDelete">Hard delete flag</param>
         /// <returns>ResultOptions with success status</returns>
-        Task<ResultOptions> DeleteWorkspacesAsync(List<int> workspaceIds, bool isHardDelete = false);
+        Task<ResultOptions> DeleteWorkspacesAsync(string workspaceIds, bool isHardDelete = false);
 
         /// <summary>
         /// Restore deleted workspaces by setting deleted_at to null

@@ -149,25 +149,15 @@ namespace SuperAppServices.Services
                 var note = _mapper.Map<Note>(request);
                 note.Id = request.Id;
 
-                ResultOptions result;
-                bool isCreate = request.Id == 0;
-
-                if (isCreate)
+                // TEMPORARY: Set UserId = 1 for development (auth disabled)
+                // TODO: Get userId from authenticated user when auth is enabled
+                if (request.Id == 0)
                 {
-                    // TEMPORARY: Set UserId = 1 for development (auth disabled)
-                    // TODO: Get userId from authenticated user when auth is enabled
                     note.UserId = 1;
+                }
 
-                    _logger.LogInformation("Creating new note with name: '{Name}', UserId: {UserId}",
-                        request.Name, note.UserId);
-                    result = await _noteRepository.CreateNoteAsync(note, request.TagIds, null);
-                }
-                else
-                {
-                    _logger.LogInformation("Updating existing note with ID: {NoteId}, Name: '{Name}'",
-                        request.Id, request.Name);
-                    result = await _noteRepository.UpdateNoteAsync(note, request.TagIds, null);
-                }
+                // Upsert note (create or update)
+                var result = await _noteRepository.UpsertNoteAsync(note, request.TagIds, null);
 
                 if (!result.Success)
                 {
@@ -194,9 +184,9 @@ namespace SuperAppServices.Services
                 return new ResultOptions
                 {
                     Success = true,
-                    Message = isCreate ? "Note created successfully" : "Note updated successfully",
+                    Message = result.Status == 201 ? "Note created successfully" : "Note updated successfully",
                     Object = response,
-                    Status = isCreate ? 201 : 200
+                    Status = result.Status
                 };
             }
             catch (InvalidOperationException ex)

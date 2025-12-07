@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
@@ -5,6 +6,7 @@ using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
+using System.Data;
 
 namespace SuperAppDataRepositories.Repositories
 {
@@ -176,133 +178,131 @@ namespace SuperAppDataRepositories.Repositories
         }
 
         /// <summary>
-        /// Creates a new workspace
+        /// Creates or updates a workspace (upsert)
         /// </summary>
-        public async Task<ResultOptions> CreateWorkspaceAsync(Workspace workspace)
+        public async Task<ResultOptions> UpsertWorkspaceAsync(Workspace workspace)
         {
             try
             {
                 if (workspace == null)
                     throw new ArgumentNullException(nameof(workspace));
 
-                _logger.LogInformation("Creating workspace with Name: '{Name}', UserId: {UserId}",
-                    workspace.Name, workspace.UserId);
+                bool isUpdate = workspace.Id > 0;
 
-                // Ensure timestamps
-                workspace.CreatedAt = DateTime.UtcNow;
-                workspace.UpdatedAt = null;
-                workspace.DeletedAt = null;
-
-                _context.Workspaces.Add(workspace);
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation("Successfully created workspace with ID: {WorkspaceId}", workspace.Id);
-                return new ResultOptions
+                if (isUpdate)
                 {
-                    Success = true,
-                    Message = "Workspace created successfully",
-                    Object = workspace,
-                    Status = 201
-                };
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                _logger.LogError(ex, "Concurrency conflict while creating workspace");
-                return new ResultOptions
-                {
-                    Success = false,
-                    Message = "Concurrency conflict occurred while creating workspace",
-                    Status = 500
-                };
-            }
-            catch (DbUpdateException ex)
-            {
-                _logger.LogError(ex, "Database error while creating workspace");
-                return new ResultOptions
-                {
-                    Success = false,
-                    Message = "Database error occurred while creating workspace",
-                    Status = 500
-                };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error creating workspace with Name: '{Name}'", workspace.Name);
-                return new ResultOptions
-                {
-                    Success = false,
-                    Message = ex.Message,
-                    Status = 500
-                };
-            }
-        }
+                    // UPDATE existing workspace
+                    _logger.LogInformation("Updating workspace ID: {WorkspaceId}, Name: '{Name}', UserId: {UserId}",
+                        workspace.Id, workspace.Name, workspace.UserId);
 
-        /// <summary>
-        /// Updates an existing workspace
-        /// </summary>
-        public async Task<ResultOptions> UpdateWorkspaceAsync(Workspace workspace)
-        {
-            try
-            {
-                if (workspace == null)
-                    throw new ArgumentNullException(nameof(workspace));
+                    var existingWorkspace = await _context.Workspaces
+                        .FirstOrDefaultAsync(w => w.Id == workspace.Id && w.DeletedAt == null);
 
-                _logger.LogInformation("Updating workspace ID: {WorkspaceId}, Name: '{Name}'",
-                    workspace.Id, workspace.Name);
+                    if (existingWorkspace == null)
+                    {
+                        _logger.LogWarning("Workspace not found for update with ID: {WorkspaceId}", workspace.Id);
+                        return new ResultOptions
+                        {
+                            Success = false,
+                            Message = $"Workspace with ID {workspace.Id} not found",
+                            Status = 404
+                        };
+                    }
 
-                var existingWorkspace = await _context.Workspaces
-                    .FirstOrDefaultAsync(w => w.Id == workspace.Id && w.DeletedAt == null);
+                    // Validate UserId exists before update
+                    var userExists = await _context.Users.AnyAsync(u => u.Id == workspace.UserId);
+                    if (!userExists)
+                    {
+                        _logger.LogError("User not found with ID: {UserId}", workspace.UserId);
+                        return new ResultOptions
+                        {
+                            Success = false,
+                            Message = $"User with ID {workspace.UserId} not found",
+                            Status = 400
+                        };
+                    }
 
-                if (existingWorkspace == null)
-                {
-                    _logger.LogWarning("Workspace not found for update with ID: {WorkspaceId}", workspace.Id);
+                    // Update properties
+                    existingWorkspace.Name = workspace.Name;
+                    existingWorkspace.Description = workspace.Description;
+                    existingWorkspace.UserId = workspace.UserId;
+                    existingWorkspace.UpdatedAt = DateTime.UtcNow;
+
+                    await _context.SaveChangesAsync();
+
+                    _logger.LogInformation("Successfully updated workspace with ID: {WorkspaceId}", workspace.Id);
                     return new ResultOptions
                     {
-                        Success = false,
-                        Message = $"Workspace with ID {workspace.Id} not found",
-                        Status = 404
+                        Success = true,
+                        Message = "Workspace updated successfully",
+                        Object = existingWorkspace,
+                        Status = 200
                     };
                 }
-
-                // Update properties
-                existingWorkspace.Name = workspace.Name;
-                existingWorkspace.Description = workspace.Description;
-                existingWorkspace.UpdatedAt = DateTime.UtcNow;
-
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation("Successfully updated workspace with ID: {WorkspaceId}", workspace.Id);
-                return new ResultOptions
+                else
                 {
-                    Success = true,
-                    Message = "Workspace updated successfully",
-                    Object = existingWorkspace,
-                    Status = 200
-                };
+                    // CREATE new workspace
+                    _logger.LogInformation("Creating workspace with Name: '{Name}', UserId: {UserId}",
+                        workspace.Name, workspace.UserId);
+
+                    // Validate UserId exists before create
+                    var userExists = await _context.Users.AnyAsync(u => u.Id == workspace.UserId);
+                    if (!userExists)
+                    {
+                        _logger.LogError("User not found with ID: {UserId}", workspace.UserId);
+                        return new ResultOptions
+                        {
+                            Success = false,
+                            Message = $"User with ID {workspace.UserId} not found",
+                            Status = 400
+                        };
+                    }
+
+                    // Ensure timestamps
+                    workspace.CreatedAt = DateTime.UtcNow;
+                    workspace.UpdatedAt = null;
+                    workspace.DeletedAt = null;
+
+                    _context.Workspaces.Add(workspace);
+                    await _context.SaveChangesAsync();
+
+                    _logger.LogInformation("Successfully created workspace with ID: {WorkspaceId}", workspace.Id);
+                    return new ResultOptions
+                    {
+                        Success = true,
+                        Message = "Workspace created successfully",
+                        Object = workspace,
+                        Status = 201
+                    };
+                }
             }
             catch (DbUpdateConcurrencyException ex)
             {
-                _logger.LogError(ex, "Concurrency conflict while updating workspace ID: {WorkspaceId}", workspace.Id);
+                _logger.LogError(ex, "Concurrency conflict while upserting workspace ID: {WorkspaceId}", workspace.Id);
                 return new ResultOptions
                 {
                     Success = false,
-                    Message = $"Workspace {workspace.Id} was modified by another user",
+                    Message = workspace.Id > 0 
+                        ? $"Workspace {workspace.Id} was modified by another user" 
+                        : "Concurrency conflict occurred while creating workspace",
                     Status = 409
                 };
             }
             catch (DbUpdateException ex)
             {
-                _logger.LogError(ex, "Database error while updating workspace ID: {WorkspaceId}", workspace.Id);
+                _logger.LogError(ex, "Database error while upserting workspace ID: {WorkspaceId}, UserId: {UserId}", 
+                    workspace.Id, workspace.UserId);
                 return new ResultOptions
                 {
                     Success = false,
-                    Message = "Database error occurred while updating workspace",
+                    Message = "Database error occurred while saving workspace",
                     Status = 500
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating workspace ID: {WorkspaceId}", workspace.Id);
+                _logger.LogError(ex, "Error upserting workspace ID: {WorkspaceId}, Name: '{Name}'", 
+                    workspace.Id, workspace.Name);
                 return new ResultOptions
                 {
                     Success = false,
@@ -313,15 +313,16 @@ namespace SuperAppDataRepositories.Repositories
         }
 
         /// <summary>
-        /// Deletes multiple workspaces by IDs in a single batch operation (soft or hard delete)
+        /// Deletes multiple workspaces with CASCADE to all items (folders/notes/files) using stored procedure
+        /// UNIFORMLY treats all tables: either ALL soft delete OR ALL hard delete
         /// </summary>
-        public async Task<ResultOptions> DeleteWorkspacesBatchAsync(List<int> workspaceIds, bool isHardDelete = false)
+        public async Task<ResultOptions> DeleteWorkspacesCascadeAsync(string workspaceIds, bool isHardDelete = false)
         {
             try
             {
-                if (workspaceIds == null || !workspaceIds.Any())
+                if (string.IsNullOrWhiteSpace(workspaceIds))
                 {
-                    _logger.LogWarning("Empty workspace IDs provided for batch deletion");
+                    _logger.LogWarning("Empty workspace IDs provided for cascade deletion");
                     return new ResultOptions
                     {
                         Success = false,
@@ -330,61 +331,59 @@ namespace SuperAppDataRepositories.Repositories
                     };
                 }
 
-                _logger.LogInformation("Batch deleting workspaces with IDs: {WorkspaceIds} (HardDelete: {IsHardDelete})", 
-                    string.Join(",", workspaceIds), isHardDelete);
+                _logger.LogInformation("Cascade deleting workspaces with IDs: {WorkspaceIds} (HardDelete: {IsHardDelete})", 
+                    workspaceIds, isHardDelete);
 
-                int affectedRows;
+                // Execute stored procedure
+                var workspaceIdsParam = new SqlParameter("@iv_workspace_ids", SqlDbType.NVarChar, -1) { Value = workspaceIds };
+                var isHardDeleteParam = new SqlParameter("@iv_is_hardDelete", isHardDelete);
+                var deletedCountParam = new SqlParameter("@ov_deleted_count", SqlDbType.Int) { Direction = ParameterDirection.Output };
 
-                if (isHardDelete)
-                {
-                    // Hard delete - permanently remove from database
-                    affectedRows = await _context.Workspaces
-                        .Where(w => workspaceIds.Contains(w.Id))
-                        .ExecuteDeleteAsync();
-                }
-                else
-                {
-                    // Soft delete - set deleted_at timestamp
-                    affectedRows = await _context.Workspaces
-                        .Where(w => workspaceIds.Contains(w.Id) && w.DeletedAt == null)
-                        .ExecuteUpdateAsync(setters => setters
-                            .SetProperty(w => w.DeletedAt, DateTime.UtcNow));
-                }
+                // Execute stored procedure
+                await _context.Database.ExecuteSqlRawAsync(
+                    "EXEC [ws].[sp_DeleteWorkspace] @iv_workspace_ids, @iv_is_hardDelete, @ov_deleted_count OUTPUT",
+                    workspaceIdsParam, isHardDeleteParam, deletedCountParam
+                );
 
-                if (affectedRows == 0)
+                var deletedCount = (int)deletedCountParam.Value;
+
+                if (deletedCount == 0)
                 {
-                    _logger.LogWarning("No workspaces found to delete with IDs: {WorkspaceIds}", string.Join(",", workspaceIds));
+                    _logger.LogWarning("No workspaces found to delete with IDs: {WorkspaceIds}", workspaceIds);
                     return new ResultOptions
                     {
                         Success = false,
-                        Message = $"No workspaces found with IDs: {string.Join(",", workspaceIds)}",
+                        Message = $"No workspaces found with IDs: {workspaceIds}",
                         Status = 404
                     };
                 }
 
-                _logger.LogInformation("Successfully batch deleted {Count} workspaces (HardDelete: {IsHardDelete})", 
-                    affectedRows, isHardDelete);
+                _logger.LogInformation("Successfully cascade deleted {Count} workspaces (HardDelete: {IsHardDelete})", 
+                    deletedCount, isHardDelete);
                     
                 return new ResultOptions
                 {
                     Success = true,
-                    Message = $"Successfully deleted {affectedRows} workspace(s)",
+                    Message = isHardDelete 
+                        ? $"Successfully permanently deleted {deletedCount} workspace(s) and all related items"
+                        : $"Successfully deleted {deletedCount} workspace(s) and all related items",
+                    Reference = deletedCount.ToString(),
                     Status = 200
                 };
             }
-            catch (DbUpdateException ex)
+            catch (SqlException ex)
             {
-                _logger.LogError(ex, "Database error while batch deleting workspaces with IDs: {WorkspaceIds}", string.Join(",", workspaceIds));
+                _logger.LogError(ex, "SQL error while cascade deleting workspaces with IDs: {WorkspaceIds}", workspaceIds);
                 return new ResultOptions
                 {
                     Success = false,
-                    Message = "Database error occurred while batch deleting workspaces",
+                    Message = $"Database error: {ex.Message}",
                     Status = 500
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error batch deleting workspaces with IDs: {WorkspaceIds}", string.Join(",", workspaceIds));
+                _logger.LogError(ex, "Error cascade deleting workspaces with IDs: {WorkspaceIds}", workspaceIds);
                 return new ResultOptions
                 {
                     Success = false,

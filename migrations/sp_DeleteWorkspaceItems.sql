@@ -122,7 +122,7 @@ BEGIN
             DELETE f
             FROM ws.files f
             INNER JOIN #AllItemsToDelete d
-                ON d.item_type = 4 AND d.item_id = f.file_id;
+                ON d.item_type = 4 AND d.item_id = f.id;
         END
         ELSE
         BEGIN
@@ -130,7 +130,7 @@ BEGIN
             SET deleted_at = GETUTCDATE()
             FROM ws.files f
             INNER JOIN #AllItemsToDelete d
-                ON d.item_type = 4 AND d.item_id = f.file_id;
+                ON d.item_type = 4 AND d.item_id = f.id;
         END
 
         ------------------------------------------------------------
