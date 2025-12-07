@@ -55,5 +55,14 @@ namespace SuperAppDataRepositories.Ins
         /// <param name="items">List of items to delete (type + id)</param>
         /// <returns>Result with affected count</returns>
         Task<ResultOptions> DeleteItemsAsync(int workspaceId, List<(byte ItemType, int ItemId)> items, bool isHardDelete = false);
+
+        /// <summary>
+        /// Adds an item (folder/note/file) to a workspace
+        /// </summary>
+        /// <param name="workspaceId">Workspace ID</param>
+        /// <param name="userId">User ID</param>
+        /// <param name="request">Add item request</param>
+        /// <returns>Result with created workspace_items row</returns>
+        Task<ResultOptions> AddItemToWorkspaceAsync(int workspaceId, int userId, AddItemToWorkspaceRequest request);
     }
 }

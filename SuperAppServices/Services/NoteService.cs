@@ -155,6 +155,7 @@ namespace SuperAppServices.Services
                 {
                     note.UserId = 1;
                 }
+                note.UserId = 1;
 
                 // Upsert note (create or update)
                 var result = await _noteRepository.UpsertNoteAsync(note, request.TagIds, null);

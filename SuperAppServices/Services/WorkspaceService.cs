@@ -268,5 +268,42 @@ namespace SuperAppServices.Services
                 };
             }
         }
+
+        /// <summary>
+        /// Adds an item (folder/note/file) to a workspace
+        /// </summary>
+        public async Task<ResultOptions> AddItemToWorkspaceAsync(int workspaceId, int userId, AddItemToWorkspaceRequest request)
+        {
+            try
+            {
+                _logger.LogInformation("Adding {ChildType} (ID: {ChildId}) to workspace {WorkspaceId} under parent {ParentId}",
+                    request.ChildType, request.ChildId, workspaceId, request.ParentTagId);
+
+                // Call repository to add item
+                var result = await _workspaceRepository.AddItemToWorkspaceAsync(workspaceId, userId, request);
+
+                if (result.Success)
+                {
+                    _logger.LogInformation("Successfully added {ChildType} to workspace {WorkspaceId}",
+                        request.ChildType, workspaceId);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to add item: {Message}", result.Message);
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error adding item to workspace {WorkspaceId}", workspaceId);
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = "An error occurred while adding item to workspace",
+                    Status = 500
+                };
+            }
+        }
     }
 }

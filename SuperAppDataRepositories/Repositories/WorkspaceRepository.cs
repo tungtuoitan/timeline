@@ -485,6 +485,100 @@ namespace SuperAppDataRepositories.Repositories
         }
 
         /// <summary>
+        /// Adds an item (folder/note/file) to a workspace
+        /// Creates a new row in workspace_items table
+        /// </summary>
+        public async Task<ResultOptions> AddItemToWorkspaceAsync(int workspaceId, int userId, AddItemToWorkspaceRequest request)
+        {
+            try
+            {
+                _logger.LogInformation("Adding {ChildType} (ID: {ChildId}) to workspace {WorkspaceId} under parent {ParentId}",
+                    request.ChildType, request.ChildId, workspaceId, request.ParentTagId);
+
+                // Map child type string to TINYINT
+                byte itemType = request.ChildType.ToLower() switch
+                {
+                    "folder" or "tag" => 2,
+                    "note" => 3,
+                    "file" => 4,
+                    _ => throw new ArgumentException($"Invalid child type: {request.ChildType}")
+                };
+
+                // Validate child ID
+                if (!request.ChildId.HasValue || request.ChildId.Value <= 0)
+                {
+                    _logger.LogWarning("Invalid child ID: {ChildId}", request.ChildId);
+                    return new ResultOptions
+                    {
+                        Success = false,
+                        Message = "Child ID is required and must be positive",
+                        Status = 400
+                    };
+                }
+
+                // Insert into workspace_items
+                var sql = @"
+                    INSERT INTO [ws].[workspace_items]
+                        (workspace_id, parent_id, item_type, item_id, is_original, created_at)
+                    VALUES
+                        (@WorkspaceId, @ParentId, @ItemType, @ItemId, @IsOriginal, GETUTCDATE());
+                    SELECT CAST(SCOPE_IDENTITY() as int);";
+
+                var parameters = new[]
+                {
+                    new SqlParameter("@WorkspaceId", workspaceId),
+                    new SqlParameter("@ParentId", (object?)request.ParentTagId ?? DBNull.Value),
+                    new SqlParameter("@ItemType", itemType),
+                    new SqlParameter("@ItemId", request.ChildId.Value),
+                    new SqlParameter("@IsOriginal", request.IsOriginal)
+                };
+
+                var newId = await _context.Database.ExecuteSqlRawAsync(sql, parameters);
+
+                _logger.LogInformation("Successfully added {ChildType} to workspace {WorkspaceId}, new row ID: {RowId}",
+                    request.ChildType, workspaceId, newId);
+
+                return new ResultOptions
+                {
+                    Success = true,
+                    Message = $"{request.ChildType} added to workspace successfully",
+                    Reference = newId.ToString(),
+                    Status = 201
+                };
+            }
+            catch (SqlException ex) when (ex.Number == 547) // Foreign key violation
+            {
+                _logger.LogError(ex, "Foreign key violation while adding item to workspace {WorkspaceId}", workspaceId);
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = $"The {request.ChildType} ID does not exist or workspace not found",
+                    Status = 404
+                };
+            }
+            catch (SqlException ex)
+            {
+                _logger.LogError(ex, "SQL error while adding item to workspace {WorkspaceId}", workspaceId);
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = $"Database error: {ex.Message}",
+                    Status = 500
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error adding item to workspace {WorkspaceId}", workspaceId);
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = $"Failed to add item: {ex.Message}",
+                    Status = 500
+                };
+            }
+        }
+
+        /// <summary>
         /// Helper method to convert TINYINT item_type to string name
         /// </summary>
         private string GetItemTypeName(byte itemType)

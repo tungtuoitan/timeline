@@ -1,8 +1,13 @@
 -- =============================================
 -- Stored Procedure: sp_MoveWorkspaceItems
 -- Description: Moves workspace items (folders/notes/files) with cascade support for children
--- Version: 1.0
+-- Version: 1.1
 -- =============================================
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
 
 CREATE OR ALTER PROCEDURE [ws].[sp_MoveWorkspaceItems]
     @SourceWorkspaceId INT,
@@ -12,9 +17,11 @@ CREATE OR ALTER PROCEDURE [ws].[sp_MoveWorkspaceItems]
 AS
 BEGIN
     SET NOCOUNT ON;
-    BEGIN TRANSACTION;
-
+    SET XACT_ABORT ON;
+    
     BEGIN TRY
+        BEGIN TRANSACTION;
+
         -- Parse JSON items
         DECLARE @ItemsTable TABLE (ItemType TINYINT, ItemId INT);
 
@@ -40,8 +47,39 @@ BEGIN
         IF @InvalidCount > 0
         BEGIN
             RAISERROR('One or more items not found in source workspace', 16, 1);
-            ROLLBACK TRANSACTION;
             RETURN;
+        END;
+
+        -- Validate target parent exists if provided
+        IF @TargetParentId IS NOT NULL
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 
+                FROM ws.folders 
+                WHERE id = @TargetParentId 
+                AND deleted_at IS NULL
+            )
+            BEGIN
+                RAISERROR('Target parent folder not found or has been deleted', 16, 1);
+                RETURN;
+            END;
+
+            -- If moving to different workspace, verify target parent is in target workspace
+            IF @TargetWorkspaceId IS NOT NULL AND @TargetWorkspaceId != @SourceWorkspaceId
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM ws.workspace_items 
+                    WHERE item_type = 2 
+                    AND item_id = @TargetParentId 
+                    AND workspace_id = @TargetWorkspaceId
+                    AND deleted_at IS NULL
+                )
+                BEGIN
+                    RAISERROR('Target parent folder does not exist in target workspace', 16, 1);
+                    RETURN;
+                END;
+            END;
         END;
 
         -- Recursive CTE to get all items to move (including children)
@@ -86,6 +124,9 @@ BEGIN
         SELECT * INTO #TempItemsToMove FROM AllItemsToMove;
 
         -- Determine if this is a same-workspace move or cross-workspace move
+        DECLARE @ResultMessage NVARCHAR(500);
+        DECLARE @ResultCount INT;
+
         IF @TargetWorkspaceId IS NULL OR @TargetWorkspaceId = @SourceWorkspaceId
         BEGIN
             -- Same workspace: Update parent_id (simple move)
@@ -99,11 +140,8 @@ BEGIN
             WHERE wi.workspace_id = @SourceWorkspaceId
                 AND wi.deleted_at IS NULL;
 
-            DECLARE @AffectedRows INT = @@ROWCOUNT;
-
-            COMMIT TRANSACTION;
-
-            SELECT @AffectedRows AS AffectedCount, 'Items moved successfully within workspace' AS Message;
+            SET @ResultCount = @@ROWCOUNT;
+            SET @ResultMessage = 'Items moved successfully within workspace';
         END
         ELSE
         BEGIN
@@ -166,16 +204,14 @@ BEGIN
             DELETE FROM ws.workspace_items
             WHERE id IN (SELECT id FROM #TempItemsToMove);
 
-            DECLARE @MovedCount INT = @@ROWCOUNT;
-
-            COMMIT TRANSACTION;
-
-            SELECT @MovedCount AS AffectedCount, 'Items moved successfully to target workspace' AS Message;
+            SET @ResultCount = @@ROWCOUNT;
+            SET @ResultMessage = 'Items moved successfully to target workspace';
         END;
 
-        -- Cleanup temp table
-        IF OBJECT_ID('tempdb..#TempItemsToMove') IS NOT NULL
-            DROP TABLE #TempItemsToMove;
+        COMMIT TRANSACTION;
+
+        -- Return result
+        SELECT @ResultCount AS AffectedCount, @ResultMessage AS Message;
 
     END TRY
     BEGIN CATCH
@@ -187,6 +223,10 @@ BEGIN
         DECLARE @ErrorState INT = ERROR_STATE();
 
         RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
-    END CATCH
+    END CATCH;
+
+    -- Cleanup temp table
+    IF OBJECT_ID('tempdb..#TempItemsToMove') IS NOT NULL
+        DROP TABLE #TempItemsToMove;
 END
 GO

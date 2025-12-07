@@ -50,5 +50,14 @@ namespace SuperAppServices.Interfaces
         /// <param name="request">Delete items request</param>
         /// <returns>Result options with affected count</returns>
         Task<ResultOptions> DeleteItemsAsync(int workspaceId, int userId, DeleteItemsRequest request);
+
+        /// <summary>
+        /// Adds an item (folder/note/file) to a workspace
+        /// </summary>
+        /// <param name="workspaceId">Workspace ID</param>
+        /// <param name="userId">User ID</param>
+        /// <param name="request">Add item request</param>
+        /// <returns>Result options with created relationship data</returns>
+        Task<ResultOptions> AddItemToWorkspaceAsync(int workspaceId, int userId, AddItemToWorkspaceRequest request);
     }
 }

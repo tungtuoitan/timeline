@@ -256,5 +256,61 @@ namespace SuperAppAPI.Controllers
                 return StatusCode(result.Status ?? 500, result);
             }
         }
+
+        /// <summary>
+        /// Adds an item (folder/note/file) to a workspace
+        /// </summary>
+        /// <response code="201">Item added successfully</response>
+        /// <response code="400">Invalid request data</response>
+        /// <response code="404">Workspace or item not found</response>
+        /// <response code="500">Internal server error</response>
+        [HttpPost("{workspaceId}/items")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> AddItemToWorkspace(int workspaceId, [FromBody] AddItemToWorkspaceRequest request)
+        {
+            if (workspaceId <= 0)
+            {
+                _logger.LogWarning("Invalid workspace ID provided: {WorkspaceId}", workspaceId);
+                return BadRequest(new ResultOptions
+                {
+                    Success = false,
+                    Message = "Workspace ID must be a positive integer",
+                    Status = 400
+                });
+            }
+
+            if (!ModelState.IsValid)
+            {
+                _logger.LogWarning("Invalid model state for add item request");
+                return BadRequest(new ResultOptions
+                {
+                    Success = false,
+                    Message = "Invalid request data",
+                    Object = ModelState,
+                    Status = 400
+                });
+            }
+
+            // TEMPORARY: Using hardcoded userId while auth is disabled
+            var userId = 1; // Hardcoded for development
+
+            _logger.LogInformation("Adding {ChildType} (ID: {ChildId}) to workspace {WorkspaceId} for user {UserId}",
+                request.ChildType, request.ChildId, workspaceId, userId);
+
+            var result = await _workspaceService.AddItemToWorkspaceAsync(workspaceId, userId, request);
+
+            // Return appropriate status code based on result
+            if (result.Success)
+            {
+                return StatusCode(result.Status ?? 201, result);
+            }
+            else
+            {
+                return StatusCode(result.Status ?? 500, result);
+            }
+        }
     }
 }
