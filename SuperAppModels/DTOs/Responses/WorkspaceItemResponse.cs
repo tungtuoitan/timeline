@@ -19,11 +19,6 @@ public class WorkspaceItemResponse
     /// <summary>
     /// Entity ID (folder/note/file ID from respective tables)
     /// </summary>
-    public long ItemId { get; set; }
-
-    /// <summary>
-    /// Entity ID (alias for ItemId, for backward compatibility)
-    /// </summary>
     public long Id { get; set; }
 
     /// <summary>
