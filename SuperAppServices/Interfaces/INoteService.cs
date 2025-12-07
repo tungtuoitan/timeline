@@ -36,7 +36,7 @@ namespace SuperAppServices.Interfaces
         /// </summary>
         /// <param name="noteIds">List of note IDs to delete</param>
         /// <returns>True if successful</returns>
-        Task<bool> DeleteNotesAsync(List<int> noteIds);
+        Task<bool> DeleteNotesAsync(List<int> noteIds, bool isHardDelete = false);
 
         /// <summary>
         /// Restore deleted notes by setting deleted_at to null

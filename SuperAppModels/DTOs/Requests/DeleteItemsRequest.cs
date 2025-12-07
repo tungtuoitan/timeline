@@ -17,6 +17,13 @@ namespace SuperAppModels.DTOs.Requests
         public List<ItemIdentifier> Items { get; set; } = new();
 
         /// <summary>
+        /// Hard delete flag: true = permanently delete, false = soft delete (default)
+        /// Notes: Folders always hard deleted, Notes/Files follow this flag
+        /// </summary>
+        [JsonPropertyName("isHardDelete")]
+        public bool IsHardDelete { get; set; } = false;
+
+        /// <summary>
         /// Item identifier (type + id)
         /// </summary>
         public class ItemIdentifier

@@ -146,9 +146,9 @@ namespace SuperAppServices.Services
         }
 
         /// <summary>
-        /// Delete notes by IDs
+        /// Delete notes by IDs (soft or hard delete)
         /// </summary>
-        public async Task<bool> DeleteNotesAsync(List<int> noteIds)
+        public async Task<bool> DeleteNotesAsync(List<int> noteIds, bool isHardDelete = false)
         {
             try
             {
@@ -158,10 +158,11 @@ namespace SuperAppServices.Services
                     return false;
                 }
 
-                _logger.LogInformation("Deleting notes with IDs: {NoteIds}", string.Join(",", noteIds));
+                _logger.LogInformation("Deleting notes with IDs: {NoteIds} (HardDelete: {IsHardDelete})", 
+                    string.Join(",", noteIds), isHardDelete);
 
                 // Use batch delete for better performance
-                var affectedRows = await _noteRepository.DeleteNotesBatchAsync(noteIds);
+                var affectedRows = await _noteRepository.DeleteNotesBatchAsync(noteIds, isHardDelete);
 
                 if (affectedRows == 0)
                 {

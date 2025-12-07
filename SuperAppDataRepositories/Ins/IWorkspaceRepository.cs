@@ -54,6 +54,6 @@ namespace SuperAppDataRepositories.Ins
         /// <param name="workspaceId">Workspace ID</param>
         /// <param name="items">List of items to delete (type + id)</param>
         /// <returns>Result with affected count</returns>
-        Task<ResultOptions> DeleteItemsAsync(int workspaceId, List<(byte ItemType, int ItemId)> items);
+        Task<ResultOptions> DeleteItemsAsync(int workspaceId, List<(byte ItemType, int ItemId)> items, bool isHardDelete = false);
     }
 }

@@ -1,19 +1,17 @@
--- =============================================
--- Stored Procedure: sp_DeleteWorkspaceItems
--- Description: Deletes multiple workspace items (folders/notes/files) with cascade support
--- Created: 2025-11-30
--- =============================================
-
-USE [SuperApp-dev];
+USE [SuperApp-dev]
 GO
 
-IF OBJECT_ID('[ws].[sp_DeleteWorkspaceItems]', 'P') IS NOT NULL
-    DROP PROCEDURE [ws].[sp_DeleteWorkspaceItems];
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
 GO
 
 CREATE PROCEDURE [ws].[sp_DeleteWorkspaceItems]
-    @WorkspaceId INT,
-    @Items NVARCHAR(MAX) -- JSON array of objects: [{"type": 2, "id": 10}, {"type": 3, "id": 25}]
+    @iv_workspace_id     INT,
+    @iv_items            NVARCHAR(MAX),   -- JSON input
+    @iv_is_hardDelete    BIT = 0,         -- 0 = soft delete, 1 = hard delete
+
+    @ov_deleted_count    INT OUTPUT       -- output
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -22,102 +20,139 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
 
-        -- Parse JSON input into temp table
+        ------------------------------------------------------------
+        -- Parse JSON
+        ------------------------------------------------------------
         SELECT
             CAST(JSON_VALUE(value, '$.type') AS TINYINT) AS item_type,
             CAST(JSON_VALUE(value, '$.id') AS INT) AS item_id
         INTO #ItemsToDelete
-        FROM OPENJSON(@Items);
+        FROM OPENJSON(@iv_items);
 
-        -- Validate items exist and belong to workspace
+        ------------------------------------------------------------
+        -- Validate ownership
+        ------------------------------------------------------------
         IF EXISTS (
-            SELECT 1 
+            SELECT 1
             FROM #ItemsToDelete itd
-            LEFT JOIN [ws].[workspace_items] wi ON wi.item_type = itd.item_type AND wi.item_id = itd.item_id
-            WHERE wi.workspace_id IS NULL OR wi.workspace_id != @WorkspaceId
+            LEFT JOIN ws.workspace_items wi
+                ON wi.item_type = itd.item_type
+               AND wi.item_id   = itd.item_id
+            WHERE wi.workspace_id IS NULL OR wi.workspace_id != @iv_workspace_id
         )
         BEGIN
-            RAISERROR('One or more items not found or do not belong to the specified workspace', 16, 1);
+            RAISERROR('Item not found or does not belong to workspace', 16, 1);
             ROLLBACK TRANSACTION;
             RETURN;
         END
 
-        -- Create temp table for all items to delete (including children)
+        ------------------------------------------------------------
+        -- Collect all children recursively
+        ------------------------------------------------------------
         CREATE TABLE #AllItemsToDelete (
             item_type TINYINT,
             item_id INT,
             PRIMARY KEY (item_type, item_id)
         );
 
-        -- Insert root items
-        INSERT INTO #AllItemsToDelete (item_type, item_id)
+        INSERT INTO #AllItemsToDelete
         SELECT item_type, item_id FROM #ItemsToDelete;
 
-        -- Recursively get all children (folders can have folders, notes, files as children)
-        DECLARE @AddedRows INT = 1;
-        WHILE @AddedRows > 0
+        DECLARE @added INT = 1;
+
+        WHILE @added > 0
         BEGIN
             INSERT INTO #AllItemsToDelete (item_type, item_id)
             SELECT DISTINCT wi.item_type, wi.item_id
-            FROM [ws].[workspace_items] wi
-            INNER JOIN #AllItemsToDelete parent ON parent.item_id = wi.parent_id AND parent.item_type = 2
-            WHERE wi.workspace_id = @WorkspaceId
-            AND NOT EXISTS (
-                SELECT 1 FROM #AllItemsToDelete WHERE item_type = wi.item_type AND item_id = wi.item_id
-            );
+            FROM ws.workspace_items wi
+            INNER JOIN #AllItemsToDelete p
+                ON p.item_type = 2 
+               AND p.item_id   = wi.parent_id
+            WHERE wi.workspace_id = @iv_workspace_id
+              AND NOT EXISTS (
+                    SELECT 1 FROM #AllItemsToDelete 
+                    WHERE item_type = wi.item_type AND item_id = wi.item_id
+              );
 
-            SET @AddedRows = @@ROWCOUNT;
+            SET @added = @@ROWCOUNT;
         END
 
-        -- Delete workspace_items entries
+        ------------------------------------------------------------
+        -- ALWAYS hard delete workspace_items mapping
+        ------------------------------------------------------------
         DELETE wi
-        FROM [ws].[workspace_items] wi
-        INNER JOIN #AllItemsToDelete del ON del.item_type = wi.item_type AND del.item_id = wi.item_id
-        WHERE wi.workspace_id = @WorkspaceId;
+        FROM ws.workspace_items wi
+        INNER JOIN #AllItemsToDelete d
+            ON d.item_type = wi.item_type
+           AND d.item_id   = wi.item_id
+        WHERE wi.workspace_id = @iv_workspace_id;
 
-        -- Delete actual entities
-        -- Delete folders (item_type = 2)
+        ------------------------------------------------------------
+        -- FOLDERS (type = 2) ALWAYS HARD DELETE
+        ------------------------------------------------------------
         DELETE f
-        FROM [ws].[folders] f
-        INNER JOIN #AllItemsToDelete del ON del.item_type = 2 AND del.item_id = f.id;
+        FROM ws.folders f
+        INNER JOIN #AllItemsToDelete d
+            ON d.item_type = 2 AND d.item_id = f.id;
 
-        -- Delete notes (item_type = 3)
-        DELETE n
-        FROM [dbo].[notes] n
-        INNER JOIN #AllItemsToDelete del ON del.item_type = 3 AND del.item_id = n.id;
+        ------------------------------------------------------------
+        -- NOTES (type = 3)
+        ------------------------------------------------------------
+        IF @iv_is_hardDelete = 1
+        BEGIN
+            DELETE n
+            FROM dbo.notes n
+            INNER JOIN #AllItemsToDelete d
+                ON d.item_type = 3 AND d.item_id = n.id;
+        END
+        ELSE
+        BEGIN
+            UPDATE n
+            SET deleted_at = GETUTCDATE()
+            FROM dbo.notes n
+            INNER JOIN #AllItemsToDelete d
+                ON d.item_type = 3 AND d.item_id = n.id;
+        END
 
-        -- Delete files (item_type = 4) - if files table exists
-        -- DELETE f
-        -- FROM [ws].[files] f
-        -- INNER JOIN #AllItemsToDelete del ON del.item_type = 4 AND del.item_id = f.file_id;
+        ------------------------------------------------------------
+        -- FILES (type = 4)
+        ------------------------------------------------------------
+        IF @iv_is_hardDelete = 1
+        BEGIN
+            DELETE f
+            FROM ws.files f
+            INNER JOIN #AllItemsToDelete d
+                ON d.item_type = 4 AND d.item_id = f.file_id;
+        END
+        ELSE
+        BEGIN
+            UPDATE f
+            SET deleted_at = GETUTCDATE()
+            FROM ws.files f
+            INNER JOIN #AllItemsToDelete d
+                ON d.item_type = 4 AND d.item_id = f.file_id;
+        END
 
+        ------------------------------------------------------------
+        -- OUTPUT count
+        ------------------------------------------------------------
+        SELECT @ov_deleted_count = COUNT(*) FROM #AllItemsToDelete;
+
+        ------------------------------------------------------------
         COMMIT TRANSACTION;
 
-        -- Return count of deleted items
-        SELECT COUNT(*) AS DeletedCount FROM #AllItemsToDelete;
-
-        -- Cleanup
         DROP TABLE #ItemsToDelete;
         DROP TABLE #AllItemsToDelete;
 
     END TRY
     BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
 
-        -- Re-throw error
-        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
-        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
-        DECLARE @ErrorState INT = ERROR_STATE();
+        DECLARE @msg NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @sev INT = ERROR_SEVERITY();
+        DECLARE @st INT = ERROR_STATE();
 
-        RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
+        RAISERROR(@msg, @sev, @st);
     END CATCH
 END
-GO
-
--- Grant execute permission
-GRANT EXECUTE ON [ws].[sp_DeleteWorkspaceItems] TO [public];
-GO
-
-PRINT 'Stored Procedure [ws].[sp_DeleteWorkspaceItems] created successfully';
 GO

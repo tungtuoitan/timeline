@@ -272,9 +272,9 @@ namespace SuperAppDataRepositories.Repositories
         /// Deletes a note by ID (soft delete)
         /// </summary>
         /// <summary>
-        /// Deletes multiple notes by IDs in a single batch operation (soft delete)
+        /// Deletes multiple notes by IDs in a single batch operation (soft or hard delete)
         /// </summary>
-        public async Task<int> DeleteNotesBatchAsync(List<int> noteIds)
+        public async Task<int> DeleteNotesBatchAsync(List<int> noteIds, bool isHardDelete = false)
         {
             try
             {
@@ -284,15 +284,29 @@ namespace SuperAppDataRepositories.Repositories
                     return 0;
                 }
 
-                _logger.LogInformation("Batch deleting notes with IDs: {NoteIds}", string.Join(",", noteIds));
+                _logger.LogInformation("Batch deleting notes with IDs: {NoteIds} (HardDelete: {IsHardDelete})", 
+                    string.Join(",", noteIds), isHardDelete);
 
-                // Update all matching notes in one query
-                var affectedRows = await _context.Notes
-                    .Where(n => noteIds.Contains(n.Id) && n.DeletedAt == null)
-                    .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(n => n.DeletedAt, DateTime.UtcNow));
+                int affectedRows;
 
-                _logger.LogInformation("Successfully batch deleted {Count} notes", affectedRows);
+                if (isHardDelete)
+                {
+                    // Hard delete - permanently remove from database
+                    affectedRows = await _context.Notes
+                        .Where(n => noteIds.Contains(n.Id))
+                        .ExecuteDeleteAsync();
+                }
+                else
+                {
+                    // Soft delete - set deleted_at timestamp
+                    affectedRows = await _context.Notes
+                        .Where(n => noteIds.Contains(n.Id) && n.DeletedAt == null)
+                        .ExecuteUpdateAsync(setters => setters
+                            .SetProperty(n => n.DeletedAt, DateTime.UtcNow));
+                }
+
+                _logger.LogInformation("Successfully batch deleted {Count} notes (HardDelete: {IsHardDelete})", 
+                    affectedRows, isHardDelete);
                 return affectedRows;
             }
             catch (DbUpdateException ex)

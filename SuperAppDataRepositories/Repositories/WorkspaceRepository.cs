@@ -401,33 +401,36 @@ namespace SuperAppDataRepositories.Repositories
         /// <summary>
         /// Deletes multiple workspace items (folders/notes/files) with cascade support
         /// </summary>
-        public async Task<ResultOptions> DeleteItemsAsync(int workspaceId, List<(byte ItemType, int ItemId)> items)
+        public async Task<ResultOptions> DeleteItemsAsync(int workspaceId, List<(byte ItemType, int ItemId)> items, bool isHardDelete = false)
         {
             try
             {
-                _logger.LogInformation("Deleting {Count} items from workspace {WorkspaceId}",
-                    items.Count, workspaceId);
+                _logger.LogInformation("Deleting {Count} items from workspace {WorkspaceId} (HardDelete: {IsHardDelete})",
+                    items.Count, workspaceId, isHardDelete);
 
                 // Serialize items to JSON for stored procedure
                 var itemsJson = JsonSerializer.Serialize(items.Select(i => new { type = i.ItemType, id = i.ItemId }));
 
-                // Execute stored procedure
-                var workspaceIdParam = new SqlParameter("@WorkspaceId", workspaceId);
-                var itemsParam = new SqlParameter("@Items", SqlDbType.NVarChar, -1) { Value = itemsJson };
+                // Execute stored procedure with new parameter names
+                var workspaceIdParam = new SqlParameter("@iv_workspace_id", workspaceId);
+                var itemsParam = new SqlParameter("@iv_items", SqlDbType.NVarChar, -1) { Value = itemsJson };
+                var isHardDeleteParam = new SqlParameter("@iv_is_hardDelete", isHardDelete);
+                var deletedCountParam = new SqlParameter("@ov_deleted_count", SqlDbType.Int) { Direction = ParameterDirection.Output };
 
                 // Execute and get result
                 var result = await _context.Database.ExecuteSqlRawAsync(
-                    "EXEC [ws].[sp_DeleteWorkspaceItems] @WorkspaceId, @Items",
-                    workspaceIdParam, itemsParam
+                    "EXEC [ws].[sp_DeleteWorkspaceItems] @iv_workspace_id, @iv_items, @iv_is_hardDelete, @ov_deleted_count OUTPUT",
+                    workspaceIdParam, itemsParam, isHardDeleteParam, deletedCountParam
                 );
 
-                _logger.LogInformation("Successfully deleted {Count} items (including children)", result);
+                var deletedCount = (int)deletedCountParam.Value;
+                _logger.LogInformation("Successfully deleted {Count} items (including children)", deletedCount);
 
                 return new ResultOptions
                 {
                     Success = true,
-                    Message = "Items deleted successfully",
-                    Reference = result.ToString(),
+                    Message = isHardDelete ? "Items permanently deleted" : "Items deleted successfully",
+                    Reference = deletedCount.ToString(),
                     Status = 200
                 };
             }

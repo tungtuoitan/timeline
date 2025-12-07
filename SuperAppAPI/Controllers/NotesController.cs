@@ -155,6 +155,7 @@ namespace SuperAppAPI.Controllers
         /// Deletes one or more notes for the authenticated user
         /// </summary>
         /// <param name="id">Note ID to delete (supports comma-separated IDs, e.g., "1,2,3")</param>
+        /// <param name="isHardDelete">Hard delete flag: true = permanently delete, false = soft delete (default)</param>
         /// <returns>No content on successful deletion</returns>
         /// <response code="204">Note(s) deleted successfully</response>
         /// <response code="400">Invalid note ID(s)</response>
@@ -167,7 +168,7 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> DeleteNote(string id)
+        public async Task<IActionResult> DeleteNote(string id, [FromQuery] bool isHardDelete = false)
         {
             if (string.IsNullOrWhiteSpace(id))
             {
@@ -178,14 +179,15 @@ namespace SuperAppAPI.Controllers
             // TEMPORARY: Using hardcoded email while auth is disabled
             var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
 
-            _logger.LogInformation("Deleting note(s) {NoteIds} for user: {UserEmail}", id, userEmail);
+            _logger.LogInformation("Deleting note(s) {NoteIds} for user: {UserEmail} (HardDelete: {IsHardDelete})", 
+                id, userEmail, isHardDelete);
 
             // Parse comma-separated IDs
             var noteIds = id.Split(',', StringSplitOptions.RemoveEmptyEntries)
                 .Select(int.Parse)
                 .ToList();
 
-            var success = await _noteService.DeleteNotesAsync(noteIds);
+            var success = await _noteService.DeleteNotesAsync(noteIds, isHardDelete);
 
             if (!success)
             {

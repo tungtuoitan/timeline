@@ -235,8 +235,8 @@ namespace SuperAppServices.Services
         {
             try
             {
-                _logger.LogInformation("Deleting {Count} items in workspace {WorkspaceId} for user {UserId}",
-                    request.Items.Count, workspaceId, userId);
+                _logger.LogInformation("Deleting {Count} items in workspace {WorkspaceId} for user {UserId} (HardDelete: {IsHardDelete})",
+                    request.Items.Count, workspaceId, userId, request.IsHardDelete);
 
                 // Convert request items to tuple list
                 var items = request.Items
@@ -244,7 +244,7 @@ namespace SuperAppServices.Services
                     .ToList();
 
                 // Call repository
-                var result = await _workspaceRepository.DeleteItemsAsync(workspaceId, items);
+                var result = await _workspaceRepository.DeleteItemsAsync(workspaceId, items, request.IsHardDelete);
 
                 if (result.Success)
                 {
