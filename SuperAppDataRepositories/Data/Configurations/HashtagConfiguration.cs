@@ -59,9 +59,6 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.HasIndex(h => h.Name)
                 .HasDatabaseName("IX_hashtags_name");
 
-            // Soft delete query filter
-            builder.HasQueryFilter(h => h.DeletedAt == null);
-
             // Relationships
             builder.HasOne(h => h.User)
                 .WithMany()

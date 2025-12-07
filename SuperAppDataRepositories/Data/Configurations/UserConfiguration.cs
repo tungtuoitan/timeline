@@ -63,9 +63,6 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasDatabaseName("IX_users_phone")
                 .HasFilter("[deleted_at] IS NULL");
 
-            // Soft delete query filter
-            builder.HasQueryFilter(u => u.DeletedAt == null);
-
             // Relationships are configured in their respective entity configurations
             // to avoid conflicts and duplicate foreign key columns:
             // - Note-User relationship: configured in NoteConfiguration

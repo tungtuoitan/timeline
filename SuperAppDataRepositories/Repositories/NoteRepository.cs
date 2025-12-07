@@ -271,41 +271,76 @@ namespace SuperAppDataRepositories.Repositories
         /// <summary>
         /// Deletes a note by ID (soft delete)
         /// </summary>
-        public async Task<bool> DeleteNoteAsync(int noteId)
+        /// <summary>
+        /// Deletes multiple notes by IDs in a single batch operation (soft delete)
+        /// </summary>
+        public async Task<int> DeleteNotesBatchAsync(List<int> noteIds)
         {
             try
             {
-                _logger.LogInformation("Deleting note with ID: {NoteId}", noteId);
-
-                var note = await _context.Notes
-                    .FirstOrDefaultAsync(n => n.Id == noteId && n.DeletedAt == null);
-
-                if (note == null)
+                if (noteIds == null || !noteIds.Any())
                 {
-                    _logger.LogWarning("Note not found for deletion with ID: {NoteId}", noteId);
-                    return false;
+                    _logger.LogWarning("Empty note IDs provided for batch deletion");
+                    return 0;
                 }
 
-                // Soft delete
-                note.DeletedAt = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
+                _logger.LogInformation("Batch deleting notes with IDs: {NoteIds}", string.Join(",", noteIds));
 
-                _logger.LogInformation("Successfully deleted note with ID: {NoteId}", noteId);
-                return true;
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                _logger.LogError(ex, "Concurrency conflict while deleting note ID: {NoteId}", noteId);
-                throw new InvalidOperationException($"Note {noteId} was modified by another user", ex);
+                // Update all matching notes in one query
+                var affectedRows = await _context.Notes
+                    .Where(n => noteIds.Contains(n.Id) && n.DeletedAt == null)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(n => n.DeletedAt, DateTime.UtcNow));
+
+                _logger.LogInformation("Successfully batch deleted {Count} notes", affectedRows);
+                return affectedRows;
             }
             catch (DbUpdateException ex)
             {
-                _logger.LogError(ex, "Database error while deleting note ID: {NoteId}", noteId);
-                throw new InvalidOperationException($"Database error occurred while deleting note {noteId}", ex);
+                _logger.LogError(ex, "Database error while batch deleting notes with IDs: {NoteIds}", string.Join(",", noteIds));
+                throw new InvalidOperationException("Database error occurred while batch deleting notes", ex);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error deleting note ID: {NoteId}", noteId);
+                _logger.LogError(ex, "Error batch deleting notes with IDs: {NoteIds}", string.Join(",", noteIds));
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Restores multiple deleted notes by IDs in a single batch operation (undo soft delete)
+        /// </summary>
+        public async Task<int> UndoDeleteNotesBatchAsync(List<int> noteIds)
+        {
+            try
+            {
+                if (noteIds == null || !noteIds.Any())
+                {
+                    _logger.LogWarning("Empty note IDs provided for batch undo deletion");
+                    return 0;
+                }
+
+                _logger.LogInformation("Batch restoring notes with IDs: {NoteIds}", string.Join(",", noteIds));
+
+                // Update all matching notes in one query, ignore global filters to find deleted notes
+                var affectedRows = await _context.Notes
+                    .IgnoreQueryFilters()
+                    .Where(n => noteIds.Contains(n.Id) && n.DeletedAt != null)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(n => n.DeletedAt, (DateTime?)null)
+                        .SetProperty(n => n.UpdatedAt, DateTime.UtcNow));
+
+                _logger.LogInformation("Successfully batch restored {Count} notes", affectedRows);
+                return affectedRows;
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Database error while batch restoring notes with IDs: {NoteIds}", string.Join(",", noteIds));
+                throw new InvalidOperationException("Database error occurred while batch restoring notes", ex);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error batch restoring notes with IDs: {NoteIds}", string.Join(",", noteIds));
                 throw;
             }
         }

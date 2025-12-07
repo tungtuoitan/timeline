@@ -67,9 +67,6 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.HasIndex(f => f.CreatedAt)
                 .HasDatabaseName("IX_folders_created");
 
-            // Soft delete query filter
-            builder.HasQueryFilter(f => f.DeletedAt == null);
-
             // Relationships
             builder.HasOne(f => f.User)
                 .WithMany() // User can have many Folders

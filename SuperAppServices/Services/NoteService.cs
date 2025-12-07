@@ -152,20 +152,63 @@ namespace SuperAppServices.Services
         {
             try
             {
-                _logger.LogInformation("Deleting notes with IDs: {NoteIds}", string.Join(",", noteIds));
-
-                // Delete each note individually
-                foreach (var noteId in noteIds)
+                if (noteIds == null || !noteIds.Any())
                 {
-                    await _noteRepository.DeleteNoteAsync(noteId);
+                    _logger.LogWarning("Empty note IDs provided for deletion");
+                    return false;
                 }
 
-                _logger.LogInformation("Successfully deleted notes with IDs: {NoteIds}", string.Join(",", noteIds));
+                _logger.LogInformation("Deleting notes with IDs: {NoteIds}", string.Join(",", noteIds));
+
+                // Use batch delete for better performance
+                var affectedRows = await _noteRepository.DeleteNotesBatchAsync(noteIds);
+
+                if (affectedRows == 0)
+                {
+                    _logger.LogWarning("No notes found to delete with IDs: {NoteIds}", string.Join(",", noteIds));
+                    return false;
+                }
+
+                _logger.LogInformation("Successfully deleted {Count} notes with IDs: {NoteIds}", affectedRows, string.Join(",", noteIds));
                 return true;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while deleting notes with IDs: {NoteIds}", string.Join(",", noteIds));
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Restore deleted notes by setting deleted_at to null
+        /// </summary>
+        public async Task<bool> UndoDeleteNotesAsync(List<int> noteIds)
+        {
+            try
+            {
+                if (noteIds == null || !noteIds.Any())
+                {
+                    _logger.LogWarning("Empty note IDs provided for undo delete");
+                    return false;
+                }
+
+                _logger.LogInformation("Restoring notes with IDs: {NoteIds}", string.Join(",", noteIds));
+
+                // Use batch undo for better performance
+                var affectedRows = await _noteRepository.UndoDeleteNotesBatchAsync(noteIds);
+
+                if (affectedRows == 0)
+                {
+                    _logger.LogWarning("No deleted notes found with IDs: {NoteIds}", string.Join(",", noteIds));
+                    return false;
+                }
+
+                _logger.LogInformation("Successfully restored {Count} notes with IDs: {NoteIds}", affectedRows, string.Join(",", noteIds));
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while restoring notes with IDs: {NoteIds}", string.Join(",", noteIds));
                 throw;
             }
         }

@@ -197,5 +197,51 @@ namespace SuperAppAPI.Controllers
             return NoContent();
         }
 
+        /// <summary>
+        /// Restores one or more deleted notes for the authenticated user (undo soft delete)
+        /// </summary>
+        /// <param name="id">Note ID to restore (supports comma-separated IDs, e.g., "1,2,3")</param>
+        /// <returns>No content on successful restoration</returns>
+        /// <response code="204">Note(s) restored successfully</response>
+        /// <response code="400">Invalid note ID(s)</response>
+        /// <response code="401">Unauthorized - invalid or missing token</response>
+        /// <response code="404">Note(s) not found or not deleted</response>
+        /// <response code="500">Internal server error</response>
+        [HttpPost("undo/{id}")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> UndoDeleteNote(string id)
+        {
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                _logger.LogWarning("Empty note ID(s) provided for undo deletion");
+                throw new BadRequestException("Note ID(s) must be provided");
+            }
+
+            // TEMPORARY: Using hardcoded email while auth is disabled
+            var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+
+            _logger.LogInformation("Restoring deleted note(s) {NoteIds} for user: {UserEmail}", id, userEmail);
+
+            // Parse comma-separated IDs
+            var noteIds = id.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(int.Parse)
+                .ToList();
+
+            var success = await _noteService.UndoDeleteNotesAsync(noteIds);
+
+            if (!success)
+            {
+                _logger.LogWarning("Note(s) {NoteIds} not found or not deleted for user: {UserEmail}", id, userEmail);
+                throw new NotFoundException($"Deleted note(s) with ID(s) {id} not found");
+            }
+
+            _logger.LogInformation("Successfully restored note(s) {NoteIds} for user: {UserEmail}", id, userEmail);
+            return NoContent();
+        }
+
     }
 }

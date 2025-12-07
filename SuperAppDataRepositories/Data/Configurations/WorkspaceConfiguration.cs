@@ -46,9 +46,6 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasDatabaseName("IX_workspaces_user")
                 .HasFilter("[deleted_at] IS NULL");
 
-            // Soft delete query filter
-            builder.HasQueryFilter(w => w.DeletedAt == null);
-
             // Relationships
             builder.HasOne(w => w.User)
                 .WithMany(u => u.Workspaces)

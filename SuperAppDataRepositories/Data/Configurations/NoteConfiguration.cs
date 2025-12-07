@@ -49,9 +49,6 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.HasIndex(n => n.CreatedAt)
                 .HasDatabaseName("IX_notes_created");
 
-            // Soft delete query filter
-            builder.HasQueryFilter(n => n.DeletedAt == null);
-
             // Relationships
             builder.HasOne(n => n.User)
                 .WithMany(u => u.Notes)
