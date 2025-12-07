@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Exceptions;
 using SuperAppAPI.Extensions;
+using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
 using SuperAppServices.Interfaces;
@@ -32,12 +33,12 @@ namespace SuperAppAPI.Controllers
         /// <param name="getAll">Get all notes flag (admin only)</param>
         /// <param name="searchText">Optional search text filter</param>
         /// <param name="tagIds">Optional tag IDs filter</param>
-        /// <returns>List of notes matching the criteria</returns>
+        /// <returns>ResultOptions containing list of notes matching the criteria</returns>
         /// <response code="200">Notes retrieved successfully</response>
         /// <response code="401">Unauthorized - invalid or missing token</response>
         /// <response code="500">Internal server error</response>
         [HttpGet]
-        [ProducesResponseType(typeof(List<NoteResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetNotes(
             [FromQuery] bool getAll = false, 
@@ -52,8 +53,8 @@ namespace SuperAppAPI.Controllers
 
             var response = await _noteService.GetNotesAsync(getAll, searchText, tagIds);
 
-            _logger.LogInformation("Successfully retrieved {NoteCount} notes for user: {UserEmail}",
-                response?.Count ?? 0, userEmail);
+            _logger.LogInformation("Successfully retrieved notes for user: {UserEmail}, Success: {Success}",
+                userEmail, response.Success);
 
             return Ok(response);
         }
@@ -69,8 +70,8 @@ namespace SuperAppAPI.Controllers
         /// <response code="401">Unauthorized - invalid or missing token</response>
         /// <response code="500">Internal server error</response>
         [HttpPost]
-        [ProducesResponseType(typeof(NoteResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(NoteResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -103,18 +104,10 @@ namespace SuperAppAPI.Controllers
 
             var response = await _noteService.UpsertNoteAsync(request);
 
-            if (request.Id == 0)
-            {
-                _logger.LogInformation("Note created successfully with ID: {NoteId} for user: {UserEmail}",
-                    response.Id, userEmail);
-                return CreatedAtAction(nameof(GetNoteById), new { id = response.Id }, response);
-            }
-            else
-            {
-                _logger.LogInformation("Note updated successfully with ID: {NoteId} for user: {UserEmail}",
-                    response.Id, userEmail);
-                return Ok(response);
-            }
+            _logger.LogInformation("Note upserted for user: {UserEmail}, Success: {Success}",
+                userEmail, response.Success);
+
+            return Ok(response);
         }
 
         /// <summary>
@@ -127,7 +120,7 @@ namespace SuperAppAPI.Controllers
         /// <response code="404">Note not found or not accessible</response>
         /// <response code="500">Internal server error</response>
         [HttpGet("{id:int}")]
-        [ProducesResponseType(typeof(NoteResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -144,10 +137,10 @@ namespace SuperAppAPI.Controllers
 
             _logger.LogInformation("Retrieving note {NoteId} for user: {UserEmail}", id, userEmail);
 
-            var note = await _noteService.GetNoteByIdAsync(id);
+            var response = await _noteService.GetNoteByIdAsync(id);
 
-            _logger.LogInformation("Successfully retrieved note {NoteId} for user: {UserEmail}", id, userEmail);
-            return Ok(note);
+            _logger.LogInformation("Retrieved note {NoteId} for user: {UserEmail}, Success: {Success}", id, userEmail, response.Success);
+            return Ok(response);
         }
 
       
@@ -163,7 +156,7 @@ namespace SuperAppAPI.Controllers
         /// <response code="404">Note(s) not found or not accessible</response>
         /// <response code="500">Internal server error</response>
         [HttpDelete("{id}")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -187,16 +180,10 @@ namespace SuperAppAPI.Controllers
                 .Select(int.Parse)
                 .ToList();
 
-            var success = await _noteService.DeleteNotesAsync(noteIds, isHardDelete);
+            var response = await _noteService.DeleteNotesAsync(noteIds, isHardDelete);
 
-            if (!success)
-            {
-                _logger.LogWarning("Note(s) {NoteIds} not found for deletion for user: {UserEmail}", id, userEmail);
-                throw new NotFoundException($"Note(s) with ID(s) {id} not found");
-            }
-
-            _logger.LogInformation("Successfully deleted note(s) {NoteIds} for user: {UserEmail}", id, userEmail);
-            return NoContent();
+            _logger.LogInformation("Delete notes result for user: {UserEmail}, Success: {Success}", userEmail, response.Success);
+            return Ok(response);
         }
 
         /// <summary>
@@ -210,7 +197,7 @@ namespace SuperAppAPI.Controllers
         /// <response code="404">Note(s) not found or not deleted</response>
         /// <response code="500">Internal server error</response>
         [HttpPost("undo/{id}")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -233,16 +220,10 @@ namespace SuperAppAPI.Controllers
                 .Select(int.Parse)
                 .ToList();
 
-            var success = await _noteService.UndoDeleteNotesAsync(noteIds);
+            var response = await _noteService.UndoDeleteNotesAsync(noteIds);
 
-            if (!success)
-            {
-                _logger.LogWarning("Note(s) {NoteIds} not found or not deleted for user: {UserEmail}", id, userEmail);
-                throw new NotFoundException($"Deleted note(s) with ID(s) {id} not found");
-            }
-
-            _logger.LogInformation("Successfully restored note(s) {NoteIds} for user: {UserEmail}", id, userEmail);
-            return NoContent();
+            _logger.LogInformation("Restore notes result for user: {UserEmail}, Success: {Success}", userEmail, response.Success);
+            return Ok(response);
         }
 
     }

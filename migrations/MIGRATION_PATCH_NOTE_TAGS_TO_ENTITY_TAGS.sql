@@ -245,7 +245,7 @@ PRINT '';
 PRINT 'Next steps:';
 PRINT '  1. Update Note model to use entity_tags navigation property';
 PRINT '  2. Update NoteConfiguration.cs to configure entity_tags relationship';
-PRINT '  3. Update NoteResponse DTO to load tags from entity_tags';
+PRINT '  3. Update NoteDTO DTO to load tags from entity_tags';
 PRINT '  4. Test notes API to ensure tags are loaded correctly';
 PRINT '';
 PRINT 'Migration patch complete at: ' + CONVERT(VARCHAR, GETUTCDATE(), 120);

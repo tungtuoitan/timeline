@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
+using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
 
@@ -26,7 +27,7 @@ namespace SuperAppDataRepositories.Repositories
         /// <summary>
         /// Gets all notes with comprehensive filtering options
         /// </summary>
-        public async Task<List<Note>> GetNotesAsync(NoteFilterOptions filterOptions)
+        public async Task<ResultOptions> GetNotesAsync(NoteFilterOptions filterOptions)
         {
             try
             {
@@ -92,24 +93,41 @@ namespace SuperAppDataRepositories.Repositories
                 var notes = await query.ToListAsync();
 
                 _logger.LogInformation("Successfully retrieved {Count} notes", notes.Count);
-                return notes;
+                
+                return new ResultOptions
+                {
+                    Success = true,
+                    Message = "Notes retrieved successfully",
+                    Data = notes.Cast<object>().ToList(),
+                    Status = 200
+                };
             }
             catch (DbUpdateException ex)
             {
                 _logger.LogError(ex, "Database error while getting notes with filters");
-                throw new InvalidOperationException("Database error while retrieving notes", ex);
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = "Database error while retrieving notes",
+                    Status = 500
+                };
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting notes with filters");
-                throw;
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    Status = 500
+                };
             }
         }
 
         /// <summary>
         /// Gets note by ID
         /// </summary>
-        public async Task<Note?> GetNoteById(int noteId)
+        public async Task<ResultOptions> GetNoteById(int noteId)
         {
             try
             {
@@ -123,30 +141,51 @@ namespace SuperAppDataRepositories.Repositories
                 if (note == null)
                 {
                     _logger.LogWarning("Note not found with ID: {NoteId}", noteId);
+                    return new ResultOptions
+                    {
+                        Success = false,
+                        Message = $"Note not found with ID: {noteId}",
+                        Status = 404
+                    };
                 }
                 else
                 {
                     _logger.LogInformation("Successfully retrieved note with ID: {NoteId}", noteId);
+                    return new ResultOptions
+                    {
+                        Success = true,
+                        Message = "Note retrieved successfully",
+                        Object = note,
+                        Status = 200
+                    };
                 }
-
-                return note;
             }
             catch (DbUpdateException ex)
             {
                 _logger.LogError(ex, "Database error while getting note by ID: {NoteId}", noteId);
-                throw new InvalidOperationException($"Database error while retrieving note {noteId}", ex);
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = "Database error while retrieving note",
+                    Status = 500
+                };
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting note by ID: {NoteId}", noteId);
-                throw;
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    Status = 500
+                };
             }
         }
 
         /// <summary>
         /// Creates a new note with optional tags and parent
         /// </summary>
-        public async Task<Note> CreateNoteAsync(Note note, List<int>? tagIds, int? parentId)
+        public async Task<ResultOptions> CreateNoteAsync(Note note, List<int>? tagIds, int? parentId)
         {
             try
             {
@@ -180,29 +219,50 @@ namespace SuperAppDataRepositories.Repositories
                 // }
 
                 _logger.LogInformation("Successfully created note with ID: {NoteId}", note.Id);
-                return note;
+                return new ResultOptions
+                {
+                    Success = true,
+                    Message = "Note created successfully",
+                    Object = note,
+                    Status = 201
+                };
             }
             catch (DbUpdateConcurrencyException ex)
             {
                 _logger.LogError(ex, "Concurrency conflict while creating note");
-                throw new InvalidOperationException("Concurrency conflict occurred while creating note", ex);
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = "Concurrency conflict occurred while creating note",
+                    Status = 500
+                };
             }
             catch (DbUpdateException ex)
             {
                 _logger.LogError(ex, "Database error while creating note");
-                throw new InvalidOperationException("Database error occurred while creating note", ex);
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = "Database error occurred while creating note",
+                    Status = 500
+                };
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating note with Name: '{Name}'", note.Name);
-                throw;
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    Status = 500
+                };
             }
         }
 
         /// <summary>
         /// Updates an existing note with optional tags and parent
         /// </summary>
-        public async Task<Note> UpdateNoteAsync(Note note, List<int>? tagIds, int? parentId)
+        public async Task<ResultOptions> UpdateNoteAsync(Note note, List<int>? tagIds, int? parentId)
         {
             try
             {
@@ -218,7 +278,12 @@ namespace SuperAppDataRepositories.Repositories
                 if (existingNote == null)
                 {
                     _logger.LogWarning("Note not found for update with ID: {NoteId}", note.Id);
-                    throw new KeyNotFoundException($"Note with ID {note.Id} not found");
+                    return new ResultOptions
+                    {
+                        Success = false,
+                        Message = $"Note with ID {note.Id} not found",
+                        Status = 404
+                    };
                 }
 
                 // Update properties
@@ -250,39 +315,62 @@ namespace SuperAppDataRepositories.Repositories
                 // }
 
                 _logger.LogInformation("Successfully updated note with ID: {NoteId}", note.Id);
-                return existingNote;
+                return new ResultOptions
+                {
+                    Success = true,
+                    Message = "Note updated successfully",
+                    Object = existingNote,
+                    Status = 200
+                };
             }
             catch (DbUpdateConcurrencyException ex)
             {
                 _logger.LogError(ex, "Concurrency conflict while updating note ID: {NoteId}", note.Id);
-                throw new InvalidOperationException($"Note {note.Id} was modified by another user", ex);
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = $"Note {note.Id} was modified by another user",
+                    Status = 409
+                };
             }
             catch (DbUpdateException ex)
             {
                 _logger.LogError(ex, "Database error while updating note ID: {NoteId}", note.Id);
-                throw new InvalidOperationException($"Database error occurred while updating note {note.Id}", ex);
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = "Database error occurred while updating note",
+                    Status = 500
+                };
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating note ID: {NoteId}", note.Id);
-                throw;
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    Status = 500
+                };
             }
         }
 
         /// <summary>
-        /// Deletes a note by ID (soft delete)
-        /// </summary>
-        /// <summary>
         /// Deletes multiple notes by IDs in a single batch operation (soft or hard delete)
         /// </summary>
-        public async Task<int> DeleteNotesBatchAsync(List<int> noteIds, bool isHardDelete = false)
+        public async Task<ResultOptions> DeleteNotesBatchAsync(List<int> noteIds, bool isHardDelete = false)
         {
             try
             {
                 if (noteIds == null || !noteIds.Any())
                 {
                     _logger.LogWarning("Empty note IDs provided for batch deletion");
-                    return 0;
+                    return new ResultOptions
+                    {
+                        Success = false,
+                        Message = "No note IDs provided",
+                        Status = 400
+                    };
                 }
 
                 _logger.LogInformation("Batch deleting notes with IDs: {NoteIds} (HardDelete: {IsHardDelete})", 
@@ -306,33 +394,65 @@ namespace SuperAppDataRepositories.Repositories
                             .SetProperty(n => n.DeletedAt, DateTime.UtcNow));
                 }
 
+                if (affectedRows == 0)
+                {
+                    _logger.LogWarning("No notes found to delete with IDs: {NoteIds}", string.Join(",", noteIds));
+                    return new ResultOptions
+                    {
+                        Success = false,
+                        Message = $"No notes found with IDs: {string.Join(",", noteIds)}",
+                        Status = 404
+                    };
+                }
+
                 _logger.LogInformation("Successfully batch deleted {Count} notes (HardDelete: {IsHardDelete})", 
                     affectedRows, isHardDelete);
-                return affectedRows;
+                    
+                return new ResultOptions
+                {
+                    Success = true,
+                    Message = $"Successfully deleted {affectedRows} note(s)",
+                    Status = 200
+                };
             }
             catch (DbUpdateException ex)
             {
                 _logger.LogError(ex, "Database error while batch deleting notes with IDs: {NoteIds}", string.Join(",", noteIds));
-                throw new InvalidOperationException("Database error occurred while batch deleting notes", ex);
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = "Database error occurred while batch deleting notes",
+                    Status = 500
+                };
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error batch deleting notes with IDs: {NoteIds}", string.Join(",", noteIds));
-                throw;
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    Status = 500
+                };
             }
         }
 
         /// <summary>
         /// Restores multiple deleted notes by IDs in a single batch operation (undo soft delete)
         /// </summary>
-        public async Task<int> UndoDeleteNotesBatchAsync(List<int> noteIds)
+        public async Task<ResultOptions> UndoDeleteNotesBatchAsync(List<int> noteIds)
         {
             try
             {
                 if (noteIds == null || !noteIds.Any())
                 {
                     _logger.LogWarning("Empty note IDs provided for batch undo deletion");
-                    return 0;
+                    return new ResultOptions
+                    {
+                        Success = false,
+                        Message = "No note IDs provided",
+                        Status = 400
+                    };
                 }
 
                 _logger.LogInformation("Batch restoring notes with IDs: {NoteIds}", string.Join(",", noteIds));
@@ -345,18 +465,44 @@ namespace SuperAppDataRepositories.Repositories
                         .SetProperty(n => n.DeletedAt, (DateTime?)null)
                         .SetProperty(n => n.UpdatedAt, DateTime.UtcNow));
 
+                if (affectedRows == 0)
+                {
+                    _logger.LogWarning("No deleted notes found with IDs: {NoteIds}", string.Join(",", noteIds));
+                    return new ResultOptions
+                    {
+                        Success = false,
+                        Message = $"No deleted notes found with IDs: {string.Join(",", noteIds)}",
+                        Status = 404
+                    };
+                }
+
                 _logger.LogInformation("Successfully batch restored {Count} notes", affectedRows);
-                return affectedRows;
+                return new ResultOptions
+                {
+                    Success = true,
+                    Message = $"Successfully restored {affectedRows} note(s)",
+                    Status = 200
+                };
             }
             catch (DbUpdateException ex)
             {
                 _logger.LogError(ex, "Database error while batch restoring notes with IDs: {NoteIds}", string.Join(",", noteIds));
-                throw new InvalidOperationException("Database error occurred while batch restoring notes", ex);
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = "Database error occurred while batch restoring notes",
+                    Status = 500
+                };
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error batch restoring notes with IDs: {NoteIds}", string.Join(",", noteIds));
-                throw;
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    Status = 500
+                };
             }
         }
     }

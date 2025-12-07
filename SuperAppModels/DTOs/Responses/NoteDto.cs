@@ -1,6 +1,6 @@
 namespace SuperAppModels.DTOs.Responses
 {
-    public class NoteResponse
+    public class NoteDTO
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
@@ -10,7 +10,7 @@ namespace SuperAppModels.DTOs.Responses
         public DateTime? UpdatedAt { get; set; }
         public DateTime? DeletedAt { get; set; } // ✅ Track if note is deleted
         public bool IsArchived { get; set; }
-        public List<TagResponse> Tags { get; set; } = new List<TagResponse>();
+        public List<TagDto> Tags { get; set; } = new List<TagDto>();
         
         // Note: CreatedBy removed for security - sensitive data should not be exposed in API responses
     }

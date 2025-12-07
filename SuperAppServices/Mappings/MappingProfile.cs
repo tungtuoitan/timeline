@@ -13,7 +13,7 @@ namespace SuperAppServices.Mappings
         public MappingProfile()
         {
             // Note mappings
-            CreateMap<Note, NoteResponse>()
+            CreateMap<Note, NoteDTO>()
                 .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id)) // Map Id -> Id
                 .ForMember(dest => dest.Tags, opt => opt.Ignore()); // Tags will be set separately if needed
 
@@ -44,7 +44,7 @@ namespace SuperAppServices.Mappings
 
             // Folder mappings (Workspace/Tag - OLD)
             CreateMap<Tag, FolderResponse>();
-            CreateMap<Tag, TagResponse>();
+            CreateMap<Tag, TagDto>();
             CreateMap<Tag, TagMetadata>();
 
             CreateMap<UpsertFolderRequest, Tag>()
