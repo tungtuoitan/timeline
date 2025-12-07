@@ -77,6 +77,14 @@ namespace SuperAppServices.Mappings
 
             // Workspace mappings
             CreateMap<Workspace, WorkspaceListResponse>();
+            CreateMap<Workspace, WorkspaceDTO>();
+            CreateMap<UpsertWorkspaceRequest, Workspace>()
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.UpdatedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.DeletedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.User, opt => opt.Ignore())
+                .ForMember(dest => dest.Items, opt => opt.Ignore());
 
             // WorkspaceItem mappings (tree view model -> response DTO)
             CreateMap<WorkspaceItem, WorkspaceItemResponse>()

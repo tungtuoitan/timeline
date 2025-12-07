@@ -9,7 +9,6 @@ namespace SuperAppModels.DTOs.Responses
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public DateTime? DeletedAt { get; set; } // ✅ Track if note is deleted
-        public bool IsArchived { get; set; }
         public List<TagDto> Tags { get; set; } = new List<TagDto>();
         
         // Note: CreatedBy removed for security - sensitive data should not be exposed in API responses

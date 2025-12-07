@@ -62,11 +62,6 @@ public class WorkspaceWithTagTreeResponse
     public bool IsTemplate { get; set; }
 
     /// <summary>
-    /// Whether the workspace is archived
-    /// </summary>
-    public bool IsArchived { get; set; }
-
-    /// <summary>
     /// Total number of tags in this workspace
     /// </summary>
     public int TagCount { get; set; }

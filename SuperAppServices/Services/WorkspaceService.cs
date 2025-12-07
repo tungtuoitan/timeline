@@ -100,7 +100,6 @@ namespace SuperAppServices.Services
                     IsDefault = false,
                     IsPublic = false,
                     IsTemplate = false,
-                    IsArchived = false,
                     TagCount = 0,
                     MemberCount = 1,
                     Settings = null,

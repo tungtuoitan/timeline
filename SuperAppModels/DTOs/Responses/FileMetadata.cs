@@ -78,11 +78,6 @@ public class FileMetadata
     public DateTime? UpdatedAt { get; set; }
 
     /// <summary>
-    /// Whether the file is archived
-    /// </summary>
-    public bool IsArchived { get; set; }
-
-    /// <summary>
     /// Number of times the file has been downloaded
     /// </summary>
     public int DownloadCount { get; set; }
