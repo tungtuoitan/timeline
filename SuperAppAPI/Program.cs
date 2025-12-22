@@ -92,12 +92,15 @@ namespace SuperAppAPI
                         o.Cookie.IsEssential = true;
                     });
 
-                    // Configure Data Protection to persist keys
-                    services.AddDataProtection()
-                        .PersistKeysToFileSystem(new DirectoryInfo("/var/www/Timeline/keys"))
-                        .SetApplicationName("SuperApp");
+                    // Configure Data Protection - DISABLED for now (will add later)
+                    // services.AddDataProtection()
+                    //     .PersistKeysToFileSystem(new DirectoryInfo("/var/www/Timeline/keys"))
+                    //     .SetApplicationName("SuperApp");
 
                     services.AddHttpContextAccessor();
+
+                    // Register HttpClient for OAuth
+                    services.AddHttpClient();
 
                     // Register AutoMapper
                     services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
