@@ -19,7 +19,7 @@ namespace SuperAppServices.Services
         private readonly IMapper _mapper;
         private readonly ILogger<WorkspaceListService> _logger;
 
-        public WorkspaceListService(
+        public WorkspaceListService( 
             IWorkspaceListRepository workspaceListRepository,
             IUserRepository userRepository,
             IMapper mapper,

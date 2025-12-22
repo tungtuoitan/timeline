@@ -4,6 +4,7 @@ using SuperAppDataRepositories.Data;
 using Serilog;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using DotNetEnv;
 
 
 namespace SuperAppAPI
@@ -12,6 +13,35 @@ namespace SuperAppAPI
     {
         public static void Main(string[] args)
         {
+            // Load .env file - try current directory first, then parent (solution root)
+            var currentDir = Directory.GetCurrentDirectory();
+            var envPath = Path.Combine(currentDir, ".env");
+
+            if (!File.Exists(envPath))
+            {
+                // Try parent directory (solution root)
+                var parentDir = Directory.GetParent(currentDir)?.FullName;
+                if (parentDir != null)
+                {
+                    envPath = Path.Combine(parentDir, ".env");
+                }
+            }
+
+            if (File.Exists(envPath))
+            {
+                DotNetEnv.Env.Load(envPath);
+                Console.WriteLine($"✓ Loaded .env file from: {envPath}");
+            }
+            else
+            {
+                Console.WriteLine($"✗ Warning: .env file not found at: {envPath}");
+                Console.WriteLine($"  Searched in: {currentDir}");
+                if (Directory.GetParent(currentDir) != null)
+                {
+                    Console.WriteLine($"  and: {Directory.GetParent(currentDir)?.FullName}");
+                }
+            }
+
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
                 .WriteTo.Console()
@@ -41,6 +71,11 @@ namespace SuperAppAPI
                     {
                         options.Limits.MaxRequestBodySize = 100 * 1024 * 1024;
                     });
+                })
+                .ConfigureAppConfiguration((hostContext, config) =>
+                {
+                    // Add environment variables from .env file to configuration
+                    config.AddEnvironmentVariables();
                 })
                 .ConfigureServices((hostContext, services) =>
                 {
@@ -79,11 +114,23 @@ namespace SuperAppAPI
 
                     //services.AddAuthorization();
 
-                
+
                     // Register EF Core DbContext
                     services.AddDbContext<ApplicationDbContext>(options =>
                     {
                         var connectionString = hostContext.Configuration.GetConnectionString("SuperAppConnection");
+
+                        // Debug logging to verify connection string
+                        if (string.IsNullOrEmpty(connectionString))
+                        {
+                            throw new InvalidOperationException(
+                                "Connection string 'SuperAppConnection' is not configured. " +
+                                "Please ensure the .env file exists and contains ConnectionStrings__SuperAppConnection.");
+                        }
+
+                        Log.Information("Using connection string: {ConnectionString}",
+                            connectionString.Replace(connectionString.Split("Password=")[1].Split(";")[0], "***"));
+
                         options.UseSqlServer(connectionString, sqlOptions =>
                         {
                             sqlOptions.EnableRetryOnFailure(maxRetryCount: 3);

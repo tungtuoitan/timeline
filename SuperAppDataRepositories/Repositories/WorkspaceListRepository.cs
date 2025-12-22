@@ -17,7 +17,7 @@ namespace SuperAppDataRepositories.Repositories
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<WorkspaceListRepository> _logger;
-
+         
         public WorkspaceListRepository(
             ApplicationDbContext context,
             ILogger<WorkspaceListRepository> logger)
