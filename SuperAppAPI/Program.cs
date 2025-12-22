@@ -159,6 +159,7 @@ namespace SuperAppAPI
                     services.AddScoped<SuperAppServices.Interfaces.IWorkspaceService, SuperAppServices.Services.WorkspaceService>();
                     services.AddScoped<SuperAppServices.Interfaces.IWorkspaceListService, SuperAppServices.Services.WorkspaceListService>();
                     services.AddScoped<SuperAppServices.Interfaces.INoteService, SuperAppServices.Services.NoteService>();
+                    services.AddScoped<SuperAppServices.Interfaces.IAuthService, SuperAppServices.Services.AuthService>();
                 });
 
     }

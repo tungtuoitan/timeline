@@ -62,6 +62,16 @@ namespace SuperAppModels.DTOs.Responses
         public string? LastName { get; set; }
 
         /// <summary>
+        /// Profile picture URL (from OAuth provider)
+        /// </summary>
+        public string? Picture { get; set; }
+
+        /// <summary>
+        /// Authentication type: 'local', 'google', 'facebook'
+        /// </summary>
+        public string AuthType { get; set; } = "local";
+
+        /// <summary>
         /// JWT authentication token
         /// </summary>
         public string Token { get; set; } = string.Empty;
