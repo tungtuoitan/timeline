@@ -3,6 +3,7 @@ using SuperAppDataRepositories.Repositories;
 using SuperAppDataRepositories.Data;
 using Serilog;
 using System.Text;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using DotNetEnv;
 
@@ -90,6 +91,11 @@ namespace SuperAppAPI
                         o.Cookie.HttpOnly = true;
                         o.Cookie.IsEssential = true;
                     });
+
+                    // Configure Data Protection to persist keys
+                    services.AddDataProtection()
+                        .PersistKeysToFileSystem(new DirectoryInfo("/var/www/Timeline/keys"))
+                        .SetApplicationName("SuperApp");
 
                     services.AddHttpContextAccessor();
 
