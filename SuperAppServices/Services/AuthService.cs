@@ -179,20 +179,37 @@ namespace SuperAppServices.Services
             var client = _httpClientFactory.CreateClient();
             var tokenEndpoint = "https://oauth2.googleapis.com/token";
 
+            var clientId = _configuration["OAuth:Google:ClientId"] ?? "";
+            var clientSecret = _configuration["OAuth:Google:ClientSecret"] ?? "";
+            var redirectUri = _configuration["OAuth:Google:RedirectUri"] ?? "";
+
+            // Log all parameters (mask sensitive data)
+            _logger.LogInformation("===== Google OAuth Token Exchange =====");
+            _logger.LogInformation("ClientId: {ClientId}", clientId);
+            _logger.LogInformation("RedirectUri: {RedirectUri}", redirectUri);
+            _logger.LogInformation("Code (first 20 chars): {Code}...", code.Length > 20 ? code.Substring(0, 20) : code);
+            _logger.LogInformation("ClientSecret configured: {HasSecret}", !string.IsNullOrEmpty(clientSecret));
+
             var requestData = new Dictionary<string, string>
             {
                 { "code", code },
-                { "client_id", _configuration["OAuth:Google:ClientId"] ?? "" },
-                { "client_secret", _configuration["OAuth:Google:ClientSecret"] ?? "" },
-                { "redirect_uri", _configuration["OAuth:Google:RedirectUri"] ?? "" },
+                { "client_id", clientId },
+                { "client_secret", clientSecret },
+                { "redirect_uri", redirectUri },
                 { "grant_type", "authorization_code" }
             };
 
+            _logger.LogInformation("Sending token request to Google...");
             var response = await client.PostAsync(tokenEndpoint, new FormUrlEncodedContent(requestData));
 
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("===== Google Token Exchange FAILED =====");
+                _logger.LogError("Status Code: {StatusCode}", response.StatusCode);
+                _logger.LogError("Error Response: {Error}", errorContent);
+                _logger.LogError("Expected RedirectUri in Google Console: {RedirectUri}", redirectUri);
+                _logger.LogError("Make sure this exact URI is in Google Cloud Console > Credentials > OAuth 2.0 Client > Authorized redirect URIs");
                 throw new Exception($"Failed to exchange code: {errorContent}");
             }
 
