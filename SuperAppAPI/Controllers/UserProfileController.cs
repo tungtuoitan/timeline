@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using AutoMapper;
 using SuperAppAPI.Extensions;
@@ -10,6 +11,7 @@ namespace SuperAppAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class UserProfileController : ControllerBase
     {
         private readonly IUserProfileRepository _repository;
@@ -26,6 +28,14 @@ namespace SuperAppAPI.Controllers
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         }
 
+        /// <summary>
+        /// Get authenticated user email from JWT claims
+        /// </summary>
+        private string? GetAuthenticatedUserEmail()
+        {
+            return User.GetUserEmail();
+        }
+
         [HttpGet]
         [ProducesResponseType(typeof(UserProfile), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -35,7 +45,11 @@ namespace SuperAppAPI.Controllers
         {
             try
             {
-                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+                var userEmail = GetAuthenticatedUserEmail();
+                if (string.IsNullOrEmpty(userEmail))
+                {
+                    return Unauthorized("User email not found in token");
+                }
 
                 _logger.LogInformation("Getting user profile for email: {Email}, AppC: {AppC}", userEmail, appC);
 
@@ -85,7 +99,11 @@ namespace SuperAppAPI.Controllers
                     return BadRequest(new { Message = "Email is required" });
                 }
 
-                var currentUserEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+                var currentUserEmail = GetAuthenticatedUserEmail();
+                if (string.IsNullOrEmpty(currentUserEmail))
+                {
+                    return Unauthorized("User email not found in token");
+                }
 
                 _logger.LogInformation("Admin access attempt: User {CurrentUser} requesting profile for {TargetEmail}",
                     currentUserEmail, email);

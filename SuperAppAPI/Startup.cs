@@ -135,15 +135,7 @@ namespace SuperAppAPI
             });
 
             services.AddHttpContextAccessor(); // cho phép dùng httpContext trong service
-            
-            // TEMPORARY: Explicitly disable any default authentication for development
-            services.Configure<Microsoft.AspNetCore.Authentication.AuthenticationOptions>(options =>
-            {
-                options.DefaultScheme = null;
-                options.DefaultAuthenticateScheme = null;
-                options.DefaultChallengeScheme = null;
-            });
-            
+
             //services.AddTransient<IBlobAppend, BlobAppend>();
             //services.AddTransient<ILoggerService, LoggerService>();
         }
@@ -194,10 +186,10 @@ namespace SuperAppAPI
 
             app.UseSession(); // Session management middleware
 
-            // TEMPORARY: Authentication and Authorization disabled for development
             // Authentication and Authorization - MUST be in this order and after routing
-            //app.UseAuthentication();  // Must come before UseAuthorization
-            //app.UseAuthorization();
+            app.UseAuthentication();  // Must come before UseAuthorization
+            app.UseAuthorization();
+
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();

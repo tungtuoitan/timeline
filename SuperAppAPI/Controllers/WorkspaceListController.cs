@@ -13,8 +13,7 @@ namespace SuperAppAPI.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    // TEMPORARY: [Authorize] disabled while authentication is disabled for development
-    // [Authorize]
+    [Authorize]
     public class WorkspaceListController : ControllerBase
     {
         private readonly IWorkspaceListService _workspaceListService;
@@ -24,6 +23,27 @@ namespace SuperAppAPI.Controllers
         {
             _workspaceListService = workspaceListService;
             _logger = logger;
+        }
+
+        /// <summary>
+        /// Get authenticated user ID from JWT claims
+        /// </summary>
+        private int? GetAuthenticatedUserId()
+        {
+            var userIdClaim = User.GetUserId();
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            {
+                return null;
+            }
+            return userId;
+        }
+
+        /// <summary>
+        /// Get authenticated user email from JWT claims
+        /// </summary>
+        private string? GetAuthenticatedUserEmail()
+        {
+            return User.GetUserEmail();
         }
 
         /// <summary>
@@ -39,16 +59,23 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetWorkspaces(
-            [FromQuery] bool getAll = false, 
+            [FromQuery] bool getAll = false,
             [FromQuery] string? searchText = null)
         {
-            var userEmail = User.GetUserEmail();
+            // Get userId from JWT token claims
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
+
+            var userEmail = GetAuthenticatedUserEmail();
 
             _logger.LogInformation(
-                "Retrieving workspaces for user: {UserEmail}, GetAll: {GetAll}, SearchText: {SearchText}",
-                userEmail, getAll, searchText);
+                "Retrieving workspaces for userId: {UserId}, UserEmail: {UserEmail}, GetAll: {GetAll}, SearchText: {SearchText}",
+                userId.Value, userEmail, getAll, searchText);
 
-            var response = await _workspaceListService.GetWorkspacesAsync(getAll, searchText);
+            var response = await _workspaceListService.GetWorkspacesAsync(userId.Value, getAll, searchText);
 
             _logger.LogInformation("Successfully retrieved workspaces for user: {UserEmail}, Success: {Success}",
                 userEmail, response.Success);
@@ -80,9 +107,15 @@ namespace SuperAppAPI.Controllers
                 return BadRequest(ModelState);
             }
 
-            // TEMPORARY: Using hardcoded email while auth is disabled
-            var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
-            request.UserId = 1;
+            // Get userId from JWT token claims
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
+
+            var userEmail = GetAuthenticatedUserEmail();
+            request.UserId = userId.Value;
 
             _logger.LogInformation("Upserting workspace with ID: {WorkspaceId}, Name: '{WorkspaceName}' for user: {UserEmail}",
                 request.Id, request.Name, userEmail);
@@ -117,8 +150,7 @@ namespace SuperAppAPI.Controllers
                 throw new BadRequestException("Workspace ID must be a positive integer");
             }
 
-            // TEMPORARY: Using hardcoded email while auth is disabled
-            var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+            var userEmail = GetAuthenticatedUserEmail();
 
             _logger.LogInformation("Retrieving workspace {WorkspaceId} for user: {UserEmail}", id, userEmail);
 
@@ -154,8 +186,7 @@ namespace SuperAppAPI.Controllers
                 throw new BadRequestException("Workspace ID(s) must be provided");
             }
 
-            // TEMPORARY: Using hardcoded email while auth is disabled
-            var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+            var userEmail = GetAuthenticatedUserEmail();
 
             _logger.LogInformation("Deleting workspace(s) {WorkspaceIds} for user: {UserEmail} with CASCADE (HardDelete: {IsHardDelete})", 
                 id, userEmail, isHardDelete);
@@ -191,8 +222,7 @@ namespace SuperAppAPI.Controllers
                 throw new BadRequestException("Workspace ID(s) must be provided");
             }
 
-            // TEMPORARY: Using hardcoded email while auth is disabled
-            var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+            var userEmail = GetAuthenticatedUserEmail();
 
             _logger.LogInformation("Restoring deleted workspace(s) {WorkspaceIds} for user: {UserEmail}", id, userEmail);
 

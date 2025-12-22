@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Exceptions;
+using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
@@ -13,7 +14,7 @@ namespace SuperAppAPI.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    //[Authorize] // TEMPORARY: Authorization disabled for development
+    [Authorize]
     public class WorkspaceController : ControllerBase
     {
         private readonly IWorkspaceService _workspaceService;
@@ -23,6 +24,19 @@ namespace SuperAppAPI.Controllers
         {
             _workspaceService = workspaceService ?? throw new ArgumentNullException(nameof(workspaceService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        }
+
+        /// <summary>
+        /// Get authenticated user ID from JWT claims
+        /// </summary>
+        private int? GetAuthenticatedUserId()
+        {
+            var userIdClaim = User.GetUserId();
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            {
+                return null;
+            }
+            return userId;
         }
 
         /// <summary>
@@ -37,15 +51,18 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetAllUserWorkspaces()
         {
-            // TEMPORARY: Using hardcoded userId while auth is disabled
-            var userId = 1; // Hardcoded for development
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
 
-            _logger.LogInformation("Retrieving all workspaces for userId: {UserId}", userId);
+            _logger.LogInformation("Retrieving all workspaces for userId: {UserId}", userId.Value);
 
-            var response = await _workspaceService.GetAllUserWorkspacesAsync(userId);
+            var response = await _workspaceService.GetAllUserWorkspacesAsync(userId.Value);
 
             _logger.LogInformation("Successfully retrieved {Count} workspaces for userId: {UserId}",
-                response.Count, userId);
+                response.Count, userId.Value);
 
             return Ok(response);
         }
@@ -74,13 +91,16 @@ namespace SuperAppAPI.Controllers
                 throw new BadRequestException("Workspace ID must be a positive integer");
             }
 
-            // TEMPORARY: Using hardcoded userId while auth is disabled
-            var userId = 1; // Hardcoded for development
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
             
             _logger.LogInformation("Retrieving workspace tree for workspaceId: {WorkspaceId}, userId: {UserId}", 
-                workspaceId, userId);
+                workspaceId, userId.Value);
 
-            var response = await _workspaceService.GetWorkspaceTreeAsync(workspaceId, userId);
+            var response = await _workspaceService.GetWorkspaceTreeAsync(workspaceId, userId.Value);
 
             _logger.LogInformation("Successfully retrieved workspace tree with {RootCount} root items for workspaceId: {WorkspaceId}",
                 response?.Items?.Count ?? 0, workspaceId);
@@ -125,14 +145,17 @@ namespace SuperAppAPI.Controllers
                 });
             }
 
-            // TEMPORARY: Using hardcoded userId while auth is disabled
-            var userId = 1; // Hardcoded for development
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
 
             var action = request.Id.HasValue ? "Updating" : "Creating";
             _logger.LogInformation("{Action} folder '{Name}' in workspace {WorkspaceId} for user {UserId}",
-                action, request.Name, workspaceId, userId);
+                action, request.Name, workspaceId, userId.Value);
 
-            var result = await _workspaceService.UpsertFolderAsync(workspaceId, userId, request);
+            var result = await _workspaceService.UpsertFolderAsync(workspaceId, userId.Value, request);
 
             // Return appropriate status code based on result
             if (result.Success)
@@ -182,13 +205,16 @@ namespace SuperAppAPI.Controllers
                 });
             }
 
-            // TEMPORARY: Using hardcoded userId while auth is disabled
-            var userId = 1; // Hardcoded for development
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
 
             _logger.LogInformation("Moving {Count} items in workspace {WorkspaceId} for user {UserId}",
-                request.Items.Count, workspaceId, userId);
+                request.Items.Count, workspaceId, userId.Value);
 
-            var result = await _workspaceService.MoveItemsAsync(workspaceId, userId, request);
+            var result = await _workspaceService.MoveItemsAsync(workspaceId, userId.Value, request);
 
             // Return appropriate status code based on result
             if (result.Success)
@@ -238,13 +264,16 @@ namespace SuperAppAPI.Controllers
                 });
             }
 
-            // TEMPORARY: Using hardcoded userId while auth is disabled
-            var userId = 1; // Hardcoded for development
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
 
             _logger.LogInformation("Deleting {Count} items in workspace {WorkspaceId} for user {UserId}",
-                request.Items.Count, workspaceId, userId);
+                request.Items.Count, workspaceId, userId.Value);
 
-            var result = await _workspaceService.DeleteItemsAsync(workspaceId, userId, request);
+            var result = await _workspaceService.DeleteItemsAsync(workspaceId, userId.Value, request);
 
             // Return appropriate status code based on result
             if (result.Success)
@@ -294,13 +323,16 @@ namespace SuperAppAPI.Controllers
                 });
             }
 
-            // TEMPORARY: Using hardcoded userId while auth is disabled
-            var userId = 1; // Hardcoded for development
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
 
             _logger.LogInformation("Adding {ChildType} (ID: {ChildId}) to workspace {WorkspaceId} for user {UserId}",
-                request.ChildType, request.ChildId, workspaceId, userId);
+                request.ChildType, request.ChildId, workspaceId, userId.Value);
 
-            var result = await _workspaceService.AddItemToWorkspaceAsync(workspaceId, userId, request);
+            var result = await _workspaceService.AddItemToWorkspaceAsync(workspaceId, userId.Value, request);
 
             // Return appropriate status code based on result
             if (result.Success)

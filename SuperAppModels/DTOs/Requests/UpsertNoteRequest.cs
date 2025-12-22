@@ -14,6 +14,11 @@ namespace SuperAppModels.DTOs.Requests
         /// </summary>
         public int Id { get; set; }
 
+        /// <summary>
+        /// User ID (set from JWT claims by controller)
+        /// </summary>
+        public int? UserId { get; set; }
+
         [Required(ErrorMessage = "Name is required")]
         [StringLength(200, MinimumLength = 1, ErrorMessage = "Name must be between 1 and 200 characters")]
         public string Name { get; set; } = string.Empty;

@@ -34,15 +34,16 @@ namespace SuperAppServices.Services
         /// <summary>
         /// Get all notes with optional filters
         /// </summary>
-        public async Task<ResultOptions> GetNotesAsync(bool getAll, string? searchText, List<int>? tagIds)
+        public async Task<ResultOptions> GetNotesAsync(int userId, bool getAll, string? searchText, List<int>? tagIds)
         {
             try
             {
-                _logger.LogInformation("Getting notes with GetAll: {GetAll}, SearchText: {SearchText}, TagIds: {TagIds}",
-                    getAll, searchText, tagIds != null ? string.Join(",", tagIds) : "null");
+                _logger.LogInformation("Getting notes for UserId: {UserId}, GetAll: {GetAll}, SearchText: {SearchText}, TagIds: {TagIds}",
+                    userId, getAll, searchText, tagIds != null ? string.Join(",", tagIds) : "null");
 
                 var filterOptions = new NoteFilterOptions
                 {
+                    UserId = userId,  // ✅ Filter by userId
                     GetAll = getAll,
                     SearchText = searchText,
                     TagIds = tagIds
@@ -149,13 +150,15 @@ namespace SuperAppServices.Services
                 var note = _mapper.Map<Note>(request);
                 note.Id = request.Id;
 
-                // TEMPORARY: Set UserId = 1 for development (auth disabled)
-                // TODO: Get userId from authenticated user when auth is enabled
-                if (request.Id == 0)
+                // Set UserId from request (populated by controller from JWT claims)
+                if (request.UserId.HasValue && request.UserId.Value > 0)
                 {
-                    note.UserId = 1;
+                    note.UserId = request.UserId.Value;
                 }
-                note.UserId = 1;
+                else
+                {
+                    throw new ArgumentException("UserId is required");
+                }
 
                 // Upsert note (create or update)
                 var result = await _noteRepository.UpsertNoteAsync(note, request.TagIds, null);

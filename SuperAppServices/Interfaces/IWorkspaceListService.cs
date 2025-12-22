@@ -11,10 +11,11 @@ namespace SuperAppServices.Interfaces
         /// <summary>
         /// Get all workspaces with optional filters
         /// </summary>
+        /// <param name="userId">User ID to filter workspaces</param>
         /// <param name="getAll">Get all workspaces or only active</param>
         /// <param name="searchText">Search text filter</param>
         /// <returns>ResultOptions containing list of workspaces</returns>
-        Task<ResultOptions> GetWorkspacesAsync(bool getAll, string? searchText);
+        Task<ResultOptions> GetWorkspacesAsync(int userId, bool getAll, string? searchText);
 
         /// <summary>
         /// Get workspace by ID

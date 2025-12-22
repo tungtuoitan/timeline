@@ -11,7 +11,7 @@ namespace SuperAppAPI.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    //[Authorize] // TEMPORARY: Authorization disabled for development
+    [Authorize]
     public class StandardRegistryController : ControllerBase
     {
         private readonly IStandardRegistryRepository _repository;
@@ -23,6 +23,14 @@ namespace SuperAppAPI.Controllers
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        }
+
+        /// <summary>
+        /// Get authenticated user email from JWT claims
+        /// </summary>
+        private string? GetAuthenticatedUserEmail()
+        {
+            return User.GetUserEmail();
         }
 
         /// <summary>
@@ -41,13 +49,12 @@ namespace SuperAppAPI.Controllers
         {
             try
             {
-                // TEMPORARY: Using hardcoded email while auth is disabled
-                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
-                //if (string.IsNullOrEmpty(userEmail))
-                //{
-                //    _logger.LogWarning("Failed to extract user email from token");
-                //    return Unauthorized(new { Message = "Invalid token claims" });
-                //}
+                var userEmail = GetAuthenticatedUserEmail();
+                if (string.IsNullOrEmpty(userEmail))
+                {
+                    _logger.LogWarning("Failed to extract user email from token");
+                    return Unauthorized(new { Message = "Invalid token claims" });
+                }
 
                 _logger.LogInformation("Getting standard registries for user: {UserEmail}, Type: {Type}", 
                     userEmail, type);
@@ -103,13 +110,12 @@ namespace SuperAppAPI.Controllers
                     return BadRequest(new { Message = "Registry ID must be a positive integer" });
                 }
 
-                // TEMPORARY: Using hardcoded email while auth is disabled
-                var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
-                //if (string.IsNullOrEmpty(userEmail))
-                //{
-                //    _logger.LogWarning("Failed to extract user email from token");
-                //    return Unauthorized(new { Message = "Invalid token claims" });
-                //}
+                var userEmail = GetAuthenticatedUserEmail();
+                if (string.IsNullOrEmpty(userEmail))
+                {
+                    _logger.LogWarning("Failed to extract user email from token");
+                    return Unauthorized(new { Message = "Invalid token claims" });
+                }
 
                 _logger.LogInformation("Getting standard registry {RegistryId} for user: {UserEmail}", 
                     id, userEmail);

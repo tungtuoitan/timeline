@@ -14,8 +14,7 @@ namespace SuperAppAPI.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    // TEMPORARY: [Authorize] disabled while authentication is disabled for development
-    // [Authorize]
+    [Authorize]
     public class NotesController : ControllerBase
     {
         private readonly INoteService _noteService;
@@ -25,6 +24,27 @@ namespace SuperAppAPI.Controllers
         {
             _noteService = noteService;
             _logger = logger;
+        }
+
+        /// <summary>
+        /// Get authenticated user ID from JWT claims
+        /// </summary>
+        private int? GetAuthenticatedUserId()
+        {
+            var userIdClaim = User.GetUserId();
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            {
+                return null;
+            }
+            return userId;
+        }
+
+        /// <summary>
+        /// Get authenticated user email from JWT claims
+        /// </summary>
+        private string? GetAuthenticatedUserEmail()
+        {
+            return User.GetUserEmail();
         }
 
         /// <summary>
@@ -41,17 +61,24 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetNotes(
-            [FromQuery] bool getAll = false, 
-            [FromQuery] string? searchText = null, 
+            [FromQuery] bool getAll = false,
+            [FromQuery] string? searchText = null,
             [FromQuery] List<int>? tagIds = null)
         {
-            var userEmail = User.GetUserEmail();
+            // Get userId from JWT token claims
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
+
+            var userEmail = GetAuthenticatedUserEmail();
 
             _logger.LogInformation(
-                "Retrieving notes for user: {UserEmail}, GetAll: {GetAll}, SearchText: {SearchText}, TagIds: {TagIds}",
-                userEmail, getAll, searchText, tagIds != null ? string.Join(",", tagIds) : "null");
+                "Retrieving notes for userId: {UserId}, UserEmail: {UserEmail}, GetAll: {GetAll}, SearchText: {SearchText}, TagIds: {TagIds}",
+                userId.Value, userEmail, getAll, searchText, tagIds != null ? string.Join(",", tagIds) : "null");
 
-            var response = await _noteService.GetNotesAsync(getAll, searchText, tagIds);
+            var response = await _noteService.GetNotesAsync(userId.Value, getAll, searchText, tagIds);
 
             _logger.LogInformation("Successfully retrieved notes for user: {UserEmail}, Success: {Success}",
                 userEmail, response.Success);
@@ -83,10 +110,17 @@ namespace SuperAppAPI.Controllers
                 return BadRequest(ModelState);
             }
 
-            // TEMPORARY: Using hardcoded email while auth is disabled
-            var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+            // Get userId from JWT token claims
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
 
-            // Set the CreatedBy from the authenticated user
+            var userEmail = GetAuthenticatedUserEmail();
+
+            // Set userId and CreatedBy from authenticated user
+            request.UserId = userId.Value;
             request.CreatedBy = userEmail;
 
             // Clean up TagIds - remove invalid values (0 or negative)
@@ -132,8 +166,7 @@ namespace SuperAppAPI.Controllers
                 throw new BadRequestException("Note ID must be a positive integer");
             }
 
-            // TEMPORARY: Using hardcoded email while auth is disabled
-            var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+            var userEmail = GetAuthenticatedUserEmail();
 
             _logger.LogInformation("Retrieving note {NoteId} for user: {UserEmail}", id, userEmail);
 
@@ -169,8 +202,7 @@ namespace SuperAppAPI.Controllers
                 throw new BadRequestException("Note ID(s) must be provided");
             }
 
-            // TEMPORARY: Using hardcoded email while auth is disabled
-            var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+            var userEmail = GetAuthenticatedUserEmail();
 
             _logger.LogInformation("Deleting note(s) {NoteIds} for user: {UserEmail} (HardDelete: {IsHardDelete})", 
                 id, userEmail, isHardDelete);
@@ -210,8 +242,7 @@ namespace SuperAppAPI.Controllers
                 throw new BadRequestException("Note ID(s) must be provided");
             }
 
-            // TEMPORARY: Using hardcoded email while auth is disabled
-            var userEmail = User.GetUserEmail() ?? "hoanhtungle@gmail.com";
+            var userEmail = GetAuthenticatedUserEmail();
 
             _logger.LogInformation("Restoring deleted note(s) {NoteIds} for user: {UserEmail}", id, userEmail);
 

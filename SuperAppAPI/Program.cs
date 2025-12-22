@@ -96,23 +96,22 @@ namespace SuperAppAPI
                     // Register AutoMapper
                     services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 
-                    // TEMPORARY: JWT Authentication disabled for development
                     // Configure JWT Authentication
-                    //services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                    //    .AddJwtBearer(options =>
-                    //    {
-                    //        options.TokenValidationParameters = new TokenValidationParameters
-                    //        {
-                    //            ValidateIssuerSigningKey = true,
-                    //            IssuerSigningKey = new SymmetricSecurityKey(key),
-                    //            ValidateIssuer = false,
-                    //            ValidateAudience = false,
-                    //            ValidateLifetime = true,
-                    //            ClockSkew = TimeSpan.Zero
-                    //        };
-                    //    });
+                    services.AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
+                        .AddJwtBearer(options =>
+                        {
+                            options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+                            {
+                                ValidateIssuerSigningKey = true,
+                                IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(key),
+                                ValidateIssuer = false,
+                                ValidateAudience = false,
+                                ValidateLifetime = true,
+                                ClockSkew = TimeSpan.Zero
+                            };
+                        });
 
-                    //services.AddAuthorization();
+                    services.AddAuthorization();
 
 
                     // Register EF Core DbContext
