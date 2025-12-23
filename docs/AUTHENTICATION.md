@@ -121,7 +121,7 @@ bool isValid = BCrypt.Net.BCrypt.Verify(password, hashedPassword);
   "OAuth": {
     "Google": {
       "ClientId": "your-client-id.apps.googleusercontent.com",
-      "RedirectUri": "http://localhost:5000/auth/google/callback"
+      "RedirectUri": "http://localhost:5000/auth/callback"
     }
   }
 }
