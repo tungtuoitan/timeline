@@ -3,6 +3,7 @@ using SuperAppDataRepositories.Repositories;
 using SuperAppDataRepositories.Data;
 using Serilog;
 using System.Text;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using DotNetEnv;
 
@@ -91,7 +92,15 @@ namespace SuperAppAPI
                         o.Cookie.IsEssential = true;
                     });
 
+                    // Configure Data Protection - DISABLED for now (will add later)
+                    // services.AddDataProtection()
+                    //     .PersistKeysToFileSystem(new DirectoryInfo("/var/www/Timeline/keys"))
+                    //     .SetApplicationName("SuperApp");
+
                     services.AddHttpContextAccessor();
+
+                    // Register HttpClient for OAuth
+                    services.AddHttpClient();
 
                     // Register AutoMapper
                     services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());

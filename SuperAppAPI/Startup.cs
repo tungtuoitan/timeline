@@ -100,20 +100,19 @@ namespace SuperAppAPI
                             "http://localhost:3000",
                             "http://localhost:3001", 
                             "http://localhost:3003",
-                            "http://localhost:5000")
+                            "http://localhost:5000",
+                            "https://unparcelled-geralyn-deutoplasmic.ngrok-free.dev")
                            .AllowAnyMethod()
                            .AllowAnyHeader()
                            .AllowCredentials();
                 });
 
-                // Production policy - restrictive for security
+                // Production policy - TEMPORARY: Allow all origins for testing
                 options.AddPolicy("ProductionPolicy", builder =>
                 {
-                    builder.WithOrigins(Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? Array.Empty<string>())
-                           .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                           .WithHeaders("Content-Type", "Authorization", "X-Requested-With")
-                           .AllowCredentials()
-                           .SetIsOriginAllowedToAllowWildcardSubdomains();
+                    builder.AllowAnyOrigin()
+                           .AllowAnyMethod()
+                           .AllowAnyHeader();
                 });
             });
 

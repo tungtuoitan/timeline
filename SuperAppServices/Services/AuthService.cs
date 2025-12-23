@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Http;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs.Responses;
@@ -22,6 +23,7 @@ namespace SuperAppServices.Services
         private readonly IUserRepository _userRepository;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
+        private readonly Microsoft.Extensions.Logging.ILogger<AuthService> _logger;
         private readonly string _jwtKey;
         private readonly string _jwtIssuer;
         private readonly string _jwtAudience;
@@ -30,11 +32,13 @@ namespace SuperAppServices.Services
         public AuthService(
             IUserRepository userRepository,
             IHttpClientFactory httpClientFactory,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            Microsoft.Extensions.Logging.ILogger<AuthService> logger)
         {
             _userRepository = userRepository;
             _httpClientFactory = httpClientFactory;
             _configuration = configuration;
+            _logger = logger;
 
             // Load JWT configuration
             _jwtKey = _configuration["Jwt:Key"]
@@ -51,14 +55,19 @@ namespace SuperAppServices.Services
         {
             try
             {
+                _logger.LogInformation("Starting Google login with authorization code");
+
                 // Step 1: Exchange authorization code for Google tokens
                 var googleTokenResponse = await ExchangeCodeForGoogleTokenAsync(authorizationCode);
+                _logger.LogInformation("Successfully exchanged code for Google tokens");
 
                 // Step 2: Verify ID token and get user info
                 var googleUserInfo = await VerifyGoogleIdTokenAsync(googleTokenResponse.IdToken);
+                _logger.LogInformation("Successfully verified Google ID token for email: {Email}", googleUserInfo.Email);
 
                 // Step 3: Get or create user in database
                 var user = await GetOrCreateGoogleUserAsync(googleUserInfo);
+                _logger.LogInformation("User found/created with ID: {UserId}", user.Id);
 
                 // Step 4: Update last login
                 user.RecordLogin();
@@ -88,6 +97,7 @@ namespace SuperAppServices.Services
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Google login failed: {ErrorMessage}", ex.Message);
                 return new AuthResponse
                 {
                     Success = false,
@@ -169,20 +179,37 @@ namespace SuperAppServices.Services
             var client = _httpClientFactory.CreateClient();
             var tokenEndpoint = "https://oauth2.googleapis.com/token";
 
+            var clientId = _configuration["OAuth:Google:ClientId"] ?? "";
+            var clientSecret = _configuration["OAuth:Google:ClientSecret"] ?? "";
+            var redirectUri = _configuration["OAuth:Google:RedirectUri"] ?? "";
+
+            // Log all parameters (mask sensitive data)
+            _logger.LogInformation("===== Google OAuth Token Exchange =====");
+            _logger.LogInformation("ClientId: {ClientId}", clientId);
+            _logger.LogInformation("RedirectUri: {RedirectUri}", redirectUri);
+            _logger.LogInformation("Code (first 20 chars): {Code}...", code.Length > 20 ? code.Substring(0, 20) : code);
+            _logger.LogInformation("ClientSecret configured: {HasSecret}", !string.IsNullOrEmpty(clientSecret));
+
             var requestData = new Dictionary<string, string>
             {
                 { "code", code },
-                { "client_id", _configuration["OAuth:Google:ClientId"] ?? "" },
-                { "client_secret", _configuration["OAuth:Google:ClientSecret"] ?? "" },
-                { "redirect_uri", _configuration["OAuth:Google:RedirectUri"] ?? "" },
+                { "client_id", clientId },
+                { "client_secret", clientSecret },
+                { "redirect_uri", redirectUri },
                 { "grant_type", "authorization_code" }
             };
 
+            _logger.LogInformation("Sending token request to Google...");
             var response = await client.PostAsync(tokenEndpoint, new FormUrlEncodedContent(requestData));
 
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("===== Google Token Exchange FAILED =====");
+                _logger.LogError("Status Code: {StatusCode}", response.StatusCode);
+                _logger.LogError("Error Response: {Error}", errorContent);
+                _logger.LogError("Expected RedirectUri in Google Console: {RedirectUri}", redirectUri);
+                _logger.LogError("Make sure this exact URI is in Google Cloud Console > Credentials > OAuth 2.0 Client > Authorized redirect URIs");
                 throw new Exception($"Failed to exchange code: {errorContent}");
             }
 
