@@ -54,7 +54,7 @@ namespace SuperAppDataRepositories.Repositories
                 // Filter by search text if provided
                 if (!string.IsNullOrWhiteSpace(filterOptions.SearchText))
                 {
-                    query = query.Where(n => n.Name.Contains(filterOptions.SearchText) || 
+                    query = query.Where(n => n.Name.Contains(filterOptions.SearchText) ||
                                            (n.Description != null && n.Description.Contains(filterOptions.SearchText)));
                 }
 
@@ -63,6 +63,42 @@ namespace SuperAppDataRepositories.Repositories
                 // {
                 //     query = query.Where(n => n.Tags.Any(t => filterOptions.TagIds.Contains(t.Id)));
                 // }
+
+                // ===== NEW FILTERS =====
+
+                // Filter by status code (comma-separated list)
+                if (filterOptions.StatusCodes != null && filterOptions.StatusCodes.Any())
+                {
+                    query = query.Where(n => n.StatusCode != null && filterOptions.StatusCodes.Contains(n.StatusCode));
+                }
+
+                // Filter by deletedAt
+                if (!string.IsNullOrEmpty(filterOptions.DeletedAt))
+                {
+                    if (filterOptions.DeletedAt == "null")
+                    {
+                        // Show only active (not deleted)
+                        query = query.Where(n => n.DeletedAt == null);
+                    }
+                    else if (filterOptions.DeletedAt == "notNull")
+                    {
+                        // Show only deleted
+                        query = query.Where(n => n.DeletedAt != null);
+                    }
+                }
+
+                // Filter by created date range
+                if (filterOptions.CreatedFrom.HasValue)
+                {
+                    query = query.Where(n => n.CreatedAt >= filterOptions.CreatedFrom.Value);
+                }
+
+                if (filterOptions.CreatedTo.HasValue)
+                {
+                    query = query.Where(n => n.CreatedAt <= filterOptions.CreatedTo.Value);
+                }
+
+                // ===== END NEW FILTERS =====
 
                 // Sorting
                 query = filterOptions.SortBy?.ToLower() switch

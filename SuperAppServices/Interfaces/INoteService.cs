@@ -12,11 +12,9 @@ namespace SuperAppServices.Interfaces
         /// <summary>
         /// Get all notes with optional filters
         /// </summary>
-        /// <param name="userId">User ID to filter notes</param>
-        /// <param name="searchText">Search text filter</param>
-        /// <param name="tagIds">Filter by tag IDs</param>
+        /// <param name="filterOptions">Filter options including userId, searchText, tagIds, status, dates, etc.</param>
         /// <returns>ResultOptions containing list of notes</returns>
-        Task<ResultOptions> GetNotesAsync(int userId, string? searchText, List<int>? tagIds);
+        Task<ResultOptions> GetNotesAsync(NoteFilterOptions filterOptions);
 
         /// <summary>
         /// Get note by ID

@@ -63,6 +63,10 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasMaxLength(10)
                 .HasDefaultValue("en");
 
+            builder.Property(up => up.Filters)
+                .HasColumnName("filters")
+                .HasColumnType("NVARCHAR(MAX)");
+
             builder.Property(up => up.CreatedAt)
                 .HasColumnName("created_at")
                 .HasDefaultValueSql("GETUTCDATE()");

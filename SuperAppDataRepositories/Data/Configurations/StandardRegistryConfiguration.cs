@@ -18,8 +18,8 @@ public class StandardRegistryConfiguration : IEntityTypeConfiguration<StandardRe
             .ValueGeneratedOnAdd();
 
         // Properties - EXACTLY match dbo.standard_registries schema
-        builder.Property(sr => sr.TypeCode)
-            .HasColumnName("type_code")
+        builder.Property(sr => sr.Code)
+            .HasColumnName("code")
             .HasMaxLength(100)
             .IsRequired();
 
@@ -27,21 +27,40 @@ public class StandardRegistryConfiguration : IEntityTypeConfiguration<StandardRe
             .HasColumnName("description")
             .HasMaxLength(500);
 
+        builder.Property(sr => sr.Type)
+            .HasColumnName("type")
+            .HasMaxLength(100)
+            .IsRequired();
+
         builder.Property(sr => sr.IsActive)
             .HasColumnName("is_active")
             .HasDefaultValue(true);
 
-        // Timestamps
-        builder.Property(sr => sr.CreatedAt)
-            .HasColumnName("created_at")
-            .HasDefaultValueSql("GETUTCDATE()");
+        builder.Property(sr => sr.Json_detail)
+            .HasColumnName("json_detail")
+            .HasColumnType("NVARCHAR(MAX)");
 
-        builder.Property(sr => sr.UpdatedAt)
-            .HasColumnName("updated_at");
+        builder.Property(sr => sr.CreatedBy)
+            .HasColumnName("created_by")
+            .HasMaxLength(255);
+
+        builder.Property(sr => sr.CreatedDate)
+            .HasColumnName("created_date");
+
+        builder.Property(sr => sr.LastModifiedBy)
+            .HasColumnName("last_modified_by")
+            .HasMaxLength(255);
+
+        builder.Property(sr => sr.LastModifiedDate)
+            .HasColumnName("last_modified_date");
 
         // Indexes
-        builder.HasIndex(sr => sr.TypeCode)
-            .HasDatabaseName("UQ_standard_registries_type_code")
-            .IsUnique();
+        builder.HasIndex(sr => new { sr.Type, sr.Code })
+            .HasDatabaseName("IX_standard_registries_type_code");
+
+        builder.HasIndex(sr => sr.Type)
+            .HasDatabaseName("IX_standard_registries_type");
+
+        // Note: No unique constraint needed - status_code fields don't have FK references
     }
 }

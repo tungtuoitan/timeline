@@ -40,8 +40,12 @@ namespace SuperAppAPI.Controllers
         }
 
         /// <summary>
-        /// Gets all workspaces for the current user
+        /// Gets all workspaces for the current user with optional filtering
         /// </summary>
+        /// <param name="statusCode">Optional comma-separated status codes filter (e.g., "active,inactive")</param>
+        /// <param name="deletedAt">Optional deleted status filter ("null" for active only, "notNull" for deleted only)</param>
+        /// <param name="createdAtFrom">Optional created date from filter (ISO date string)</param>
+        /// <param name="createdAtTo">Optional created date to filter (ISO date string)</param>
         /// <response code="200">Workspaces retrieved successfully</response>
         /// <response code="401">Unauthorized - invalid or missing token</response>
         /// <response code="500">Internal server error</response>
@@ -49,7 +53,11 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(typeof(List<WsResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetAllUserWorkspaces()
+        public async Task<IActionResult> GetAllUserWorkspaces(
+            [FromQuery] string? statusCode = null,
+            [FromQuery] string? deletedAt = null,
+            [FromQuery] string? createdAtFrom = null,
+            [FromQuery] string? createdAtTo = null)
         {
             var userId = GetAuthenticatedUserId();
             if (userId == null)
@@ -57,9 +65,29 @@ namespace SuperAppAPI.Controllers
                 return Unauthorized("User ID not found in token");
             }
 
-            _logger.LogInformation("Retrieving all workspaces for userId: {UserId}", userId.Value);
+            // Build filter options
+            var filterOptions = new FilterOptions
+            {
+                StatusCodes = !string.IsNullOrEmpty(statusCode)
+                    ? statusCode.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList()
+                    : null,
+                DeletedAt = deletedAt,
+                CreatedFrom = !string.IsNullOrEmpty(createdAtFrom) && DateTime.TryParse(createdAtFrom, out var parsedFrom)
+                    ? parsedFrom
+                    : null,
+                CreatedTo = !string.IsNullOrEmpty(createdAtTo) && DateTime.TryParse(createdAtTo, out var parsedTo)
+                    ? parsedTo
+                    : null
+            };
 
-            var response = await _workspaceService.GetAllUserWorkspacesAsync(userId.Value);
+            _logger.LogInformation("Retrieving all workspaces for userId: {UserId}, StatusCodes: {StatusCodes}, DeletedAt: {DeletedAt}, CreatedFrom: {CreatedFrom}, CreatedTo: {CreatedTo}",
+                userId.Value,
+                filterOptions.StatusCodes != null ? string.Join(",", filterOptions.StatusCodes) : "null",
+                filterOptions.DeletedAt,
+                filterOptions.CreatedFrom,
+                filterOptions.CreatedTo);
+
+            var response = await _workspaceService.GetAllUserWorkspacesAsync(userId.Value, filterOptions);
 
             _logger.LogInformation("Successfully retrieved {Count} workspaces for userId: {UserId}",
                 response.Count, userId.Value);

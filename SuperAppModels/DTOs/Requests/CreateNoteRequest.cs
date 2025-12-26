@@ -15,6 +15,9 @@ namespace SuperAppModels.DTOs.Requests
         [StringLength(100, ErrorMessage = "Type cannot exceed 100 characters")]
         public string? Type { get; set; }
 
+        [StringLength(50, ErrorMessage = "StatusCode cannot exceed 50 characters")]
+        public string? StatusCode { get; set; }
+
         [JsonPropertyName("tags")]
         public List<int>? TagIds { get; set; }
 

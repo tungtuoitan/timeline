@@ -18,11 +18,12 @@ namespace SuperAppServices.Interfaces
         Task<WorkspaceWithTreeResponse> GetWorkspaceTreeAsync(int workspaceId, int userId);
 
         /// <summary>
-        /// Gets all workspaces for a user
+        /// Gets all workspaces for a user with optional filters
         /// </summary>
         /// <param name="userId">User ID</param>
+        /// <param name="filterOptions">Filter options (status, dates, etc.)</param>
         /// <returns>List of workspace summaries</returns>
-        Task<List<WsResponse>> GetAllUserWorkspacesAsync(int userId);
+        Task<List<WsResponse>> GetAllUserWorkspacesAsync(int userId, FilterOptions? filterOptions = null);
 
         /// <summary>
         /// Creates a new folder in a workspace

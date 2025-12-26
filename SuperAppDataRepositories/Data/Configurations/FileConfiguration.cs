@@ -13,8 +13,8 @@ namespace SuperAppDataRepositories.Data.Configurations
     {
         public void Configure(EntityTypeBuilder<SuperAppModels.Models.File> builder)
         {
-            // Table mapping - ws schema (Workspace)
-            builder.ToTable("files", "ws");
+            // Table mapping - dbo schema (moved from ws.files to dbo.files)
+            builder.ToTable("files", "dbo");
 
             // Primary key
             builder.HasKey(f => f.Id);
@@ -47,6 +47,10 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("extension")
                 .HasMaxLength(20);
 
+            builder.Property(f => f.StatusCode)
+                .HasColumnName("status_code")
+                .HasMaxLength(50);
+
             builder.Property(f => f.CreatedAt)
                 .HasColumnName("created_at")
                 .HasDefaultValueSql("GETUTCDATE()");
@@ -76,7 +80,10 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.HasOne(f => f.User)
                 .WithMany()
                 .HasForeignKey(f => f.UserId)
+                .HasConstraintName("FK_files_users_user_id")
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Note: status_code has no FK constraint - just a simple string field
 
             // Ignore polymorphic navigation (managed via WorkspaceItem.ItemType)
             builder.Ignore(f => f.WorkspaceItems);

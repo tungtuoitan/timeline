@@ -28,15 +28,20 @@ namespace SuperAppServices.Services
         }
 
         /// <summary>
-        /// Gets all workspaces for a user
+        /// Gets all workspaces for a user with optional filters
         /// </summary>
-        public async Task<List<WsResponse>> GetAllUserWorkspacesAsync(int userId)
+        public async Task<List<WsResponse>> GetAllUserWorkspacesAsync(int userId, FilterOptions? filterOptions = null)
         {
             try
             {
-                _logger.LogInformation("Getting all workspaces for UserId: {UserId}", userId);
+                _logger.LogInformation("Getting all workspaces for UserId: {UserId}, StatusCodes: {StatusCodes}, DeletedAt: {DeletedAt}, CreatedFrom: {CreatedFrom}, CreatedTo: {CreatedTo}",
+                    userId,
+                    filterOptions?.StatusCodes != null ? string.Join(",", filterOptions.StatusCodes) : "null",
+                    filterOptions?.DeletedAt,
+                    filterOptions?.CreatedFrom,
+                    filterOptions?.CreatedTo);
 
-                var workspaces = await _workspaceRepository.GetAllWorkspacesByUserIdAsync(userId);
+                var workspaces = await _workspaceRepository.GetAllWorkspacesByUserIdAsync(userId, filterOptions);
 
                 var response = _mapper.Map<List<WsResponse>>(workspaces);
 

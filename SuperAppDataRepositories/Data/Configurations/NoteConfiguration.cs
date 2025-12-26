@@ -31,6 +31,10 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("description")
                 .HasColumnType("nvarchar(max)");
 
+            builder.Property(n => n.StatusCode)
+                .HasColumnName("status_code")
+                .HasMaxLength(50);
+
             builder.Property(n => n.CreatedAt)
                 .HasColumnName("created_at")
                 .HasDefaultValueSql("GETUTCDATE()");
@@ -59,6 +63,8 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasForeignKey(n => n.UserId)
                 .HasConstraintName("FK_notes_users_user_id")
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Note: status_code has no FK constraint - just a simple string field
         }
     }
 }

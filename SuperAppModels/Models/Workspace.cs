@@ -15,6 +15,9 @@ namespace SuperAppModels.Models
         public string Name { get; set; } = string.Empty; // name (255 chars, required)
         public string? Description { get; set; } // description (1000 chars)
 
+        // Status (no FK reference)
+        public string? StatusCode { get; set; } // status_code (simple string, no FK)
+
         // Timestamps (ITimestampEntity)
         public DateTime? CreatedAt { get; set; } // created_at
         public DateTime? UpdatedAt { get; set; } // updated_at

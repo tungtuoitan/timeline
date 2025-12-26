@@ -82,6 +82,11 @@ namespace SuperAppModels.DTOs.Responses
         public string TokenType { get; set; } = "Bearer";
 
         /// <summary>
+        /// User filter preferences (JSON string)
+        /// </summary>
+        public string? Filters { get; set; }
+
+        /// <summary>
         /// User's full display name
         /// </summary>
         public string? FullName => $"{FirstName} {LastName}".Trim();

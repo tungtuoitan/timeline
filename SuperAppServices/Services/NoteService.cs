@@ -34,19 +34,15 @@ namespace SuperAppServices.Services
         /// <summary>
         /// Get all notes with optional filters
         /// </summary>
-        public async Task<ResultOptions> GetNotesAsync(int userId, string? searchText, List<int>? tagIds)
+        public async Task<ResultOptions> GetNotesAsync(NoteFilterOptions filterOptions)
         {
             try
             {
-                _logger.LogInformation("Getting notes for UserId: {UserId}, SearchText: {SearchText}, TagIds: {TagIds}",
-                    userId, searchText, tagIds != null ? string.Join(",", tagIds) : "null");
-
-                var filterOptions = new NoteFilterOptions
-                {
-                    UserId = userId,  // ✅ Filter by userId
-                    SearchText = searchText,
-                    TagIds = tagIds
-                };
+                _logger.LogInformation("Getting notes for UserId: {UserId}, SearchText: {SearchText}, TagIds: {TagIds}, StatusCodes: {StatusCodes}, DeletedAt: {DeletedAt}, CreatedFrom: {CreatedFrom}, CreatedTo: {CreatedTo}",
+                    filterOptions.UserId, filterOptions.SearchText,
+                    filterOptions.TagIds != null ? string.Join(",", filterOptions.TagIds) : "null",
+                    filterOptions.StatusCodes != null ? string.Join(",", filterOptions.StatusCodes) : "null",
+                    filterOptions.DeletedAt, filterOptions.CreatedFrom, filterOptions.CreatedTo);
 
                 // Repository now returns ResultOptions
                 var result = await _noteRepository.GetNotesAsync(filterOptions);

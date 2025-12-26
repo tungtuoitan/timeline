@@ -1,9 +1,9 @@
 namespace SuperAppModels.DTOs.Requests
 {
     /// <summary>
-    /// Filter options for querying notes
+    /// Filter options for querying notes (extends common FilterOptions)
     /// </summary>
-    public class NoteFilterOptions
+    public class NoteFilterOptions : FilterOptions
     {
         /// <summary>
         /// User email for filtering (optional)
@@ -14,11 +14,6 @@ namespace SuperAppModels.DTOs.Requests
         /// User ID for filtering (optional)
         /// </summary>
         public int? UserId { get; set; }
-
-        /// <summary>
-        /// Search text for filtering by name or description
-        /// </summary>
-        public string? SearchText { get; set; }
 
         /// <summary>
         /// Tag IDs for filtering notes by tags

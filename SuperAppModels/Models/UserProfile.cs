@@ -66,6 +66,12 @@ namespace SuperAppModels.Models
         public string? Language { get; set; } = "en";
 
         /// <summary>
+        /// User filter preferences (JSON string)
+        /// Stores filter settings for different views (noteGrid, wsGrid, workspace)
+        /// </summary>
+        public string? Filters { get; set; }
+
+        /// <summary>
         /// When the profile was created (UTC)
         /// </summary>
         public DateTime? CreatedAt { get; set; }
@@ -112,7 +118,8 @@ namespace SuperAppModels.Models
             string? country = null,
             string? city = null,
             string? timezone = null,
-            string? language = null)
+            string? language = null,
+            string? filters = null)
         {
             if (firstName != null) FirstName = firstName;
             if (lastName != null) LastName = lastName;
@@ -124,7 +131,8 @@ namespace SuperAppModels.Models
             if (city != null) City = city;
             if (timezone != null) Timezone = timezone;
             if (language != null) Language = language;
-            
+            if (filters != null) Filters = filters;
+
             UpdatedAt = DateTime.UtcNow;
         }
     }

@@ -168,6 +168,8 @@ namespace SuperAppAPI
                     services.AddScoped<SuperAppServices.Interfaces.IWsService, SuperAppServices.Services.WsService>();
                     services.AddScoped<SuperAppServices.Interfaces.INoteService, SuperAppServices.Services.NoteService>();
                     services.AddScoped<SuperAppServices.Interfaces.IAuthService, SuperAppServices.Services.AuthService>();
+                    services.AddScoped<SuperAppServices.Interfaces.IStandardRegistryService, SuperAppServices.Services.StandardRegistryService>();
+                    services.AddScoped<SuperAppServices.Interfaces.IUserProfileService, SuperAppServices.Services.UserProfileService>();
                 });
 
     }

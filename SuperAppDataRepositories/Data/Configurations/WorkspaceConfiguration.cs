@@ -31,6 +31,10 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("description")
                 .HasMaxLength(1000);
 
+            builder.Property(w => w.StatusCode)
+                .HasColumnName("status_code")
+                .HasMaxLength(50);
+
             builder.Property(w => w.CreatedAt)
                 .HasColumnName("created_at")
                 .HasDefaultValueSql("GETUTCDATE()");
@@ -54,7 +58,10 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.HasOne(w => w.User)
                 .WithMany(u => u.Workspaces)
                 .HasForeignKey(w => w.UserId)
+                .HasConstraintName("FK_workspaces_users_user_id")
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Note: status_code has no FK constraint - just a simple string field
 
             builder.HasMany(w => w.Items)
                 .WithOne(wi => wi.Workspace)

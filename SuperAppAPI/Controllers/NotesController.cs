@@ -52,6 +52,10 @@ namespace SuperAppAPI.Controllers
         /// </summary>
         /// <param name="searchText">Optional search text filter</param>
         /// <param name="tagIds">Optional tag IDs filter</param>
+        /// <param name="statusCode">Optional comma-separated status codes filter (e.g., "active,inactive")</param>
+        /// <param name="deletedAt">Optional deleted status filter ("null" for active only, "notNull" for deleted only)</param>
+        /// <param name="createdAtFrom">Optional created date from filter (ISO date string)</param>
+        /// <param name="createdAtTo">Optional created date to filter (ISO date string)</param>
         /// <returns>ResultOptions containing list of notes matching the criteria</returns>
         /// <response code="200">Notes retrieved successfully</response>
         /// <response code="401">Unauthorized - invalid or missing token</response>
@@ -61,7 +65,11 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetNotes(
             [FromQuery] string? searchText = null,
-            [FromQuery] List<int>? tagIds = null)
+            [FromQuery] List<int>? tagIds = null,
+            [FromQuery] string? statusCode = null,
+            [FromQuery] string? deletedAt = null,
+            [FromQuery] string? createdAtFrom = null,
+            [FromQuery] string? createdAtTo = null)
         {
             // Get userId from JWT token claims
             var userId = GetAuthenticatedUserId();
@@ -72,11 +80,32 @@ namespace SuperAppAPI.Controllers
 
             var userEmail = GetAuthenticatedUserEmail();
 
-            _logger.LogInformation(
-                "Retrieving notes for userId: {UserId}, UserEmail: {UserEmail}, SearchText: {SearchText}, TagIds: {TagIds}",
-                userId.Value, userEmail, searchText, tagIds != null ? string.Join(",", tagIds) : "null");
+            // Build filter options
+            var filterOptions = new NoteFilterOptions
+            {
+                UserId = userId.Value,
+                SearchText = searchText,
+                TagIds = tagIds,
+                StatusCodes = !string.IsNullOrEmpty(statusCode)
+                    ? statusCode.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList()
+                    : null,
+                DeletedAt = deletedAt,
+                CreatedFrom = !string.IsNullOrEmpty(createdAtFrom) && DateTime.TryParse(createdAtFrom, out var parsedFrom)
+                    ? parsedFrom
+                    : null,
+                CreatedTo = !string.IsNullOrEmpty(createdAtTo) && DateTime.TryParse(createdAtTo, out var parsedTo)
+                    ? parsedTo
+                    : null
+            };
 
-            var response = await _noteService.GetNotesAsync(userId.Value, searchText, tagIds);
+            _logger.LogInformation(
+                "Retrieving notes for userId: {UserId}, UserEmail: {UserEmail}, SearchText: {SearchText}, TagIds: {TagIds}, StatusCodes: {StatusCodes}, DeletedAt: {DeletedAt}, CreatedFrom: {CreatedFrom}, CreatedTo: {CreatedTo}",
+                userId.Value, userEmail, filterOptions.SearchText,
+                filterOptions.TagIds != null ? string.Join(",", filterOptions.TagIds) : "null",
+                filterOptions.StatusCodes != null ? string.Join(",", filterOptions.StatusCodes) : "null",
+                filterOptions.DeletedAt, filterOptions.CreatedFrom, filterOptions.CreatedTo);
+
+            var response = await _noteService.GetNotesAsync(filterOptions);
 
             _logger.LogInformation("Successfully retrieved notes for user: {UserEmail}, Success: {Success}",
                 userEmail, response.Success);

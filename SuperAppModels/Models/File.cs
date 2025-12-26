@@ -18,6 +18,9 @@ namespace SuperAppModels.Models
         public string? MimeType { get; set; } // mime_type (100 chars)
         public string? Extension { get; set; } // extension (20 chars)
 
+        // Status (no FK reference)
+        public string? StatusCode { get; set; } // status_code (simple string, no FK)
+
         // Timestamps (ITimestampEntity)
         public DateTime? CreatedAt { get; set; } // created_at
         public DateTime? UpdatedAt { get; set; } // updated_at

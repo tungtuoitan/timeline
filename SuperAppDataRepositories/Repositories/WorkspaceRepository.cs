@@ -194,17 +194,64 @@ namespace SuperAppDataRepositories.Repositories
         }
 
         /// <summary>
-        /// Gets all workspaces for a user
+        /// Gets all workspaces for a user with optional filters
         /// </summary>
-        public async Task<List<Workspace>> GetAllWorkspacesByUserIdAsync(int userId)
+        public async Task<List<Workspace>> GetAllWorkspacesByUserIdAsync(int userId, FilterOptions? filterOptions = null)
         {
             try
             {
-                _logger.LogInformation("Getting all workspaces for userId: {UserId}", userId);
+                _logger.LogInformation("Getting all workspaces for userId: {UserId}, StatusCodes: {StatusCodes}, DeletedAt: {DeletedAt}, CreatedFrom: {CreatedFrom}, CreatedTo: {CreatedTo}",
+                    userId,
+                    filterOptions?.StatusCodes != null ? string.Join(",", filterOptions.StatusCodes) : "null",
+                    filterOptions?.DeletedAt,
+                    filterOptions?.CreatedFrom,
+                    filterOptions?.CreatedTo);
 
-                // ✅ Include deleted workspaces - Frontend will handle display logic
-                var workspaces = await _context.Workspaces
-                    .Where(w => w.UserId == userId)
+                var query = _context.Workspaces
+                    .Where(w => w.UserId == userId);
+
+                // Apply filters if provided
+                if (filterOptions != null)
+                {
+                    // Filter by status code
+                    if (filterOptions.StatusCodes != null && filterOptions.StatusCodes.Any())
+                    {
+                        query = query.Where(w => w.StatusCode != null && filterOptions.StatusCodes.Contains(w.StatusCode));
+                    }
+
+                    // Filter by deletedAt
+                    if (!string.IsNullOrEmpty(filterOptions.DeletedAt))
+                    {
+                        if (filterOptions.DeletedAt == "null")
+                        {
+                            query = query.Where(w => w.DeletedAt == null);
+                        }
+                        else if (filterOptions.DeletedAt == "notNull")
+                        {
+                            query = query.Where(w => w.DeletedAt != null);
+                        }
+                    }
+
+                    // Filter by created date range
+                    if (filterOptions.CreatedFrom.HasValue)
+                    {
+                        query = query.Where(w => w.CreatedAt >= filterOptions.CreatedFrom.Value);
+                    }
+
+                    if (filterOptions.CreatedTo.HasValue)
+                    {
+                        query = query.Where(w => w.CreatedAt <= filterOptions.CreatedTo.Value);
+                    }
+
+                    // Filter by search text
+                    if (!string.IsNullOrWhiteSpace(filterOptions.SearchText))
+                    {
+                        query = query.Where(w => w.Name.Contains(filterOptions.SearchText) ||
+                                               (w.Description != null && w.Description.Contains(filterOptions.SearchText)));
+                    }
+                }
+
+                var workspaces = await query
                     .OrderBy(w => w.CreatedAt)
                     .ToListAsync();
 

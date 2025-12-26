@@ -101,9 +101,7 @@ namespace SuperAppServices.Mappings
             // StandardRegistry mappings
             CreateMap<StandardRegistry, StandardRegistryResponse>();
             CreateMap<StandardRegistryRequest, StandardRegistry>()
-                .ForMember(dest => dest.Id, opt => opt.Ignore())
-                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
-                .ForMember(dest => dest.UpdatedAt, opt => opt.Ignore());
+                .ForMember(dest => dest.Id, opt => opt.Ignore());
         }
     }
 }

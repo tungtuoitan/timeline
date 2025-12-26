@@ -23,11 +23,12 @@ namespace SuperAppDataRepositories.Ins
         Task<Workspace?> GetWorkspaceByIdAsync(int workspaceId, int userId);
 
         /// <summary>
-        /// Gets all workspaces for a user
+        /// Gets all workspaces for a user with optional filters
         /// </summary>
         /// <param name="userId">User ID</param>
+        /// <param name="filterOptions">Filter options (status, dates, etc.)</param>
         /// <returns>List of workspaces</returns>
-        Task<List<Workspace>> GetAllWorkspacesByUserIdAsync(int userId);
+        Task<List<Workspace>> GetAllWorkspacesByUserIdAsync(int userId, FilterOptions? filterOptions = null);
 
         /// <summary>
         /// Creates or updates a folder in a workspace

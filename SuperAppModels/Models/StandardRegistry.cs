@@ -11,9 +11,9 @@ namespace SuperAppModels.Models
         public int Id { get; set; }
 
         /// <summary>
-        /// Registry type code (unique)
+        /// Registry code
         /// </summary>
-        public string TypeCode { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
 
         /// <summary>
         /// Registry description/value
@@ -21,66 +21,59 @@ namespace SuperAppModels.Models
         public string? Description { get; set; }
 
         /// <summary>
+        /// Registry type (category)
+        /// </summary>
+        public string Type { get; set; } = string.Empty;
+
+        /// <summary>
         /// Whether the registry entry is active (BIT)
         /// </summary>
         public bool IsActive { get; set; } = true;
 
         /// <summary>
-        /// When the registry entry was created (UTC)
+        /// JSON detail data (flexible storage for additional properties)
         /// </summary>
-        public DateTime? CreatedAt { get; set; }
+        public string? Json_detail { get; set; }
 
         /// <summary>
-        /// When the registry entry was last updated (UTC)
+        /// User who created this entry
         /// </summary>
-        public DateTime? UpdatedAt { get; set; }
+        public string? CreatedBy { get; set; }
+
+        /// <summary>
+        /// When the registry entry was created
+        /// </summary>
+        public DateTime? CreatedDate { get; set; }
+
+        /// <summary>
+        /// User who last modified this entry
+        /// </summary>
+        public string? LastModifiedBy { get; set; }
+
+        /// <summary>
+        /// When the registry entry was last modified
+        /// </summary>
+        public DateTime? LastModifiedDate { get; set; }
 
         /// <summary>
         /// Default constructor
         /// </summary>
         public StandardRegistry()
         {
-            CreatedAt = DateTime.UtcNow;
             IsActive = true;
         }
 
         /// <summary>
         /// Constructor with required fields
         /// </summary>
-        /// <param name="typeCode">Registry type code</param>
+        /// <param name="code">Registry code</param>
+        /// <param name="type">Registry type</param>
         /// <param name="description">Registry description</param>
-        public StandardRegistry(string typeCode, string? description = null) : this()
+        public StandardRegistry(string code, string type, string? description = null) : this()
         {
-            TypeCode = typeCode ?? throw new ArgumentNullException(nameof(typeCode));
+            Code = code ?? throw new ArgumentNullException(nameof(code));
+            Type = type ?? throw new ArgumentNullException(nameof(type));
             Description = description;
-        }
-
-        /// <summary>
-        /// Updates the registry entry
-        /// </summary>
-        public void Update(string? description = null, bool? isActive = null)
-        {
-            if (description != null) Description = description;
-            if (isActive.HasValue) IsActive = isActive.Value;
-            UpdatedAt = DateTime.UtcNow;
-        }
-
-        /// <summary>
-        /// Activates the registry entry
-        /// </summary>
-        public void Activate()
-        {
-            IsActive = true;
-            UpdatedAt = DateTime.UtcNow;
-        }
-
-        /// <summary>
-        /// Deactivates the registry entry
-        /// </summary>
-        public void Deactivate()
-        {
-            IsActive = false;
-            UpdatedAt = DateTime.UtcNow;
         }
     }
 }
