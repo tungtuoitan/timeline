@@ -91,7 +91,6 @@ BEGIN
                 wi.item_type,
                 wi.item_id,
                 wi.parent_id,
-                wi.is_original,
                 0 AS depth
             FROM ws.workspace_items wi
             INNER JOIN @ItemsTable it ON wi.item_type = it.ItemType AND wi.item_id = it.ItemId
@@ -107,7 +106,6 @@ BEGIN
                 wi.item_type,
                 wi.item_id,
                 wi.parent_id,
-                wi.is_original,
                 parent.depth + 1
             FROM ws.workspace_items wi
             INNER JOIN ItemsToMove parent ON wi.parent_id = parent.item_id
@@ -167,7 +165,7 @@ BEGIN
             WHILE @CurrentDepth <= @MaxDepth
             BEGIN
                 -- Insert items at current depth level
-                INSERT INTO ws.workspace_items (workspace_id, parent_id, item_type, item_id, is_original, created_at)
+                INSERT INTO ws.workspace_items (workspace_id, parent_id, item_type, item_id, created_at)
                 OUTPUT inserted.id, @CurrentDepth, inserted.item_type, inserted.item_id INTO @IdMapping(NewId, Depth, ItemType, ItemId)
                 SELECT
                     @TargetWorkspaceId,
@@ -185,7 +183,6 @@ BEGIN
                     END,
                     itm.item_type,
                     itm.item_id,
-                    0, -- is_original = false (moved from another workspace)
                     GETUTCDATE()
                 FROM #TempItemsToMove itm
                 WHERE itm.depth = @CurrentDepth;
