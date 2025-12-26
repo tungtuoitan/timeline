@@ -22,7 +22,7 @@ namespace SuperAppServices.Interfaces
         /// </summary>
         /// <param name="userId">User ID</param>
         /// <returns>List of workspace summaries</returns>
-        Task<List<WorkspaceListResponse>> GetAllUserWorkspacesAsync(int userId);
+        Task<List<WsResponse>> GetAllUserWorkspacesAsync(int userId);
 
         /// <summary>
         /// Creates a new folder in a workspace

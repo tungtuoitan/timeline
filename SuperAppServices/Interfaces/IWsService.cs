@@ -6,7 +6,7 @@ namespace SuperAppServices.Interfaces
     /// <summary>
     /// Service interface for workspace list operations
     /// </summary>
-    public interface IWorkspaceListService
+    public interface IWsService
     {
         /// <summary>
         /// Get all workspaces with optional filters

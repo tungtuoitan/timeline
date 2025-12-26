@@ -4,7 +4,7 @@ namespace SuperAppModels.DTOs.Responses;
 /// Response DTO for workspace list item
 /// Used for displaying workspace selection dropdown
 /// </summary>
-public class WorkspaceListResponse
+public class WsResponse
 {
     /// <summary>
     /// Unique identifier for the workspace

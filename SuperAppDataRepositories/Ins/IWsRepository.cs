@@ -7,7 +7,7 @@ namespace SuperAppDataRepositories.Ins
     /// <summary>
     /// Repository interface for workspace list operations (ws.workspaces table)
     /// </summary>
-    public interface IWorkspaceListRepository
+    public interface IWsRepository
     {
         Task<ResultOptions> GetWorkspacesAsync(WorkspaceFilterOptions filterOptions);
         Task<ResultOptions> GetWorkspaceById(int workspaceId);

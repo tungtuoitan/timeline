@@ -14,14 +14,14 @@ namespace SuperAppAPI.Controllers
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class WorkspaceListController : ControllerBase
+    public class WsController : ControllerBase
     {
-        private readonly IWorkspaceListService _workspaceListService;
-        private readonly ILogger<WorkspaceListController> _logger;
+        private readonly IWsService _wsService;
+        private readonly ILogger<WsController> _logger;
 
-        public WorkspaceListController(IWorkspaceListService workspaceListService, ILogger<WorkspaceListController> logger)
+        public WsController(IWsService wsService, ILogger<WsController> logger)
         {
-            _workspaceListService = workspaceListService;
+            _wsService = wsService;
             _logger = logger;
         }
 
@@ -73,7 +73,7 @@ namespace SuperAppAPI.Controllers
                 "Retrieving workspaces for userId: {UserId}, UserEmail: {UserEmail}, SearchText: {SearchText}",
                 userId.Value, userEmail, searchText);
 
-            var response = await _workspaceListService.GetWorkspacesAsync(userId.Value, searchText);
+            var response = await _wsService.GetWorkspacesAsync(userId.Value, searchText);
 
             _logger.LogInformation("Successfully retrieved workspaces for user: {UserEmail}, Success: {Success}",
                 userEmail, response.Success);
@@ -129,7 +129,7 @@ namespace SuperAppAPI.Controllers
             _logger.LogInformation("Batch upserting {Count} workspaces for user: {UserEmail}",
                 requests.Count, userEmail);
 
-            var response = await _workspaceListService.UpsertWorkspacesBatchAsync(requests);
+            var response = await _wsService.UpsertWorkspacesBatchAsync(requests);
 
             _logger.LogInformation("Batch upsert workspaces completed for user: {UserEmail}, Success: {Success}",
                 userEmail, response.Success);
@@ -163,7 +163,7 @@ namespace SuperAppAPI.Controllers
 
             _logger.LogInformation("Retrieving workspace {WorkspaceId} for user: {UserEmail}", id, userEmail);
 
-            var response = await _workspaceListService.GetWorkspaceByIdAsync(id);
+            var response = await _wsService.GetWorkspaceByIdAsync(id);
 
             _logger.LogInformation("Retrieved workspace {WorkspaceId} for user: {UserEmail}, Success: {Success}", id, userEmail, response.Success);
             return Ok(response);
@@ -201,7 +201,7 @@ namespace SuperAppAPI.Controllers
                 id, userEmail);
 
             // Pass the string directly (no parsing needed - SP handles it)
-            var response = await _workspaceListService.DeleteWorkspacesAsync(id);
+            var response = await _wsService.DeleteWorkspacesAsync(id);
 
             _logger.LogInformation("Delete workspaces result for user: {UserEmail}, Success: {Success}", userEmail, response.Success);
             return Ok(response);

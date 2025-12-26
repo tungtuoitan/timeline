@@ -30,7 +30,7 @@ namespace SuperAppServices.Services
         /// <summary>
         /// Gets all workspaces for a user
         /// </summary>
-        public async Task<List<WorkspaceListResponse>> GetAllUserWorkspacesAsync(int userId)
+        public async Task<List<WsResponse>> GetAllUserWorkspacesAsync(int userId)
         {
             try
             {
@@ -38,7 +38,7 @@ namespace SuperAppServices.Services
 
                 var workspaces = await _workspaceRepository.GetAllWorkspacesByUserIdAsync(userId);
 
-                var response = _mapper.Map<List<WorkspaceListResponse>>(workspaces);
+                var response = _mapper.Map<List<WsResponse>>(workspaces);
 
                 _logger.LogInformation("Successfully retrieved {Count} workspaces for user {UserId}",
                     response.Count, userId);

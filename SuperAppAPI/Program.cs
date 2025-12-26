@@ -158,14 +158,14 @@ namespace SuperAppAPI
                     // Register repositories (with EF Core)
                     services.AddScoped<INoteRepository, NoteRepository>();
                     services.AddScoped<SuperAppDataRepositories.Ins.IWorkspaceRepository, WorkspaceRepository>();
-                    services.AddScoped<IWorkspaceListRepository, WorkspaceListRepository>();
+                    services.AddScoped<IWsRepository, WsRepository>();
                     services.AddScoped<IStandardRegistryRepository, StandardRegistryRepository>();
                     services.AddScoped<IUserRepository, UserRepository>();
                     services.AddScoped<IUserProfileRepository, UserProfileRepository>();
 
                     // Register Business Services
                     services.AddScoped<SuperAppServices.Interfaces.IWorkspaceService, SuperAppServices.Services.WorkspaceService>();
-                    services.AddScoped<SuperAppServices.Interfaces.IWorkspaceListService, SuperAppServices.Services.WorkspaceListService>();
+                    services.AddScoped<SuperAppServices.Interfaces.IWsService, SuperAppServices.Services.WsService>();
                     services.AddScoped<SuperAppServices.Interfaces.INoteService, SuperAppServices.Services.NoteService>();
                     services.AddScoped<SuperAppServices.Interfaces.IAuthService, SuperAppServices.Services.AuthService>();
                 });

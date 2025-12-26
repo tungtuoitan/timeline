@@ -46,7 +46,7 @@ namespace SuperAppAPI.Controllers
         /// <response code="401">Unauthorized - invalid or missing token</response>
         /// <response code="500">Internal server error</response>
         [HttpGet]
-        [ProducesResponseType(typeof(List<WorkspaceListResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(List<WsResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetAllUserWorkspaces()

@@ -76,7 +76,7 @@ namespace SuperAppServices.Mappings
                 .ForMember(dest => dest.UpdatedAt, opt => opt.Ignore());
 
             // Workspace mappings
-            CreateMap<Workspace, WorkspaceListResponse>();
+            CreateMap<Workspace, WsResponse>();
             CreateMap<Workspace, WorkspaceDTO>();
             CreateMap<UpsertWorkspaceRequest, Workspace>()
                 .ForMember(dest => dest.Id, opt => opt.Ignore())

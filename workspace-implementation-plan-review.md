@@ -1015,7 +1015,7 @@ public async Task<IActionResult> UpdateParent(
 ### Modified APIs
 
 ```csharp
-// WorkspaceListController.cs - Add validation
+// WsController.cs - Add validation
 
 [HttpPost("api/workspaces/{id}/items")]
 public async Task<IActionResult> AddItemToWorkspace(
@@ -1261,14 +1261,14 @@ GO
 - [ ] Benchmark performance
 
 ### Phase 4: Repository Layer (2 days)
-- [ ] Update `WorkspaceListRepository` with validations
+- [ ] Update `WsRepository` with validations
 - [ ] Implement `GetWorkspaceTreeAsync` using SP
 - [ ] Implement `CopyNoteAsync`, `CopyFileAsync`, `CopyFolderAsync`
 - [ ] Implement `PermanentDeleteWithCascadeAsync`
 - [ ] Unit tests
 
 ### Phase 5: Service Layer (2 days)
-- [ ] Update `WorkspaceListService`
+- [ ] Update `WsService`
 - [ ] Update `NoteService`
 - [ ] Implement permission checking with `WorkspaceMember`
 - [ ] Integration tests

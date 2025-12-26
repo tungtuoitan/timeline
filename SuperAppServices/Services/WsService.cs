@@ -12,20 +12,20 @@ namespace SuperAppServices.Services
     /// <summary>
     /// Service for workspace list operations (ws.workspaces)
     /// </summary>
-    public class WorkspaceListService : IWorkspaceListService
+    public class WsService : IWsService
     {
-        private readonly IWorkspaceListRepository _workspaceListRepository;
+        private readonly IWsRepository _wsRepository;
         private readonly IUserRepository _userRepository;
         private readonly IMapper _mapper;
-        private readonly ILogger<WorkspaceListService> _logger;
+        private readonly ILogger<WsService> _logger;
 
-        public WorkspaceListService( 
-            IWorkspaceListRepository workspaceListRepository,
+        public WsService( 
+            IWsRepository wsRepository,
             IUserRepository userRepository,
             IMapper mapper,
-            ILogger<WorkspaceListService> logger)
+            ILogger<WsService> logger)
         {
-            _workspaceListRepository = workspaceListRepository ?? throw new ArgumentNullException(nameof(workspaceListRepository));
+            _wsRepository = wsRepository ?? throw new ArgumentNullException(nameof(wsRepository));
             _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -48,7 +48,7 @@ namespace SuperAppServices.Services
                 };
 
                 // Repository returns ResultOptions
-                var result = await _workspaceListRepository.GetWorkspacesAsync(filterOptions);
+                var result = await _wsRepository.GetWorkspacesAsync(filterOptions);
                 
                 if (!result.Success)
                 {
@@ -91,7 +91,7 @@ namespace SuperAppServices.Services
                 _logger.LogInformation("Getting workspace with ID: {WorkspaceId}", workspaceId);
 
                 // Repository returns ResultOptions
-                var result = await _workspaceListRepository.GetWorkspaceById(workspaceId);
+                var result = await _wsRepository.GetWorkspaceById(workspaceId);
 
                 if (!result.Success)
                 {
@@ -184,7 +184,7 @@ namespace SuperAppServices.Services
                         }
 
                         // Upsert workspace (create or update)
-                        var result = await _workspaceListRepository.UpsertWorkspaceAsync(workspace);
+                        var result = await _wsRepository.UpsertWorkspaceAsync(workspace);
 
                         if (!result.Success)
                         {
@@ -270,7 +270,7 @@ namespace SuperAppServices.Services
                 _logger.LogInformation("Deleting workspaces with IDs: {WorkspaceIds})",
                     workspaceIds);
 
-                var result = await _workspaceListRepository.DeleteWorkspacesCascadeAsync(workspaceIds);
+                var result = await _wsRepository.DeleteWorkspacesCascadeAsync(workspaceIds);
 
                 if (result.Success)
                 {

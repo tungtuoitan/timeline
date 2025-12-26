@@ -13,14 +13,14 @@ namespace SuperAppDataRepositories.Repositories
     /// <summary>
     /// Repository for workspace list data access (ws.workspaces table)
     /// </summary>
-    public class WorkspaceListRepository : IWorkspaceListRepository
+    public class WsRepository : IWsRepository
     {
         private readonly ApplicationDbContext _context;
-        private readonly ILogger<WorkspaceListRepository> _logger;
+        private readonly ILogger<WsRepository> _logger;
          
-        public WorkspaceListRepository(
+        public WsRepository(
             ApplicationDbContext context,
-            ILogger<WorkspaceListRepository> logger)
+            ILogger<WsRepository> logger)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
