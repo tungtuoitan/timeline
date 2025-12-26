@@ -50,7 +50,6 @@ namespace SuperAppAPI.Controllers
         /// <summary>
         /// Gets all notes with optional filtering for the authenticated user
         /// </summary>
-        /// <param name="getAll">Get all notes flag (admin only)</param>
         /// <param name="searchText">Optional search text filter</param>
         /// <param name="tagIds">Optional tag IDs filter</param>
         /// <returns>ResultOptions containing list of notes matching the criteria</returns>
@@ -61,7 +60,6 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetNotes(
-            [FromQuery] bool getAll = false,
             [FromQuery] string? searchText = null,
             [FromQuery] List<int>? tagIds = null)
         {
@@ -75,10 +73,10 @@ namespace SuperAppAPI.Controllers
             var userEmail = GetAuthenticatedUserEmail();
 
             _logger.LogInformation(
-                "Retrieving notes for userId: {UserId}, UserEmail: {UserEmail}, GetAll: {GetAll}, SearchText: {SearchText}, TagIds: {TagIds}",
-                userId.Value, userEmail, getAll, searchText, tagIds != null ? string.Join(",", tagIds) : "null");
+                "Retrieving notes for userId: {UserId}, UserEmail: {UserEmail}, SearchText: {SearchText}, TagIds: {TagIds}",
+                userId.Value, userEmail, searchText, tagIds != null ? string.Join(",", tagIds) : "null");
 
-            var response = await _noteService.GetNotesAsync(userId.Value, getAll, searchText, tagIds);
+            var response = await _noteService.GetNotesAsync(userId.Value, searchText, tagIds);
 
             _logger.LogInformation("Successfully retrieved notes for user: {UserEmail}, Success: {Success}",
                 userEmail, response.Success);
@@ -87,27 +85,33 @@ namespace SuperAppAPI.Controllers
         }
 
         /// <summary>
-        /// Creates a new note or updates an existing note (upsert)
+        /// Batch upsert multiple notes (create or update) in a single request
+        /// Use this for single note operations by passing an array with 1 element
         /// </summary>
-        /// <param name="request">Note upsert data</param>
-        /// <returns>Created or updated note</returns>
-        /// <response code="200">Note updated successfully</response>
-        /// <response code="201">Note created successfully</response>
+        /// <param name="requests">List of note upsert data</param>
+        /// <returns>Batch operation results</returns>
+        /// <response code="200">Notes upserted successfully</response>
         /// <response code="400">Invalid input data</response>
         /// <response code="401">Unauthorized - invalid or missing token</response>
         /// <response code="500">Internal server error</response>
         [HttpPost]
+        [HttpPost("batch")]
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UpsertNote([FromBody] UpsertNoteRequest request)
+        public async Task<IActionResult> UpsertNotesBatch([FromBody] List<UpsertNoteRequest> requests)
         {
             if (!ModelState.IsValid)
             {
-                _logger.LogWarning("Invalid model state for upsert note request");
+                _logger.LogWarning("Invalid model state for batch upsert notes request");
                 return BadRequest(ModelState);
+            }
+
+            if (requests == null || !requests.Any())
+            {
+                _logger.LogWarning("Empty batch upsert request");
+                return BadRequest("At least one note is required");
             }
 
             // Get userId from JWT token claims
@@ -119,26 +123,29 @@ namespace SuperAppAPI.Controllers
 
             var userEmail = GetAuthenticatedUserEmail();
 
-            // Set userId and CreatedBy from authenticated user
-            request.UserId = userId.Value;
-            request.CreatedBy = userEmail;
-
-            // Clean up TagIds - remove invalid values (0 or negative)
-            if (request.TagIds != null && request.TagIds.Any())
+            // Set userId and CreatedBy for all requests
+            foreach (var request in requests)
             {
-                request.TagIds = request.TagIds.Where(tagId => tagId > 0).Distinct().ToList();
-                if (!request.TagIds.Any())
+                request.UserId = userId.Value;
+                request.CreatedBy = userEmail;
+
+                // Clean up TagIds - remove invalid values (0 or negative)
+                if (request.TagIds != null && request.TagIds.Any())
                 {
-                    request.TagIds = null;
+                    request.TagIds = request.TagIds.Where(tagId => tagId > 0).Distinct().ToList();
+                    if (!request.TagIds.Any())
+                    {
+                        request.TagIds = null;
+                    }
                 }
             }
 
-            _logger.LogInformation("Upserting note with ID: {NoteId}, Name: '{NoteName}' for user: {UserEmail}",
-                request.Id, request.Name, userEmail);
+            _logger.LogInformation("Batch upserting {Count} notes for user: {UserEmail}",
+                requests.Count, userEmail);
 
-            var response = await _noteService.UpsertNoteAsync(request);
+            var response = await _noteService.UpsertNotesBatchAsync(requests);
 
-            _logger.LogInformation("Note upserted for user: {UserEmail}, Success: {Success}",
+            _logger.LogInformation("Batch upsert notes completed for user: {UserEmail}, Success: {Success}",
                 userEmail, response.Success);
 
             return Ok(response);
@@ -178,10 +185,10 @@ namespace SuperAppAPI.Controllers
 
       
         /// <summary>
-        /// Deletes one or more notes for the authenticated user
+        /// Hard deletes one or more notes for the authenticated user (permanently removes from database)
+        /// For soft delete, use the Upsert endpoint with deletedAt timestamp
         /// </summary>
         /// <param name="id">Note ID to delete (supports comma-separated IDs, e.g., "1,2,3")</param>
-        /// <param name="isHardDelete">Hard delete flag: true = permanently delete, false = soft delete (default)</param>
         /// <returns>No content on successful deletion</returns>
         /// <response code="204">Note(s) deleted successfully</response>
         /// <response code="400">Invalid note ID(s)</response>
@@ -194,7 +201,7 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> DeleteNote(string id, [FromQuery] bool isHardDelete = false)
+        public async Task<IActionResult> DeleteNote(string id)
         {
             if (string.IsNullOrWhiteSpace(id))
             {
@@ -204,56 +211,17 @@ namespace SuperAppAPI.Controllers
 
             var userEmail = GetAuthenticatedUserEmail();
 
-            _logger.LogInformation("Deleting note(s) {NoteIds} for user: {UserEmail} (HardDelete: {IsHardDelete})", 
-                id, userEmail, isHardDelete);
+            _logger.LogInformation("Hard deleting note(s) {NoteIds} for user: {UserEmail}",
+                id, userEmail);
 
             // Parse comma-separated IDs
             var noteIds = id.Split(',', StringSplitOptions.RemoveEmptyEntries)
                 .Select(int.Parse)
                 .ToList();
 
-            var response = await _noteService.DeleteNotesAsync(noteIds, isHardDelete);
+            var response = await _noteService.DeleteNotesAsync(noteIds);
 
             _logger.LogInformation("Delete notes result for user: {UserEmail}, Success: {Success}", userEmail, response.Success);
-            return Ok(response);
-        }
-
-        /// <summary>
-        /// Restores one or more deleted notes for the authenticated user (undo soft delete)
-        /// </summary>
-        /// <param name="id">Note ID to restore (supports comma-separated IDs, e.g., "1,2,3")</param>
-        /// <returns>No content on successful restoration</returns>
-        /// <response code="204">Note(s) restored successfully</response>
-        /// <response code="400">Invalid note ID(s)</response>
-        /// <response code="401">Unauthorized - invalid or missing token</response>
-        /// <response code="404">Note(s) not found or not deleted</response>
-        /// <response code="500">Internal server error</response>
-        [HttpPost("undo/{id}")]
-        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UndoDeleteNote(string id)
-        {
-            if (string.IsNullOrWhiteSpace(id))
-            {
-                _logger.LogWarning("Empty note ID(s) provided for undo deletion");
-                throw new BadRequestException("Note ID(s) must be provided");
-            }
-
-            var userEmail = GetAuthenticatedUserEmail();
-
-            _logger.LogInformation("Restoring deleted note(s) {NoteIds} for user: {UserEmail}", id, userEmail);
-
-            // Parse comma-separated IDs
-            var noteIds = id.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                .Select(int.Parse)
-                .ToList();
-
-            var response = await _noteService.UndoDeleteNotesAsync(noteIds);
-
-            _logger.LogInformation("Restore notes result for user: {UserEmail}, Success: {Success}", userEmail, response.Success);
             return Ok(response);
         }
 

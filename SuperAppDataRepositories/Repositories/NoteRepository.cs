@@ -35,8 +35,8 @@ namespace SuperAppDataRepositories.Repositories
                     throw new ArgumentNullException(nameof(filterOptions));
 
                 _logger.LogInformation(
-                    "Getting notes with filters - UserEmail: {UserEmail}, UserId: {UserId}, GetAll: {GetAll}, SearchText: {SearchText}, TagIds: {TagIds}, PageNumber: {PageNumber}, PageSize: {PageSize}",
-                    filterOptions.UserEmail, filterOptions.UserId, filterOptions.GetAll, 
+                    "Getting notes with filters - UserEmail: {UserEmail}, UserId: {UserId}, SearchText: {SearchText}, TagIds: {TagIds}, PageNumber: {PageNumber}, PageSize: {PageSize}",
+                    filterOptions.UserEmail, filterOptions.UserId, 
                     filterOptions.SearchText, 
                     filterOptions.TagIds != null ? string.Join(",", filterOptions.TagIds) : "null",
                     filterOptions.PageNumber, filterOptions.PageSize);
@@ -196,12 +196,16 @@ namespace SuperAppDataRepositories.Repositories
 
                 if (isUpdate)
                 {
-                    // UPDATE existing note
-                    _logger.LogInformation("Updating note ID: {NoteId}, Name: '{Name}', UserId: {UserId}, TagIds: [{TagIds}], ParentId: {ParentId}",
-                        note.Id, note.Name, note.UserId, tagIds != null ? string.Join(",", tagIds) : "null", parentId);
-
+                    // Determine operation type for logging
                     var existingNote = await _context.Notes
-                        .FirstOrDefaultAsync(n => n.Id == note.Id && n.DeletedAt == null);
+                        .IgnoreQueryFilters()  // Find deleted notes too (for restore)
+                        .FirstOrDefaultAsync(n => n.Id == note.Id);
+
+                    var operation = note.DeletedAt.HasValue ? "Soft deleting" :
+                                   (existingNote?.DeletedAt.HasValue == true ? "Restoring" : "Updating");
+
+                    _logger.LogInformation("{Operation} note ID: {NoteId}, Name: '{Name}', UserId: {UserId}, TagIds: [{TagIds}], ParentId: {ParentId}",
+                        operation, note.Id, note.Name, note.UserId, tagIds != null ? string.Join(",", tagIds) : "null", parentId);
 
                     if (existingNote == null)
                     {
@@ -231,6 +235,7 @@ namespace SuperAppDataRepositories.Repositories
                     existingNote.Name = note.Name;
                     existingNote.Description = note.Description;
                     existingNote.UserId = note.UserId;
+                    existingNote.DeletedAt = note.DeletedAt;  // Handle soft delete/restore
                     existingNote.UpdatedAt = DateTime.UtcNow;
 
                     await _context.SaveChangesAsync();
@@ -354,9 +359,9 @@ namespace SuperAppDataRepositories.Repositories
         }
 
         /// <summary>
-        /// Deletes multiple notes by IDs in a single batch operation (soft or hard delete)
+        /// Permanently deletes multiple notes by IDs with cascade to workspace_items
         /// </summary>
-        public async Task<ResultOptions> DeleteNotesBatchAsync(List<int> noteIds, bool isHardDelete = false)
+        public async Task<ResultOptions> DeleteNotesBatchAsync(List<int> noteIds)
         {
             try
             {
@@ -371,28 +376,22 @@ namespace SuperAppDataRepositories.Repositories
                     };
                 }
 
-                _logger.LogInformation("Batch deleting notes with IDs: {NoteIds} (HardDelete: {IsHardDelete})", 
-                    string.Join(",", noteIds), isHardDelete);
+                _logger.LogInformation("Permanently deleting notes with IDs: {NoteIds}",
+                    string.Join(",", noteIds));
 
-                int affectedRows;
+                // Step 1: Delete workspace_items pointing to these notes
+                var workspaceItemsDeleted = await _context.WorkspaceItems
+                    .Where(wi => wi.ItemType == 3 && noteIds.Contains(wi.ItemId))
+                    .ExecuteDeleteAsync();
 
-                if (isHardDelete)
-                {
-                    // Hard delete - permanently remove from database
-                    affectedRows = await _context.Notes
-                        .Where(n => noteIds.Contains(n.Id))
-                        .ExecuteDeleteAsync();
-                }
-                else
-                {
-                    // Soft delete - set deleted_at timestamp
-                    affectedRows = await _context.Notes
-                        .Where(n => noteIds.Contains(n.Id) && n.DeletedAt == null)
-                        .ExecuteUpdateAsync(setters => setters
-                            .SetProperty(n => n.DeletedAt, DateTime.UtcNow));
-                }
+                _logger.LogInformation("Deleted {Count} workspace_items for notes", workspaceItemsDeleted);
 
-                if (affectedRows == 0)
+                // Step 2: Delete notes
+                var notesDeleted = await _context.Notes
+                    .Where(n => noteIds.Contains(n.Id))
+                    .ExecuteDeleteAsync();
+
+                if (notesDeleted == 0)
                 {
                     _logger.LogWarning("No notes found to delete with IDs: {NoteIds}", string.Join(",", noteIds));
                     return new ResultOptions
@@ -403,29 +402,29 @@ namespace SuperAppDataRepositories.Repositories
                     };
                 }
 
-                _logger.LogInformation("Successfully batch deleted {Count} notes (HardDelete: {IsHardDelete})", 
-                    affectedRows, isHardDelete);
-                    
+                _logger.LogInformation("Successfully permanently deleted {Count} note(s) and {WICount} workspace_items",
+                    notesDeleted, workspaceItemsDeleted);
+
                 return new ResultOptions
                 {
                     Success = true,
-                    Message = $"Successfully deleted {affectedRows} note(s)",
+                    Message = $"Successfully permanently deleted {notesDeleted} note(s)",
                     Status = 200
                 };
             }
             catch (DbUpdateException ex)
             {
-                _logger.LogError(ex, "Database error while batch deleting notes with IDs: {NoteIds}", string.Join(",", noteIds));
+                _logger.LogError(ex, "Database error while deleting notes with IDs: {NoteIds}", string.Join(",", noteIds));
                 return new ResultOptions
                 {
                     Success = false,
-                    Message = "Database error occurred while batch deleting notes",
+                    Message = "Database error occurred while deleting notes",
                     Status = 500
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error batch deleting notes with IDs: {NoteIds}", string.Join(",", noteIds));
+                _logger.LogError(ex, "Error deleting notes with IDs: {NoteIds}", string.Join(",", noteIds));
                 return new ResultOptions
                 {
                     Success = false,

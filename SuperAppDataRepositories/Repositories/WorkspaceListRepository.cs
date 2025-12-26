@@ -37,8 +37,8 @@ namespace SuperAppDataRepositories.Repositories
                     throw new ArgumentNullException(nameof(filterOptions));
 
                 _logger.LogInformation(
-                    "Getting workspaces with filters - UserId: {UserId}, GetAll: {GetAll}, SearchText: {SearchText}, PageNumber: {PageNumber}, PageSize: {PageSize}",
-                    filterOptions.UserId, filterOptions.GetAll, 
+                    "Getting workspaces with filters - UserId: {UserId}, SearchText: {SearchText}, PageNumber: {PageNumber}, PageSize: {PageSize}",
+                    filterOptions.UserId, 
                     filterOptions.SearchText, 
                     filterOptions.PageNumber, filterOptions.PageSize);
 
@@ -191,12 +191,17 @@ namespace SuperAppDataRepositories.Repositories
 
                 if (isUpdate)
                 {
-                    // UPDATE existing workspace
-                    _logger.LogInformation("Updating workspace ID: {WorkspaceId}, Name: '{Name}', UserId: {UserId}",
-                        workspace.Id, workspace.Name, workspace.UserId);
-
+                    // Find workspace (including deleted ones for restore)
                     var existingWorkspace = await _context.Workspaces
-                        .FirstOrDefaultAsync(w => w.Id == workspace.Id && w.DeletedAt == null);
+                        .IgnoreQueryFilters()
+                        .FirstOrDefaultAsync(w => w.Id == workspace.Id);
+
+                    // Determine operation type for logging
+                    var operation = workspace.DeletedAt.HasValue ? "Soft deleting" :
+                                   (existingWorkspace?.DeletedAt.HasValue == true ? "Restoring" : "Updating");
+
+                    _logger.LogInformation("{Operation} workspace ID: {WorkspaceId}, Name: '{Name}', UserId: {UserId}",
+                        operation, workspace.Id, workspace.Name, workspace.UserId);
 
                     if (existingWorkspace == null)
                     {
@@ -226,6 +231,7 @@ namespace SuperAppDataRepositories.Repositories
                     existingWorkspace.Name = workspace.Name;
                     existingWorkspace.Description = workspace.Description;
                     existingWorkspace.UserId = workspace.UserId;
+                    existingWorkspace.DeletedAt = workspace.DeletedAt;  // Handle soft delete/restore
                     existingWorkspace.UpdatedAt = DateTime.UtcNow;
 
                     await _context.SaveChangesAsync();
@@ -316,7 +322,7 @@ namespace SuperAppDataRepositories.Repositories
         /// Deletes multiple workspaces with CASCADE to all items (folders/notes/files) using stored procedure
         /// UNIFORMLY treats all tables: either ALL soft delete OR ALL hard delete
         /// </summary>
-        public async Task<ResultOptions> DeleteWorkspacesCascadeAsync(string workspaceIds, bool isHardDelete = false)
+        public async Task<ResultOptions> DeleteWorkspacesCascadeAsync(string workspaceIds)
         {
             try
             {
@@ -331,18 +337,17 @@ namespace SuperAppDataRepositories.Repositories
                     };
                 }
 
-                _logger.LogInformation("Cascade deleting workspaces with IDs: {WorkspaceIds} (HardDelete: {IsHardDelete})", 
-                    workspaceIds, isHardDelete);
+                _logger.LogInformation("Cascade deleting workspaces with IDs: {WorkspaceIds})", 
+                    workspaceIds);
 
                 // Execute stored procedure
                 var workspaceIdsParam = new SqlParameter("@iv_workspace_ids", SqlDbType.NVarChar, -1) { Value = workspaceIds };
-                var isHardDeleteParam = new SqlParameter("@iv_is_hardDelete", isHardDelete);
                 var deletedCountParam = new SqlParameter("@ov_deleted_count", SqlDbType.Int) { Direction = ParameterDirection.Output };
 
                 // Execute stored procedure
                 await _context.Database.ExecuteSqlRawAsync(
-                    "EXEC [ws].[sp_DeleteWorkspace] @iv_workspace_ids, @iv_is_hardDelete, @ov_deleted_count OUTPUT",
-                    workspaceIdsParam, isHardDeleteParam, deletedCountParam
+                    "EXEC [ws].[sp_DeleteWorkspace] @iv_workspace_ids, @ov_deleted_count OUTPUT",
+                    workspaceIdsParam, deletedCountParam
                 );
 
                 var deletedCount = (int)deletedCountParam.Value;
@@ -358,15 +363,13 @@ namespace SuperAppDataRepositories.Repositories
                     };
                 }
 
-                _logger.LogInformation("Successfully cascade deleted {Count} workspaces (HardDelete: {IsHardDelete})", 
-                    deletedCount, isHardDelete);
+                _logger.LogInformation("Successfully cascade deleted {Count} workspaces)", 
+                    deletedCount);
                     
                 return new ResultOptions
                 {
                     Success = true,
-                    Message = isHardDelete 
-                        ? $"Successfully permanently deleted {deletedCount} workspace(s) and all related items"
-                        : $"Successfully deleted {deletedCount} workspace(s) and all related items",
+                    Message = $"Successfully permanently deleted {deletedCount} workspace(s) and all related items",
                     Reference = deletedCount.ToString(),
                     Status = 200
                 };

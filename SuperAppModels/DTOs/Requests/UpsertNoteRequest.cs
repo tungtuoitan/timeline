@@ -36,5 +36,12 @@ namespace SuperAppModels.DTOs.Requests
         /// User email who created/updated the note
         /// </summary>
         public string? CreatedBy { get; set; }
+
+        /// <summary>
+        /// Optional: Soft delete timestamp (null = active, DateTime = soft deleted)
+        /// Enables soft delete/restore via upsert
+        /// </summary>
+        [JsonPropertyName("deletedAt")]
+        public DateTime? DeletedAt { get; set; }
     }
 }

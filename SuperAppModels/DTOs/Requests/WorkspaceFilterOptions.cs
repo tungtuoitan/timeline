@@ -11,11 +11,6 @@ namespace SuperAppModels.DTOs.Requests
         public int? UserId { get; set; }
 
         /// <summary>
-        /// Get all workspaces flag (admin only)
-        /// </summary>
-        public bool GetAll { get; set; }
-
-        /// <summary>
         /// Search text for filtering by name or description
         /// </summary>
         public string? SearchText { get; set; }

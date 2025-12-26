@@ -24,5 +24,12 @@ namespace SuperAppModels.DTOs.Requests
         /// User ID (set by backend from authenticated user)
         /// </summary>
         public int? UserId { get; set; }
+
+        /// <summary>
+        /// Optional: Soft delete timestamp (null = active, DateTime = soft deleted)
+        /// Enables soft delete/restore via upsert
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("deletedAt")]
+        public DateTime? DeletedAt { get; set; }
     }
 }

@@ -34,17 +34,16 @@ namespace SuperAppServices.Services
         /// <summary>
         /// Get all notes with optional filters
         /// </summary>
-        public async Task<ResultOptions> GetNotesAsync(int userId, bool getAll, string? searchText, List<int>? tagIds)
+        public async Task<ResultOptions> GetNotesAsync(int userId, string? searchText, List<int>? tagIds)
         {
             try
             {
-                _logger.LogInformation("Getting notes for UserId: {UserId}, GetAll: {GetAll}, SearchText: {SearchText}, TagIds: {TagIds}",
-                    userId, getAll, searchText, tagIds != null ? string.Join(",", tagIds) : "null");
+                _logger.LogInformation("Getting notes for UserId: {UserId}, SearchText: {SearchText}, TagIds: {TagIds}",
+                    userId, searchText, tagIds != null ? string.Join(",", tagIds) : "null");
 
                 var filterOptions = new NoteFilterOptions
                 {
                     UserId = userId,  // ✅ Filter by userId
-                    GetAll = getAll,
                     SearchText = searchText,
                     TagIds = tagIds
                 };
@@ -136,86 +135,129 @@ namespace SuperAppServices.Services
         }
 
         /// <summary>
-        /// Create or update note (upsert)
+        /// Batch upsert multiple notes (create or update)
+        /// For single note operations, pass a list with 1 element
         /// </summary>
-        public async Task<ResultOptions> UpsertNoteAsync(UpsertNoteRequest request)
+        public async Task<ResultOptions> UpsertNotesBatchAsync(List<UpsertNoteRequest> requests)
         {
             try
             {
-                _logger.LogInformation("Processing note with ID: {NoteId}, Name: '{Name}', TagIds: [{TagIds}]",
-                    request.Id,
-                    request.Name,
-                    request.TagIds != null ? string.Join(",", request.TagIds) : "null");
-
-                var note = _mapper.Map<Note>(request);
-                note.Id = request.Id;
-
-                // Set UserId from request (populated by controller from JWT claims)
-                if (request.UserId.HasValue && request.UserId.Value > 0)
+                if (requests == null || !requests.Any())
                 {
-                    note.UserId = request.UserId.Value;
-                }
-                else
-                {
-                    throw new ArgumentException("UserId is required");
-                }
-
-                // Upsert note (create or update)
-                var result = await _noteRepository.UpsertNoteAsync(note, request.TagIds, null);
-
-                if (!result.Success)
-                {
-                    return result; // Return repository error as-is
-                }
-
-                // Map Note entity to NoteDTO
-                var resultNote = result.Object as Note;
-                if (resultNote == null)
-                {
+                    _logger.LogWarning("Empty note batch upsert request");
                     return new ResultOptions
                     {
                         Success = false,
-                        Message = "Failed to process note",
-                        Status = 500
+                        Message = "No notes provided for batch upsert",
+                        Status = 400
                     };
                 }
 
-                var response = _mapper.Map<NoteDTO>(resultNote);
+                _logger.LogInformation("Batch upserting {Count} notes", requests.Count);
 
-                _logger.LogInformation("Successfully processed note with ID: {NoteId}, final TagCount: {TagCount}",
-                    resultNote.Id, response.Tags?.Count ?? 0);
-                
+                var successCount = 0;
+                var failCount = 0;
+                var errors = new List<string>();
+                var results = new List<NoteDTO>();
+
+                foreach (var request in requests)
+                {
+                    try
+                    {
+                        _logger.LogInformation("Processing note with ID: {NoteId}, Name: '{Name}', TagIds: [{TagIds}]",
+                            request.Id,
+                            request.Name,
+                            request.TagIds != null ? string.Join(",", request.TagIds) : "null");
+
+                        var note = _mapper.Map<Note>(request);
+                        note.Id = request.Id;
+                        note.DeletedAt = request.DeletedAt;  // Map deletedAt for soft delete/restore
+
+                        // Validation: can't soft delete a new note
+                        if (request.DeletedAt.HasValue && request.Id == 0)
+                        {
+                            throw new ArgumentException("Cannot set deletedAt on a new note. Use ID > 0 for soft delete/restore.");
+                        }
+
+                        // Set UserId from request (populated by controller from JWT claims)
+                        if (request.UserId.HasValue && request.UserId.Value > 0)
+                        {
+                            note.UserId = request.UserId.Value;
+                        }
+                        else
+                        {
+                            throw new ArgumentException("UserId is required");
+                        }
+
+                        // Upsert note (create or update)
+                        var result = await _noteRepository.UpsertNoteAsync(note, request.TagIds, null);
+
+                        if (!result.Success)
+                        {
+                            errors.Add($"Note ID {request.Id}: {result.Message}");
+                            failCount++;
+                            continue;
+                        }
+
+                        // Map Note entity to NoteDTO
+                        var resultNote = result.Object as Note;
+                        if (resultNote == null)
+                        {
+                            errors.Add($"Note ID {request.Id}: Failed to process note");
+                            failCount++;
+                            continue;
+                        }
+
+                        var response = _mapper.Map<NoteDTO>(resultNote);
+                        results.Add(response);
+                        successCount++;
+
+                        _logger.LogInformation("Successfully processed note with ID: {NoteId}, final TagCount: {TagCount}",
+                            resultNote.Id, response.Tags?.Count ?? 0);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        _logger.LogWarning(ex, "Invalid argument while processing note with ID: {NoteId}", request.Id);
+                        errors.Add($"Note ID {request.Id}: {ex.Message}");
+                        failCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Unexpected error occurred while processing note with ID: {NoteId}", request.Id);
+                        errors.Add($"Note ID {request.Id}: {ex.Message}");
+                        failCount++;
+                    }
+                }
+
+                var message = successCount > 0
+                    ? $"Successfully upserted {successCount}/{requests.Count} notes"
+                    : "Failed to upsert all notes";
+
+                if (failCount > 0)
+                {
+                    message += $". {failCount} failed.";
+                }
+
+                _logger.LogInformation("Batch upsert completed: {SuccessCount} succeeded, {FailCount} failed",
+                    successCount, failCount);
+
                 return new ResultOptions
                 {
-                    Success = true,
-                    Message = result.Status == 201 ? "Note created successfully" : "Note updated successfully",
-                    Object = response,
-                    Status = result.Status
-                };
-            }
-            catch (InvalidOperationException ex)
-            {
-                _logger.LogWarning(ex, "Invalid operation while processing note with ID: {NoteId}", request.Id);
-                return new ResultOptions
-                {
-                    Success = false,
-                    Message = ex.Message,
-                    Status = 400
-                };
-            }
-            catch (ArgumentException ex)
-            {
-                _logger.LogWarning(ex, "Invalid argument while processing note with ID: {NoteId}", request.Id);
-                return new ResultOptions
-                {
-                    Success = false,
-                    Message = ex.Message,
-                    Status = 400
+                    Success = successCount > 0,
+                    Message = message,
+                    Object = new
+                    {
+                        SuccessCount = successCount,
+                        FailCount = failCount,
+                        Errors = errors,
+                        Notes = results
+                    },
+                    Status = successCount > 0 ? 200 : 400
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unexpected error occurred while processing note with ID: {NoteId}", request.Id);
+                _logger.LogError(ex, "Error occurred during batch upsert");
                 return new ResultOptions
                 {
                     Success = false,
@@ -228,7 +270,7 @@ namespace SuperAppServices.Services
         /// <summary>
         /// Delete notes by IDs (soft or hard delete)
         /// </summary>
-        public async Task<ResultOptions> DeleteNotesAsync(List<int> noteIds, bool isHardDelete = false)
+        public async Task<ResultOptions> DeleteNotesAsync(List<int> noteIds)
         {
             try
             {
@@ -243,11 +285,11 @@ namespace SuperAppServices.Services
                     };
                 }
 
-                _logger.LogInformation("Deleting notes with IDs: {NoteIds} (HardDelete: {IsHardDelete})", 
-                    string.Join(",", noteIds), isHardDelete);
+                _logger.LogInformation("Deleting notes with IDs: {NoteIds})",
+                    string.Join(",", noteIds));
 
                 // Repository now returns ResultOptions
-                var result = await _noteRepository.DeleteNotesBatchAsync(noteIds, isHardDelete);
+                var result = await _noteRepository.DeleteNotesBatchAsync(noteIds);
 
                 _logger.LogInformation("Delete operation result: Success={Success}, Message={Message}", result.Success, result.Message);
                 return result;
@@ -264,42 +306,5 @@ namespace SuperAppServices.Services
             }
         }
 
-        /// <summary>
-        /// Restore deleted notes by setting deleted_at to null
-        /// </summary>
-        public async Task<ResultOptions> UndoDeleteNotesAsync(List<int> noteIds)
-        {
-            try
-            {
-                if (noteIds == null || !noteIds.Any())
-                {
-                    _logger.LogWarning("Empty note IDs provided for undo delete");
-                    return new ResultOptions
-                    {
-                        Success = false,
-                        Message = "No note IDs provided",
-                        Status = 400
-                    };
-                }
-
-                _logger.LogInformation("Restoring notes with IDs: {NoteIds}", string.Join(",", noteIds));
-
-                // Repository now returns ResultOptions
-                var result = await _noteRepository.UndoDeleteNotesBatchAsync(noteIds);
-
-                _logger.LogInformation("Restore operation result: Success={Success}, Message={Message}", result.Success, result.Message);
-                return result;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error occurred while restoring notes with IDs: {NoteIds}", string.Join(",", noteIds));
-                return new ResultOptions
-                {
-                    Success = false,
-                    Message = ex.Message,
-                    Status = 500
-                };
-            }
-        }
     }
 }

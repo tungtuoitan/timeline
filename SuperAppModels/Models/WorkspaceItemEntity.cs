@@ -13,12 +13,14 @@ namespace SuperAppModels.Models
         public int? ParentId { get; set; } // parent_id INT (FK to ws.folders.id, NULLABLE for root items)
         public byte ItemType { get; set; } // item_type TINYINT (2=folder, 3=note, 4=file)
         public int ItemId { get; set; } // item_id INT (actual folder_id/note_id/file_id)
-        public bool IsOriginal { get; set; } = true; // is_original BIT DEFAULT 1
 
         // Timestamps (ITimestampEntity)
         public DateTime? CreatedAt { get; set; } // created_at DATETIME2 DEFAULT GETUTCDATE()
         public DateTime? UpdatedAt { get; set; } // updated_at DATETIME2
         public DateTime? DeletedAt { get; set; } // deleted_at DATETIME2
+
+        // Copy tracking (for future copy feature)
+        public string? CopyInfo { get; set; } // copy_info NVARCHAR(MAX) - JSON metadata
 
         // Navigation properties for EF Core
         public Workspace Workspace { get; set; } = null!;
@@ -58,15 +60,5 @@ namespace SuperAppModels.Models
             DeletedAt = DateTime.UtcNow;
             UpdatedAt = DateTime.UtcNow;
         }
-
-        /// <summary>
-        /// Checks if this workspace created/owns the item
-        /// </summary>
-        public bool IsOwner => IsOriginal;
-
-        /// <summary>
-        /// Checks if this item is shared from another workspace
-        /// </summary>
-        public bool IsShared => !IsOriginal;
     }
 }

@@ -57,10 +57,10 @@ namespace SuperAppDataRepositories.Repositories
                         ParentId = i.ParentId,
                         ItemType = i.ItemType,
                         ItemId = i.ItemId,
-                        IsOriginal = i.IsOriginal,
                         CreatedAt = i.CreatedAt,
                         UpdatedAt = i.UpdatedAt,
-                        DeletedAt = i.DeletedAt
+                        DeletedAt = i.DeletedAt,
+                        CopyInfo = i.CopyInfo
                     })
                     .ToListAsync();
 
@@ -110,8 +110,8 @@ namespace SuperAppDataRepositories.Repositories
                         ParentId = item.ParentId, // parent_id from ws.workspace_items
                         Level = 0,
                         Position = 0,
-                        AccessType = item.IsOriginal ? "owner" : "shared",
-                        IsOriginal = item.IsOriginal,
+                        AccessType = "owner", // Simplified: always owner for now
+                        IsOriginal = true, // Simplified: always true for now
                         DeletedAt = item.DeletedAt // ✅ Include DeletedAt from workspace_items
                     };
 
@@ -299,10 +299,7 @@ namespace SuperAppDataRepositories.Repositories
 
                             // Create workspace_item link (ws.workspace_items table)
                             _logger.LogInformation("Creating WorkspaceItemEntity with parentId: {ParentId}", request.ParentId);
-                            var workspaceItem = new WorkspaceItemEntity(workspaceId, 2, newFolder.Id, request.ParentId)
-                            {
-                                IsOriginal = true  // This workspace owns the folder
-                            };
+                            var workspaceItem = new WorkspaceItemEntity(workspaceId, 2, newFolder.Id, request.ParentId);
 
                             _context.WorkspaceItems.Add(workspaceItem);
                             await _context.SaveChangesAsync();
@@ -519,9 +516,9 @@ namespace SuperAppDataRepositories.Repositories
                 // Insert into workspace_items
                 var sql = @"
                     INSERT INTO [ws].[workspace_items]
-                        (workspace_id, parent_id, item_type, item_id, is_original, created_at)
+                        (workspace_id, parent_id, item_type, item_id, created_at)
                     VALUES
-                        (@WorkspaceId, @ParentId, @ItemType, @ItemId, @IsOriginal, GETUTCDATE());
+                        (@WorkspaceId, @ParentId, @ItemType, @ItemId, GETUTCDATE());
                     SELECT CAST(SCOPE_IDENTITY() as int);";
 
                 var parameters = new[]
@@ -529,8 +526,7 @@ namespace SuperAppDataRepositories.Repositories
                     new SqlParameter("@WorkspaceId", workspaceId),
                     new SqlParameter("@ParentId", (object?)request.ParentTagId ?? DBNull.Value),
                     new SqlParameter("@ItemType", itemType),
-                    new SqlParameter("@ItemId", request.ChildId.Value),
-                    new SqlParameter("@IsOriginal", request.IsOriginal)
+                    new SqlParameter("@ItemId", request.ChildId.Value)
                 };
 
                 var newId = await _context.Database.ExecuteSqlRawAsync(sql, parameters);

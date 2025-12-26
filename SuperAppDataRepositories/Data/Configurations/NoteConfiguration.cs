@@ -41,6 +41,10 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(n => n.DeletedAt)
                 .HasColumnName("deleted_at");
 
+            builder.Property(n => n.CopyInfo)
+                .HasColumnName("copy_info")
+                .HasColumnType("nvarchar(max)");
+
             // Indexes - match schema
             builder.HasIndex(n => n.UserId)
                 .HasDatabaseName("IX_notes_user")

@@ -34,17 +34,16 @@ namespace SuperAppServices.Services
         /// <summary>
         /// Get all workspaces with optional filters
         /// </summary>
-        public async Task<ResultOptions> GetWorkspacesAsync(int userId, bool getAll, string? searchText)
+        public async Task<ResultOptions> GetWorkspacesAsync(int userId, string? searchText)
         {
             try
             {
-                _logger.LogInformation("Getting workspaces for UserId: {UserId}, GetAll: {GetAll}, SearchText: {SearchText}",
-                    userId, getAll, searchText);
+                _logger.LogInformation("Getting workspaces for UserId: {UserId}, SearchText: {SearchText}",
+                    userId, searchText);
 
                 var filterOptions = new WorkspaceFilterOptions
                 {
                     UserId = userId,  // ✅ Filter by userId
-                    GetAll = getAll,
                     SearchText = searchText
                 };
 
@@ -135,58 +134,123 @@ namespace SuperAppServices.Services
         }
 
         /// <summary>
-        /// Create or update workspace (upsert)
+        /// Batch upsert multiple workspaces (create or update)
+        /// For single workspace operations, pass a list with 1 element
         /// </summary>
-        public async Task<ResultOptions> UpsertWorkspaceAsync(UpsertWorkspaceRequest request)
+        public async Task<ResultOptions> UpsertWorkspacesBatchAsync(List<UpsertWorkspaceRequest> requests)
         {
             try
             {
-                _logger.LogInformation("Processing workspace with ID: {WorkspaceId}, Name: '{Name}'",
-                    request.Id,
-                    request.Name);
-
-                var workspace = _mapper.Map<Workspace>(request);
-                workspace.Id = request.Id ?? 0;
-
-                // Set user ID from request
-                if (request.UserId.HasValue)
+                if (requests == null || !requests.Any())
                 {
-                    workspace.UserId = request.UserId.Value;
-                }
-
-                // Upsert workspace (create or update)
-                var result = await _workspaceListRepository.UpsertWorkspaceAsync(workspace);
-
-                if (!result.Success)
-                {
-                    return result; // Return repository error as-is
-                }
-
-                // Map result to DTO
-                var savedWorkspace = result.Object as Workspace;
-                if (savedWorkspace != null)
-                {
-                    var response = _mapper.Map<WorkspaceDTO>(savedWorkspace);
-                    _logger.LogInformation("Successfully upserted workspace with ID: {WorkspaceId}", savedWorkspace.Id);
+                    _logger.LogWarning("Empty workspace batch upsert request");
                     return new ResultOptions
                     {
-                        Success = true,
-                        Message = workspace.Id > 0 ? "Workspace updated successfully" : "Workspace created successfully",
-                        Object = response,
-                        Status = workspace.Id > 0 ? 200 : 201
+                        Success = false,
+                        Message = "No workspaces provided for batch upsert",
+                        Status = 400
                     };
                 }
 
+                _logger.LogInformation("Batch upserting {Count} workspaces", requests.Count);
+
+                var successCount = 0;
+                var failCount = 0;
+                var errors = new List<string>();
+                var results = new List<WorkspaceDTO>();
+
+                foreach (var request in requests)
+                {
+                    try
+                    {
+                        _logger.LogInformation("Processing workspace with ID: {WorkspaceId}, Name: '{Name}'",
+                            request.Id,
+                            request.Name);
+
+                        var workspace = _mapper.Map<Workspace>(request);
+                        workspace.Id = request.Id ?? 0;
+                        workspace.DeletedAt = request.DeletedAt;  // Map deletedAt for soft delete/restore
+
+                        // Validation: can't soft delete a new workspace
+                        if (request.DeletedAt.HasValue && workspace.Id == 0)
+                        {
+                            throw new ArgumentException("Cannot set deletedAt on a new workspace. Use ID > 0 for soft delete/restore.");
+                        }
+
+                        // Set user ID from request
+                        if (request.UserId.HasValue)
+                        {
+                            workspace.UserId = request.UserId.Value;
+                        }
+
+                        // Upsert workspace (create or update)
+                        var result = await _workspaceListRepository.UpsertWorkspaceAsync(workspace);
+
+                        if (!result.Success)
+                        {
+                            errors.Add($"Workspace ID {request.Id}: {result.Message}");
+                            failCount++;
+                            continue;
+                        }
+
+                        // Map result to DTO
+                        var savedWorkspace = result.Object as Workspace;
+                        if (savedWorkspace != null)
+                        {
+                            var response = _mapper.Map<WorkspaceDTO>(savedWorkspace);
+                            results.Add(response);
+                            successCount++;
+                            _logger.LogInformation("Successfully upserted workspace with ID: {WorkspaceId}", savedWorkspace.Id);
+                        }
+                        else
+                        {
+                            errors.Add($"Workspace ID {request.Id}: Failed to process workspace");
+                            failCount++;
+                        }
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        _logger.LogWarning(ex, "Invalid argument while processing workspace with ID: {WorkspaceId}", request.Id);
+                        errors.Add($"Workspace ID {request.Id}: {ex.Message}");
+                        failCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error occurred while upserting workspace with ID: {WorkspaceId}", request.Id);
+                        errors.Add($"Workspace ID {request.Id}: {ex.Message}");
+                        failCount++;
+                    }
+                }
+
+                var message = successCount > 0
+                    ? $"Successfully upserted {successCount}/{requests.Count} workspaces"
+                    : "Failed to upsert all workspaces";
+
+                if (failCount > 0)
+                {
+                    message += $". {failCount} failed.";
+                }
+
+                _logger.LogInformation("Batch upsert completed: {SuccessCount} succeeded, {FailCount} failed",
+                    successCount, failCount);
+
                 return new ResultOptions
                 {
-                    Success = false,
-                    Message = "Failed to upsert workspace",
-                    Status = 500
+                    Success = successCount > 0,
+                    Message = message,
+                    Object = new
+                    {
+                        SuccessCount = successCount,
+                        FailCount = failCount,
+                        Errors = errors,
+                        Workspaces = results
+                    },
+                    Status = successCount > 0 ? 200 : 400
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error occurred while upserting workspace");
+                _logger.LogError(ex, "Error occurred during batch upsert");
                 return new ResultOptions
                 {
                     Success = false,
@@ -199,14 +263,14 @@ namespace SuperAppServices.Services
         /// <summary>
         /// Delete workspaces by IDs with cascade to all items (folders/notes/files)
         /// </summary>
-        public async Task<ResultOptions> DeleteWorkspacesAsync(string workspaceIds, bool isHardDelete = false)
+        public async Task<ResultOptions> DeleteWorkspacesAsync(string workspaceIds)
         {
             try
             {
-                _logger.LogInformation("Deleting workspaces with IDs: {WorkspaceIds} (HardDelete: {IsHardDelete})",
-                    workspaceIds, isHardDelete);
+                _logger.LogInformation("Deleting workspaces with IDs: {WorkspaceIds})",
+                    workspaceIds);
 
-                var result = await _workspaceListRepository.DeleteWorkspacesCascadeAsync(workspaceIds, isHardDelete);
+                var result = await _workspaceListRepository.DeleteWorkspacesCascadeAsync(workspaceIds);
 
                 if (result.Success)
                 {
@@ -227,35 +291,6 @@ namespace SuperAppServices.Services
             }
         }
 
-        /// <summary>
-        /// Restore deleted workspaces by setting deleted_at to null
-        /// </summary>
-        public async Task<ResultOptions> UndoDeleteWorkspacesAsync(List<int> workspaceIds)
-        {
-            try
-            {
-                _logger.LogInformation("Restoring workspaces with IDs: {WorkspaceIds}",
-                    string.Join(",", workspaceIds));
-
-                var result = await _workspaceListRepository.UndoDeleteWorkspacesBatchAsync(workspaceIds);
-
-                if (result.Success)
-                {
-                    _logger.LogInformation("Successfully restored workspaces");
-                }
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error occurred while restoring workspaces");
-                return new ResultOptions
-                {
-                    Success = false,
-                    Message = ex.Message,
-                    Status = 500
-                };
-            }
-        }
+      
     }
 }

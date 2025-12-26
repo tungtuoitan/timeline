@@ -49,7 +49,6 @@ namespace SuperAppAPI.Controllers
         /// <summary>
         /// Gets all workspaces with optional filtering for the authenticated user
         /// </summary>
-        /// <param name="getAll">Get all workspaces flag (admin only)</param>
         /// <param name="searchText">Optional search text filter</param>
         /// <returns>ResultOptions containing list of workspaces matching the criteria</returns>
         /// <response code="200">Workspaces retrieved successfully</response>
@@ -59,7 +58,6 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetWorkspaces(
-            [FromQuery] bool getAll = false,
             [FromQuery] string? searchText = null)
         {
             // Get userId from JWT token claims
@@ -72,10 +70,10 @@ namespace SuperAppAPI.Controllers
             var userEmail = GetAuthenticatedUserEmail();
 
             _logger.LogInformation(
-                "Retrieving workspaces for userId: {UserId}, UserEmail: {UserEmail}, GetAll: {GetAll}, SearchText: {SearchText}",
-                userId.Value, userEmail, getAll, searchText);
+                "Retrieving workspaces for userId: {UserId}, UserEmail: {UserEmail}, SearchText: {SearchText}",
+                userId.Value, userEmail, searchText);
 
-            var response = await _workspaceListService.GetWorkspacesAsync(userId.Value, getAll, searchText);
+            var response = await _workspaceListService.GetWorkspacesAsync(userId.Value, searchText);
 
             _logger.LogInformation("Successfully retrieved workspaces for user: {UserEmail}, Success: {Success}",
                 userEmail, response.Success);
@@ -84,27 +82,33 @@ namespace SuperAppAPI.Controllers
         }
 
         /// <summary>
-        /// Creates a new workspace or updates an existing workspace (upsert)
+        /// Batch upsert multiple workspaces (create or update) in a single request
+        /// Use this for single workspace operations by passing an array with 1 element
         /// </summary>
-        /// <param name="request">Workspace upsert data</param>
-        /// <returns>Created or updated workspace</returns>
-        /// <response code="200">Workspace updated successfully</response>
-        /// <response code="201">Workspace created successfully</response>
+        /// <param name="requests">List of workspace upsert data</param>
+        /// <returns>Batch operation results</returns>
+        /// <response code="200">Workspaces upserted successfully</response>
         /// <response code="400">Invalid input data</response>
         /// <response code="401">Unauthorized - invalid or missing token</response>
         /// <response code="500">Internal server error</response>
         [HttpPost]
+        [HttpPost("batch")]
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UpsertWorkspace([FromBody] UpsertWorkspaceRequest request)
+        public async Task<IActionResult> UpsertWorkspacesBatch([FromBody] List<UpsertWorkspaceRequest> requests)
         {
             if (!ModelState.IsValid)
             {
-                _logger.LogWarning("Invalid model state for upsert workspace request");
+                _logger.LogWarning("Invalid model state for batch upsert workspaces request");
                 return BadRequest(ModelState);
+            }
+
+            if (requests == null || !requests.Any())
+            {
+                _logger.LogWarning("Empty batch upsert request");
+                return BadRequest("At least one workspace is required");
             }
 
             // Get userId from JWT token claims
@@ -115,14 +119,19 @@ namespace SuperAppAPI.Controllers
             }
 
             var userEmail = GetAuthenticatedUserEmail();
-            request.UserId = userId.Value;
 
-            _logger.LogInformation("Upserting workspace with ID: {WorkspaceId}, Name: '{WorkspaceName}' for user: {UserEmail}",
-                request.Id, request.Name, userEmail);
+            // Set userId for all requests
+            foreach (var request in requests)
+            {
+                request.UserId = userId.Value;
+            }
 
-            var response = await _workspaceListService.UpsertWorkspaceAsync(request);
+            _logger.LogInformation("Batch upserting {Count} workspaces for user: {UserEmail}",
+                requests.Count, userEmail);
 
-            _logger.LogInformation("Workspace upserted for user: {UserEmail}, Success: {Success}",
+            var response = await _workspaceListService.UpsertWorkspacesBatchAsync(requests);
+
+            _logger.LogInformation("Batch upsert workspaces completed for user: {UserEmail}, Success: {Success}",
                 userEmail, response.Success);
 
             return Ok(response);
@@ -162,10 +171,10 @@ namespace SuperAppAPI.Controllers
 
       
         /// <summary>
-        /// Deletes one or more workspaces with CASCADE to all items (folders/notes/files) for the authenticated user
+        /// Hard deletes one or more workspaces with CASCADE to all items (folders/notes/files) for the authenticated user
+        /// For soft delete, use the Upsert endpoint with deletedAt timestamp
         /// </summary>
         /// <param name="id">Workspace ID to delete (supports comma-separated IDs, e.g., "1,2,3")</param>
-        /// <param name="isHardDelete">Hard delete flag: true = permanently delete, false = soft delete (default)</param>
         /// <returns>Success status with deleted count</returns>
         /// <response code="200">Workspace(s) deleted successfully with all items</response>
         /// <response code="400">Invalid workspace ID(s)</response>
@@ -178,7 +187,7 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> DeleteWorkspace(string id, [FromQuery] bool isHardDelete = false)
+        public async Task<IActionResult> DeleteWorkspace(string id)
         {
             if (string.IsNullOrWhiteSpace(id))
             {
@@ -188,52 +197,13 @@ namespace SuperAppAPI.Controllers
 
             var userEmail = GetAuthenticatedUserEmail();
 
-            _logger.LogInformation("Deleting workspace(s) {WorkspaceIds} for user: {UserEmail} with CASCADE (HardDelete: {IsHardDelete})", 
-                id, userEmail, isHardDelete);
+            _logger.LogInformation("Hard deleting workspace(s) {WorkspaceIds} for user: {UserEmail} with CASCADE",
+                id, userEmail);
 
             // Pass the string directly (no parsing needed - SP handles it)
-            var response = await _workspaceListService.DeleteWorkspacesAsync(id, isHardDelete);
+            var response = await _workspaceListService.DeleteWorkspacesAsync(id);
 
             _logger.LogInformation("Delete workspaces result for user: {UserEmail}, Success: {Success}", userEmail, response.Success);
-            return Ok(response);
-        }
-
-        /// <summary>
-        /// Restores one or more deleted workspaces for the authenticated user (undo soft delete)
-        /// </summary>
-        /// <param name="id">Workspace ID to restore (supports comma-separated IDs, e.g., "1,2,3")</param>
-        /// <returns>No content on successful restoration</returns>
-        /// <response code="204">Workspace(s) restored successfully</response>
-        /// <response code="400">Invalid workspace ID(s)</response>
-        /// <response code="401">Unauthorized - invalid or missing token</response>
-        /// <response code="404">Workspace(s) not found or not deleted</response>
-        /// <response code="500">Internal server error</response>
-        [HttpPost("undo/{id}")]
-        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UndoDeleteWorkspace(string id)
-        {
-            if (string.IsNullOrWhiteSpace(id))
-            {
-                _logger.LogWarning("Empty workspace ID(s) provided for undo deletion");
-                throw new BadRequestException("Workspace ID(s) must be provided");
-            }
-
-            var userEmail = GetAuthenticatedUserEmail();
-
-            _logger.LogInformation("Restoring deleted workspace(s) {WorkspaceIds} for user: {UserEmail}", id, userEmail);
-
-            // Parse comma-separated IDs
-            var workspaceIds = id.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                .Select(int.Parse)
-                .ToList();
-
-            var response = await _workspaceListService.UndoDeleteWorkspacesAsync(workspaceIds);
-
-            _logger.LogInformation("Restore workspaces result for user: {UserEmail}, Success: {Success}", userEmail, response.Success);
             return Ok(response);
         }
     }

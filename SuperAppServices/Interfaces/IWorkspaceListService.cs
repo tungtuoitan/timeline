@@ -12,10 +12,9 @@ namespace SuperAppServices.Interfaces
         /// Get all workspaces with optional filters
         /// </summary>
         /// <param name="userId">User ID to filter workspaces</param>
-        /// <param name="getAll">Get all workspaces or only active</param>
         /// <param name="searchText">Search text filter</param>
         /// <returns>ResultOptions containing list of workspaces</returns>
-        Task<ResultOptions> GetWorkspacesAsync(int userId, bool getAll, string? searchText);
+        Task<ResultOptions> GetWorkspacesAsync(int userId, string? searchText);
 
         /// <summary>
         /// Get workspace by ID
@@ -25,11 +24,12 @@ namespace SuperAppServices.Interfaces
         Task<ResultOptions> GetWorkspaceByIdAsync(int workspaceId);
 
         /// <summary>
-        /// Create or update workspace (upsert)
+        /// Batch create or update multiple workspaces (upsert)
+        /// For single workspace operations, pass a list with 1 element
         /// </summary>
-        /// <param name="request">Workspace upsert request</param>
-        /// <returns>ResultOptions containing created or updated workspace</returns>
-        Task<ResultOptions> UpsertWorkspaceAsync(UpsertWorkspaceRequest request);
+        /// <param name="requests">List of workspace upsert requests</param>
+        /// <returns>ResultOptions containing batch operation results</returns>
+        Task<ResultOptions> UpsertWorkspacesBatchAsync(List<UpsertWorkspaceRequest> requests);
 
         /// <summary>
         /// Delete workspaces by IDs with cascade to all items
@@ -37,13 +37,6 @@ namespace SuperAppServices.Interfaces
         /// <param name="workspaceIds">Comma-separated workspace IDs (e.g., "1,2,3")</param>
         /// <param name="isHardDelete">Hard delete flag</param>
         /// <returns>ResultOptions with success status</returns>
-        Task<ResultOptions> DeleteWorkspacesAsync(string workspaceIds, bool isHardDelete = false);
-
-        /// <summary>
-        /// Restore deleted workspaces by setting deleted_at to null
-        /// </summary>
-        /// <param name="workspaceIds">List of workspace IDs to restore</param>
-        /// <returns>ResultOptions with success status</returns>
-        Task<ResultOptions> UndoDeleteWorkspacesAsync(List<int> workspaceIds);
+        Task<ResultOptions> DeleteWorkspacesAsync(string workspaceIds);
     }
 }

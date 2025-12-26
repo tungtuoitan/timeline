@@ -12,7 +12,7 @@ namespace SuperAppDataRepositories.Ins
         Task<ResultOptions> GetWorkspacesAsync(WorkspaceFilterOptions filterOptions);
         Task<ResultOptions> GetWorkspaceById(int workspaceId);
         Task<ResultOptions> UpsertWorkspaceAsync(Workspace workspace);
-        Task<ResultOptions> DeleteWorkspacesCascadeAsync(string workspaceIds, bool isHardDelete = false);
+        Task<ResultOptions> DeleteWorkspacesCascadeAsync(string workspaceIds);
         Task<ResultOptions> UndoDeleteWorkspacesBatchAsync(List<int> workspaceIds);
     }
 }

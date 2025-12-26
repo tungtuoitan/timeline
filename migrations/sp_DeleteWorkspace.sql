@@ -7,17 +7,19 @@ SET QUOTED_IDENTIFIER ON
 GO
 
 -- =============================================
--- sp_DeleteWorkspace - Delete workspace with cascade to all items
+-- sp_DeleteWorkspace - Hard delete workspace with cascade
 -- Author: SuperApp Team
 -- Created: 2025-12-07
--- Description: 
---   Deletes workspace(s) and ALL related items (folders, notes, files, workspace_items)
---   UNIFORMLY treats all tables: either ALL soft delete OR ALL hard delete
+-- Modified: 2025-12-24 - Removed soft delete support (use Upsert API for soft delete)
+--                        Only delete workspace + folders + workspace_items
+-- Description:
+--   Hard deletes workspace(s), workspace_items mapping, and folders.
+--   Notes and Files are NOT deleted to preserve data - they can be
+--   accessed directly or re-added to other workspaces later.
+--   For soft delete, use the Upsert API with deletedAt timestamp.
 -- =============================================
 CREATE OR ALTER PROCEDURE [ws].[sp_DeleteWorkspace]
     @iv_workspace_ids    NVARCHAR(MAX),   -- Comma-separated workspace IDs (e.g., "1,2,3")
-    @iv_is_hardDelete    BIT = 0,         -- 0 = soft delete ALL, 1 = hard delete ALL
-
     @ov_deleted_count    INT OUTPUT       -- Total workspaces deleted
 AS
 BEGIN
@@ -75,7 +77,7 @@ BEGIN
         END
 
         ------------------------------------------------------------
-        -- DELETE workspace_items mapping (ALWAYS hard delete)
+        -- DELETE workspace_items mapping (hard delete)
         ------------------------------------------------------------
         DELETE wi
         FROM ws.workspace_items wi
@@ -83,92 +85,23 @@ BEGIN
             ON w.workspace_id = wi.workspace_id;
 
         ------------------------------------------------------------
-        -- DELETE or SOFT DELETE: FOLDERS (type = 2)
+        -- HARD DELETE: FOLDERS (type = 2)
+        -- Note: Only delete folders. Notes and Files are NOT deleted
+        -- to preserve data. They can be accessed directly or re-added
+        -- to other workspaces.
         ------------------------------------------------------------
-        IF @iv_is_hardDelete = 1
-        BEGIN
-            -- Hard delete folders
-            DELETE f
-            FROM ws.folders f
-            INNER JOIN #AllItemsToDelete d
-                ON d.item_type = 2 AND d.item_id = f.id;
-        END
-        ELSE
-        BEGIN
-            -- Soft delete folders (set deleted_at)
-            UPDATE f
-            SET deleted_at = GETUTCDATE()
-            FROM ws.folders f
-            INNER JOIN #AllItemsToDelete d
-                ON d.item_type = 2 AND d.item_id = f.id
-            WHERE f.deleted_at IS NULL;  -- Only update non-deleted folders
-        END
+        DELETE f
+        FROM ws.folders f
+        INNER JOIN #AllItemsToDelete d
+            ON d.item_type = 2 AND d.item_id = f.id;
 
         ------------------------------------------------------------
-        -- DELETE or SOFT DELETE: NOTES (type = 3)
+        -- HARD DELETE: WORKSPACES (ws.workspaces)
         ------------------------------------------------------------
-        IF @iv_is_hardDelete = 1
-        BEGIN
-            -- Hard delete notes
-            DELETE n
-            FROM dbo.notes n
-            INNER JOIN #AllItemsToDelete d
-                ON d.item_type = 3 AND d.item_id = n.id;
-        END
-        ELSE
-        BEGIN
-            -- Soft delete notes (set deleted_at)
-            UPDATE n
-            SET deleted_at = GETUTCDATE()
-            FROM dbo.notes n
-            INNER JOIN #AllItemsToDelete d
-                ON d.item_type = 3 AND d.item_id = n.id
-            WHERE n.deleted_at IS NULL;  -- Only update non-deleted notes
-        END
-
-        ------------------------------------------------------------
-        -- DELETE or SOFT DELETE: FILES (type = 4)
-        ------------------------------------------------------------
-        IF @iv_is_hardDelete = 1
-        BEGIN
-            -- Hard delete files
-            DELETE f
-            FROM ws.files f
-            INNER JOIN #AllItemsToDelete d
-                ON d.item_type = 4 AND d.item_id = f.id;
-        END
-        ELSE
-        BEGIN
-            -- Soft delete files (set deleted_at)
-            UPDATE f
-            SET deleted_at = GETUTCDATE()
-            FROM ws.files f
-            INNER JOIN #AllItemsToDelete d
-                ON d.item_type = 4 AND d.item_id = f.id
-            WHERE f.deleted_at IS NULL;  -- Only update non-deleted files
-        END
-
-        ------------------------------------------------------------
-        -- DELETE or SOFT DELETE: WORKSPACES (ws.workspaces)
-        ------------------------------------------------------------
-        IF @iv_is_hardDelete = 1
-        BEGIN
-            -- Hard delete workspaces
-            DELETE w
-            FROM ws.workspaces w
-            INNER JOIN #WorkspacesToDelete d
-                ON d.workspace_id = w.id;
-        END
-        ELSE
-        BEGIN
-            -- Soft delete workspaces (set deleted_at)
-            UPDATE w
-            SET deleted_at = GETUTCDATE()
-            FROM ws.workspaces w
-            INNER JOIN #WorkspacesToDelete d
-                ON d.workspace_id = w.id
-            WHERE w.deleted_at IS NULL;  -- Only update non-deleted workspaces
-        END
+        DELETE w
+        FROM ws.workspaces w
+        INNER JOIN #WorkspacesToDelete d
+            ON d.workspace_id = w.id;
 
         ------------------------------------------------------------
         -- OUTPUT count

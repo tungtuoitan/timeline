@@ -39,11 +39,6 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("item_id")
                 .IsRequired();
 
-            builder.Property(wi => wi.IsOriginal)
-                .HasColumnName("is_original")
-                .HasDefaultValue(true)
-                .IsRequired();
-
             builder.Property(wi => wi.CreatedAt)
                 .HasColumnName("created_at")
                 .HasDefaultValueSql("GETUTCDATE()");
@@ -53,6 +48,10 @@ namespace SuperAppDataRepositories.Data.Configurations
 
             builder.Property(wi => wi.DeletedAt)
                 .HasColumnName("deleted_at");
+
+            builder.Property(wi => wi.CopyInfo)
+                .HasColumnName("copy_info")
+                .HasColumnType("nvarchar(max)");
 
             // Indexes
             builder.HasIndex(wi => new { wi.WorkspaceId, wi.DeletedAt })
@@ -65,10 +64,6 @@ namespace SuperAppDataRepositories.Data.Configurations
 
             builder.HasIndex(wi => new { wi.ItemType, wi.ItemId })
                 .HasDatabaseName("IX_workspace_items_item");
-
-            builder.HasIndex(wi => new { wi.ItemType, wi.ItemId, wi.IsOriginal })
-                .HasDatabaseName("IX_workspace_items_original")
-                .HasFilter("[is_original] = 1");
 
             // Unique constraint: one item can only exist once per workspace
             builder.HasIndex(wi => new { wi.WorkspaceId, wi.ItemType, wi.ItemId })
