@@ -138,7 +138,7 @@ namespace SuperAppServices.Services
         /// Batch upsert multiple notes (create or update)
         /// For single note operations, pass a list with 1 element
         /// </summary>
-        public async Task<ResultOptions> UpsertNotesBatchAsync(List<UpsertNoteRequest> requests)
+        public async Task<ResultOptions> UpsertNotesAsync(List<UpsertNoteRequest> requests)
         {
             try
             {
@@ -190,7 +190,7 @@ namespace SuperAppServices.Services
                         }
 
                         // Upsert note (create or update)
-                        var result = await _noteRepository.UpsertNoteAsync(note, request.TagIds, null);
+                        var result = await _noteRepository.UpsertNotesAsync(note, request.TagIds, null);
 
                         if (!result.Success)
                         {

@@ -31,7 +31,7 @@ namespace SuperAppServices.Interfaces
         /// </summary>
         /// <param name="requests">List of note upsert requests</param>
         /// <returns>ResultOptions containing batch operation results</returns>
-        Task<ResultOptions> UpsertNotesBatchAsync(List<UpsertNoteRequest> requests);
+        Task<ResultOptions> UpsertNotesAsync(List<UpsertNoteRequest> requests);
 
         /// <summary>
         /// Delete notes by IDs

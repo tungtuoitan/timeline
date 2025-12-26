@@ -100,7 +100,7 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UpsertNotesBatch([FromBody] List<UpsertNoteRequest> requests)
+        public async Task<IActionResult> UpsertNotes([FromBody] List<UpsertNoteRequest> requests)
         {
             if (!ModelState.IsValid)
             {
@@ -143,7 +143,7 @@ namespace SuperAppAPI.Controllers
             _logger.LogInformation("Batch upserting {Count} notes for user: {UserEmail}",
                 requests.Count, userEmail);
 
-            var response = await _noteService.UpsertNotesBatchAsync(requests);
+            var response = await _noteService.UpsertNotesAsync(requests);
 
             _logger.LogInformation("Batch upsert notes completed for user: {UserEmail}, Success: {Success}",
                 userEmail, response.Success);

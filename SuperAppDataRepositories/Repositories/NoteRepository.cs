@@ -185,7 +185,7 @@ namespace SuperAppDataRepositories.Repositories
         /// <summary>
         /// Creates or updates a note with optional tags and parent (upsert)
         /// </summary>
-        public async Task<ResultOptions> UpsertNoteAsync(Note note, List<int>? tagIds, int? parentId)
+        public async Task<ResultOptions> UpsertNotesAsync(Note note, List<int>? tagIds, int? parentId)
         {
             try
             {
