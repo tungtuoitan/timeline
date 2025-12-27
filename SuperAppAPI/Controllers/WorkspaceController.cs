@@ -372,5 +372,71 @@ namespace SuperAppAPI.Controllers
                 return StatusCode(result.Status ?? 500, result);
             }
         }
+
+        /// <summary>
+        /// Batch upsert multiple workspace items (create or update) in a single request
+        /// Use this for single item operations by passing an array with 1 element
+        /// Pattern: 100% follows NotesController.UpsertNotes
+        /// </summary>
+        /// <param name="workspaceId">Workspace ID from route</param>
+        /// <param name="requests">List of workspace item upsert data</param>
+        /// <returns>Batch operation results</returns>
+        /// <response code="200">Workspace items upserted successfully</response>
+        /// <response code="400">Invalid input data</response>
+        /// <response code="401">Unauthorized - invalid or missing token</response>
+        /// <response code="500">Internal server error</response>
+        [HttpPost("{workspaceId}/items/batch")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> UpsertWorkspaceItems(
+            int workspaceId,
+            [FromBody] List<UpsertWorkspaceItemRequest> requests)
+        {
+            // 1. Validate ModelState (giống NotesController)
+            if (!ModelState.IsValid)
+            {
+                _logger.LogWarning("Invalid model state for batch upsert workspace items request");
+                return BadRequest(ModelState);
+            }
+
+            // 2. Validate non-empty list (giống NotesController)
+            if (requests == null || !requests.Any())
+            {
+                _logger.LogWarning("Empty batch upsert request");
+                return BadRequest("At least one workspace item is required");
+            }
+
+            // 3. Get userId from JWT token claims (giống NotesController)
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
+
+            var userEmail = User.GetUserEmail();
+
+            // 4. Set workspaceId, userId, and CreatedBy for all requests (giống NotesController)
+            foreach (var request in requests)
+            {
+                request.WorkspaceId = workspaceId;
+                request.UserId = userId.Value;
+                request.CreatedBy = userEmail;
+            }
+
+            _logger.LogInformation(
+                "Batch upserting {Count} workspace items for workspace: {WorkspaceId}, user: {UserId}",
+                requests.Count, workspaceId, userId.Value);
+
+            // 5. Call service layer (giống NotesController)
+            var response = await _workspaceService.UpsertWorkspaceItemsAsync(requests, userId.Value);
+
+            _logger.LogInformation(
+                "Batch upsert workspace items completed for workspace: {WorkspaceId}, user: {UserId}, Success: {Success}",
+                workspaceId, userId.Value, response.Success);
+
+            return Ok(response);
+        }
     }
 }

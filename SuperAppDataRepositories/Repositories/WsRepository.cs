@@ -51,6 +51,10 @@ namespace SuperAppDataRepositories.Repositories
                 {
                     query = query.Where(w => w.UserId == filterOptions.UserId.Value);
                 }
+                if (filterOptions.Ids?.Count > 0)
+                {
+                    query = query.Where(n => filterOptions.Ids.Contains(n.Id));
+                }
 
                 // Filter by search text if provided
                 if (!string.IsNullOrWhiteSpace(filterOptions.SearchText))

@@ -622,6 +622,181 @@ namespace SuperAppDataRepositories.Repositories
         }
 
         /// <summary>
+        /// Batch upsert workspace items (soft delete/restore only)
+        /// Pattern: 100% follows NoteRepository.UpsertNotesAsync
+        /// All-or-nothing transaction - if one fails, all rollback
+        /// </summary>
+        public async Task<ResultOptions> UpsertWorkspaceItemsAsync(
+            List<UpsertWorkspaceItemRequest> requests,
+            int userId)
+        {
+            // Use execution strategy to handle retry logic with transactions
+            var strategy = _context.Database.CreateExecutionStrategy();
+
+            return await strategy.ExecuteAsync(async () =>
+            {
+                using var transaction = await _context.Database.BeginTransactionAsync();
+
+                try
+                {
+                    // STEP 1: Validate Batch Request
+                    if (requests == null || !requests.Any())
+                    {
+                        await transaction.RollbackAsync();
+                        return new ResultOptions
+                        {
+                            Success = false,
+                            Message = "No workspace items provided",
+                            Status = 400
+                        };
+                    }
+
+                    var workspaceId = requests.First().WorkspaceId;
+                    if (!workspaceId.HasValue)
+                    {
+                        await transaction.RollbackAsync();
+                        return new ResultOptions
+                        {
+                            Success = false,
+                            Message = "WorkspaceId is required",
+                            Status = 400
+                        };
+                    }
+
+                    // STEP 2: Preload Data (single queries for efficiency)
+
+                    // Validate workspace exists and user has access
+                    var workspace = await _context.Workspaces
+                        .FirstOrDefaultAsync(w => w.Id == workspaceId.Value && w.UserId == userId);
+
+                    if (workspace == null)
+                    {
+                        await transaction.RollbackAsync();
+                        return new ResultOptions
+                        {
+                            Success = false,
+                            Message = "Workspace not found or access denied",
+                            Status = 403
+                        };
+                    }
+
+                    // Load existing workspace items for updates
+                    var itemIdsToUpdate = requests
+                        .Where(r => r.Id > 0)
+                        .Select(r => r.Id)
+                        .ToList();
+
+                    var existingItemsDict = await _context.WorkspaceItems
+                        .Where(wi => wi.WorkspaceId == workspaceId.Value && itemIdsToUpdate.Contains(wi.Id))
+                        .ToDictionaryAsync(wi => wi.Id, wi => wi);
+
+                    // Validate all items to update exist
+                    var missingItemIds = itemIdsToUpdate.Except(existingItemsDict.Keys).ToList();
+                    if (missingItemIds.Any())
+                    {
+                        await transaction.RollbackAsync();
+                        return new ResultOptions
+                        {
+                            Success = false,
+                            Message = $"Workspace items not found: {string.Join(", ", missingItemIds)}",
+                            Status = 400
+                        };
+                    }
+
+                    // STEP 3: Upsert Workspace Items
+                    var upsertedItems = new List<WorkspaceItemEntity>();
+
+                    foreach (var request in requests)
+                    {
+                        bool isUpdate = request.Id > 0;
+
+                        if (isUpdate)
+                        {
+                            // UPDATE existing item
+                            var existingItem = existingItemsDict[request.Id];
+
+                            existingItem.ParentId = request.ParentId;
+                            existingItem.ItemType = request.ItemType;
+                            existingItem.ItemId = request.ItemId;
+                            existingItem.DeletedAt = request.DeletedAt;  // Soft delete/restore
+                            existingItem.CopyInfo = request.CopyInfo;
+                            existingItem.UpdatedAt = DateTime.UtcNow;
+
+                            upsertedItems.Add(existingItem);
+                        }
+                        else
+                        {
+                            // CREATE new item
+                            var newItem = new WorkspaceItemEntity
+                            {
+                                WorkspaceId = workspaceId.Value,
+                                ParentId = request.ParentId,
+                                ItemType = request.ItemType,
+                                ItemId = request.ItemId,
+                                CopyInfo = request.CopyInfo,
+                                CreatedAt = DateTime.UtcNow,
+                                UpdatedAt = null,
+                                DeletedAt = null
+                            };
+
+                            _context.WorkspaceItems.Add(newItem);
+                            upsertedItems.Add(newItem);
+                        }
+                    }
+
+                    // Save all changes in the transaction
+                    await _context.SaveChangesAsync();
+
+                    // Commit transaction
+                    await transaction.CommitAsync();
+
+                    _logger.LogInformation("Successfully upserted {Count} workspace items in batch transaction", requests.Count);
+
+                    return new ResultOptions
+                    {
+                        Success = true,
+                        Message = $"Successfully upserted {requests.Count} workspace items in batch",
+                        Data = upsertedItems.Cast<object>().ToList(),
+                        Status = 200
+                    };
+                }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Concurrency conflict during batch upsert workspace items");
+                    return new ResultOptions
+                    {
+                        Success = false,
+                        Message = "Concurrency conflict - all changes rolled back",
+                        Status = 409
+                    };
+                }
+                catch (DbUpdateException ex)
+                {
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Database error during batch upsert workspace items");
+                    return new ResultOptions
+                    {
+                        Success = false,
+                        Message = "Database error - all changes rolled back",
+                        Status = 500
+                    };
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Error during batch upsert workspace items");
+                    return new ResultOptions
+                    {
+                        Success = false,
+                        Message = ex.Message + " - all changes rolled back",
+                        Status = 500
+                    };
+                }
+            });
+        }
+
+        /// <summary>
         /// Helper method to convert TINYINT item_type to string name
         /// </summary>
         private string GetItemTypeName(byte itemType)

@@ -65,5 +65,14 @@ namespace SuperAppDataRepositories.Ins
         /// <param name="request">Add item request</param>
         /// <returns>Result with created workspace_items row</returns>
         Task<ResultOptions> AddItemToWorkspaceAsync(int workspaceId, int userId, AddItemToWorkspaceRequest request);
+
+        /// <summary>
+        /// Batch upsert workspace items (soft delete/restore only)
+        /// Pattern: 100% follows NoteRepository.UpsertNotesAsync
+        /// </summary>
+        /// <param name="requests">List of workspace item upsert requests</param>
+        /// <param name="userId">User ID for access validation</param>
+        /// <returns>Result options with upserted items</returns>
+        Task<ResultOptions> UpsertWorkspaceItemsAsync(List<UpsertWorkspaceItemRequest> requests, int userId);
     }
 }

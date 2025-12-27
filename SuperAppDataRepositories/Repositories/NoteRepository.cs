@@ -66,6 +66,11 @@ namespace SuperAppDataRepositories.Repositories
 
                 // ===== NEW FILTERS =====
 
+                if (filterOptions.Ids?.Count > 0)
+                {
+                    query = query.Where(n => filterOptions.Ids.Contains(n.Id));
+                }
+
                 // Filter by status code (comma-separated list)
                 if (filterOptions.StatusCodes != null && filterOptions.StatusCodes.Any())
                 {
@@ -97,6 +102,7 @@ namespace SuperAppDataRepositories.Repositories
                 {
                     query = query.Where(n => n.CreatedAt <= filterOptions.CreatedTo.Value);
                 }
+
 
                 // ===== END NEW FILTERS =====
 

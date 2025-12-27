@@ -310,5 +310,98 @@ namespace SuperAppServices.Services
                 };
             }
         }
+
+        /// <summary>
+        /// Batch upsert workspace items (soft delete/restore only)
+        /// Pattern: 100% follows NoteService.UpsertNotesAsync
+        /// All-or-nothing transaction - if one fails, all rollback
+        /// </summary>
+        public async Task<ResultOptions> UpsertWorkspaceItemsAsync(List<UpsertWorkspaceItemRequest> requests, int userId)
+        {
+            try
+            {
+                // 1. Validate input (giống NoteService)
+                if (requests == null || !requests.Any())
+                {
+                    _logger.LogWarning("Empty batch upsert workspace items request");
+                    return new ResultOptions
+                    {
+                        Success = false,
+                        Message = "No workspace items provided",
+                        Status = 400
+                    };
+                }
+
+                // 2. Validate business rules (giống NoteService)
+                foreach (var request in requests)
+                {
+                    // Can't soft delete a new item
+                    if (request.DeletedAt.HasValue && request.Id == 0)
+                    {
+                        _logger.LogWarning("Cannot set deletedAt on a new workspace item (Id: 0)");
+                        return new ResultOptions
+                        {
+                            Success = false,
+                            Message = "Cannot set deletedAt on a new workspace item. All changes rolled back.",
+                            Status = 400
+                        };
+                    }
+
+                    // WorkspaceId required
+                    if (!request.WorkspaceId.HasValue || request.WorkspaceId.Value <= 0)
+                    {
+                        _logger.LogWarning("WorkspaceId is missing or invalid");
+                        return new ResultOptions
+                        {
+                            Success = false,
+                            Message = "WorkspaceId is required for all items. All changes rolled back.",
+                            Status = 400
+                        };
+                    }
+
+                    // UserId required
+                    if (!request.UserId.HasValue || request.UserId.Value <= 0)
+                    {
+                        _logger.LogWarning("UserId is missing or invalid");
+                        return new ResultOptions
+                        {
+                            Success = false,
+                            Message = "UserId is required for all items. All changes rolled back.",
+                            Status = 400
+                        };
+                    }
+                }
+
+                var workspaceId = requests.First().WorkspaceId!.Value;
+
+                _logger.LogInformation("Batch upserting {Count} workspace items for workspace {WorkspaceId}, user {UserId}",
+                    requests.Count, workspaceId, userId);
+
+                // 3. Call repository layer (giống NoteService)
+                var result = await _workspaceRepository.UpsertWorkspaceItemsAsync(requests, userId);
+
+                if (result.Success)
+                {
+                    _logger.LogInformation("Successfully batch upserted {Count} workspace items in workspace {WorkspaceId}",
+                        requests.Count, workspaceId);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to batch upsert workspace items: {Message}", result.Message);
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error batch upserting workspace items");
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = "An error occurred while batch upserting workspace items",
+                    Status = 500
+                };
+            }
+        }
     }
 }
