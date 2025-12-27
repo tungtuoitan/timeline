@@ -34,10 +34,43 @@ namespace SuperAppModels.DTOs
         /// Error message (alias for Message for backward compatibility)
         /// </summary>
         [JsonIgnore]
-        public string? ErrorMessage 
-        { 
-            get => Message; 
-            set => Message = value; 
+        public string? ErrorMessage
+        {
+            get => Message;
+            set => Message = value;
+        }
+
+        /// <summary>
+        /// Creates a failed ResultOptions with error messages
+        /// </summary>
+        /// <param name="errors">List of error messages</param>
+        /// <param name="status">HTTP status code (default: 400)</param>
+        /// <returns>ResultOptions with Success = false</returns>
+        public static ResultOptions Fail(List<string> errors, int status = 400)
+        {
+            return new ResultOptions
+            {
+                Success = false,
+                Message = string.Join("; ", errors),
+                Data = errors.Cast<object>().ToList(),
+                Status = status
+            };
+        }
+
+        /// <summary>
+        /// Creates a failed ResultOptions with a single error message
+        /// </summary>
+        /// <param name="errorMessage">Error message</param>
+        /// <param name="status">HTTP status code (default: 400)</param>
+        /// <returns>ResultOptions with Success = false</returns>
+        public static ResultOptions Fail(string errorMessage, int status = 400)
+        {
+            return new ResultOptions
+            {
+                Success = false,
+                Message = errorMessage,
+                Status = status
+            };
         }
 
         public override string ToString()

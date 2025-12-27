@@ -8,8 +8,7 @@ namespace SuperAppDataRepositories.Ins
     {
         Task<ResultOptions> GetNotesAsync(NoteFilterOptions filterOptions);
         Task<ResultOptions> GetNoteById(int noteId);
-        Task<ResultOptions> UpsertNotesAsync(Note note, List<int>? tagIds, int? parentId);
-        Task<ResultOptions> DeleteNotesBatchAsync(List<int> noteIds);
-        Task<ResultOptions> UndoDeleteNotesBatchAsync(List<int> noteIds);
+        Task<ResultOptions> UpsertNotesAsync(List<(Note note, List<int>? tagIds)> noteRequests);
+        Task<ResultOptions> DeleteNotesAsync(List<int> noteIds);
     }
 }

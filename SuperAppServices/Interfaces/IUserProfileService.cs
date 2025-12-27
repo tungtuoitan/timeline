@@ -12,8 +12,8 @@ namespace SuperAppServices.Interfaces
         /// Get user profile by userId
         /// </summary>
         /// <param name="userId">User ID</param>
-        /// <returns>UserProfile or null if not found</returns>
-        Task<UserProfile?> GetUserProfileByUserIdAsync(int userId);
+        /// <returns>ResultOptions with UserProfile in Object field</returns>
+        Task<ResultOptions> GetUserProfileByUserIdAsync(int userId);
 
         /// <summary>
         /// Create or update user profile
@@ -21,13 +21,5 @@ namespace SuperAppServices.Interfaces
         /// <param name="userProfile">User profile to save</param>
         /// <returns>ResultOptions with success status</returns>
         Task<ResultOptions> UpsertUserProfileAsync(UserProfile userProfile);
-
-        /// <summary>
-        /// Update user filters
-        /// </summary>
-        /// <param name="userId">User ID</param>
-        /// <param name="filters">Filter settings JSON</param>
-        /// <returns>ResultOptions with success status</returns>
-        Task<ResultOptions> UpdateUserFiltersAsync(int userId, string filters);
     }
 }

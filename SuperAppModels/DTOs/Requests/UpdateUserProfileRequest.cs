@@ -36,5 +36,10 @@ namespace SuperAppModels.DTOs.Requests
 
         [StringLength(10, ErrorMessage = "Language code cannot exceed 10 characters")]
         public string? Language { get; set; }
+
+        /// <summary>
+        /// User filter preferences (JSON string)
+        /// </summary>
+        public string? Filters { get; set; }
     }
 }

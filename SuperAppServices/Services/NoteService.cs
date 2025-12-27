@@ -149,106 +149,67 @@ namespace SuperAppServices.Services
                     };
                 }
 
-                _logger.LogInformation("Batch upserting {Count} notes", requests.Count);
+                _logger.LogInformation("Batch upserting {Count} notes with transaction (all-or-nothing)", requests.Count);
 
-                var successCount = 0;
-                var failCount = 0;
-                var errors = new List<string>();
-                var results = new List<NoteDTO>();
+                // Prepare notes for batch upsert
+                var noteRequests = new List<(Note note, List<int>? tagIds)>();
 
                 foreach (var request in requests)
                 {
-                    try
+                    // Validation: can't soft delete a new note
+                    if (request.DeletedAt.HasValue && request.Id == 0)
                     {
-                        _logger.LogInformation("Processing note with ID: {NoteId}, Name: '{Name}', TagIds: [{TagIds}]",
-                            request.Id,
-                            request.Name,
-                            request.TagIds != null ? string.Join(",", request.TagIds) : "null");
-
-                        var note = _mapper.Map<Note>(request);
-                        note.Id = request.Id;
-                        note.DeletedAt = request.DeletedAt;  // Map deletedAt for soft delete/restore
-
-                        // Validation: can't soft delete a new note
-                        if (request.DeletedAt.HasValue && request.Id == 0)
+                        _logger.LogError("Cannot set deletedAt on a new note");
+                        return new ResultOptions
                         {
-                            throw new ArgumentException("Cannot set deletedAt on a new note. Use ID > 0 for soft delete/restore.");
-                        }
-
-                        // Set UserId from request (populated by controller from JWT claims)
-                        if (request.UserId.HasValue && request.UserId.Value > 0)
-                        {
-                            note.UserId = request.UserId.Value;
-                        }
-                        else
-                        {
-                            throw new ArgumentException("UserId is required");
-                        }
-
-                        // Upsert note (create or update)
-                        var result = await _noteRepository.UpsertNotesAsync(note, request.TagIds, null);
-
-                        if (!result.Success)
-                        {
-                            errors.Add($"Note ID {request.Id}: {result.Message}");
-                            failCount++;
-                            continue;
-                        }
-
-                        // Map Note entity to NoteDTO
-                        var resultNote = result.Object as Note;
-                        if (resultNote == null)
-                        {
-                            errors.Add($"Note ID {request.Id}: Failed to process note");
-                            failCount++;
-                            continue;
-                        }
-
-                        var response = _mapper.Map<NoteDTO>(resultNote);
-                        results.Add(response);
-                        successCount++;
-
-                        _logger.LogInformation("Successfully processed note with ID: {NoteId}, final TagCount: {TagCount}",
-                            resultNote.Id, response.Tags?.Count ?? 0);
+                            Success = false,
+                            Message = "Cannot set deletedAt on a new note. Use ID > 0 for soft delete/restore. All changes rolled back.",
+                            Status = 400
+                        };
                     }
-                    catch (ArgumentException ex)
+
+                    // Validate UserId
+                    if (!request.UserId.HasValue || request.UserId.Value <= 0)
                     {
-                        _logger.LogWarning(ex, "Invalid argument while processing note with ID: {NoteId}", request.Id);
-                        errors.Add($"Note ID {request.Id}: {ex.Message}");
-                        failCount++;
+                        _logger.LogError("UserId is required for all notes");
+                        return new ResultOptions
+                        {
+                            Success = false,
+                            Message = "UserId is required for all notes. All changes rolled back.",
+                            Status = 400
+                        };
                     }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Unexpected error occurred while processing note with ID: {NoteId}", request.Id);
-                        errors.Add($"Note ID {request.Id}: {ex.Message}");
-                        failCount++;
-                    }
+
+                    var note = _mapper.Map<Note>(request);
+                    note.Id = request.Id;
+                    note.DeletedAt = request.DeletedAt;  // Map deletedAt for soft delete/restore
+                    note.UserId = request.UserId.Value;
+
+                    noteRequests.Add((note, request.TagIds));
                 }
 
-                var message = successCount > 0
-                    ? $"Successfully upserted {successCount}/{requests.Count} notes"
-                    : "Failed to upsert all notes";
+                // Execute batch upsert with transaction (all-or-nothing)
+                var result = await _noteRepository.UpsertNotesAsync(noteRequests);
 
-                if (failCount > 0)
+                if (!result.Success)
                 {
-                    message += $". {failCount} failed.";
+                    _logger.LogError("Batch upsert failed: {Message}", result.Message);
+                    return result;
                 }
 
-                _logger.LogInformation("Batch upsert completed: {SuccessCount} succeeded, {FailCount} failed",
-                    successCount, failCount);
+                // Map Note entities to NoteDTOs
+                var notes = result.Data?.Cast<Note>().ToList() ?? new List<Note>();
+                var noteDTOs = _mapper.Map<List<NoteDTO>>(notes);
+
+                _logger.LogInformation("Batch upsert transaction completed successfully: {Count} notes upserted",
+                    noteDTOs.Count);
 
                 return new ResultOptions
                 {
-                    Success = successCount > 0,
-                    Message = message,
-                    Object = new
-                    {
-                        SuccessCount = successCount,
-                        FailCount = failCount,
-                        Errors = errors,
-                        Notes = results
-                    },
-                    Status = successCount > 0 ? 200 : 400
+                    Success = true,
+                    Message = $"Successfully upserted {noteDTOs.Count} notes in batch transaction",
+                    Data = noteDTOs.Cast<object>().ToList(),
+                    Status = 200
                 };
             }
             catch (Exception ex)
@@ -285,7 +246,7 @@ namespace SuperAppServices.Services
                     string.Join(",", noteIds));
 
                 // Repository now returns ResultOptions
-                var result = await _noteRepository.DeleteNotesBatchAsync(noteIds);
+                var result = await _noteRepository.DeleteNotesAsync(noteIds);
 
                 _logger.LogInformation("Delete operation result: Success={Success}, Message={Message}", result.Success, result.Message);
                 return result;

@@ -218,325 +218,293 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
+       
+
         /// <summary>
-        /// Creates or updates a note with optional tags and parent (upsert)
+        /// Permanently deletes multiple notes by IDs with cascade to workspace_items
+        /// All-or-nothing: Either all deletes succeed, or transaction is rolled back
         /// </summary>
-        public async Task<ResultOptions> UpsertNotesAsync(Note note, List<int>? tagIds, int? parentId)
+        public async Task<ResultOptions> DeleteNotesAsync(List<int> noteIds)
         {
-            try
+            // Create execution strategy to handle retry logic with transactions
+            var strategy = _context.Database.CreateExecutionStrategy();
+
+            return await strategy.ExecuteAsync(async () =>
             {
-                if (note == null)
-                    throw new ArgumentNullException(nameof(note));
+                using var transaction = await _context.Database.BeginTransactionAsync();
 
-                bool isUpdate = note.Id > 0;
-
-                if (isUpdate)
+                try
                 {
-                    // Determine operation type for logging
-                    var existingNote = await _context.Notes
-                        .IgnoreQueryFilters()  // Find deleted notes too (for restore)
-                        .FirstOrDefaultAsync(n => n.Id == note.Id);
-
-                    var operation = note.DeletedAt.HasValue ? "Soft deleting" :
-                                   (existingNote?.DeletedAt.HasValue == true ? "Restoring" : "Updating");
-
-                    _logger.LogInformation("{Operation} note ID: {NoteId}, Name: '{Name}', UserId: {UserId}, TagIds: [{TagIds}], ParentId: {ParentId}",
-                        operation, note.Id, note.Name, note.UserId, tagIds != null ? string.Join(",", tagIds) : "null", parentId);
-
-                    if (existingNote == null)
+                    // ===== STEP 1: Validate Request =====
+                    if (noteIds == null || !noteIds.Any())
                     {
-                        _logger.LogWarning("Note not found for update with ID: {NoteId}", note.Id);
+                        _logger.LogWarning("Empty note IDs provided for batch deletion");
                         return new ResultOptions
                         {
                             Success = false,
-                            Message = $"Note with ID {note.Id} not found",
+                            Message = "No note IDs provided",
+                            Status = 400
+                        };
+                    }
+
+                    _logger.LogInformation("Starting batch delete transaction for notes with IDs: {NoteIds}",
+                        string.Join(",", noteIds));
+
+                    // ===== STEP 2: Delete Workspace Items =====
+                    var workspaceItemsDeleted = await _context.WorkspaceItems
+                        .Where(wi => wi.ItemType == 3 && noteIds.Contains(wi.ItemId))
+                        .ExecuteDeleteAsync();
+
+                    _logger.LogInformation("Deleted {Count} workspace_items for notes in transaction", workspaceItemsDeleted);
+
+                    // ===== STEP 3: Delete Notes =====
+                    var notesDeleted = await _context.Notes
+                        .Where(n => noteIds.Contains(n.Id))
+                        .ExecuteDeleteAsync();
+
+                    if (notesDeleted == 0)
+                    {
+                        await transaction.RollbackAsync();
+                        _logger.LogWarning("No notes found to delete with IDs: {NoteIds} - transaction rolled back",
+                            string.Join(",", noteIds));
+                        return new ResultOptions
+                        {
+                            Success = false,
+                            Message = $"No notes found with IDs: {string.Join(",", noteIds)} - transaction rolled back",
                             Status = 404
                         };
                     }
 
-                    // Validate UserId exists before update
-                    var userExists = await _context.Users.AnyAsync(u => u.Id == note.UserId);
-                    if (!userExists)
-                    {
-                        _logger.LogError("User not found with ID: {UserId}", note.UserId);
-                        return new ResultOptions
-                        {
-                            Success = false,
-                            Message = $"User with ID {note.UserId} not found",
-                            Status = 400
-                        };
-                    }
+                    // ===== STEP 4: Commit Transaction =====
+                    await transaction.CommitAsync();
 
-                    // Update properties
-                    existingNote.Name = note.Name;
-                    existingNote.Description = note.Description;
-                    existingNote.UserId = note.UserId;
-                    existingNote.DeletedAt = note.DeletedAt;  // Handle soft delete/restore
-                    existingNote.UpdatedAt = DateTime.UtcNow;
+                    _logger.LogInformation("Successfully committed batch delete transaction: {Count} note(s) and {WICount} workspace_items deleted",
+                        notesDeleted, workspaceItemsDeleted);
 
-                    await _context.SaveChangesAsync();
-
-                    // TODO: Update tag associations when entity_tags relationship is implemented
-                    // if (tagIds != null)
-                    // {
-                    //     // Remove existing tags
-                    //     var existingTags = _context.EntityTags
-                    //         .Where(et => et.EntityType == 3 && et.EntityId == note.Id);
-                    //     _context.EntityTags.RemoveRange(existingTags);
-                    //     
-                    //     // Add new tags
-                    //     foreach (var tagId in tagIds)
-                    //     {
-                    //         _context.EntityTags.Add(new EntityTag
-                    //         {
-                    //             EntityType = 3,
-                    //             EntityId = note.Id,
-                    //             TagId = tagId
-                    //         });
-                    //     }
-                    //     await _context.SaveChangesAsync();
-                    // }
-
-                    _logger.LogInformation("Successfully updated note with ID: {NoteId}", note.Id);
                     return new ResultOptions
                     {
                         Success = true,
-                        Message = "Note updated successfully",
-                        Object = existingNote,
+                        Message = $"Successfully permanently deleted {notesDeleted} note(s) and {workspaceItemsDeleted} workspace_items",
                         Status = 200
                     };
                 }
-                else
+                catch (DbUpdateException ex)
                 {
-                    // CREATE new note
-                    _logger.LogInformation("Creating note with Name: '{Name}', UserId: {UserId}, TagIds: [{TagIds}], ParentId: {ParentId}",
-                        note.Name, note.UserId, tagIds != null ? string.Join(",", tagIds) : "null", parentId);
-
-                    // Validate UserId exists before create
-                    var userExists = await _context.Users.AnyAsync(u => u.Id == note.UserId);
-                    if (!userExists)
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Database error while deleting notes with IDs: {NoteIds} - transaction rolled back",
+                        string.Join(",", noteIds));
+                    return new ResultOptions
                     {
-                        _logger.LogError("User not found with ID: {UserId}", note.UserId);
+                        Success = false,
+                        Message = "Database error occurred while deleting notes - all changes rolled back",
+                        Status = 500
+                    };
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Error deleting notes with IDs: {NoteIds} - transaction rolled back",
+                        string.Join(",", noteIds));
+                    return new ResultOptions
+                    {
+                        Success = false,
+                        Message = ex.Message + " - all changes rolled back",
+                        Status = 500
+                    };
+                }
+            });
+        }
+
+        /// <summary>
+        /// Batch upserts multiple notes in a single transaction (all-or-nothing)
+        /// Either all notes are upserted successfully, or the entire operation is rolled back
+        /// </summary>
+        public async Task<ResultOptions> UpsertNotesAsync(List<(Note note, List<int>? tagIds)> noteRequests)
+        {
+            // Create execution strategy to handle retry logic with transactions
+            var strategy = _context.Database.CreateExecutionStrategy();
+
+            return await strategy.ExecuteAsync(async () =>
+            {
+                using var transaction = await _context.Database.BeginTransactionAsync();
+
+                try
+                {
+                    // ===== STEP 1: Validate Batch Request =====
+                    if (noteRequests == null || !noteRequests.Any())
+                    {
+                        _logger.LogWarning("Empty note batch upsert request");
                         return new ResultOptions
                         {
                             Success = false,
-                            Message = $"User with ID {note.UserId} not found",
+                            Message = "No notes provided for batch upsert",
                             Status = 400
                         };
                     }
 
-                    // Ensure timestamps
-                    note.CreatedAt = DateTime.UtcNow;
-                    note.UpdatedAt = null;
-                    note.DeletedAt = null;
+                    _logger.LogInformation("Starting batch upsert transaction for {Count} notes", noteRequests.Count);
 
-                    _context.Notes.Add(note);
+                    var errors = new List<string>();
+
+                    // Validate all notes are not null
+                    for (int i = 0; i < noteRequests.Count; i++)
+                    {
+                        if (noteRequests[i].note == null)
+                        {
+                            errors.Add($"Note at index {i} is null");
+                        }
+                    }
+
+                    if (errors.Any())
+                    {
+                        await transaction.RollbackAsync();
+                        return ResultOptions.Fail(errors, 400);
+                    }
+
+                    // ===== STEP 2: Preload Data =====
+                    _logger.LogInformation("Preloading users and existing notes");
+
+                    // Get all unique user IDs
+                    var userIds = noteRequests.Select(r => r.note.UserId).Distinct().ToList();
+
+                    // Load all users in one query
+                    var existingUsers = await _context.Users
+                        .Where(u => userIds.Contains(u.Id))
+                        .Select(u => u.Id)
+                        .ToListAsync();
+
+                    // Validate all users exist
+                    var missingUserIds = userIds.Except(existingUsers).ToList();
+                    if (missingUserIds.Any())
+                    {
+                        errors.Add($"Users not found with IDs: {string.Join(", ", missingUserIds)}");
+                    }
+
+                    // Get all note IDs that need to be updated (ID > 0)
+                    var noteIdsToUpdate = noteRequests
+                        .Where(r => r.note.Id > 0)
+                        .Select(r => r.note.Id)
+                        .ToList();
+
+                    // Load all existing notes in one query (including soft-deleted for restore)
+                    var existingNotesDict = await _context.Notes
+                        .IgnoreQueryFilters()
+                        .Where(n => noteIdsToUpdate.Contains(n.Id))
+                        .ToDictionaryAsync(n => n.Id, n => n);
+
+                    // Validate all notes to update exist
+                    var missingNoteIds = noteIdsToUpdate.Except(existingNotesDict.Keys).ToList();
+                    if (missingNoteIds.Any())
+                    {
+                        errors.Add($"Notes not found with IDs: {string.Join(", ", missingNoteIds)}");
+                    }
+
+                    if (errors.Any())
+                    {
+                        await transaction.RollbackAsync();
+                        return ResultOptions.Fail(errors, 400);
+                    }
+
+                    // ===== STEP 3: Upsert Notes =====
+                    _logger.LogInformation("Upserting {Count} notes", noteRequests.Count);
+
+                    var upsertedNotes = new List<Note>();
+
+                    foreach (var (note, tagIds) in noteRequests)
+                    {
+                        bool isUpdate = note.Id > 0;
+
+                        if (isUpdate)
+                        {
+                            // UPDATE existing note
+                            var existingNote = existingNotesDict[note.Id];
+
+                            var operation = note.DeletedAt.HasValue ? "Soft deleting" :
+                                           (existingNote.DeletedAt.HasValue ? "Restoring" : "Updating");
+
+                            _logger.LogInformation("{Operation} note ID: {NoteId}, Name: '{Name}', UserId: {UserId}",
+                                operation, note.Id, note.Name, note.UserId);
+
+                            // Update properties
+                            existingNote.Name = note.Name;
+                            existingNote.Description = note.Description;
+                            existingNote.UserId = note.UserId;
+                            existingNote.StatusCode = note.StatusCode;
+                            existingNote.DeletedAt = note.DeletedAt;  // Handle soft delete/restore
+                            existingNote.UpdatedAt = DateTime.UtcNow;
+
+                            upsertedNotes.Add(existingNote);
+                        }
+                        else
+                        {
+                            // CREATE new note
+                            _logger.LogInformation("Creating note with Name: '{Name}', UserId: {UserId}",
+                                note.Name, note.UserId);
+
+                            // Ensure timestamps
+                            note.CreatedAt = DateTime.UtcNow;
+                            note.UpdatedAt = null;
+                            note.DeletedAt = null;
+
+                            _context.Notes.Add(note);
+                            upsertedNotes.Add(note);
+                        }
+
+                        // TODO: Handle tag associations when entity_tags relationship is implemented
+                    }
+
+                    // Save all changes in the transaction
                     await _context.SaveChangesAsync();
 
-                    // TODO: Add tag associations when entity_tags relationship is implemented
-                    // if (tagIds != null && tagIds.Any())
-                    // {
-                    //     foreach (var tagId in tagIds)
-                    //     {
-                    //         _context.EntityTags.Add(new EntityTag
-                    //         {
-                    //             EntityType = 3, // note
-                    //             EntityId = note.Id,
-                    //             TagId = tagId
-                    //         });
-                    //     }
-                    //     await _context.SaveChangesAsync();
-                    // }
+                    // Commit transaction
+                    await transaction.CommitAsync();
 
-                    _logger.LogInformation("Successfully created note with ID: {NoteId}", note.Id);
+                    _logger.LogInformation("Successfully committed batch upsert transaction for {Count} notes",
+                        noteRequests.Count);
+
                     return new ResultOptions
                     {
                         Success = true,
-                        Message = "Note created successfully",
-                        Object = note,
-                        Status = 201
+                        Message = $"Successfully upserted {noteRequests.Count} notes in batch",
+                        Data = upsertedNotes.Cast<object>().ToList(),
+                        Status = 200
                     };
                 }
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                _logger.LogError(ex, "Concurrency conflict while upserting note ID: {NoteId}", note.Id);
-                return new ResultOptions
+                catch (DbUpdateConcurrencyException ex)
                 {
-                    Success = false,
-                    Message = note.Id > 0 
-                        ? $"Note {note.Id} was modified by another user" 
-                        : "Concurrency conflict occurred while creating note",
-                    Status = 409
-                };
-            }
-            catch (DbUpdateException ex)
-            {
-                _logger.LogError(ex, "Database error while upserting note ID: {NoteId}, UserId: {UserId}", 
-                    note.Id, note.UserId);
-                return new ResultOptions
-                {
-                    Success = false,
-                    Message = "Database error occurred while saving note",
-                    Status = 500
-                };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error upserting note ID: {NoteId}, Name: '{Name}'", 
-                    note.Id, note.Name);
-                return new ResultOptions
-                {
-                    Success = false,
-                    Message = ex.Message,
-                    Status = 500
-                };
-            }
-        }
-
-        /// <summary>
-        /// Permanently deletes multiple notes by IDs with cascade to workspace_items
-        /// </summary>
-        public async Task<ResultOptions> DeleteNotesBatchAsync(List<int> noteIds)
-        {
-            try
-            {
-                if (noteIds == null || !noteIds.Any())
-                {
-                    _logger.LogWarning("Empty note IDs provided for batch deletion");
+                    // ===== STEP 4: Handle Exceptions =====
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Concurrency conflict during batch upsert - transaction rolled back");
                     return new ResultOptions
                     {
                         Success = false,
-                        Message = "No note IDs provided",
-                        Status = 400
+                        Message = "Concurrency conflict occurred - all changes rolled back",
+                        Status = 409
                     };
                 }
-
-                _logger.LogInformation("Permanently deleting notes with IDs: {NoteIds}",
-                    string.Join(",", noteIds));
-
-                // Step 1: Delete workspace_items pointing to these notes
-                var workspaceItemsDeleted = await _context.WorkspaceItems
-                    .Where(wi => wi.ItemType == 3 && noteIds.Contains(wi.ItemId))
-                    .ExecuteDeleteAsync();
-
-                _logger.LogInformation("Deleted {Count} workspace_items for notes", workspaceItemsDeleted);
-
-                // Step 2: Delete notes
-                var notesDeleted = await _context.Notes
-                    .Where(n => noteIds.Contains(n.Id))
-                    .ExecuteDeleteAsync();
-
-                if (notesDeleted == 0)
+                catch (DbUpdateException ex)
                 {
-                    _logger.LogWarning("No notes found to delete with IDs: {NoteIds}", string.Join(",", noteIds));
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Database error during batch upsert - transaction rolled back");
                     return new ResultOptions
                     {
                         Success = false,
-                        Message = $"No notes found with IDs: {string.Join(",", noteIds)}",
-                        Status = 404
+                        Message = "Database error occurred - all changes rolled back",
+                        Status = 500
                     };
                 }
-
-                _logger.LogInformation("Successfully permanently deleted {Count} note(s) and {WICount} workspace_items",
-                    notesDeleted, workspaceItemsDeleted);
-
-                return new ResultOptions
+                catch (Exception ex)
                 {
-                    Success = true,
-                    Message = $"Successfully permanently deleted {notesDeleted} note(s)",
-                    Status = 200
-                };
-            }
-            catch (DbUpdateException ex)
-            {
-                _logger.LogError(ex, "Database error while deleting notes with IDs: {NoteIds}", string.Join(",", noteIds));
-                return new ResultOptions
-                {
-                    Success = false,
-                    Message = "Database error occurred while deleting notes",
-                    Status = 500
-                };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error deleting notes with IDs: {NoteIds}", string.Join(",", noteIds));
-                return new ResultOptions
-                {
-                    Success = false,
-                    Message = ex.Message,
-                    Status = 500
-                };
-            }
-        }
-
-        /// <summary>
-        /// Restores multiple deleted notes by IDs in a single batch operation (undo soft delete)
-        /// </summary>
-        public async Task<ResultOptions> UndoDeleteNotesBatchAsync(List<int> noteIds)
-        {
-            try
-            {
-                if (noteIds == null || !noteIds.Any())
-                {
-                    _logger.LogWarning("Empty note IDs provided for batch undo deletion");
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Error during batch upsert - transaction rolled back");
                     return new ResultOptions
                     {
                         Success = false,
-                        Message = "No note IDs provided",
-                        Status = 400
+                        Message = ex.Message + " - all changes rolled back",
+                        Status = 500
                     };
                 }
-
-                _logger.LogInformation("Batch restoring notes with IDs: {NoteIds}", string.Join(",", noteIds));
-
-                // Update all matching notes in one query, ignore global filters to find deleted notes
-                var affectedRows = await _context.Notes
-                    .IgnoreQueryFilters()
-                    .Where(n => noteIds.Contains(n.Id) && n.DeletedAt != null)
-                    .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(n => n.DeletedAt, (DateTime?)null)
-                        .SetProperty(n => n.UpdatedAt, DateTime.UtcNow));
-
-                if (affectedRows == 0)
-                {
-                    _logger.LogWarning("No deleted notes found with IDs: {NoteIds}", string.Join(",", noteIds));
-                    return new ResultOptions
-                    {
-                        Success = false,
-                        Message = $"No deleted notes found with IDs: {string.Join(",", noteIds)}",
-                        Status = 404
-                    };
-                }
-
-                _logger.LogInformation("Successfully batch restored {Count} notes", affectedRows);
-                return new ResultOptions
-                {
-                    Success = true,
-                    Message = $"Successfully restored {affectedRows} note(s)",
-                    Status = 200
-                };
-            }
-            catch (DbUpdateException ex)
-            {
-                _logger.LogError(ex, "Database error while batch restoring notes with IDs: {NoteIds}", string.Join(",", noteIds));
-                return new ResultOptions
-                {
-                    Success = false,
-                    Message = "Database error occurred while batch restoring notes",
-                    Status = 500
-                };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error batch restoring notes with IDs: {NoteIds}", string.Join(",", noteIds));
-                return new ResultOptions
-                {
-                    Success = false,
-                    Message = ex.Message,
-                    Status = 500
-                };
-            }
+            });
         }
     }
 }

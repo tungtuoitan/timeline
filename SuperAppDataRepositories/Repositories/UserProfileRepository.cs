@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
+using SuperAppModels.DTOs;
 using SuperAppModels.Models;
 
 namespace SuperAppDataRepositories.Repositories
@@ -60,7 +61,7 @@ namespace SuperAppDataRepositories.Repositories
         /// <summary>
         /// Create or update user profile
         /// </summary>
-        public async Task<UserProfile> CreateOrUpdateAsync(UserProfile profile)
+        public async Task<ResultOptions> UpsertUserProfileAsync(UserProfile profile)
         {
             try
             {
@@ -77,28 +78,34 @@ namespace SuperAppDataRepositories.Repositories
 
                 if (existingProfile != null)
                 {
-                    // Update existing profile
+                    // Update existing profile - only update fields that are not null
                     _logger.LogInformation("Updating existing user profile ID: {ProfileId} for userId: {UserId}",
                         existingProfile.Id, profile.UserId);
 
-                    existingProfile.FirstName = profile.FirstName;
-                    existingProfile.LastName = profile.LastName;
-                    existingProfile.AvatarUrl = profile.AvatarUrl;
-                    existingProfile.Bio = profile.Bio;
-                    existingProfile.DateOfBirth = profile.DateOfBirth;
-                    existingProfile.Gender = profile.Gender;
-                    existingProfile.Country = profile.Country;
-                    existingProfile.City = profile.City;
-                    existingProfile.Timezone = profile.Timezone;
-                    existingProfile.Language = profile.Language;
-                    existingProfile.Filters = profile.Filters;
+                    // Update each field only if it has a value (not null)
+                    if (profile.FirstName != null) existingProfile.FirstName = profile.FirstName;
+                    if (profile.LastName != null) existingProfile.LastName = profile.LastName;
+                    if (profile.AvatarUrl != null) existingProfile.AvatarUrl = profile.AvatarUrl;
+                    if (profile.Bio != null) existingProfile.Bio = profile.Bio;
+                    if (profile.DateOfBirth.HasValue) existingProfile.DateOfBirth = profile.DateOfBirth;
+                    if (profile.Gender != null) existingProfile.Gender = profile.Gender;
+                    if (profile.Country != null) existingProfile.Country = profile.Country;
+                    if (profile.City != null) existingProfile.City = profile.City;
+                    if (profile.Timezone != null) existingProfile.Timezone = profile.Timezone;
+                    if (profile.Language != null) existingProfile.Language = profile.Language;
+                    if (profile.Filters != null) existingProfile.Filters = profile.Filters;
+
                     existingProfile.UpdatedAt = DateTime.UtcNow;
 
                     _context.UserProfiles.Update(existingProfile);
                     await _context.SaveChangesAsync();
 
                     _logger.LogInformation("Successfully updated user profile ID: {ProfileId}", existingProfile.Id);
-                    return existingProfile;
+                    return new ResultOptions
+                    {
+                        Success = true,
+                        Message = "Update User Profile successfully."
+                    };
                 }
                 else
                 {
@@ -112,7 +119,11 @@ namespace SuperAppDataRepositories.Repositories
                     await _context.SaveChangesAsync();
 
                     _logger.LogInformation("Successfully created user profile ID: {ProfileId}", profile.Id);
-                    return profile;
+                    return new ResultOptions
+                    {
+                        Success = true,
+                        Message = "Insert User Profile successfully."
+                    };
                 }
             }
             catch (DbUpdateException ex)
@@ -127,14 +138,6 @@ namespace SuperAppDataRepositories.Repositories
                     profile?.UserId);
                 throw;
             }
-        }
-
-        /// <summary>
-        /// Create or update user profile (alias for CreateOrUpdateAsync)
-        /// </summary>
-        public Task<UserProfile> UpsertUserProfileAsync(UserProfile profile)
-        {
-            return CreateOrUpdateAsync(profile);
         }
     }
 }

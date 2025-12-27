@@ -25,14 +25,19 @@ namespace SuperAppServices.Services
         /// <summary>
         /// Get user profile by userId
         /// </summary>
-        public async Task<UserProfile?> GetUserProfileByUserIdAsync(int userId)
+        public async Task<ResultOptions> GetUserProfileByUserIdAsync(int userId)
         {
             try
             {
                 if (userId <= 0)
                 {
                     _logger.LogWarning("Invalid userId provided for GetUserProfileByUserIdAsync: {UserId}", userId);
-                    return null;
+                    return new ResultOptions
+                    {
+                        Success = false,
+                        Message = "UserId must be greater than 0",
+                        Status = 400
+                    };
                 }
 
                 _logger.LogInformation("Getting user profile for userId: {UserId}", userId);
@@ -42,16 +47,32 @@ namespace SuperAppServices.Services
                 if (userProfile == null)
                 {
                     _logger.LogWarning("User profile not found for userId: {UserId}", userId);
-                    return null;
+                    return new ResultOptions
+                    {
+                        Success = false,
+                        Message = "User profile not found",
+                        Status = 404
+                    };
                 }
 
                 _logger.LogInformation("Successfully retrieved user profile for userId: {UserId}", userId);
-                return userProfile;
+                return new ResultOptions
+                {
+                    Success = true,
+                    Message = "User profile retrieved successfully",
+                    Object = userProfile,
+                    Status = 200
+                };
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while getting user profile for userId: {UserId}", userId);
-                throw;
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    Status = 500
+                };
             }
         }
 
@@ -76,7 +97,12 @@ namespace SuperAppServices.Services
                 _logger.LogInformation("Creating or updating user profile for userId: {UserId}",
                     userProfile.UserId);
 
-                var result = await _repository.CreateOrUpdateAsync(userProfile);
+                var result = await _repository.UpsertUserProfileAsync(userProfile);
+                if (!result.Success)
+                {
+                    throw new Exception("Fail to create/update user profile."); 
+                }
+                var res = await _repository.GetByUserIdAsync(userProfile.UserId);
 
                 _logger.LogInformation("Successfully created/updated user profile for userId: {UserId}", userProfile.UserId);
 
@@ -84,7 +110,7 @@ namespace SuperAppServices.Services
                 {
                     Success = true,
                     Message = "User profile saved successfully",
-                    Object = result,
+                    Object = res,
                     Status = 200
                 };
             }
@@ -92,94 +118,6 @@ namespace SuperAppServices.Services
             {
                 _logger.LogError(ex, "Error occurred while creating/updating user profile for userId: {UserId}",
                     userProfile?.UserId);
-
-                return new ResultOptions
-                {
-                    Success = false,
-                    Message = ex.Message,
-                    Status = 500
-                };
-            }
-        }
-
-        /// <summary>
-        /// Upsert user filters (insert new profile if not exists, update filters if exists)
-        /// </summary>
-        public async Task<ResultOptions> UpdateUserFiltersAsync(int userId, string filters)
-        {
-            try
-            {
-                if (userId <= 0)
-                {
-                    _logger.LogWarning("Invalid userId provided for UpdateUserFiltersAsync: {UserId}", userId);
-                    return new ResultOptions
-                    {
-                        Success = false,
-                        Message = "UserId must be greater than 0",
-                        Status = 400
-                    };
-                }
-
-                if (string.IsNullOrWhiteSpace(filters))
-                {
-                    _logger.LogWarning("Empty filters provided for UpdateUserFiltersAsync");
-                    return new ResultOptions
-                    {
-                        Success = false,
-                        Message = "Filters cannot be empty",
-                        Status = 400
-                    };
-                }
-
-                _logger.LogInformation("Upserting filters for userId: {UserId}", userId);
-
-                var userProfile = await _repository.GetByUserIdAsync(userId);
-
-                if (userProfile == null)
-                {
-                    // Create new profile with filters
-                    _logger.LogInformation("User profile not found, creating new profile with filters for userId: {UserId}", userId);
-
-                    var newProfile = new UserProfile(userId)
-                    {
-                        Filters = filters
-                    };
-
-                    var result = await _repository.CreateOrUpdateAsync(newProfile);
-
-                    _logger.LogInformation("Successfully created user profile with filters for userId: {UserId}", userId);
-
-                    return new ResultOptions
-                    {
-                        Success = true,
-                        Message = "User profile created with filters successfully",
-                        Object = result,
-                        Status = 200
-                    };
-                }
-                else
-                {
-                    // Update existing profile filters
-                    _logger.LogInformation("Updating filters for existing user profile, userId: {UserId}", userId);
-
-                    userProfile.Update(filters: filters);
-
-                    var result = await _repository.CreateOrUpdateAsync(userProfile);
-
-                    _logger.LogInformation("Successfully updated filters for userId: {UserId}", userId);
-
-                    return new ResultOptions
-                    {
-                        Success = true,
-                        Message = "Filters updated successfully",
-                        Object = result,
-                        Status = 200
-                    };
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error occurred while upserting filters for userId: {UserId}", userId);
 
                 return new ResultOptions
                 {

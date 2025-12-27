@@ -21,6 +21,7 @@ namespace SuperAppServices.Services
     public class AuthService : IAuthService
     {
         private readonly IUserRepository _userRepository;
+        private readonly IUserProfileRepository _userProfileRepository;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
         private readonly Microsoft.Extensions.Logging.ILogger<AuthService> _logger;
@@ -31,11 +32,13 @@ namespace SuperAppServices.Services
 
         public AuthService(
             IUserRepository userRepository,
+            IUserProfileRepository userProfileRepository,
             IHttpClientFactory httpClientFactory,
             IConfiguration configuration,
             Microsoft.Extensions.Logging.ILogger<AuthService> logger)
         {
             _userRepository = userRepository;
+            _userProfileRepository = userProfileRepository;
             _httpClientFactory = httpClientFactory;
             _configuration = configuration;
             _logger = logger;
@@ -73,10 +76,31 @@ namespace SuperAppServices.Services
                 user.RecordLogin();
                 await _userRepository.UpdateAsync(user);
 
-                // Step 5: Generate JWT token
+                // Step 5: Get UserProfile (if exists) to include filters
+                string? userFilters = null;
+                try
+                {
+                    var userProfile = await _userProfileRepository.GetByUserIdAsync(user.Id);
+                    if (userProfile != null)
+                    {
+                        userFilters = userProfile.Filters;
+                        _logger.LogInformation("Found user profile with filters for userId: {UserId}", user.Id);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("No user profile found for userId: {UserId}", user.Id);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to get user profile for userId: {UserId}", user.Id);
+                    // Continue without filters - this is not a critical error
+                }
+
+                // Step 6: Generate JWT token
                 var jwtToken = GenerateJwtToken(user);
 
-                // Step 6: Build response
+                // Step 7: Build response
                 return new AuthResponse
                 {
                     Success = true,
@@ -90,7 +114,8 @@ namespace SuperAppServices.Services
                         Picture = googleUserInfo.Picture,
                         AuthType = "google",
                         Token = jwtToken,
-                        TokenType = "Bearer"
+                        TokenType = "Bearer",
+                        Filters = userFilters
                     },
                     ExpiresAt = DateTime.UtcNow.AddMinutes(_jwtExpirationMinutes)
                 };
