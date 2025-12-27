@@ -126,6 +126,169 @@ namespace SuperAppServices.Services
             }
         }
 
+        /// <summary>
+        /// Gets workspace tree with all items (V2 - with full entity data)
+        /// V2 structure: Clear separation between workspace_items properties and entity data
+        /// </summary>
+        public async Task<WorkspaceWithTreeResponseV2> GetWorkspaceTreeV2Async(int workspaceId, int userId)
+        {
+            try
+            {
+                _logger.LogInformation("Getting workspace tree V2 for WorkspaceId: {WorkspaceId}, UserId: {UserId}",
+                    workspaceId, userId);
+
+                // Get workspace info
+                var workspace = await _workspaceRepository.GetWorkspaceByIdAsync(workspaceId, userId);
+                if (workspace == null)
+                {
+                    _logger.LogWarning("Workspace {WorkspaceId} not found for user {UserId}",
+                        workspaceId, userId);
+                    throw new KeyNotFoundException($"Workspace with ID {workspaceId} not found");
+                }
+
+                // Get workspace tree (tags, notes, files)
+                var workspaceWithTree = await _workspaceRepository.GetWorkspaceTreeAsync(workspaceId, userId);
+                if (workspaceWithTree == null)
+                {
+                    _logger.LogWarning("Workspace tree data not found for workspace {WorkspaceId}", workspaceId);
+                    throw new InvalidOperationException($"Failed to retrieve workspace tree for workspace {workspaceId}");
+                }
+
+                // Transform to V2 structure (workspace_items properties + Data property with entity data)
+                var itemsV2 = TransformToV2Structure(workspaceWithTree.Items);
+
+                // Create V2 response
+                var response = new WorkspaceWithTreeResponseV2
+                {
+                    WorkspaceId = workspace.Id,
+                    UserId = workspace.UserId,
+                    Name = workspace.Name,
+                    Description = workspace.Description,
+                    // Default values for properties not in DB schema
+                    Color = "#3B82F6", // Default blue
+                    Icon = "📁",
+                    Type = "hierarchy",
+                    MaxDepth = 10,
+                    IsDefault = false,
+                    IsPublic = false,
+                    IsTemplate = false,
+                    IsArchived = false,
+                    TagCount = 0,
+                    NoteCount = 0,
+                    FileCount = 0,
+                    MemberCount = 1,
+                    Settings = null,
+                    CreatedAt = workspace.CreatedAt ?? DateTime.UtcNow,
+                    UpdatedAt = workspace.UpdatedAt,
+                    Items = itemsV2 // ✅ FLAT list with full entity data in 'Data' property
+                };
+
+                _logger.LogInformation("Successfully retrieved workspace tree V2 with {ItemCount} items for workspace {WorkspaceId}",
+                    itemsV2.Count, workspaceId);
+
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while getting workspace tree V2 for WorkspaceId: {WorkspaceId}, UserId: {UserId}",
+                    workspaceId, userId);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Transforms WorkspaceItem (mixed structure) to WorkspaceItemResponseV2 (clear separation)
+        /// Reorganizes data: workspace_items properties at root + entity data in 'Data' property
+        /// </summary>
+        private List<WorkspaceItemResponseV2> TransformToV2Structure(List<SuperAppModels.Models.WorkspaceItem> items)
+        {
+            return items.Select(item =>
+            {
+                // Determine ItemType byte value
+                byte itemType = item.Type.ToLowerInvariant() switch
+                {
+                    "folder" => 2,
+                    "note" => 3,
+                    "file" => 4,
+                    _ => throw new InvalidOperationException($"Unknown item type: {item.Type}")
+                };
+
+                // Create entity data object based on type
+                object entityData = itemType switch
+                {
+                    2 => new FolderData
+                    {
+                        Id = (int)item.ItemId,
+                        UserId = item.UserId,
+                        Name = item.Name,
+                        Description = null, // Not available in current WorkspaceItem
+                        Color = item.Color,
+                        Icon = item.Icon,
+                        CreatedAt = item.CreatedAt,
+                        UpdatedAt = item.UpdatedAt,
+                        DeletedAt = item.DeletedAt,
+                        CopyInfo = null
+                    },
+                    3 => new NoteData
+                    {
+                        Id = (int)item.ItemId,
+                        UserId = item.UserId,
+                        Name = item.Name,
+                        Description = null, // Not available in current WorkspaceItem
+                        StatusCode = null,
+                        CreatedAt = item.CreatedAt,
+                        UpdatedAt = item.UpdatedAt,
+                        DeletedAt = item.DeletedAt,
+                        CopyInfo = null
+                    },
+                    4 => new FileData
+                    {
+                        Id = (int)item.ItemId,
+                        UserId = item.UserId,
+                        Name = item.Name,
+                        Url = null, // Not available in current WorkspaceItem
+                        FileSize = null,
+                        MimeType = null,
+                        Extension = null,
+                        StatusCode = null,
+                        CreatedAt = item.CreatedAt,
+                        UpdatedAt = item.UpdatedAt,
+                        DeletedAt = item.DeletedAt,
+                        CopyInfo = null
+                    },
+                    _ => throw new InvalidOperationException($"Unsupported item type: {itemType}")
+                };
+
+                // Build WorkspaceItemResponseV2 with clear separation
+                return new WorkspaceItemResponseV2
+                {
+                    // ============ FROM workspace_items TABLE ============
+                    Id = item.RelationshipId ?? 0,
+                    WorkspaceId = 0, // Will be set from workspace context
+                    ParentId = item.ParentId,
+                    ItemType = itemType,
+                    ItemId = (int)item.ItemId,
+                    CreatedAt = item.CreatedAt,
+                    UpdatedAt = item.UpdatedAt,
+                    DeletedAt = item.DeletedAt,
+                    CopyInfo = null,
+
+                    // ============ COMPUTED PROPERTIES ============
+                    Level = item.Level,
+                    Position = item.Position,
+                    AccessType = item.AccessType,
+                    IsOriginal = item.IsOriginal,
+
+                    // ============ ENTITY DATA ============
+                    Data = entityData,
+
+                    // ============ UI STATE ============
+                    IsExpanded = false,
+                    IsSelected = false
+                };
+            }).ToList();
+        }
+
        
 
         /// <summary>

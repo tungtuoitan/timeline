@@ -137,6 +137,49 @@ namespace SuperAppAPI.Controllers
         }
 
         /// <summary>
+        /// Gets workspace information with its complete hierarchical tree (V2 - with full entity data)
+        /// V2 structure: Clear separation between workspace_items properties and entity data
+        /// Returns flat list with full entity data in 'Data' property
+        /// </summary>
+        /// <response code="200">Workspace tree retrieved successfully</response>
+        /// <response code="400">Invalid workspace ID</response>
+        /// <response code="401">Unauthorized - invalid or missing token</response>
+        /// <response code="403">Access denied - no access to workspace</response>
+        /// <response code="404">Workspace not found</response>
+        /// <response code="500">Internal server error</response>
+        [HttpGet("{workspaceId}/tree/v2")]
+        [ProducesResponseType(typeof(WorkspaceWithTreeResponseV2), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetWorkspaceTreeV2(int workspaceId)
+        {
+            if (workspaceId <= 0)
+            {
+                _logger.LogWarning("Invalid workspace ID provided: {WorkspaceId}", workspaceId);
+                throw new BadRequestException("Workspace ID must be a positive integer");
+            }
+
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
+
+            _logger.LogInformation("Retrieving workspace tree V2 for workspaceId: {WorkspaceId}, userId: {UserId}",
+                workspaceId, userId.Value);
+
+            var response = await _workspaceService.GetWorkspaceTreeV2Async(workspaceId, userId.Value);
+
+            _logger.LogInformation("Successfully retrieved workspace tree V2 with {ItemCount} items for workspaceId: {WorkspaceId}",
+                response?.Items?.Count ?? 0, workspaceId);
+
+            return Ok(response);
+        }
+
+        /// <summary>
         /// Creates a new folder or updates an existing folder in a workspace
         /// </summary>
         /// <response code="200">Folder created/updated successfully</response>
