@@ -29,7 +29,7 @@ namespace SuperAppDataRepositories.Repositories
         /// <summary>
         /// Gets all workspaces with comprehensive filtering options
         /// </summary>
-        public async Task<ResultOptions> GetWorkspacesAsync(WorkspaceFilterOptions filterOptions)
+        public async Task<ResultOptions> GetWorkspacesAsync(WsFilterOptions filterOptions)
         {
             try
             {

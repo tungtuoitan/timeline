@@ -50,6 +50,7 @@ namespace SuperAppAPI.Controllers
         /// Gets all workspaces with optional filtering for the authenticated user
         /// </summary>
         /// <param name="searchText">Optional search text filter</param>
+        /// <param name="ids">Optional comma-separated workspace IDs (e.g., "1,2,3") for restoring tabs</param>
         /// <returns>ResultOptions containing list of workspaces matching the criteria</returns>
         /// <response code="200">Workspaces retrieved successfully</response>
         /// <response code="401">Unauthorized - invalid or missing token</response>
@@ -58,7 +59,8 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetWorkspaces(
-            [FromQuery] string? searchText = null)
+            [FromQuery] string? searchText = null,
+            [FromQuery] string? ids = null)
         {
             // Get userId from JWT token claims
             var userId = GetAuthenticatedUserId();
@@ -70,10 +72,10 @@ namespace SuperAppAPI.Controllers
             var userEmail = GetAuthenticatedUserEmail();
 
             _logger.LogInformation(
-                "Retrieving workspaces for userId: {UserId}, UserEmail: {UserEmail}, SearchText: {SearchText}",
-                userId.Value, userEmail, searchText);
+                "Retrieving workspaces for userId: {UserId}, UserEmail: {UserEmail}, SearchText: {SearchText}, Ids: {Ids}",
+                userId.Value, userEmail, searchText, ids);
 
-            var response = await _wsService.GetWorkspacesAsync(userId.Value, searchText);
+            var response = await _wsService.GetWorkspacesAsync(userId.Value, searchText, ids);
 
             _logger.LogInformation("Successfully retrieved workspaces for user: {UserEmail}, Success: {Success}",
                 userEmail, response.Success);

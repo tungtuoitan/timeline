@@ -34,17 +34,20 @@ namespace SuperAppServices.Services
         /// <summary>
         /// Get all workspaces with optional filters
         /// </summary>
-        public async Task<ResultOptions> GetWorkspacesAsync(int userId, string? searchText)
+        public async Task<ResultOptions> GetWorkspacesAsync(int userId, string? searchText, string? ids = null)
         {
             try
             {
-                _logger.LogInformation("Getting workspaces for UserId: {UserId}, SearchText: {SearchText}",
-                    userId, searchText);
+                _logger.LogInformation("Getting workspaces for UserId: {UserId}, SearchText: {SearchText}, Ids: {Ids}",
+                    userId, searchText, ids);
 
-                var filterOptions = new WorkspaceFilterOptions
+                var filterOptions = new WsFilterOptions
                 {
                     UserId = userId,  // ✅ Filter by userId
-                    SearchText = searchText
+                    SearchText = searchText,
+                    Ids = !string.IsNullOrEmpty(ids)
+                        ? ids.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList()
+                        : null
                 };
 
                 // Repository returns ResultOptions

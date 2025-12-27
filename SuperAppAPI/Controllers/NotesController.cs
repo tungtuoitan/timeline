@@ -56,6 +56,7 @@ namespace SuperAppAPI.Controllers
         /// <param name="deletedAt">Optional deleted status filter ("null" for active only, "notNull" for deleted only)</param>
         /// <param name="createdAtFrom">Optional created date from filter (ISO date string)</param>
         /// <param name="createdAtTo">Optional created date to filter (ISO date string)</param>
+        /// <param name="ids">Optional comma-separated note IDs (e.g., "1,2,3") for restoring tabs</param>
         /// <returns>ResultOptions containing list of notes matching the criteria</returns>
         /// <response code="200">Notes retrieved successfully</response>
         /// <response code="401">Unauthorized - invalid or missing token</response>
@@ -69,7 +70,8 @@ namespace SuperAppAPI.Controllers
             [FromQuery] string? statusCode = null,
             [FromQuery] string? deletedAt = null,
             [FromQuery] string? createdAtFrom = null,
-            [FromQuery] string? createdAtTo = null)
+            [FromQuery] string? createdAtTo = null,
+            [FromQuery] string? ids = null)
         {
             // Get userId from JWT token claims
             var userId = GetAuthenticatedUserId();
@@ -95,6 +97,9 @@ namespace SuperAppAPI.Controllers
                     : null,
                 CreatedTo = !string.IsNullOrEmpty(createdAtTo) && DateTime.TryParse(createdAtTo, out var parsedTo)
                     ? parsedTo
+                    : null,
+                Ids = !string.IsNullOrEmpty(ids)
+                    ? ids.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList()
                     : null
             };
 

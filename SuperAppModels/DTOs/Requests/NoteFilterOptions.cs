@@ -39,5 +39,10 @@ namespace SuperAppModels.DTOs.Requests
         /// Sort order: asc or desc (default: desc)
         /// </summary>
         public string SortOrder { get; set; } = "desc";
+
+        /// <summary>
+        /// Specific note IDs to retrieve (for restoring tabs)
+        /// </summary>
+        public List<int>? Ids { get; set; }
     }
 }

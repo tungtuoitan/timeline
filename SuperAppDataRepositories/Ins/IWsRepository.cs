@@ -9,7 +9,7 @@ namespace SuperAppDataRepositories.Ins
     /// </summary>
     public interface IWsRepository
     {
-        Task<ResultOptions> GetWorkspacesAsync(WorkspaceFilterOptions filterOptions);
+        Task<ResultOptions> GetWorkspacesAsync(WsFilterOptions filterOptions);
         Task<ResultOptions> GetWorkspaceById(int workspaceId);
         Task<ResultOptions> UpsertWorkspaceAsync(Workspace workspace);
         Task<ResultOptions> DeleteWorkspacesCascadeAsync(string workspaceIds);

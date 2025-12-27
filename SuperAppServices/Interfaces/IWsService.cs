@@ -13,8 +13,9 @@ namespace SuperAppServices.Interfaces
         /// </summary>
         /// <param name="userId">User ID to filter workspaces</param>
         /// <param name="searchText">Search text filter</param>
+        /// <param name="ids">Optional comma-separated workspace IDs (e.g., "1,2,3") for restoring tabs</param>
         /// <returns>ResultOptions containing list of workspaces</returns>
-        Task<ResultOptions> GetWorkspacesAsync(int userId, string? searchText);
+        Task<ResultOptions> GetWorkspacesAsync(int userId, string? searchText, string? ids = null);
 
         /// <summary>
         /// Get workspace by ID
