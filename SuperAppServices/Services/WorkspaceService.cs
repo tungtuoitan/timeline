@@ -130,7 +130,7 @@ namespace SuperAppServices.Services
         /// Gets workspace tree with all items (V2 - with full entity data)
         /// V2 structure: Clear separation between workspace_items properties and entity data
         /// </summary>
-        public async Task<WorkspaceWithTreeResponseV2> GetWorkspaceTreeV2Async(int workspaceId, int userId)
+        public async Task<WorkspaceDTO> GetWorkspaceTreeV2Async(int workspaceId, int userId)
         {
             try
             {
@@ -157,10 +157,15 @@ namespace SuperAppServices.Services
                 // Transform to V2 structure (workspace_items properties + Data property with entity data)
                 var itemsV2 = TransformToV2Structure(workspaceWithTree.Items);
 
-                // Create V2 response
-                var response = new WorkspaceWithTreeResponseV2
+                // Count items by type
+                int folderCount = itemsV2.Count(i => i.EntityType == 2);
+                int noteCount = itemsV2.Count(i => i.EntityType == 3);
+                int fileCount = itemsV2.Count(i => i.EntityType == 4);
+
+                // Create unified WorkspaceDTO response
+                var response = new WorkspaceDTO
                 {
-                    WorkspaceId = workspace.Id,
+                    Id = workspace.Id,
                     UserId = workspace.UserId,
                     Name = workspace.Name,
                     Description = workspace.Description,
@@ -173,14 +178,15 @@ namespace SuperAppServices.Services
                     IsPublic = false,
                     IsTemplate = false,
                     IsArchived = false,
-                    TagCount = 0,
-                    NoteCount = 0,
-                    FileCount = 0,
+                    FolderCount = folderCount,
+                    NoteCount = noteCount,
+                    FileCount = fileCount,
                     MemberCount = 1,
                     Settings = null,
                     CreatedAt = workspace.CreatedAt ?? DateTime.UtcNow,
                     UpdatedAt = workspace.UpdatedAt,
-                    Items = itemsV2 // ✅ FLAT list with full entity data in 'Data' property
+                    DeletedAt = workspace.DeletedAt,
+                    FlatData = itemsV2 // ✅ FLAT list with full entity data in 'Data' property
                 };
 
                 _logger.LogInformation("Successfully retrieved workspace tree V2 with {ItemCount} items for workspace {WorkspaceId}",

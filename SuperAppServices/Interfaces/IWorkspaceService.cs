@@ -19,13 +19,12 @@ namespace SuperAppServices.Interfaces
 
         /// <summary>
         /// Gets workspace tree with all items (V2 - with full entity data)
-        /// V2 structure: Clear separation between workspace_items properties and entity data
-        /// Returns flat list with full entity data in 'Data' property
+        /// Returns unified WorkspaceDTO with flat list of items
         /// </summary>
         /// <param name="workspaceId">Workspace ID</param>
         /// <param name="userId">User ID</param>
-        /// <returns>Workspace with flat list of items containing full entity data</returns>
-        Task<WorkspaceWithTreeResponseV2> GetWorkspaceTreeV2Async(int workspaceId, int userId);
+        /// <returns>Unified WorkspaceDTO with workspace data + flatData</returns>
+        Task<WorkspaceDTO> GetWorkspaceTreeV2Async(int workspaceId, int userId);
 
         /// <summary>
         /// Gets all workspaces for a user with optional filters

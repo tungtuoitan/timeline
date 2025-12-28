@@ -40,7 +40,12 @@ namespace SuperAppAPI
 
             services.AddMemoryCache();
 
-            services.AddControllers();
+            services.AddControllers()
+                .AddJsonOptions(options =>
+                {
+                    // Enable string enum serialization/deserialization
+                    options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+                });
             services.AddHttpClient();
             //services.AddCors(options =>
             //{
