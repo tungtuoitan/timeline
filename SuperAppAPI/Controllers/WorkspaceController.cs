@@ -18,11 +18,16 @@ namespace SuperAppAPI.Controllers
     public class WorkspaceController : ControllerBase
     {
         private readonly IWorkspaceService _workspaceService;
+        private readonly IWorkspaceItemService _workspaceItemService;
         private readonly ILogger<WorkspaceController> _logger;
 
-        public WorkspaceController(IWorkspaceService workspaceService, ILogger<WorkspaceController> logger)
+        public WorkspaceController(
+            IWorkspaceService workspaceService,
+            IWorkspaceItemService workspaceItemService,
+            ILogger<WorkspaceController> logger)
         {
             _workspaceService = workspaceService ?? throw new ArgumentNullException(nameof(workspaceService));
+            _workspaceItemService = workspaceItemService ?? throw new ArgumentNullException(nameof(workspaceItemService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -104,37 +109,37 @@ namespace SuperAppAPI.Controllers
         /// <response code="403">Access denied - no access to workspace</response>
         /// <response code="404">Workspace not found</response>
         /// <response code="500">Internal server error</response>
-        [HttpGet("{workspaceId}/tree")]
-        [ProducesResponseType(typeof(WorkspaceWithTreeResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetWorkspaceTree(int workspaceId)
-        {
-            if (workspaceId <= 0)
-            {
-                _logger.LogWarning("Invalid workspace ID provided: {WorkspaceId}", workspaceId);
-                throw new BadRequestException("Workspace ID must be a positive integer");
-            }
+        //[HttpGet("{workspaceId}/tree")]
+        //[ProducesResponseType(typeof(WorkspaceWithTreeResponse), StatusCodes.Status200OK)]
+        //[ProducesResponseType(StatusCodes.Status400BadRequest)]
+        //[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        //[ProducesResponseType(StatusCodes.Status403Forbidden)]
+        //[ProducesResponseType(StatusCodes.Status404NotFound)]
+        //[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        //public async Task<IActionResult> GetWorkspaceTree(int workspaceId)
+        //{
+        //    if (workspaceId <= 0)
+        //    {
+        //        _logger.LogWarning("Invalid workspace ID provided: {WorkspaceId}", workspaceId);
+        //        throw new BadRequestException("Workspace ID must be a positive integer");
+        //    }
 
-            var userId = GetAuthenticatedUserId();
-            if (userId == null)
-            {
-                return Unauthorized("User ID not found in token");
-            }
+        //    var userId = GetAuthenticatedUserId();
+        //    if (userId == null)
+        //    {
+        //        return Unauthorized("User ID not found in token");
+        //    }
             
-            _logger.LogInformation("Retrieving workspace tree for workspaceId: {WorkspaceId}, userId: {UserId}", 
-                workspaceId, userId.Value);
+        //    _logger.LogInformation("Retrieving workspace tree for workspaceId: {WorkspaceId}, userId: {UserId}", 
+        //        workspaceId, userId.Value);
 
-            var response = await _workspaceService.GetWorkspaceTreeAsync(workspaceId, userId.Value);
+        //    var response = await _workspaceService.GetWorkspaceTreeAsync(workspaceId, userId.Value);
 
-            _logger.LogInformation("Successfully retrieved workspace tree with {RootCount} root items for workspaceId: {WorkspaceId}",
-                response?.Items?.Count ?? 0, workspaceId);
+        //    _logger.LogInformation("Successfully retrieved workspace tree with {RootCount} root items for workspaceId: {WorkspaceId}",
+        //        response?.Items?.Count ?? 0, workspaceId);
 
-            return Ok(response);
-        }
+        //    return Ok(response);
+        //}
 
         /// <summary>
         /// Gets workspace information with its complete hierarchical tree (V2 - with full entity data)
@@ -417,17 +422,26 @@ namespace SuperAppAPI.Controllers
         }
 
         /// <summary>
-        /// Batch upsert multiple workspace items (create or update) in a single request
+        /// Batch upsert multiple workspace items with action-based operations
+        /// Supports 6 actions: Create, Add, Move, Update, Delete, Restore
         /// Use this for single item operations by passing an array with 1 element
-        /// Pattern: 100% follows NotesController.UpsertNotes
+        /// Pattern: Action-based API (Microsoft Graph style)
         /// </summary>
         /// <param name="workspaceId">Workspace ID from route</param>
-        /// <param name="requests">List of workspace item upsert data</param>
+        /// <param name="requests">List of workspace item requests with explicit actions</param>
         /// <returns>Batch operation results</returns>
-        /// <response code="200">Workspace items upserted successfully</response>
-        /// <response code="400">Invalid input data</response>
+        /// <response code="200">Workspace items processed successfully</response>
+        /// <response code="400">Invalid input data or validation failed</response>
         /// <response code="401">Unauthorized - invalid or missing token</response>
         /// <response code="500">Internal server error</response>
+        /// <example>
+        /// Example request body:
+        /// [
+        ///   { "action": "create", "itemType": 2, "parentId": null, "folderData": { "name": "New Folder" } },
+        ///   { "action": "move", "id": 123, "parentId": null },
+        ///   { "action": "delete", "id": 456 }
+        /// ]
+        /// </example>
         [HttpPost("{workspaceId}/items/batch")]
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -437,21 +451,21 @@ namespace SuperAppAPI.Controllers
             int workspaceId,
             [FromBody] List<UpsertWorkspaceItemRequest> requests)
         {
-            // 1. Validate ModelState (giống NotesController)
+            // 1. Validate ModelState
             if (!ModelState.IsValid)
             {
-                _logger.LogWarning("Invalid model state for batch upsert workspace items request");
+                _logger.LogWarning("Invalid model state for batch workspace items request");
                 return BadRequest(ModelState);
             }
 
-            // 2. Validate non-empty list (giống NotesController)
+            // 2. Validate non-empty list
             if (requests == null || !requests.Any())
             {
-                _logger.LogWarning("Empty batch upsert request");
+                _logger.LogWarning("Empty batch request");
                 return BadRequest("At least one workspace item is required");
             }
 
-            // 3. Get userId from JWT token claims (giống NotesController)
+            // 3. Get userId from JWT token claims
             var userId = GetAuthenticatedUserId();
             if (userId == null)
             {
@@ -460,7 +474,7 @@ namespace SuperAppAPI.Controllers
 
             var userEmail = User.GetUserEmail();
 
-            // 4. Set workspaceId, userId, and CreatedBy for all requests (giống NotesController)
+            // 4. Set workspaceId, userId, and CreatedBy for all requests
             foreach (var request in requests)
             {
                 request.WorkspaceId = workspaceId;
@@ -469,14 +483,20 @@ namespace SuperAppAPI.Controllers
             }
 
             _logger.LogInformation(
-                "Batch upserting {Count} workspace items for workspace: {WorkspaceId}, user: {UserId}",
-                requests.Count, workspaceId, userId.Value);
+                "Processing {Count} workspace items (actions: {Actions}) for workspace: {WorkspaceId}, user: {UserId}",
+                requests.Count,
+                string.Join(", ", requests.Select(r => r.Action.ToString())),
+                workspaceId,
+                userId.Value);
 
-            // 5. Call service layer (giống NotesController)
-            var response = await _workspaceService.UpsertWorkspaceItemsAsync(requests, userId.Value);
+            // 5. Call WorkspaceItemService (action-based processing)
+            var response = await _workspaceItemService.UpsertWorkspaceItemsAsync(
+                requests,
+                userId.Value,
+                workspaceId);
 
             _logger.LogInformation(
-                "Batch upsert workspace items completed for workspace: {WorkspaceId}, user: {UserId}, Success: {Success}",
+                "Batch workspace items completed for workspace: {WorkspaceId}, user: {UserId}, Success: {Success}",
                 workspaceId, userId.Value, response.Success);
 
             return Ok(response);

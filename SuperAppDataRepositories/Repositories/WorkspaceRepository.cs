@@ -621,12 +621,33 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
+        // ========================================================================
+        // OBSOLETE: This method has been replaced by WorkspaceItemService
+        // The service layer now handles all batch operations with action-based validation
+        // See: SuperAppServices/Services/WorkspaceItemService.cs
+        // This method is kept for interface compatibility but should not be used
+        // ========================================================================
         /// <summary>
-        /// Batch upsert workspace items (soft delete/restore only)
-        /// Pattern: 100% follows NoteRepository.UpsertNotesAsync
-        /// All-or-nothing transaction - if one fails, all rollback
+        /// Batch upsert workspace items - OBSOLETE
+        /// Use WorkspaceItemService.UpsertWorkspaceItemsAsync instead
         /// </summary>
+        [Obsolete("Use WorkspaceItemService.UpsertWorkspaceItemsAsync instead", false)]
         public async Task<ResultOptions> UpsertWorkspaceItemsAsync(
+            List<UpsertWorkspaceItemRequest> requests,
+            int userId)
+        {
+            // This method is obsolete - return error directing to new service
+            await Task.CompletedTask; // Suppress async warning
+            return new ResultOptions
+            {
+                Success = false,
+                Message = "This method is obsolete. Use WorkspaceItemService.UpsertWorkspaceItemsAsync instead.",
+                Status = 410 // Gone
+            };
+        }
+
+        /* OLD IMPLEMENTATION - COMMENTED OUT FOR REFERENCE
+        public async Task<ResultOptions> UpsertWorkspaceItemsAsync_OLD(
             List<UpsertWorkspaceItemRequest> requests,
             int userId)
         {
@@ -703,21 +724,150 @@ namespace SuperAppDataRepositories.Repositories
                         };
                     }
 
-                    // STEP 3: Upsert Workspace Items
+                    // STEP 3: Upsert Entities (Folder/Note/File) First
+                    // Following pattern: Insert entity → Get ID → Use ID as ItemId in workspace_items
                     var upsertedItems = new List<WorkspaceItemEntity>();
 
                     foreach (var request in requests)
                     {
-                        bool isUpdate = request.Id > 0;
+                        int entityId = 0;
+                        bool isWorkspaceItemUpdate = request.Id > 0;
 
-                        if (isUpdate)
+                        // ===== STEP 3A: Upsert Entity Based on ItemType =====
+                        switch (request.ItemType)
                         {
-                            // UPDATE existing item
+                            case 2: // Folder
+                                var folderData = request.FolderData!;
+                                if (folderData.Id > 0)
+                                {
+                                    // Update existing folder
+                                    var existingFolder = await _context.Folders.FindAsync(folderData.Id);
+                                    if (existingFolder != null)
+                                    {
+                                        existingFolder.Name = folderData.Name;
+                                        existingFolder.Description = folderData.Description;
+                                        existingFolder.Color = folderData.Color;
+                                        existingFolder.Icon = folderData.Icon;
+                                        existingFolder.DeletedAt = folderData.DeletedAt;
+                                        existingFolder.UpdatedAt = DateTime.UtcNow;
+                                        entityId = existingFolder.Id;
+                                    }
+                                }
+                                else
+                                {
+                                    // Create new folder
+                                    var newFolder = new Folder
+                                    {
+                                        UserId = folderData.UserId!.Value,
+                                        Name = folderData.Name,
+                                        Description = folderData.Description,
+                                        Color = folderData.Color,
+                                        Icon = folderData.Icon,
+                                        CreatedAt = DateTime.UtcNow,
+                                        DeletedAt = null
+                                    };
+                                    _context.Folders.Add(newFolder);
+                                    await _context.SaveChangesAsync(); // Save to get generated ID
+                                    entityId = newFolder.Id;
+                                }
+                                break;
+
+                            case 3: // Note
+                                var noteData = request.NoteData!;
+                                if (noteData.Id > 0)
+                                {
+                                    // Update existing note
+                                    var existingNote = await _context.Notes.FindAsync(noteData.Id);
+                                    if (existingNote != null)
+                                    {
+                                        existingNote.Name = noteData.Name;
+                                        existingNote.Description = noteData.Description;
+                                        existingNote.StatusCode = noteData.StatusCode;
+                                        existingNote.DeletedAt = noteData.DeletedAt;
+                                        existingNote.UpdatedAt = DateTime.UtcNow;
+                                        entityId = existingNote.Id;
+                                    }
+                                }
+                                else
+                                {
+                                    // Create new note
+                                    var newNote = new Note
+                                    {
+                                        UserId = noteData.UserId!.Value,
+                                        Name = noteData.Name,
+                                        Description = noteData.Description,
+                                        StatusCode = noteData.StatusCode,
+                                        CreatedAt = DateTime.UtcNow,
+                                        DeletedAt = null
+                                    };
+                                    _context.Notes.Add(newNote);
+                                    await _context.SaveChangesAsync(); // Save to get generated ID
+                                    entityId = newNote.Id;
+                                    // TODO: Handle tag associations (noteData.TagIds) when entity_tags relationship is implemented
+                                }
+                                break;
+
+                            case 4: // File
+                                var fileData = request.FileData!;
+                                if (fileData.Id > 0)
+                                {
+                                    // Update existing file
+                                    var existingFile = await _context.Files.FindAsync(fileData.Id);
+                                    if (existingFile != null)
+                                    {
+                                        existingFile.Name = fileData.Name;
+                                        existingFile.Url = fileData.Url;
+                                        existingFile.FileSize = fileData.FileSize;
+                                        existingFile.MimeType = fileData.MimeType;
+                                        existingFile.Extension = fileData.Extension;
+                                        existingFile.StatusCode = fileData.StatusCode;
+                                        existingFile.DeletedAt = fileData.DeletedAt;
+                                        existingFile.UpdatedAt = DateTime.UtcNow;
+                                        entityId = existingFile.Id;
+                                    }
+                                }
+                                else
+                                {
+                                    // Create new file
+                                    var newFile = new SuperAppModels.Models.File
+                                    {
+                                        UserId = fileData.UserId!.Value,
+                                        Name = fileData.Name,
+                                        Url = fileData.Url,
+                                        FileSize = fileData.FileSize,
+                                        MimeType = fileData.MimeType,
+                                        Extension = fileData.Extension,
+                                        StatusCode = fileData.StatusCode,
+                                        CreatedAt = DateTime.UtcNow,
+                                        DeletedAt = null
+                                    };
+                                    _context.Files.Add(newFile);
+                                    await _context.SaveChangesAsync(); // Save to get generated ID
+                                    entityId = newFile.Id;
+                                }
+                                break;
+                        }
+
+                        if (entityId == 0)
+                        {
+                            await transaction.RollbackAsync();
+                            return new ResultOptions
+                            {
+                                Success = false,
+                                Message = $"Failed to upsert entity for ItemType {request.ItemType}",
+                                Status = 500
+                            };
+                        }
+
+                        // ===== STEP 3B: Upsert Workspace Item =====
+                        if (isWorkspaceItemUpdate)
+                        {
+                            // UPDATE existing workspace item
                             var existingItem = existingItemsDict[request.Id];
 
                             existingItem.ParentId = request.ParentId;
                             existingItem.ItemType = request.ItemType;
-                            existingItem.ItemId = request.ItemId;
+                            existingItem.ItemId = entityId; // Use entity ID from step 3A
                             existingItem.DeletedAt = request.DeletedAt;  // Soft delete/restore
                             existingItem.CopyInfo = request.CopyInfo;
                             existingItem.UpdatedAt = DateTime.UtcNow;
@@ -726,13 +876,13 @@ namespace SuperAppDataRepositories.Repositories
                         }
                         else
                         {
-                            // CREATE new item
+                            // CREATE new workspace item
                             var newItem = new WorkspaceItemEntity
                             {
                                 WorkspaceId = workspaceId.Value,
                                 ParentId = request.ParentId,
                                 ItemType = request.ItemType,
-                                ItemId = request.ItemId,
+                                ItemId = entityId, // Use entity ID from step 3A
                                 CopyInfo = request.CopyInfo,
                                 CreatedAt = DateTime.UtcNow,
                                 UpdatedAt = null,
@@ -795,6 +945,7 @@ namespace SuperAppDataRepositories.Repositories
                 }
             });
         }
+        */
 
         /// <summary>
         /// Helper method to convert TINYINT item_type to string name

@@ -495,21 +495,9 @@ namespace SuperAppServices.Services
                     };
                 }
 
-                // 2. Validate business rules (giống NoteService)
+                // 2. Validate business rules
                 foreach (var request in requests)
                 {
-                    // Can't soft delete a new item
-                    if (request.DeletedAt.HasValue && request.Id == 0)
-                    {
-                        _logger.LogWarning("Cannot set deletedAt on a new workspace item (Id: 0)");
-                        return new ResultOptions
-                        {
-                            Success = false,
-                            Message = "Cannot set deletedAt on a new workspace item. All changes rolled back.",
-                            Status = 400
-                        };
-                    }
-
                     // WorkspaceId required
                     if (!request.WorkspaceId.HasValue || request.WorkspaceId.Value <= 0)
                     {
@@ -532,6 +520,65 @@ namespace SuperAppServices.Services
                             Message = "UserId is required for all items. All changes rolled back.",
                             Status = 400
                         };
+                    }
+
+                    // Validate khi insert thì bắt buộc phải có data trong workspace_item
+                    // KHI DATA = NULL, THÌ TỨC LÀ TA CHỈ UPDATE WORKSPACE_ITEMS THÔI
+                    switch (request.ItemType)
+                    {
+                        case 2: // Folder
+                            if (request.Id == 0 && request.FolderData == null)
+                            {
+                                _logger.LogWarning("FolderData is required for ItemType = 2");
+                                return new ResultOptions
+                                {
+                                    Success = false,
+                                    Message = "FolderData is required when ItemType = 2 (folder). All changes rolled back.",
+                                    Status = 400
+                                };
+                            }
+                            // Set UserId in entity data
+                            request.FolderData.UserId = request.UserId.Value;
+                            break;
+
+                        case 3: // Note
+                            if (request.Id == 0 &&  request.NoteData == null)
+                            {
+                                _logger.LogWarning("NoteData is required for ItemType = 3");
+                                return new ResultOptions
+                                {
+                                    Success = false,
+                                    Message = "NoteData is required when ItemType = 3 (note). All changes rolled back.",
+                                    Status = 400
+                                };
+                            }
+                            // Set UserId in entity data
+                            request.NoteData.UserId = request.UserId.Value;
+                            break;
+
+                        case 4: // File
+                            if (request.Id == 0 && request.FileData == null)
+                            {
+                                _logger.LogWarning("FileData is required for ItemType = 4");
+                                return new ResultOptions
+                                {
+                                    Success = false,
+                                    Message = "FileData is required when ItemType = 4 (file). All changes rolled back.",
+                                    Status = 400
+                                };
+                            }
+                            // Set UserId in entity data
+                            request.FileData.UserId = request.UserId.Value;
+                            break;
+
+                        default:
+                            _logger.LogWarning("Invalid ItemType: {ItemType}", request.ItemType);
+                            return new ResultOptions
+                            {
+                                Success = false,
+                                Message = $"Invalid ItemType: {request.ItemType}. Must be 2 (folder), 3 (note), or 4 (file). All changes rolled back.",
+                                Status = 400
+                            };
                     }
                 }
 
