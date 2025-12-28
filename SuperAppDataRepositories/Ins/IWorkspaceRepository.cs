@@ -47,7 +47,7 @@ namespace SuperAppDataRepositories.Ins
         /// <param name="targetParentId">Target parent folder ID (null = root level)</param>
         /// <param name="targetWorkspaceId">Target workspace ID (null = same workspace)</param>
         /// <returns>ResultOptions with affected count</returns>
-        Task<ResultOptions> MoveItemsAsync(int sourceWorkspaceId, List<(byte ItemType, int ItemId)> items, int? targetParentId, int? targetWorkspaceId);
+        Task<ResultOptions> MoveItemsAsync(int sourceWorkspaceId, List<(byte EntityType, int EntityId)> items, int? targetParentId, int? targetWorkspaceId);
 
         /// <summary>
         /// Deletes multiple workspace items (folders/notes/files) with cascade support
@@ -55,7 +55,7 @@ namespace SuperAppDataRepositories.Ins
         /// <param name="workspaceId">Workspace ID</param>
         /// <param name="items">List of items to delete (type + id)</param>
         /// <returns>Result with affected count</returns>
-        Task<ResultOptions> DeleteItemsAsync(int workspaceId, List<(byte ItemType, int ItemId)> items, bool isHardDelete = false);
+        Task<ResultOptions> DeleteItemsAsync(int workspaceId, List<(byte EntityType, int EntityId)> items, bool isHardDelete = false);
 
         /// <summary>
         /// Adds an item (folder/note/file) to a workspace

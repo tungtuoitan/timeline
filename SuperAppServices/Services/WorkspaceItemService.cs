@@ -81,20 +81,20 @@ namespace SuperAppServices.Services
 
                     // Preload entity IDs for Add action (verify existing entities)
                     var folderIdsToAdd = requests
-                        .Where(r => r.Action == WorkspaceItemAction.Add && r.ItemType == 2 && r.ItemId.HasValue)
-                        .Select(r => r.ItemId.Value)
+                        .Where(r => r.Action == WorkspaceItemAction.Add && r.EntityType == 2 && r.EntityId.HasValue)
+                        .Select(r => r.EntityId.Value)
                         .Distinct()
                         .ToList();
 
                     var noteIdsToAdd = requests
-                        .Where(r => r.Action == WorkspaceItemAction.Add && r.ItemType == 3 && r.ItemId.HasValue)
-                        .Select(r => r.ItemId.Value)
+                        .Where(r => r.Action == WorkspaceItemAction.Add && r.EntityType == 3 && r.EntityId.HasValue)
+                        .Select(r => r.EntityId.Value)
                         .Distinct()
                         .ToList();
 
                     var fileIdsToAdd = requests
-                        .Where(r => r.Action == WorkspaceItemAction.Add && r.ItemType == 4 && r.ItemId.HasValue)
-                        .Select(r => r.ItemId.Value)
+                        .Where(r => r.Action == WorkspaceItemAction.Add && r.EntityType == 4 && r.EntityId.HasValue)
+                        .Select(r => r.EntityId.Value)
                         .Distinct()
                         .ToList();
 
@@ -114,24 +114,24 @@ namespace SuperAppServices.Services
                     var folderIdsToUpdate = requests
                         .Where(r => r.Action == WorkspaceItemAction.Update && r.Id.HasValue)
                         .Select(r => r.Id.Value)
-                        .Where(id => existingItemsDict.ContainsKey(id) && existingItemsDict[id].ItemType == 2)
-                        .Select(id => existingItemsDict[id].ItemId)
+                        .Where(id => existingItemsDict.ContainsKey(id) && existingItemsDict[id].EntityType == 2)
+                        .Select(id => existingItemsDict[id].EntityId)
                         .Distinct()
                         .ToList();
 
                     var noteIdsToUpdate = requests
                         .Where(r => r.Action == WorkspaceItemAction.Update && r.Id.HasValue)
                         .Select(r => r.Id.Value)
-                        .Where(id => existingItemsDict.ContainsKey(id) && existingItemsDict[id].ItemType == 3)
-                        .Select(id => existingItemsDict[id].ItemId)
+                        .Where(id => existingItemsDict.ContainsKey(id) && existingItemsDict[id].EntityType == 3)
+                        .Select(id => existingItemsDict[id].EntityId)
                         .Distinct()
                         .ToList();
 
                     var fileIdsToUpdate = requests
                         .Where(r => r.Action == WorkspaceItemAction.Update && r.Id.HasValue)
                         .Select(r => r.Id.Value)
-                        .Where(id => existingItemsDict.ContainsKey(id) && existingItemsDict[id].ItemType == 4)
-                        .Select(id => existingItemsDict[id].ItemId)
+                        .Where(id => existingItemsDict.ContainsKey(id) && existingItemsDict[id].EntityType == 4)
+                        .Select(id => existingItemsDict[id].EntityId)
                         .Distinct()
                         .ToList();
 
@@ -315,37 +315,37 @@ namespace SuperAppServices.Services
             switch (request.Action)
             {
                 case WorkspaceItemAction.Create:
-                    // Required: ItemType, EntityData
-                    if (!request.ItemType.HasValue)
-                        return "Create action requires ItemType";
+                    // Required: EntityType, EntityData
+                    if (!request.EntityType.HasValue)
+                        return "Create action requires EntityType";
 
-                    if (request.ItemType.Value < 2 || request.ItemType.Value > 4)
-                        return $"Invalid ItemType: {request.ItemType}";
+                    if (request.EntityType.Value < 2 || request.EntityType.Value > 4)
+                        return $"Invalid EntityType: {request.EntityType}";
 
                     if (!HasEntityData(request))
-                        return $"Create action requires entity data for ItemType {request.ItemType}";
+                        return $"Create action requires entity data for EntityType {request.EntityType}";
 
                     return null;
 
                 case WorkspaceItemAction.Add:
-                    // Required: ItemType, ItemId
-                    if (!request.ItemType.HasValue)
-                        return "Add action requires ItemType";
+                    // Required: EntityType, EntityId
+                    if (!request.EntityType.HasValue)
+                        return "Add action requires EntityType";
 
-                    if (!request.ItemId.HasValue || request.ItemId.Value <= 0)
-                        return "Add action requires valid ItemId";
+                    if (!request.EntityId.HasValue || request.EntityId.Value <= 0)
+                        return "Add action requires valid EntityId";
 
                     // Validate entity exists
-                    var entityExists = request.ItemType.Value switch
+                    var entityExists = request.EntityType.Value switch
                     {
-                        2 => existingFolderIds.Contains(request.ItemId.Value),
-                        3 => existingNoteIds.Contains(request.ItemId.Value),
-                        4 => existingFileIds.Contains(request.ItemId.Value),
+                        2 => existingFolderIds.Contains(request.EntityId.Value),
+                        3 => existingNoteIds.Contains(request.EntityId.Value),
+                        4 => existingFileIds.Contains(request.EntityId.Value),
                         _ => false
                     };
 
                     if (!entityExists)
-                        return $"Entity with ItemType={request.ItemType} and ItemId={request.ItemId} not found";
+                        return $"Entity with EntityType={request.EntityType} and EntityId={request.EntityId} not found";
 
                     return null;
 
@@ -373,16 +373,16 @@ namespace SuperAppServices.Services
                     var workspaceItem = existingItemsDict[request.Id.Value];
 
                     // Validate entity exists for update
-                    var entityExistsForUpdate = workspaceItem.ItemType switch
+                    var entityExistsForUpdate = workspaceItem.EntityType switch
                     {
-                        2 => foldersToUpdateDict.ContainsKey(workspaceItem.ItemId),
-                        3 => notesToUpdateDict.ContainsKey(workspaceItem.ItemId),
-                        4 => filesToUpdateDict.ContainsKey(workspaceItem.ItemId),
+                        2 => foldersToUpdateDict.ContainsKey(workspaceItem.EntityId),
+                        3 => notesToUpdateDict.ContainsKey(workspaceItem.EntityId),
+                        4 => filesToUpdateDict.ContainsKey(workspaceItem.EntityId),
                         _ => false
                     };
 
                     if (!entityExistsForUpdate)
-                        return $"Entity with ItemType={workspaceItem.ItemType} and ItemId={workspaceItem.ItemId} not found for update";
+                        return $"Entity with EntityType={workspaceItem.EntityType} and EntityId={workspaceItem.EntityId} not found for update";
 
                     if (!HasEntityData(request))
                         return "Update action requires entity data";
@@ -473,10 +473,10 @@ namespace SuperAppServices.Services
         /// </summary>
         private bool HasEntityData(UpsertWorkspaceItemRequest request)
         {
-            if (!request.ItemType.HasValue)
+            if (!request.EntityType.HasValue)
                 return false;
 
-            return request.ItemType.Value switch
+            return request.EntityType.Value switch
             {
                 2 => request.FolderData != null,
                 3 => request.NoteData != null,
@@ -499,12 +499,12 @@ namespace SuperAppServices.Services
             List<WorkspaceItemEntity> upsertedItems)
         {
             _logger.LogInformation(
-                "Processing CREATE action: ItemType={ItemType}",
-                request.ItemType);
+                "Processing CREATE action: EntityType={EntityType}",
+                request.EntityType);
 
             // Create entity (just track, don't save!)
             int entityId = 0;
-            switch (request.ItemType!.Value)
+            switch (request.EntityType!.Value)
             {
                 case 2: // Folder
                     var folderData = request.FolderData!;
@@ -566,8 +566,8 @@ namespace SuperAppServices.Services
             {
                 WorkspaceId = request.WorkspaceId ?? workspaceId,
                 ParentId = request.ParentId,
-                ItemType = request.ItemType.Value,
-                ItemId = entityId,
+                EntityType = request.EntityType.Value,
+                EntityId = entityId,
                 CopyInfo = request.CopyInfo,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = null,
@@ -578,8 +578,8 @@ namespace SuperAppServices.Services
             upsertedItems.Add(newItem);
 
             _logger.LogInformation(
-                "Created entity ID {EntityId} and workspace_item for ItemType {ItemType}",
-                entityId, request.ItemType);
+                "Created entity ID {EntityId} and workspace_item for EntityType {EntityType}",
+                entityId, request.EntityType);
         }
 
         /// <summary>
@@ -591,15 +591,15 @@ namespace SuperAppServices.Services
             List<WorkspaceItemEntity> upsertedItems)
         {
             _logger.LogInformation(
-                "Processing ADD action: ItemType={ItemType}, ItemId={ItemId}",
-                request.ItemType, request.ItemId);
+                "Processing ADD action: EntityType={EntityType}, EntityId={EntityId}",
+                request.EntityType, request.EntityId);
 
             var newItem = new WorkspaceItemEntity
             {
                 WorkspaceId = request.WorkspaceId ?? workspaceId,
                 ParentId = request.ParentId,
-                ItemType = request.ItemType!.Value,
-                ItemId = request.ItemId!.Value,
+                EntityType = request.EntityType!.Value,
+                EntityId = request.EntityId!.Value,
                 CopyInfo = request.CopyInfo,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = null,
@@ -610,8 +610,8 @@ namespace SuperAppServices.Services
             upsertedItems.Add(newItem);
 
             _logger.LogInformation(
-                "Added existing entity ID {ItemId} to workspace as workspace_item",
-                request.ItemId);
+                "Added existing entity ID {EntityId} to workspace as workspace_item",
+                request.EntityId);
         }
 
         /// <summary>
@@ -659,10 +659,10 @@ namespace SuperAppServices.Services
 
             var workspaceItem = existingItemsDict[request.Id!.Value];
 
-            switch (workspaceItem.ItemType)
+            switch (workspaceItem.EntityType)
             {
                 case 2: // Folder
-                    var folder = foldersToUpdateDict[workspaceItem.ItemId];
+                    var folder = foldersToUpdateDict[workspaceItem.EntityId];
                     var folderData = request.FolderData!;
                     folder.Name = folderData.Name;
                     folder.Description = folderData.Description;
@@ -674,7 +674,7 @@ namespace SuperAppServices.Services
                     break;
 
                 case 3: // Note
-                    var note = notesToUpdateDict[workspaceItem.ItemId];
+                    var note = notesToUpdateDict[workspaceItem.EntityId];
                     var noteData = request.NoteData!;
                     note.Name = noteData.Name;
                     note.Description = noteData.Description;
@@ -685,7 +685,7 @@ namespace SuperAppServices.Services
                     break;
 
                 case 4: // File
-                    var file = filesToUpdateDict[workspaceItem.ItemId];
+                    var file = filesToUpdateDict[workspaceItem.EntityId];
                     var fileData = request.FileData!;
                     file.Name = fileData.Name;
                     file.Url = fileData.Url;

@@ -88,8 +88,8 @@ namespace SuperAppServices.Mappings
 
             // WorkspaceItem mappings (tree view model -> response DTO)
             CreateMap<WorkspaceItem, WorkspaceItemResponse>()
-                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.ItemId)) // Entity ID
-                .ForMember(dest => dest.RelationshipId, opt => opt.MapFrom(src => src.RelationshipId)) // Relationship ID
+                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.ItemId)) // Entity ID (maps to workspace_items.entity_id)
+                .ForMember(dest => dest.RelationshipId, opt => opt.MapFrom(src => src.RelationshipId)) // Relationship ID (maps to workspace_items.id)
                 .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.Type)) // Type
                 .ForMember(dest => dest.SortOrder, opt => opt.MapFrom(src => src.Position))
                 .ForMember(dest => dest.Depth, opt => opt.MapFrom(src => src.Level))

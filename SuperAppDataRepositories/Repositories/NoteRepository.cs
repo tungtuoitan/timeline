@@ -258,7 +258,7 @@ namespace SuperAppDataRepositories.Repositories
 
                     // ===== STEP 2: Delete Workspace Items =====
                     var workspaceItemsDeleted = await _context.WorkspaceItems
-                        .Where(wi => wi.ItemType == 3 && noteIds.Contains(wi.ItemId))
+                        .Where(wi => wi.EntityType == 3 && noteIds.Contains(wi.EntityId))
                         .ExecuteDeleteAsync();
 
                     _logger.LogInformation("Deleted {Count} workspace_items for notes in transaction", workspaceItemsDeleted);

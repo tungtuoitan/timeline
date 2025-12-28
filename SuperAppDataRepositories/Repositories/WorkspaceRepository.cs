@@ -55,8 +55,8 @@ namespace SuperAppDataRepositories.Repositories
                         Id = i.Id,
                         WorkspaceId = i.WorkspaceId,
                         ParentId = i.ParentId,
-                        ItemType = i.ItemType,
-                        ItemId = i.ItemId,
+                        EntityType = i.EntityType,
+                        EntityId = i.EntityId,
                         CreatedAt = i.CreatedAt,
                         UpdatedAt = i.UpdatedAt,
                         DeletedAt = i.DeletedAt,
@@ -67,9 +67,9 @@ namespace SuperAppDataRepositories.Repositories
                 _logger.LogInformation("Found {Count} items in workspace {WorkspaceId}", items.Count, workspaceId);
 
                 // Get distinct IDs for each type
-                var folderIds = items.Where(i => i.ItemType == 2).Select(i => i.ItemId).Distinct().ToList(); // item_type = 2 (folder)
-                var noteIds = items.Where(i => i.ItemType == 3).Select(i => i.ItemId).Distinct().ToList();   // item_type = 3 (note)
-                var fileIds = items.Where(i => i.ItemType == 4).Select(i => i.ItemId).Distinct().ToList();   // item_type = 4 (file)
+                var folderIds = items.Where(i => i.EntityType == 2).Select(i => i.EntityId).Distinct().ToList(); // entity_type = 2 (folder)
+                var noteIds = items.Where(i => i.EntityType == 3).Select(i => i.EntityId).Distinct().ToList();   // entity_type = 3 (note)
+                var fileIds = items.Where(i => i.EntityType == 4).Select(i => i.EntityId).Distinct().ToList();   // entity_type = 4 (file)
 
                 // ✅ Include deleted folders - Frontend will handle display logic
                 var folders = await _context.Folders
@@ -103,11 +103,11 @@ namespace SuperAppDataRepositories.Repositories
                     var treeItem = new WorkspaceItem
                     {
                         RelationshipId = item.Id, // workspace_items.id (relationship ID)
-                        ItemId = item.ItemId, // Entity ID (folder/note/file ID)
-                        Type = GetItemTypeName(item.ItemType), // Convert TINYINT to string
+                        ItemId = item.EntityId, // Entity ID (folder/note/file ID)
+                        Type = GetItemTypeName(item.EntityType), // Convert TINYINT to string
                         UserId = userId,
                         Name = "",
-                        ParentId = item.ParentId, // parent_id from ws.workspace_items
+                        ParentId = item.ParentId, // parent_id from ws.workspace_items (now references workspace_items.id instead of folders.id)
                         Level = 0,
                         Position = 0,
                         AccessType = "owner", // Simplified: always owner for now
@@ -116,7 +116,7 @@ namespace SuperAppDataRepositories.Repositories
                     };
 
                     // Populate name, metadata, and DeletedAt based on type
-                    if (item.ItemType == 2 && folders.TryGetValue(item.ItemId, out var folder))
+                    if (item.EntityType == 2 && folders.TryGetValue(item.EntityId, out var folder))
                     {
                         treeItem.Name = folder.Name;
                         treeItem.Color = folder.Color;
@@ -127,7 +127,7 @@ namespace SuperAppDataRepositories.Repositories
                             treeItem.DeletedAt = folder.DeletedAt;
                         }
                     }
-                    else if (item.ItemType == 3 && notes.TryGetValue(item.ItemId, out var note))
+                    else if (item.EntityType == 3 && notes.TryGetValue(item.EntityId, out var note))
                     {
                         treeItem.Name = note.Name;
                         // ✅ Use entity DeletedAt if relationship is not deleted but entity is
@@ -136,7 +136,7 @@ namespace SuperAppDataRepositories.Repositories
                             treeItem.DeletedAt = note.DeletedAt;
                         }
                     }
-                    else if (item.ItemType == 4 && files.TryGetValue(item.ItemId, out var file))
+                    else if (item.EntityType == 4 && files.TryGetValue(item.EntityId, out var file))
                     {
                         treeItem.Name = file.Name;
                         // ✅ Use entity DeletedAt if relationship is not deleted but entity is
@@ -317,7 +317,7 @@ namespace SuperAppDataRepositories.Repositories
 
                             // Update parent folder if changed
                             var workspaceItem = await _context.WorkspaceItems
-                                .FirstOrDefaultAsync(wi => wi.WorkspaceId == workspaceId && wi.ItemType == 2 && wi.ItemId == request.Id.Value);
+                                .FirstOrDefaultAsync(wi => wi.WorkspaceId == workspaceId && wi.EntityType == 2 && wi.EntityId == request.Id.Value);
 
                             if (workspaceItem != null && workspaceItem.ParentId != request.ParentId)
                             {
@@ -416,7 +416,7 @@ namespace SuperAppDataRepositories.Repositories
         /// Moves multiple workspace items (folders/notes/files) with cascade support
         /// Uses stored procedure sp_MoveWorkspaceItems for recursive hierarchy handling
         /// </summary>
-        public async Task<ResultOptions> MoveItemsAsync(int sourceWorkspaceId, List<(byte ItemType, int ItemId)> items, int? targetParentId, int? targetWorkspaceId)
+        public async Task<ResultOptions> MoveItemsAsync(int sourceWorkspaceId, List<(byte EntityType, int EntityId)> items, int? targetParentId, int? targetWorkspaceId)
         {
             try
             {
@@ -424,7 +424,7 @@ namespace SuperAppDataRepositories.Repositories
                     items.Count, sourceWorkspaceId, targetParentId, targetWorkspaceId ?? sourceWorkspaceId);
 
                 // Serialize items to JSON for stored procedure
-                var itemsJson = JsonSerializer.Serialize(items.Select(i => new { type = i.ItemType, id = i.ItemId }));
+                var itemsJson = JsonSerializer.Serialize(items.Select(i => new { type = i.EntityType, id = i.EntityId }));
 
                 // Execute stored procedure
                 var sourceWorkspaceIdParam = new SqlParameter("@SourceWorkspaceId", sourceWorkspaceId);
@@ -473,7 +473,7 @@ namespace SuperAppDataRepositories.Repositories
         /// <summary>
         /// Deletes multiple workspace items (folders/notes/files) with cascade support
         /// </summary>
-        public async Task<ResultOptions> DeleteItemsAsync(int workspaceId, List<(byte ItemType, int ItemId)> items, bool isHardDelete = false)
+        public async Task<ResultOptions> DeleteItemsAsync(int workspaceId, List<(byte EntityType, int EntityId)> items, bool isHardDelete = false)
         {
             try
             {
@@ -481,7 +481,7 @@ namespace SuperAppDataRepositories.Repositories
                     items.Count, workspaceId, isHardDelete);
 
                 // Serialize items to JSON for stored procedure
-                var itemsJson = JsonSerializer.Serialize(items.Select(i => new { type = i.ItemType, id = i.ItemId }));
+                var itemsJson = JsonSerializer.Serialize(items.Select(i => new { type = i.EntityType, id = i.EntityId }));
 
                 // Execute stored procedure with new parameter names
                 var workspaceIdParam = new SqlParameter("@iv_workspace_id", workspaceId);
@@ -563,17 +563,17 @@ namespace SuperAppDataRepositories.Repositories
                 // Insert into workspace_items
                 var sql = @"
                     INSERT INTO [ws].[workspace_items]
-                        (workspace_id, parent_id, item_type, item_id, created_at)
+                        (workspace_id, parent_id, entity_type, entity_id, created_at)
                     VALUES
-                        (@WorkspaceId, @ParentId, @ItemType, @ItemId, GETUTCDATE());
+                        (@WorkspaceId, @ParentId, @EntityType, @EntityId, GETUTCDATE());
                     SELECT CAST(SCOPE_IDENTITY() as int);";
 
                 var parameters = new[]
                 {
                     new SqlParameter("@WorkspaceId", workspaceId),
                     new SqlParameter("@ParentId", (object?)request.ParentTagId ?? DBNull.Value),
-                    new SqlParameter("@ItemType", itemType),
-                    new SqlParameter("@ItemId", request.ChildId.Value)
+                    new SqlParameter("@EntityType", itemType),
+                    new SqlParameter("@EntityId", request.ChildId.Value)
                 };
 
                 var newId = await _context.Database.ExecuteSqlRawAsync(sql, parameters);
@@ -733,8 +733,8 @@ namespace SuperAppDataRepositories.Repositories
                         int entityId = 0;
                         bool isWorkspaceItemUpdate = request.Id > 0;
 
-                        // ===== STEP 3A: Upsert Entity Based on ItemType =====
-                        switch (request.ItemType)
+                        // ===== STEP 3A: Upsert Entity Based on EntityType =====
+                        switch (request.EntityType)
                         {
                             case 2: // Folder
                                 var folderData = request.FolderData!;
@@ -854,7 +854,7 @@ namespace SuperAppDataRepositories.Repositories
                             return new ResultOptions
                             {
                                 Success = false,
-                                Message = $"Failed to upsert entity for ItemType {request.ItemType}",
+                                Message = $"Failed to upsert entity for EntityType {request.EntityType}",
                                 Status = 500
                             };
                         }
@@ -866,8 +866,8 @@ namespace SuperAppDataRepositories.Repositories
                             var existingItem = existingItemsDict[request.Id];
 
                             existingItem.ParentId = request.ParentId;
-                            existingItem.ItemType = request.ItemType;
-                            existingItem.ItemId = entityId; // Use entity ID from step 3A
+                            existingItem.EntityType = request.EntityType;
+                            existingItem.EntityId = entityId; // Use entity ID from step 3A
                             existingItem.DeletedAt = request.DeletedAt;  // Soft delete/restore
                             existingItem.CopyInfo = request.CopyInfo;
                             existingItem.UpdatedAt = DateTime.UtcNow;
@@ -881,8 +881,8 @@ namespace SuperAppDataRepositories.Repositories
                             {
                                 WorkspaceId = workspaceId.Value,
                                 ParentId = request.ParentId,
-                                ItemType = request.ItemType,
-                                ItemId = entityId, // Use entity ID from step 3A
+                                EntityType = request.EntityType,
+                                EntityId = entityId, // Use entity ID from step 3A
                                 CopyInfo = request.CopyInfo,
                                 CreatedAt = DateTime.UtcNow,
                                 UpdatedAt = null,

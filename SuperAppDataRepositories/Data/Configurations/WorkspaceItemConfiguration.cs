@@ -31,12 +31,12 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("parent_id")
                 .IsRequired(false); // Nullable for root-level items
 
-            builder.Property(wi => wi.ItemType)
-                .HasColumnName("item_type")
+            builder.Property(wi => wi.EntityType)
+                .HasColumnName("entity_type")
                 .IsRequired();
 
-            builder.Property(wi => wi.ItemId)
-                .HasColumnName("item_id")
+            builder.Property(wi => wi.EntityId)
+                .HasColumnName("entity_id")
                 .IsRequired();
 
             builder.Property(wi => wi.CreatedAt)
@@ -62,11 +62,11 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasDatabaseName("IX_workspace_items_parent")
                 .HasFilter("[deleted_at] IS NULL");
 
-            builder.HasIndex(wi => new { wi.ItemType, wi.ItemId })
+            builder.HasIndex(wi => new { wi.EntityType, wi.EntityId })
                 .HasDatabaseName("IX_workspace_items_item");
 
             // Unique constraint: one item can only exist once per workspace
-            builder.HasIndex(wi => new { wi.WorkspaceId, wi.ItemType, wi.ItemId })
+            builder.HasIndex(wi => new { wi.WorkspaceId, wi.EntityType, wi.EntityId })
                 .HasDatabaseName("UQ_workspace_items_unique")
                 .IsUnique();
 
@@ -76,9 +76,9 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasForeignKey(wi => wi.WorkspaceId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Parent folder relationship - explicitly specify FK to avoid EF Core auto-generating ParentId1
-            builder.HasOne(wi => wi.Folder)
-                .WithMany(f => f.WorkspaceItems)  // Map to Folder.WorkspaceItems collection
+            // Self-referencing parent relationship (workspace_items.parent_id → workspace_items.id)
+            builder.HasOne(wi => wi.Parent)
+                .WithMany()  // No inverse navigation property
                 .HasForeignKey(wi => wi.ParentId)
                 .OnDelete(DeleteBehavior.NoAction)
                 .IsRequired(false);  // Nullable FK for root-level items

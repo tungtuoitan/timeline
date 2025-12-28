@@ -85,7 +85,7 @@ namespace SuperAppDataRepositories.Data.Configurations
 
             // Note: status_code has no FK constraint - just a simple string field
 
-            // Ignore polymorphic navigation (managed via WorkspaceItem.ItemType)
+            // Ignore polymorphic navigation (managed via WorkspaceItem.EntityType)
             builder.Ignore(f => f.WorkspaceItems);
         }
     }

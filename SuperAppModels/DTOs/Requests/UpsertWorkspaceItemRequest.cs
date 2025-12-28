@@ -10,18 +10,19 @@ namespace SuperAppModels.DTOs.Requests
     /// VALIDATION RULES PER ACTION:
     ///
     /// 1. CREATE (new entity + workspace_item):
-    ///    Required: Action=Create, ItemType, EntityData
+    ///    Required: Action=Create, EntityType, EntityData
     ///    Optional: ParentId (null = root), WorkspaceId
-    ///    Example: { "action": "create", "itemType": 2, "parentId": null, "folderData": {...} }
+    ///    Example: { "action": "create", "entityType": 2, "parentId": null, "folderData": {...} }
     ///
     /// 2. ADD (existing entity to workspace):
-    ///    Required: Action=Add, ItemType, ItemId
+    ///    Required: Action=Add, EntityType, EntityId
     ///    Optional: ParentId (null = root), WorkspaceId
-    ///    Example: { "action": "add", "itemType": 3, "itemId": 456, "parentId": 123 }
+    ///    Example: { "action": "add", "entityType": 3, "entityId": 456, "parentId": 123 }
     ///
     /// 3. MOVE (change location):
     ///    Required: Action=Move, Id + (ParentId OR WorkspaceId)
     ///    Optional: Both for cross-workspace move
+    ///    ParentId = workspace_items.id of new parent (NOT entity ID!)
     ///    Example: { "action": "move", "id": 789, "parentId": null } ← move to root
     ///
     /// 4. UPDATE (entity properties):
@@ -82,32 +83,32 @@ namespace SuperAppModels.DTOs.Requests
         public int? UserId { get; set; }
 
         /// <summary>
-        /// Parent folder ID
+        /// Parent workspace_item ID (SELF-REFERENCING)
         /// Required for: Move (when moving to different parent)
         /// Optional for: Create, Add (null = root level)
-        /// Maps to workspace_items.parent_id
+        /// Maps to workspace_items.parent_id → references workspace_items.id (NOT entity ID!)
         /// </summary>
         [JsonPropertyName("parentId")]
         public int? ParentId { get; set; }
 
         /// <summary>
-        /// Item type: 2 = folder, 3 = note, 4 = file
+        /// Entity type: 2 = folder, 3 = note, 4 = file
         /// Required for: Create, Add
         /// Not used for: Move, Update, Delete, Restore (inferred from existing workspace_item)
-        /// Maps to workspace_items.item_type
+        /// Maps to workspace_items.entity_type
         /// </summary>
-        [Range(2, 4, ErrorMessage = "ItemType must be 2 (folder), 3 (note), or 4 (file)")]
-        [JsonPropertyName("itemType")]
-        public byte? ItemType { get; set; }
+        [Range(2, 4, ErrorMessage = "EntityType must be 2 (folder), 3 (note), or 4 (file)")]
+        [JsonPropertyName("entityType")]
+        public byte? EntityType { get; set; }
 
         /// <summary>
-        /// Entity ID (references existing folder/note/file)
-        /// Required for: Add (itemId > 0)
+        /// Entity ID (references existing folder/note/file from entity tables)
+        /// Required for: Add (entityId > 0)
         /// Not used for: Create, Move, Update, Delete, Restore
-        /// Maps to the ID of the entity being referenced
+        /// Maps to workspace_items.entity_id → references folders.id | notes.id | files.id
         /// </summary>
-        [JsonPropertyName("itemId")]
-        public int? ItemId { get; set; }
+        [JsonPropertyName("entityId")]
+        public int? EntityId { get; set; }
 
         /// <summary>
         /// Copy information JSON metadata (future feature)
@@ -130,7 +131,7 @@ namespace SuperAppModels.DTOs.Requests
 
         /// <summary>
         /// Folder entity data
-        /// Required for: Create (ItemType=2), Update (ItemType=2)
+        /// Required for: Create (EntityType=2), Update (EntityType=2)
         /// Not used for: Add, Move, Delete, Restore
         /// Contains all folder properties for insert/update
         /// </summary>
@@ -139,7 +140,7 @@ namespace SuperAppModels.DTOs.Requests
 
         /// <summary>
         /// Note entity data
-        /// Required for: Create (ItemType=3), Update (ItemType=3)
+        /// Required for: Create (EntityType=3), Update (EntityType=3)
         /// Not used for: Add, Move, Delete, Restore
         /// Contains all note properties for insert/update
         /// </summary>
@@ -148,7 +149,7 @@ namespace SuperAppModels.DTOs.Requests
 
         /// <summary>
         /// File entity data
-        /// Required for: Create (ItemType=4), Update (ItemType=4)
+        /// Required for: Create (EntityType=4), Update (EntityType=4)
         /// Not used for: Add, Move, Delete, Restore
         /// Contains all file properties for insert/update
         /// </summary>

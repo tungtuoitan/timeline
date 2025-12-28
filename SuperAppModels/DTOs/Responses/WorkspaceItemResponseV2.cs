@@ -5,7 +5,7 @@ namespace SuperAppModels.DTOs.Responses;
 /// Represents a single item (folder/note/file) in the workspace tree
 ///
 /// STRUCTURE:
-/// - Root level: workspace_items table properties (id, workspaceId, parentId, itemType, etc.)
+/// - Root level: workspace_items table properties (id, workspaceId, parentId, entityType, etc.)
 /// - Data property: Full entity data (FolderData | NoteData | FileData)
 ///
 /// This structure makes it clear which properties come from workspace_items table
@@ -23,14 +23,14 @@ public class WorkspaceItemResponseV2
     /// <summary>Workspace ID (workspace_items.workspace_id)</summary>
     public int WorkspaceId { get; set; }
 
-    /// <summary>Parent ID in workspace hierarchy (workspace_items.parent_id) - null for root items</summary>
+    /// <summary>Parent workspace_item ID (workspace_items.parent_id → workspace_items.id) - SELF-REFERENCING, null for root items</summary>
     public int? ParentId { get; set; }
 
-    /// <summary>Item type: 2=folder, 3=note, 4=file (workspace_items.item_type)</summary>
-    public byte ItemType { get; set; }
+    /// <summary>Entity type: 2=folder, 3=note, 4=file (workspace_items.entity_type)</summary>
+    public byte EntityType { get; set; }
 
-    /// <summary>Entity ID - references folders/notes/files (workspace_items.item_id)</summary>
-    public int ItemId { get; set; }
+    /// <summary>Entity ID - references folders.id | notes.id | files.id (workspace_items.entity_id)</summary>
+    public int EntityId { get; set; }
 
     /// <summary>Created timestamp (workspace_items.created_at)</summary>
     public DateTime CreatedAt { get; set; }
@@ -65,13 +65,13 @@ public class WorkspaceItemResponseV2
     // ============================================
 
     /// <summary>
-    /// Full entity data - type depends on ItemType:
-    /// - ItemType = 2: FolderData
-    /// - ItemType = 3: NoteData
-    /// - ItemType = 4: FileData
+    /// Full entity data - type depends on EntityType:
+    /// - EntityType = 2: FolderData
+    /// - EntityType = 3: NoteData
+    /// - EntityType = 4: FileData
     ///
     /// Example usage:
-    /// if (item.ItemType == 2) {
+    /// if (item.EntityType == 2) {
     ///     var folder = (FolderData)item.Data;
     ///     Console.WriteLine(folder.Name);
     /// }

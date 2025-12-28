@@ -204,8 +204,8 @@ namespace SuperAppServices.Services
         {
             return items.Select(item =>
             {
-                // Determine ItemType byte value
-                byte itemType = item.Type.ToLowerInvariant() switch
+                // Determine EntityType byte value
+                byte entityType = item.Type.ToLowerInvariant() switch
                 {
                     "folder" => 2,
                     "note" => 3,
@@ -214,7 +214,7 @@ namespace SuperAppServices.Services
                 };
 
                 // Create entity data object based on type
-                object entityData = itemType switch
+                object entityData = entityType switch
                 {
                     2 => new FolderData
                     {
@@ -256,7 +256,7 @@ namespace SuperAppServices.Services
                         DeletedAt = item.DeletedAt,
                         CopyInfo = null
                     },
-                    _ => throw new InvalidOperationException($"Unsupported item type: {itemType}")
+                    _ => throw new InvalidOperationException($"Unsupported item type: {entityType}")
                 };
 
                 // Build WorkspaceItemResponseV2 with clear separation
@@ -266,8 +266,8 @@ namespace SuperAppServices.Services
                     Id = item.RelationshipId ?? 0,
                     WorkspaceId = 0, // Will be set from workspace context
                     ParentId = item.ParentId,
-                    ItemType = itemType,
-                    ItemId = (int)item.ItemId,
+                    EntityType = entityType,
+                    EntityId = (int)item.ItemId,
                     CreatedAt = item.CreatedAt,
                     UpdatedAt = item.UpdatedAt,
                     DeletedAt = item.DeletedAt,
@@ -524,16 +524,16 @@ namespace SuperAppServices.Services
 
                     // Validate khi insert thì bắt buộc phải có data trong workspace_item
                     // KHI DATA = NULL, THÌ TỨC LÀ TA CHỈ UPDATE WORKSPACE_ITEMS THÔI
-                    switch (request.ItemType)
+                    switch (request.EntityType)
                     {
                         case 2: // Folder
                             if (request.Id == 0 && request.FolderData == null)
                             {
-                                _logger.LogWarning("FolderData is required for ItemType = 2");
+                                _logger.LogWarning("FolderData is required for EntityType = 2");
                                 return new ResultOptions
                                 {
                                     Success = false,
-                                    Message = "FolderData is required when ItemType = 2 (folder). All changes rolled back.",
+                                    Message = "FolderData is required when EntityType = 2 (folder). All changes rolled back.",
                                     Status = 400
                                 };
                             }
@@ -544,11 +544,11 @@ namespace SuperAppServices.Services
                         case 3: // Note
                             if (request.Id == 0 &&  request.NoteData == null)
                             {
-                                _logger.LogWarning("NoteData is required for ItemType = 3");
+                                _logger.LogWarning("NoteData is required for EntityType = 3");
                                 return new ResultOptions
                                 {
                                     Success = false,
-                                    Message = "NoteData is required when ItemType = 3 (note). All changes rolled back.",
+                                    Message = "NoteData is required when EntityType = 3 (note). All changes rolled back.",
                                     Status = 400
                                 };
                             }
@@ -559,11 +559,11 @@ namespace SuperAppServices.Services
                         case 4: // File
                             if (request.Id == 0 && request.FileData == null)
                             {
-                                _logger.LogWarning("FileData is required for ItemType = 4");
+                                _logger.LogWarning("FileData is required for EntityType = 4");
                                 return new ResultOptions
                                 {
                                     Success = false,
-                                    Message = "FileData is required when ItemType = 4 (file). All changes rolled back.",
+                                    Message = "FileData is required when EntityType = 4 (file). All changes rolled back.",
                                     Status = 400
                                 };
                             }
@@ -572,11 +572,11 @@ namespace SuperAppServices.Services
                             break;
 
                         default:
-                            _logger.LogWarning("Invalid ItemType: {ItemType}", request.ItemType);
+                            _logger.LogWarning("Invalid EntityType: {EntityType}", request.EntityType);
                             return new ResultOptions
                             {
                                 Success = false,
-                                Message = $"Invalid ItemType: {request.ItemType}. Must be 2 (folder), 3 (note), or 4 (file). All changes rolled back.",
+                                Message = $"Invalid EntityType: {request.EntityType}. Must be 2 (folder), 3 (note), or 4 (file). All changes rolled back.",
                                 Status = 400
                             };
                     }
