@@ -58,12 +58,6 @@ namespace SuperAppDataRepositories.Repositories
                                            (n.Description != null && n.Description.Contains(filterOptions.SearchText)));
                 }
 
-                // TODO: Implement tag filtering when entity_tags relationship is added
-                // if (filterOptions.TagIds != null && filterOptions.TagIds.Any())
-                // {
-                //     query = query.Where(n => n.Tags.Any(t => filterOptions.TagIds.Contains(t.Id)));
-                // }
-
                 // ===== NEW FILTERS =====
 
                 if (filterOptions.Ids?.Count > 0)
@@ -455,8 +449,6 @@ namespace SuperAppDataRepositories.Repositories
                             _context.Notes.Add(note);
                             upsertedNotes.Add(note);
                         }
-
-                        // TODO: Handle tag associations when entity_tags relationship is implemented
                     }
 
                     // Save all changes in the transaction

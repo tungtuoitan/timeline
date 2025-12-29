@@ -105,7 +105,7 @@ namespace SuperAppServices.Services
                     IsDefault = false,
                     IsPublic = false,
                     IsTemplate = false,
-                    TagCount = 0,
+                    FolderCount = 0,
                     MemberCount = 1,
                     Settings = null,
                     CreatedAt = workspace.CreatedAt ?? DateTime.UtcNow,

@@ -63,9 +63,9 @@ public class WorkspaceWithTreeResponse
     public bool IsTemplate { get; set; }
 
     /// <summary>
-    /// Total number of tags in this workspace
+    /// Total number of folders in this workspace
     /// </summary>
-    public int TagCount { get; set; }
+    public int FolderCount { get; set; }
 
     /// <summary>
     /// Total number of notes in this workspace

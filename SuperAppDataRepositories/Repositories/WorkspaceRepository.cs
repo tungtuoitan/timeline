@@ -837,7 +837,6 @@ namespace SuperAppDataRepositories.Repositories
                                     _context.Notes.Add(newNote);
                                     await _context.SaveChangesAsync(); // Save to get generated ID
                                     entityId = newNote.Id;
-                                    // TODO: Handle tag associations (noteData.TagIds) when entity_tags relationship is implemented
                                 }
                                 break;
 
