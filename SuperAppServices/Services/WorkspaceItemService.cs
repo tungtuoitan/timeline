@@ -384,7 +384,8 @@ namespace SuperAppServices.Services
                     if (!entityExistsForUpdate)
                         return $"Entity with EntityType={workspaceItem.EntityType} and EntityId={workspaceItem.EntityId} not found for update";
 
-                    if (!HasEntityData(request))
+                    // For UPDATE, use EntityType from existing workspaceItem
+                    if (!HasEntityData(request, workspaceItem.EntityType))
                         return "Update action requires entity data";
 
                     return null;
@@ -471,12 +472,17 @@ namespace SuperAppServices.Services
         /// <summary>
         /// Check if request has entity data (for CREATE/UPDATE actions)
         /// </summary>
-        private bool HasEntityData(UpsertWorkspaceItemRequest request)
+        /// <param name="request">Workspace item request</param>
+        /// <param name="entityType">Override EntityType (for UPDATE action where EntityType comes from existing item)</param>
+        private bool HasEntityData(UpsertWorkspaceItemRequest request, byte? entityType = null)
         {
-            if (!request.EntityType.HasValue)
+            // Use provided entityType (UPDATE) or request.EntityType (CREATE)
+            var typeToCheck = entityType ?? request.EntityType;
+
+            if (!typeToCheck.HasValue)
                 return false;
 
-            return request.EntityType.Value switch
+            return typeToCheck.Value switch
             {
                 2 => request.FolderData != null,
                 3 => request.NoteData != null,
@@ -629,8 +635,7 @@ namespace SuperAppServices.Services
             var existingItem = existingItemsDict[request.Id!.Value];
 
             // Update location
-            if (request.ParentId.HasValue)
-                existingItem.ParentId = request.ParentId;
+            existingItem.ParentId = request.ParentId; // null thì set null
 
             if (request.WorkspaceId.HasValue)
                 existingItem.WorkspaceId = request.WorkspaceId.Value;

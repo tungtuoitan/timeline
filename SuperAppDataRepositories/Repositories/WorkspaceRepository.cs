@@ -26,19 +26,21 @@ namespace SuperAppDataRepositories.Repositories
 
         /// <summary>
         /// Gets the complete workspace tree (folders, notes, and files) with hierarchy
+        /// Supports filtering workspace_items by status code and deleted status
         /// </summary>
-        public async Task<WorkspaceWithTree?> GetWorkspaceTreeAsync(int workspaceId, int userId)
+        public async Task<WorkspaceWithTree?> GetWorkspaceTreeAsync(int workspaceId, int userId, WorkspaceFilterOptions? filterOptions = null)
         {
             try
             {
-                _logger.LogInformation("Getting workspace tree for workspaceId: {WorkspaceId}, userId: {UserId}",
-                    workspaceId, userId);
+                _logger.LogInformation("Getting workspace tree for workspaceId: {WorkspaceId}, userId: {UserId}, StatusCodes: {StatusCodes}, DeletedAt: {DeletedAt}",
+                    workspaceId, userId,
+                    filterOptions?.StatusCodes != null ? string.Join(",", filterOptions.StatusCodes) : "null",
+                    filterOptions?.DeletedAt);
 
                 // Get workspace - ✅ Include deleted workspaces
                 var workspace = await _context.Workspaces
                     .Where(w => w.Id == workspaceId)
                     .FirstOrDefaultAsync();
-                    // Frontend will handle display logic
 
                 if (workspace == null)
                 {
@@ -46,10 +48,27 @@ namespace SuperAppDataRepositories.Repositories
                     return null;
                 }
 
-                // Get all workspace items - ✅ Include deleted items
-                // Frontend will handle display logic
-                var items = await _context.WorkspaceItems
-                    .Where(i => i.WorkspaceId == workspaceId)
+                // Build query for workspace items
+                var itemsQuery = _context.WorkspaceItems
+                    .Where(i => i.WorkspaceId == workspaceId);
+
+                // Apply deleted_at filter at SQL level (workspace_items.deleted_at)
+                if (filterOptions?.DeletedAt != null)
+                {
+                    if (filterOptions.DeletedAt == "null")
+                    {
+                        // Show only existing items (not deleted from workspace)
+                        itemsQuery = itemsQuery.Where(i => i.DeletedAt == null);
+                    }
+                    else if (filterOptions.DeletedAt == "notNull")
+                    {
+                        // Show only deleted items (deleted from workspace)
+                        itemsQuery = itemsQuery.Where(i => i.DeletedAt != null);
+                    }
+                    // If "all" or any other value, don't filter (show all)
+                }
+
+                var items = await itemsQuery
                     .Select(i => new WorkspaceItemEntity
                     {
                         Id = i.Id,
@@ -77,23 +96,53 @@ namespace SuperAppDataRepositories.Repositories
                     .Where(f => folderIds.Contains(f.Id))
                     .ToDictionaryAsync(f => f.Id);
 
-                // ✅ Include deleted notes - Frontend will handle display logic
+                // Fetch notes with status_code for filtering
                 var notes = await _context.Notes
                     .AsNoTracking()
                     .Where(n => noteIds.Contains(n.Id))
+                    .Select(n => new { n.Id, n.Name, n.StatusCode })
                     .ToDictionaryAsync(n => n.Id);
 
-                // ✅ Include deleted files - Frontend will handle display logic
+                // Fetch files with status_code for filtering
                 var files = await _context.Files
                     .AsNoTracking()
                     .Where(f => fileIds.Contains(f.Id))
-                    .Select(f => new SuperAppModels.Models.File 
-                    { 
-                        Id = f.Id, 
-                        Name = f.Name,
-                        DeletedAt = f.DeletedAt // ✅ Include DeletedAt
-                    })
+                    .Select(f => new { f.Id, f.Name, f.StatusCode })
                     .ToDictionaryAsync(f => f.Id);
+
+                // Apply status_code filter (notes and files only, NOT folders)
+                if (filterOptions?.StatusCodes != null && filterOptions.StatusCodes.Any())
+                {
+                    items = items.Where(item =>
+                    {
+                        // Folders don't have status_code, so keep them
+                        if (item.EntityType == 2) return true;
+
+                        // For notes, check status_code
+                        if (item.EntityType == 3)
+                        {
+                            if (notes.TryGetValue(item.EntityId, out var note))
+                            {
+                                return note.StatusCode != null && filterOptions.StatusCodes.Contains(note.StatusCode);
+                            }
+                            return false; // Note not found, exclude
+                        }
+
+                        // For files, check status_code
+                        if (item.EntityType == 4)
+                        {
+                            if (files.TryGetValue(item.EntityId, out var file))
+                            {
+                                return file.StatusCode != null && filterOptions.StatusCodes.Contains(file.StatusCode);
+                            }
+                            return false; // File not found, exclude
+                        }
+
+                        return true;
+                    }).ToList();
+
+                    _logger.LogInformation("After status_code filter: {Count} items remaining", items.Count);
+                }
 
                 // Build tree items
                 var treeItems = new List<WorkspaceItem>();
@@ -107,43 +156,28 @@ namespace SuperAppDataRepositories.Repositories
                         Type = GetItemTypeName(item.EntityType), // Convert TINYINT to string
                         UserId = userId,
                         Name = "",
-                        ParentId = item.ParentId, // parent_id from ws.workspace_items (now references workspace_items.id instead of folders.id)
+                        ParentId = item.ParentId, // parent_id from ws.workspace_items
                         Level = 0,
                         Position = 0,
-                        AccessType = "owner", // Simplified: always owner for now
-                        IsOriginal = true, // Simplified: always true for now
-                        DeletedAt = item.DeletedAt // ✅ Include DeletedAt from workspace_items
+                        AccessType = "owner",
+                        IsOriginal = true,
+                        DeletedAt = item.DeletedAt // ✅ ONLY workspace_items.deleted_at (no merge with entity)
                     };
 
-                    // Populate name, metadata, and DeletedAt based on type
+                    // Populate name and metadata based on type
                     if (item.EntityType == 2 && folders.TryGetValue(item.EntityId, out var folder))
                     {
                         treeItem.Name = folder.Name;
                         treeItem.Color = folder.Color;
                         treeItem.Icon = folder.Icon;
-                        // ✅ Use entity DeletedAt if relationship is not deleted but entity is
-                        if (treeItem.DeletedAt == null && folder.DeletedAt != null)
-                        {
-                            treeItem.DeletedAt = folder.DeletedAt;
-                        }
                     }
                     else if (item.EntityType == 3 && notes.TryGetValue(item.EntityId, out var note))
                     {
                         treeItem.Name = note.Name;
-                        // ✅ Use entity DeletedAt if relationship is not deleted but entity is
-                        if (treeItem.DeletedAt == null && note.DeletedAt != null)
-                        {
-                            treeItem.DeletedAt = note.DeletedAt;
-                        }
                     }
                     else if (item.EntityType == 4 && files.TryGetValue(item.EntityId, out var file))
                     {
                         treeItem.Name = file.Name;
-                        // ✅ Use entity DeletedAt if relationship is not deleted but entity is
-                        if (treeItem.DeletedAt == null && file.DeletedAt != null)
-                        {
-                            treeItem.DeletedAt = file.DeletedAt;
-                        }
                     }
 
                     treeItems.Add(treeItem);

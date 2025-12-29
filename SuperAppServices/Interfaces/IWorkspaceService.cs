@@ -24,7 +24,7 @@ namespace SuperAppServices.Interfaces
         /// <param name="workspaceId">Workspace ID</param>
         /// <param name="userId">User ID</param>
         /// <returns>Unified WorkspaceDTO with workspace data + flatData</returns>
-        Task<WorkspaceDTO> GetWorkspaceTreeV2Async(int workspaceId, int userId);
+        Task<WorkspaceDTO> GetWorkspaceTreeV2Async(int workspaceId, int userId, WorkspaceFilterOptions? filterOptions = null);
 
         /// <summary>
         /// Gets all workspaces for a user with optional filters

@@ -129,13 +129,16 @@ namespace SuperAppServices.Services
         /// <summary>
         /// Gets workspace tree with all items (V2 - with full entity data)
         /// V2 structure: Clear separation between workspace_items properties and entity data
+        /// Supports filtering by status code (for notes/files) and deleted status
         /// </summary>
-        public async Task<WorkspaceDTO> GetWorkspaceTreeV2Async(int workspaceId, int userId)
+        public async Task<WorkspaceDTO> GetWorkspaceTreeV2Async(int workspaceId, int userId, WorkspaceFilterOptions? filterOptions = null)
         {
             try
             {
-                _logger.LogInformation("Getting workspace tree V2 for WorkspaceId: {WorkspaceId}, UserId: {UserId}",
-                    workspaceId, userId);
+                _logger.LogInformation("Getting workspace tree V2 for WorkspaceId: {WorkspaceId}, UserId: {UserId}, StatusCodes: {StatusCodes}, DeletedAt: {DeletedAt}",
+                    workspaceId, userId,
+                    filterOptions?.StatusCodes != null ? string.Join(",", filterOptions.StatusCodes) : "null",
+                    filterOptions?.DeletedAt);
 
                 // Get workspace info
                 var workspace = await _workspaceRepository.GetWorkspaceByIdAsync(workspaceId, userId);
@@ -146,8 +149,8 @@ namespace SuperAppServices.Services
                     throw new KeyNotFoundException($"Workspace with ID {workspaceId} not found");
                 }
 
-                // Get workspace tree (tags, notes, files)
-                var workspaceWithTree = await _workspaceRepository.GetWorkspaceTreeAsync(workspaceId, userId);
+                // Get workspace tree (tags, notes, files) with filters applied at repository level
+                var workspaceWithTree = await _workspaceRepository.GetWorkspaceTreeAsync(workspaceId, userId, filterOptions);
                 if (workspaceWithTree == null)
                 {
                     _logger.LogWarning("Workspace tree data not found for workspace {WorkspaceId}", workspaceId);
@@ -155,6 +158,7 @@ namespace SuperAppServices.Services
                 }
 
                 // Transform to V2 structure (workspace_items properties + Data property with entity data)
+                // Filters already applied at repository level (status_code and deleted_at)
                 var itemsV2 = TransformToV2Structure(workspaceWithTree.Items);
 
                 // Count items by type
@@ -189,7 +193,7 @@ namespace SuperAppServices.Services
                     FlatData = itemsV2 // ✅ FLAT list with full entity data in 'Data' property
                 };
 
-                _logger.LogInformation("Successfully retrieved workspace tree V2 with {ItemCount} items for workspace {WorkspaceId}",
+                _logger.LogInformation("Successfully retrieved workspace tree V2 with {ItemCount} items for workspace {WorkspaceId} (after filters)",
                     itemsV2.Count, workspaceId);
 
                 return response;
@@ -201,6 +205,39 @@ namespace SuperAppServices.Services
                 throw;
             }
         }
+
+        /// <summary>
+        /// Remove folders that have no children after filtering
+        /// Recursive algorithm: iterate until no more empty folders
+        /// </summary>
+        //private List<WorkspaceItemResponseV2> RemoveEmptyFolders(List<WorkspaceItemResponseV2> items)
+        //{
+        //    bool removedAny;
+        //    do
+        //    {
+        //        removedAny = false;
+        //        var folderIds = items.Where(i => i.EntityType == 2).Select(i => i.Id).ToHashSet();
+        //        var emptyFolderIds = new HashSet<int>();
+
+        //        foreach (var folderId in folderIds)
+        //        {
+        //            // Check if folder has any children
+        //            var hasChildren = items.Any(i => i.ParentId == folderId);
+        //            if (!hasChildren)
+        //            {
+        //                emptyFolderIds.Add(folderId);
+        //            }
+        //        }
+
+        //        if (emptyFolderIds.Any())
+        //        {
+        //            items = items.Where(i => !emptyFolderIds.Contains(i.Id)).ToList();
+        //            removedAny = true;
+        //        }
+        //    } while (removedAny);
+
+        //    return items;
+        //}
 
         /// <summary>
         /// Transforms WorkspaceItem (mixed structure) to WorkspaceItemResponseV2 (clear separation)

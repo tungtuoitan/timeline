@@ -11,11 +11,13 @@ namespace SuperAppDataRepositories.Ins
     {
         /// <summary>
         /// Gets the complete workspace tree (folders, notes, and files) with hierarchy
+        /// Supports filtering workspace_items by status code and deleted status
         /// </summary>
         /// <param name="workspaceId">Workspace ID</param>
         /// <param name="userId">User ID for access validation</param>
+        /// <param name="filterOptions">Filter options for workspace_items (status, deleted status)</param>
         /// <returns>Workspace with hierarchical tree structure</returns>
-        Task<WorkspaceWithTree?> GetWorkspaceTreeAsync(int workspaceId, int userId);
+        Task<WorkspaceWithTree?> GetWorkspaceTreeAsync(int workspaceId, int userId, WorkspaceFilterOptions? filterOptions = null);
 
         /// <summary>
         /// Gets workspace by ID

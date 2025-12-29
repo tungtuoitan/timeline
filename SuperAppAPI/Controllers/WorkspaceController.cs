@@ -101,11 +101,14 @@ namespace SuperAppAPI.Controllers
         }
 
         /// <summary>
-        /// <summary>
         /// Gets workspace information with its complete hierarchical tree (V2 - with full entity data)
         /// V2 structure: Clear separation between workspace_items properties and entity data
         /// Returns flat list with full entity data in 'Data' property wrapped in ResultOption
+        /// Supports filtering by status code (for notes/files) and deleted status
         /// </summary>
+        /// <param name="workspaceId">Workspace ID</param>
+        /// <param name="statusCode">Optional comma-separated status codes filter (e.g., "active,inactive")</param>
+        /// <param name="deletedAt">Optional deleted status filter ("null" for existing only, "notNull" for deleted only)</param>
         /// <response code="200">Workspace tree retrieved successfully</response>
         /// <response code="400">Invalid workspace ID</response>
         /// <response code="401">Unauthorized - invalid or missing token</response>
@@ -119,7 +122,10 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetWorkspaceTreeV2(int workspaceId)
+        public async Task<IActionResult> GetWorkspaceTreeV2(
+            int workspaceId,
+            [FromQuery] string? statusCode = null,
+            [FromQuery] string? deletedAt = null)
         {
             if (workspaceId <= 0)
             {
@@ -133,10 +139,23 @@ namespace SuperAppAPI.Controllers
                 return Unauthorized("User ID not found in token");
             }
 
-            _logger.LogInformation("Retrieving workspace tree V2 for workspaceId: {WorkspaceId}, userId: {UserId}",
-                workspaceId, userId.Value);
+            // Build filter options
+            var filterOptions = new WorkspaceFilterOptions
+            {
+                UserId = userId.Value,
+                StatusCodes = !string.IsNullOrEmpty(statusCode)
+                    ? statusCode.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(s => s.Trim()).ToList()
+                    : null,
+                DeletedAt = deletedAt
+            };
 
-            var tree = await _workspaceService.GetWorkspaceTreeV2Async(workspaceId, userId.Value);
+            _logger.LogInformation("Retrieving workspace tree V2 for workspaceId: {WorkspaceId}, userId: {UserId}, StatusCodes: {StatusCodes}, DeletedAt: {DeletedAt}",
+                workspaceId, userId.Value,
+                filterOptions.StatusCodes != null ? string.Join(",", filterOptions.StatusCodes) : "null",
+                filterOptions.DeletedAt);
+
+            var tree = await _workspaceService.GetWorkspaceTreeV2Async(workspaceId, userId.Value, filterOptions);
 
             _logger.LogInformation("Successfully retrieved workspace tree V2 for workspaceId: {WorkspaceId}", workspaceId);
 
