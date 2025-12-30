@@ -66,6 +66,7 @@ namespace SuperAppServices.Services
                     // Preload workspace items for Update/Move/Delete/Restore actions
                     var itemIdsToUpdate = requests
                         .Where(r => r.Action == WorkspaceItemAction.Move ||
+                                   r.Action == WorkspaceItemAction.MoveCross ||
                                    r.Action == WorkspaceItemAction.Update ||
                                    r.Action == WorkspaceItemAction.Delete ||
                                    r.Action == WorkspaceItemAction.Restore)
@@ -218,6 +219,10 @@ namespace SuperAppServices.Services
                                 ProcessMoveAction(request, existingItemsDict, upsertedItems);
                                 break;
 
+                            case WorkspaceItemAction.MoveCross:
+                                await ProcessMoveCrossActionAsync(request, existingItemsDict, upsertedItems);
+                                break;
+
                             case WorkspaceItemAction.Update:
                                 ProcessUpdateAction(
                                     request,
@@ -350,15 +355,34 @@ namespace SuperAppServices.Services
                     return null;
 
                 case WorkspaceItemAction.Move:
-                    // Required: Id + (ParentId OR WorkspaceId)
+                    // Required: Id + ParentId (within same workspace)
                     if (!request.Id.HasValue || request.Id.Value <= 0)
                         return "Move action requires valid Id";
 
-                    if (!request.ParentId.HasValue && !request.WorkspaceId.HasValue)
-                        return "Move action requires either ParentId or WorkspaceId";
+                    //if (!request.ParentId.HasValue)
+                    //    return "Move action requires ParentId";
 
                     if (!existingItemsDict.ContainsKey(request.Id.Value))
                         return $"Workspace item ID {request.Id} not found";
+
+                    return null;
+
+                case WorkspaceItemAction.MoveCross:
+                    // Required: Id + WorkspaceId (target workspace)
+                    // Optional: ParentId (target parent in new workspace, null = root)
+                    if (!request.Id.HasValue || request.Id.Value <= 0)
+                        return "MoveCross action requires valid Id";
+
+                    if (!request.WorkspaceId.HasValue || request.WorkspaceId.Value <= 0)
+                        return "MoveCross action requires valid target WorkspaceId";
+
+                    if (!existingItemsDict.ContainsKey(request.Id.Value))
+                        return $"Workspace item ID {request.Id} not found";
+
+                    // Validate that target workspace is different from source workspace
+                    var sourceItem = existingItemsDict[request.Id.Value];
+                    if (sourceItem.WorkspaceId == request.WorkspaceId.Value)
+                        return "MoveCross requires target workspace to be different from source workspace";
 
                     return null;
 
@@ -646,6 +670,83 @@ namespace SuperAppServices.Services
             _logger.LogInformation(
                 "Moved workspace_item ID {WorkspaceItemId} to ParentId={ParentId}, WorkspaceId={WorkspaceId}",
                 request.Id, existingItem.ParentId, existingItem.WorkspaceId);
+        }
+
+        /// <summary>
+        /// MOVE CROSS: Move workspace_item to another workspace with all descendants
+        /// </summary>
+        private async Task ProcessMoveCrossActionAsync(
+            UpsertWorkspaceItemRequest request,
+            Dictionary<int, WorkspaceItemEntity> existingItemsDict,
+            List<WorkspaceItemEntity> upsertedItems)
+        {
+            _logger.LogInformation(
+                "Processing MOVE_CROSS action: Id={Id}, TargetWorkspaceId={WorkspaceId}, TargetParentId={ParentId}",
+                request.Id, request.WorkspaceId, request.ParentId);
+
+            var rootItem = existingItemsDict[request.Id!.Value];
+            var targetWorkspaceId = request.WorkspaceId!.Value;
+            var targetParentId = request.ParentId; // null = root level in target workspace
+
+            // ===== STEP 1: Update root item =====
+            rootItem.WorkspaceId = targetWorkspaceId;
+            rootItem.ParentId = targetParentId;
+            rootItem.UpdatedAt = DateTime.UtcNow;
+            upsertedItems.Add(rootItem);
+
+            _logger.LogInformation(
+                "Updated root item {WorkspaceItemId} to workspace {TargetWorkspaceId}",
+                rootItem.Id, targetWorkspaceId);
+
+            // ===== STEP 2: Find and update all descendants recursively =====
+            var allDescendants = await GetAllDescendantsAsync(rootItem.Id);
+
+            _logger.LogInformation(
+                "Found {Count} descendants to move with root item {WorkspaceItemId}",
+                allDescendants.Count, rootItem.Id);
+
+            foreach (var descendant in allDescendants)
+            {
+                descendant.WorkspaceId = targetWorkspaceId;
+                descendant.UpdatedAt = DateTime.UtcNow;
+                upsertedItems.Add(descendant);
+
+                _logger.LogDebug(
+                    "Updated descendant {WorkspaceItemId} to workspace {TargetWorkspaceId}",
+                    descendant.Id, targetWorkspaceId);
+            }
+
+            _logger.LogInformation(
+                "Completed MOVE_CROSS: Moved {TotalCount} items (1 root + {DescendantsCount} descendants) to workspace {TargetWorkspaceId}",
+                allDescendants.Count + 1, allDescendants.Count, targetWorkspaceId);
+        }
+
+        /// <summary>
+        /// Recursively get all descendants of a workspace item
+        /// </summary>
+        private async Task<List<WorkspaceItemEntity>> GetAllDescendantsAsync(int parentWorkspaceItemId)
+        {
+            var descendants = new List<WorkspaceItemEntity>();
+            var queue = new Queue<int>();
+            queue.Enqueue(parentWorkspaceItemId);
+
+            while (queue.Count > 0)
+            {
+                var currentParentId = queue.Dequeue();
+
+                // Find direct children
+                var children = await _context.WorkspaceItems
+                    .Where(wi => wi.ParentId == currentParentId)
+                    .ToListAsync();
+
+                foreach (var child in children)
+                {
+                    descendants.Add(child);
+                    queue.Enqueue(child.Id); // Add to queue to process its children
+                }
+            }
+
+            return descendants;
         }
 
         /// <summary>

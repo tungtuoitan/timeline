@@ -29,13 +29,23 @@ namespace SuperAppModels.DTOs.Requests
         Add,
 
         /// <summary>
-        /// MOVE workspace_item to new location
-        /// Required: Id + (ParentId OR WorkspaceId)
-        /// Optional: Both ParentId and WorkspaceId for cross-workspace move
-        /// Example: Moving a folder to a different parent or workspace
+        /// MOVE workspace_item to new location (within same workspace)
+        /// Required: Id + ParentId
+        /// Optional: None
+        /// Example: Moving a folder to a different parent folder
         /// </summary>
         [EnumMember(Value = "MOVE")]
         Move,
+
+        /// <summary>
+        /// MOVE CROSS workspace_item to another workspace
+        /// Required: Id + WorkspaceId (target workspace)
+        /// Optional: ParentId (target parent folder in new workspace, null = root)
+        /// Updates workspace_id for item and ALL descendants recursively
+        /// Example: Moving a folder with all its contents to another workspace
+        /// </summary>
+        [EnumMember(Value = "MOVECROSS")]
+        MoveCross,
 
         /// <summary>
         /// UPDATE entity data (folder/note/file properties)

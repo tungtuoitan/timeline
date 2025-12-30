@@ -407,7 +407,7 @@ namespace SuperAppAPI.Controllers
 
         /// <summary>
         /// Batch upsert multiple workspace items with action-based operations
-        /// Supports 6 actions: Create, Add, Move, Update, Delete, Restore
+        /// Supports 7 actions: Create, Add, Move, MoveCross, Update, Delete, Restore
         /// Use this for single item operations by passing an array with 1 element
         /// Pattern: Action-based API (Microsoft Graph style)
         /// </summary>
@@ -461,7 +461,13 @@ namespace SuperAppAPI.Controllers
             // 4. Set workspaceId, userId, and CreatedBy for all requests
             foreach (var request in requests)
             {
-                request.WorkspaceId = workspaceId;
+                // IMPORTANT: For MoveCross action, keep workspaceId from request body (target workspace)
+                // For other actions, set workspaceId from route parameter (current workspace)
+                if (request.Action != WorkspaceItemAction.MoveCross)
+                {
+                    request.WorkspaceId = workspaceId;
+                }
+
                 request.UserId = userId.Value;
                 request.CreatedBy = userEmail;
             }
