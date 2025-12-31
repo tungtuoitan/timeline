@@ -175,58 +175,58 @@ namespace SuperAppAPI.Controllers
         /// <response code="400">Invalid request data</response>
         /// <response code="404">Workspace or folder not found</response>
         /// <response code="500">Internal server error</response>
-        [HttpPost("{workspaceId}/folders")]
-        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UpsertFolder(int workspaceId, [FromBody] UpsertFolderRequest request)
-        {
-            if (workspaceId <= 0)
-            {
-                _logger.LogWarning("Invalid workspace ID provided: {WorkspaceId}", workspaceId);
-                return BadRequest(new ResultOptions
-                {
-                    Success = false,
-                    Message = "Workspace ID must be a positive integer",
-                    Status = 400
-                });
-            }
+        //[HttpPost("{workspaceId}/folders")]
+        //[ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        //[ProducesResponseType(typeof(ResultOptions), StatusCodes.Status400BadRequest)]
+        //[ProducesResponseType(typeof(ResultOptions), StatusCodes.Status404NotFound)]
+        //[ProducesResponseType(typeof(ResultOptions), StatusCodes.Status500InternalServerError)]
+        //public async Task<IActionResult> UpsertFolder(int workspaceId, [FromBody] UpsertFolderRequest request)
+        //{
+        //    if (workspaceId <= 0)
+        //    {
+        //        _logger.LogWarning("Invalid workspace ID provided: {WorkspaceId}", workspaceId);
+        //        return BadRequest(new ResultOptions
+        //        {
+        //            Success = false,
+        //            Message = "Workspace ID must be a positive integer",
+        //            Status = 400
+        //        });
+        //    }
 
-            if (!ModelState.IsValid)
-            {
-                _logger.LogWarning("Invalid model state for upsert folder request");
-                return BadRequest(new ResultOptions
-                {
-                    Success = false,
-                    Message = "Invalid request data",
-                    Object = ModelState,
-                    Status = 400
-                });
-            }
+        //    if (!ModelState.IsValid)
+        //    {
+        //        _logger.LogWarning("Invalid model state for upsert folder request");
+        //        return BadRequest(new ResultOptions
+        //        {
+        //            Success = false,
+        //            Message = "Invalid request data",
+        //            Object = ModelState,
+        //            Status = 400
+        //        });
+        //    }
 
-            var userId = GetAuthenticatedUserId();
-            if (userId == null)
-            {
-                return Unauthorized("User ID not found in token");
-            }
+        //    var userId = GetAuthenticatedUserId();
+        //    if (userId == null)
+        //    {
+        //        return Unauthorized("User ID not found in token");
+        //    }
 
-            var action = request.Id.HasValue ? "Updating" : "Creating";
-            _logger.LogInformation("{Action} folder '{Name}' in workspace {WorkspaceId} for user {UserId}",
-                action, request.Name, workspaceId, userId.Value);
+        //    var action = request.Id.HasValue ? "Updating" : "Creating";
+        //    _logger.LogInformation("{Action} folder '{Name}' in workspace {WorkspaceId} for user {UserId}",
+        //        action, request.Name, workspaceId, userId.Value);
 
-            var result = await _workspaceService.UpsertFolderAsync(workspaceId, userId.Value, request);
+        //    var result = await _workspaceService.UpsertFolderAsync(workspaceId, userId.Value, request);
 
-            // Return appropriate status code based on result
-            if (result.Success)
-            {
-                return Ok(result);
-            }
-            else
-            {
-                return StatusCode(result.Status ?? 500, result);
-            }
-        }
+        //    // Return appropriate status code based on result
+        //    if (result.Success)
+        //    {
+        //        return Ok(result);
+        //    }
+        //    else
+        //    {
+        //        return StatusCode(result.Status ?? 500, result);
+        //    }
+        //}
 
         /// <summary>
         /// Moves multiple workspace items (folders/notes/files) with cascade support
@@ -407,9 +407,11 @@ namespace SuperAppAPI.Controllers
 
         /// <summary>
         /// Batch upsert multiple workspace items with action-based operations
-        /// Supports 7 actions: Create, Add, Move, MoveCross, Update, Delete, Restore
+        /// Supports 7 actions: Create, Add, Move, MoveCross, UpdateFolder, Delete, Restore
         /// Use this for single item operations by passing an array with 1 element
         /// Pattern: Action-based API (Microsoft Graph style)
+        ///
+        /// Note: UpdateFolder only updates folder entities. Notes/Files use their own entity-specific APIs.
         /// </summary>
         /// <param name="workspaceId">Workspace ID from route</param>
         /// <param name="requests">List of workspace item requests with explicit actions</param>
@@ -422,8 +424,9 @@ namespace SuperAppAPI.Controllers
         /// Example request body:
         /// [
         ///   { "action": "create", "itemType": 2, "parentId": null, "folderData": { "name": "New Folder" } },
-        ///   { "action": "move", "id": 123, "parentId": null },
-        ///   { "action": "delete", "id": 456 }
+        ///   { "action": "updatefolder", "id": 123, "folderData": { "name": "Updated Name", "color": "#FF5733" } },
+        ///   { "action": "move", "id": 456, "parentId": null },
+        ///   { "action": "delete", "id": 789 }
         /// ]
         /// </example>
         [HttpPost("{workspaceId}/items/batch")]

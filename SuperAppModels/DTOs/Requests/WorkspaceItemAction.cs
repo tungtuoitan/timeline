@@ -48,13 +48,14 @@ namespace SuperAppModels.DTOs.Requests
         MoveCross,
 
         /// <summary>
-        /// UPDATE entity data (folder/note/file properties)
-        /// Required: Id, EntityData
+        /// UPDATE FOLDER data (name, description, color, icon, etc.)
+        /// Required: Id, FolderData
         /// Optional: None
+        /// Note: Only for folders. Notes/Files use their own entity-specific APIs.
         /// Example: Updating a folder's name and color
         /// </summary>
-        [EnumMember(Value = "UPDATE")]
-        Update,
+        [EnumMember(Value = "UPDATEFOLDER")]
+        UpdateFolder,
 
         /// <summary>
         /// SOFT DELETE workspace_item

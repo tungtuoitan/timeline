@@ -11,8 +11,9 @@ namespace SuperAppServices.Services
 {
     /// <summary>
     /// Service for managing workspace items with action-based batch operations
-    /// Handles 6 explicit actions: Create, Add, Move, Update, Delete, Restore
+    /// Handles 7 explicit actions: Create, Add, Move, MoveCross, UpdateFolder, Delete, Restore
     /// Pattern: 100% follows NoteRepository.UpsertNotesAsync (preload, validate, process, single save)
+    /// Note: UpdateFolder only updates folder entities. Notes/Files use their own entity-specific APIs.
     /// </summary>
     public class WorkspaceItemService : IWorkspaceItemService
     {
@@ -63,11 +64,11 @@ namespace SuperAppServices.Services
 
                     // ===== STEP 2: PRELOAD ALL DATA (Batch Queries - No N+1!) =====
 
-                    // Preload workspace items for Update/Move/Delete/Restore actions
+                    // Preload workspace items for UpdateFolder/Move/Delete/Restore actions
                     var itemIdsToUpdate = requests
                         .Where(r => r.Action == WorkspaceItemAction.Move ||
                                    r.Action == WorkspaceItemAction.MoveCross ||
-                                   r.Action == WorkspaceItemAction.Update ||
+                                   r.Action == WorkspaceItemAction.UpdateFolder ||
                                    r.Action == WorkspaceItemAction.Delete ||
                                    r.Action == WorkspaceItemAction.Restore)
                         .Where(r => r.Id.HasValue && r.Id.Value > 0)
@@ -111,27 +112,11 @@ namespace SuperAppServices.Services
                         ? await _context.Files.Where(f => fileIdsToAdd.Contains(f.Id)).Select(f => f.Id).ToListAsync()
                         : new List<int>();
 
-                    // Preload entities for Update action
+                    // Preload folders for UpdateFolder action (FOLDER ONLY)
                     var folderIdsToUpdate = requests
-                        .Where(r => r.Action == WorkspaceItemAction.Update && r.Id.HasValue)
+                        .Where(r => r.Action == WorkspaceItemAction.UpdateFolder && r.Id.HasValue)
                         .Select(r => r.Id.Value)
                         .Where(id => existingItemsDict.ContainsKey(id) && existingItemsDict[id].EntityType == 2)
-                        .Select(id => existingItemsDict[id].EntityId)
-                        .Distinct()
-                        .ToList();
-
-                    var noteIdsToUpdate = requests
-                        .Where(r => r.Action == WorkspaceItemAction.Update && r.Id.HasValue)
-                        .Select(r => r.Id.Value)
-                        .Where(id => existingItemsDict.ContainsKey(id) && existingItemsDict[id].EntityType == 3)
-                        .Select(id => existingItemsDict[id].EntityId)
-                        .Distinct()
-                        .ToList();
-
-                    var fileIdsToUpdate = requests
-                        .Where(r => r.Action == WorkspaceItemAction.Update && r.Id.HasValue)
-                        .Select(r => r.Id.Value)
-                        .Where(id => existingItemsDict.ContainsKey(id) && existingItemsDict[id].EntityType == 4)
                         .Select(id => existingItemsDict[id].EntityId)
                         .Distinct()
                         .ToList();
@@ -140,13 +125,9 @@ namespace SuperAppServices.Services
                         ? await _context.Folders.Where(f => folderIdsToUpdate.Contains(f.Id)).ToDictionaryAsync(f => f.Id, f => f)
                         : new Dictionary<int, Folder>();
 
-                    var notesToUpdateDict = noteIdsToUpdate.Any()
-                        ? await _context.Notes.Where(n => noteIdsToUpdate.Contains(n.Id)).ToDictionaryAsync(n => n.Id, n => n)
-                        : new Dictionary<int, Note>();
-
-                    var filesToUpdateDict = fileIdsToUpdate.Any()
-                        ? await _context.Files.Where(f => fileIdsToUpdate.Contains(f.Id)).ToDictionaryAsync(f => f.Id, f => f)
-                        : new Dictionary<int, SuperAppModels.Models.File>();
+                    // Note: Notes and Files use their own entity-specific APIs for updates
+                    var notesToUpdateDict = new Dictionary<int, Note>();
+                    var filesToUpdateDict = new Dictionary<int, SuperAppModels.Models.File>();
 
                     // ===== STEP 3: VALIDATE ALL REQUESTS (Fail-Fast) =====
 
@@ -223,13 +204,11 @@ namespace SuperAppServices.Services
                                 await ProcessMoveCrossActionAsync(request, existingItemsDict, upsertedItems);
                                 break;
 
-                            case WorkspaceItemAction.Update:
-                                ProcessUpdateAction(
+                            case WorkspaceItemAction.UpdateFolder:
+                                ProcessUpdateFolderAction(
                                     request,
                                     existingItemsDict,
-                                    foldersToUpdateDict,
-                                    notesToUpdateDict,
-                                    filesToUpdateDict);
+                                    foldersToUpdateDict);
                                 break;
 
                             case WorkspaceItemAction.Delete:
@@ -248,6 +227,93 @@ namespace SuperAppServices.Services
                     // ===== STEP 5: SINGLE SAVECHANGES (Transaction Atomicity!) =====
                     await _context.SaveChangesAsync();
 
+                    // ===== STEP 5.5: Load entity data for response (WorkspaceItemV2 structure) =====
+                    var responseItems = new List<object>();
+
+                    foreach (var item in upsertedItems)
+                    {
+                        object? entityData = null;
+
+                        switch (item.EntityType)
+                        {
+                            case 2: // Folder
+                                entityData = await _context.Folders
+                                    .AsNoTracking()
+                                    .Where(f => f.Id == item.EntityId)
+                                    .Select(f => new
+                                    {
+                                        id = f.Id,
+                                        userId = f.UserId,
+                                        name = f.Name,
+                                        description = f.Description,
+                                        color = f.Color,
+                                        icon = f.Icon,
+                                        createdAt = f.CreatedAt,
+                                        updatedAt = f.UpdatedAt,
+                                        deletedAt = f.DeletedAt,
+                                        copyInfo = f.CopyInfo
+                                    })
+                                    .FirstOrDefaultAsync();
+                                break;
+
+                            case 3: // Note
+                                entityData = await _context.Notes
+                                    .AsNoTracking()
+                                    .Where(n => n.Id == item.EntityId)
+                                    .Select(n => new
+                                    {
+                                        id = n.Id,
+                                        userId = n.UserId,
+                                        name = n.Name,
+                                        description = n.Description,
+                                        statusCode = n.StatusCode,
+                                        createdAt = n.CreatedAt,
+                                        updatedAt = n.UpdatedAt,
+                                        deletedAt = n.DeletedAt,
+                                        copyInfo = n.CopyInfo
+                                    })
+                                    .FirstOrDefaultAsync();
+                                break;
+
+                            case 4: // File
+                                entityData = await _context.Files
+                                    .AsNoTracking()
+                                    .Where(f => f.Id == item.EntityId)
+                                    .Select(f => new
+                                    {
+                                        id = f.Id,
+                                        userId = f.UserId,
+                                        name = f.Name,
+                                        url = f.Url,
+                                        fileSize = f.FileSize,
+                                        mimeType = f.MimeType,
+                                        extension = f.Extension,
+                                        statusCode = f.StatusCode,
+                                        createdAt = f.CreatedAt,
+                                        updatedAt = f.UpdatedAt,
+                                        deletedAt = f.DeletedAt,
+                                        copyInfo = f.CopyInfo
+                                    })
+                                    .FirstOrDefaultAsync();
+                                break;
+                        }
+
+                        // Return WorkspaceItemV2-like structure with full entity data
+                        responseItems.Add(new
+                        {
+                            id = item.Id,
+                            workspaceId = item.WorkspaceId,
+                            parentId = item.ParentId,
+                            entityType = item.EntityType,
+                            entityId = item.EntityId,
+                            createdAt = item.CreatedAt,
+                            updatedAt = item.UpdatedAt,
+                            deletedAt = item.DeletedAt,
+                            copyInfo = item.CopyInfo,
+                            data = entityData // ← Full entity data (Folder/Note/File)
+                        });
+                    }
+
                     // ===== STEP 6: Commit Transaction =====
                     await transaction.CommitAsync();
 
@@ -259,7 +325,7 @@ namespace SuperAppServices.Services
                     {
                         Success = true,
                         Message = $"Successfully processed {requests.Count} workspace items in batch",
-                        Data = upsertedItems.Cast<object>().ToList(),
+                        Data = responseItems.Cast<object>().ToList(), // ← WITH entity data
                         Status = 200
                     };
                 }
@@ -386,31 +452,27 @@ namespace SuperAppServices.Services
 
                     return null;
 
-                case WorkspaceItemAction.Update:
-                    // Required: Id, EntityData
+                case WorkspaceItemAction.UpdateFolder:
+                    // Required: Id, FolderData
                     if (!request.Id.HasValue || request.Id.Value <= 0)
-                        return "Update action requires valid Id";
+                        return "UpdateFolder action requires valid Id";
 
                     if (!existingItemsDict.ContainsKey(request.Id.Value))
                         return $"Workspace item ID {request.Id} not found";
 
                     var workspaceItem = existingItemsDict[request.Id.Value];
 
-                    // Validate entity exists for update
-                    var entityExistsForUpdate = workspaceItem.EntityType switch
-                    {
-                        2 => foldersToUpdateDict.ContainsKey(workspaceItem.EntityId),
-                        3 => notesToUpdateDict.ContainsKey(workspaceItem.EntityId),
-                        4 => filesToUpdateDict.ContainsKey(workspaceItem.EntityId),
-                        _ => false
-                    };
+                    // ONLY support Folder (EntityType = 2)
+                    if (workspaceItem.EntityType != 2)
+                        return $"UpdateFolder action only supports folders (EntityType=2), but got EntityType={workspaceItem.EntityType}";
 
-                    if (!entityExistsForUpdate)
-                        return $"Entity with EntityType={workspaceItem.EntityType} and EntityId={workspaceItem.EntityId} not found for update";
+                    // Validate folder exists
+                    if (!foldersToUpdateDict.ContainsKey(workspaceItem.EntityId))
+                        return $"Folder with EntityId={workspaceItem.EntityId} not found for update";
 
-                    // For UPDATE, use EntityType from existing workspaceItem
-                    if (!HasEntityData(request, workspaceItem.EntityType))
-                        return "Update action requires entity data";
+                    // Validate FolderData is provided
+                    if (request.FolderData == null)
+                        return "UpdateFolder action requires FolderData";
 
                     return null;
 
@@ -750,64 +812,36 @@ namespace SuperAppServices.Services
         }
 
         /// <summary>
-        /// UPDATE: Update entity data
+        /// UPDATE FOLDER: Update folder data (FOLDER ONLY)
+        /// Notes and Files use their own entity-specific APIs for updates
         /// </summary>
-        private void ProcessUpdateAction(
+        private void ProcessUpdateFolderAction(
             UpsertWorkspaceItemRequest request,
             Dictionary<int, WorkspaceItemEntity> existingItemsDict,
-            Dictionary<int, Folder> foldersToUpdateDict,
-            Dictionary<int, Note> notesToUpdateDict,
-            Dictionary<int, SuperAppModels.Models.File> filesToUpdateDict)
+            Dictionary<int, Folder> foldersToUpdateDict)
         {
             _logger.LogInformation(
-                "Processing UPDATE action: Id={Id}",
+                "Processing UPDATE_FOLDER action: Id={Id}",
                 request.Id);
 
             var workspaceItem = existingItemsDict[request.Id!.Value];
 
-            switch (workspaceItem.EntityType)
-            {
-                case 2: // Folder
-                    var folder = foldersToUpdateDict[workspaceItem.EntityId];
-                    var folderData = request.FolderData!;
-                    folder.Name = folderData.Name;
-                    folder.Description = folderData.Description;
-                    folder.Color = folderData.Color;
-                    folder.Icon = folderData.Icon;
-                    folder.UpdatedAt = DateTime.UtcNow;
-                    if (folderData.DeletedAt.HasValue)
-                        folder.DeletedAt = folderData.DeletedAt;
-                    break;
+            // Update folder entity
+            var folder = foldersToUpdateDict[workspaceItem.EntityId];
+            var folderData = request.FolderData!;
 
-                case 3: // Note
-                    var note = notesToUpdateDict[workspaceItem.EntityId];
-                    var noteData = request.NoteData!;
-                    note.Name = noteData.Name;
-                    note.Description = noteData.Description;
-                    note.StatusCode = noteData.StatusCode;
-                    note.UpdatedAt = DateTime.UtcNow;
-                    if (noteData.DeletedAt.HasValue)
-                        note.DeletedAt = noteData.DeletedAt;
-                    break;
+            folder.Name = folderData.Name;
+            folder.Description = folderData.Description;
+            folder.Color = folderData.Color;
+            folder.Icon = folderData.Icon;
+            folder.UpdatedAt = DateTime.UtcNow;
 
-                case 4: // File
-                    var file = filesToUpdateDict[workspaceItem.EntityId];
-                    var fileData = request.FileData!;
-                    file.Name = fileData.Name;
-                    file.Url = fileData.Url;
-                    file.FileSize = fileData.FileSize;
-                    file.MimeType = fileData.MimeType;
-                    file.Extension = fileData.Extension;
-                    file.StatusCode = fileData.StatusCode;
-                    file.UpdatedAt = DateTime.UtcNow;
-                    if (fileData.DeletedAt.HasValue)
-                        file.DeletedAt = fileData.DeletedAt;
-                    break;
-            }
+            if (folderData.DeletedAt.HasValue)
+                folder.DeletedAt = folderData.DeletedAt;
 
             _logger.LogInformation(
-                "Updated entity for workspace_item ID {WorkspaceItemId}",
-                request.Id);
+                "Updated folder (EntityId={EntityId}) for workspace_item ID {WorkspaceItemId}",
+                workspaceItem.EntityId, request.Id);
         }
 
         /// <summary>
