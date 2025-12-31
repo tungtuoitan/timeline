@@ -1,11 +1,13 @@
 using AutoMapper;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Ins;
+using SuperAppDataRepositories.Data;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
 using SuperAppModels.Models;
 using SuperAppServices.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace SuperAppServices.Services
 {
@@ -16,17 +18,20 @@ namespace SuperAppServices.Services
     {
         private readonly INoteRepository _noteRepository;
         private readonly IUserRepository _userRepository;
+        private readonly ApplicationDbContext _context;
         private readonly IMapper _mapper;
         private readonly ILogger<NoteService> _logger;
 
         public NoteService(
             INoteRepository noteRepository,
             IUserRepository userRepository,
+            ApplicationDbContext context,
             IMapper mapper,
             ILogger<NoteService> logger)
         {
             _noteRepository = noteRepository ?? throw new ArgumentNullException(nameof(noteRepository));
             _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+            _context = context ?? throw new ArgumentNullException(nameof(context));
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
@@ -56,8 +61,11 @@ namespace SuperAppServices.Services
                 var notes = result.Data?.Cast<Note>().ToList() ?? new List<Note>();
                 var response = _mapper.Map<List<NoteDTO>>(notes);
 
+                // Populate workspace links for each note
+                await PopulateWorkspaceLinksAsync(response);
+
                 _logger.LogInformation("Successfully retrieved {Count} notes", response.Count);
-                
+
                 return new ResultOptions
                 {
                     Success = true,
@@ -260,6 +268,67 @@ namespace SuperAppServices.Services
                     Message = ex.Message,
                     Status = 500
                 };
+            }
+        }
+
+        /// <summary>
+        /// Populates WorkspaceLinks for a list of NoteDTOs
+        /// Queries workspace_items and workspaces to find which workspaces reference each note
+        /// </summary>
+        private async Task PopulateWorkspaceLinksAsync(List<NoteDTO> noteDTOs)
+        {
+            if (noteDTOs == null || !noteDTOs.Any())
+                return;
+
+            try
+            {
+                var noteIds = noteDTOs.Select(n => n.Id).ToList();
+
+                // Query workspace_items that reference these notes (entityType=3 for notes)
+                var workspaceLinks = await _context.WorkspaceItems
+                    .AsNoTracking()
+                    .Where(wi => wi.EntityType == 3 && noteIds.Contains(wi.EntityId))
+                    .Join(
+                        _context.Workspaces.AsNoTracking(),
+                        wi => wi.WorkspaceId,
+                        w => w.Id,
+                        (wi, w) => new
+                        {
+                            wi.EntityId, // noteId
+                            wi.Id, // workspace_items.id
+                            wi.WorkspaceId,
+                            w.Name
+                        })
+                    .ToListAsync();
+
+                // Group by noteId and populate each NoteDTO's WorkspaceLinks
+                var linksByNoteId = workspaceLinks
+                    .GroupBy(wl => wl.EntityId)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.Select(wl => new WorkspaceLinkDTO
+                        {
+                            WorkspaceId = wl.WorkspaceId,
+                            WorkspaceName = wl.Name,
+                            WorkspaceItemId = wl.Id
+                        }).ToList()
+                    );
+
+                // Populate WorkspaceLinks for each NoteDTO
+                foreach (var noteDTO in noteDTOs)
+                {
+                    if (linksByNoteId.TryGetValue(noteDTO.Id, out var links))
+                    {
+                        noteDTO.WorkspaceLinks = links;
+                    }
+                }
+
+                _logger.LogInformation("Successfully populated workspace links for {Count} notes", noteDTOs.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error populating workspace links for notes");
+                // Don't throw - just log error and leave WorkspaceLinks empty
             }
         }
 

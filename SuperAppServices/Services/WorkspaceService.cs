@@ -1,10 +1,12 @@
 using AutoMapper;
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
 using SuperAppServices.Interfaces;
+using SuperAppDataRepositories.Data;
 
 namespace SuperAppServices.Services
 {
@@ -16,15 +18,18 @@ namespace SuperAppServices.Services
         private readonly IWorkspaceRepository _workspaceRepository;
         private readonly IMapper _mapper;
         private readonly ILogger<WorkspaceService> _logger;
+        private readonly ApplicationDbContext _context;
 
         public WorkspaceService(
             IWorkspaceRepository workspaceRepository,
             IMapper mapper,
-            ILogger<WorkspaceService> logger)
+            ILogger<WorkspaceService> logger,
+            ApplicationDbContext context)
         {
             _workspaceRepository = workspaceRepository ?? throw new ArgumentNullException(nameof(workspaceRepository));
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _context = context ?? throw new ArgumentNullException(nameof(context));
         }
 
         /// <summary>
@@ -161,6 +166,9 @@ namespace SuperAppServices.Services
                 // Filters already applied at repository level (status_code and deleted_at)
                 var itemsV2 = TransformToV2Structure(workspaceWithTree.Items);
 
+                // Populate workspace links for notes in the tree
+                await PopulateWorkspaceLinksForTreeAsync(itemsV2);
+
                 // Count items by type
                 int folderCount = itemsV2.Count(i => i.EntityType == 2);
                 int noteCount = itemsV2.Count(i => i.EntityType == 3);
@@ -238,6 +246,72 @@ namespace SuperAppServices.Services
 
         //    return items;
         //}
+
+        /// <summary>
+        /// Populates workspace links for notes in the tree
+        /// Similar to NoteService.PopulateWorkspaceLinksAsync
+        /// </summary>
+        private async Task PopulateWorkspaceLinksForTreeAsync(List<WorkspaceItemResponseV2> items)
+        {
+            try
+            {
+                // Extract all note entity IDs from the tree
+                var noteEntityIds = items
+                    .Where(i => i.EntityType == 3) // Notes only
+                    .Select(i => i.EntityId)
+                    .Distinct()
+                    .ToList();
+
+                if (!noteEntityIds.Any())
+                {
+                    return; // No notes in tree
+                }
+
+                // Query workspace_items to find all workspaces that link to these notes
+                var workspaceLinks = await _context.WorkspaceItems
+                    .Where(wi => wi.EntityType == 3 && noteEntityIds.Contains(wi.EntityId))
+                    .Join(_context.Workspaces,
+                        wi => wi.WorkspaceId,
+                        w => w.Id,
+                        (wi, w) => new
+                        {
+                            NoteEntityId = wi.EntityId,
+                            WorkspaceId = w.Id,
+                            WorkspaceName = w.Name,
+                            WorkspaceItemId = wi.Id
+                        })
+                    .ToListAsync();
+
+                // Group by note entity ID
+                var linksByNoteId = workspaceLinks
+                    .GroupBy(x => x.NoteEntityId)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.Select(x => new WorkspaceLinkDTO
+                        {
+                            WorkspaceId = x.WorkspaceId,
+                            WorkspaceName = x.WorkspaceName,
+                            WorkspaceItemId = x.WorkspaceItemId
+                        }).ToList()
+                    );
+
+                // Populate workspace links into each note's Data
+                foreach (var item in items.Where(i => i.EntityType == 3))
+                {
+                    if (item.Data is NoteData noteData && linksByNoteId.TryGetValue(item.EntityId, out var links))
+                    {
+                        noteData.WorkspaceLinks = links;
+                    }
+                }
+
+                _logger.LogInformation("Populated workspace links for {NoteCount} notes", noteEntityIds.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error populating workspace links for tree notes");
+                // Don't throw - this is a non-critical feature
+            }
+        }
 
         /// <summary>
         /// Transforms WorkspaceItem (mixed structure) to WorkspaceItemResponseV2 (clear separation)
