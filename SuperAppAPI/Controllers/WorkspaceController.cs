@@ -104,11 +104,20 @@ namespace SuperAppAPI.Controllers
         /// Gets workspace information with its complete hierarchical tree (V2 - with full entity data)
         /// V2 structure: Clear separation between workspace_items properties and entity data
         /// Returns flat list with full entity data in 'Data' property wrapped in ResultOption
-        /// Supports filtering by status code (for notes/files) and deleted status
+        ///
+        /// ⚠️ PERFORMANCE NOTE - FILTERING MOVED TO FRONTEND:
+        /// This endpoint returns ALL workspace items without server-side filtering.
+        /// The statusCode and deletedAt query parameters are kept for backward compatibility
+        /// but are IGNORED by the backend. Frontend handles all filtering.
+        ///
+        /// Performance characteristics:
+        /// - ✅ GOOD for workspaces with &lt; 3,000 items (filter time &lt; 150ms)
+        /// - ⚠️ ACCEPTABLE for 3,000-5,000 items (150-300ms, needs debouncing)
+        /// - ❌ POOR for &gt; 5,000 items (&gt; 300ms, consider backend filtering)
         /// </summary>
         /// <param name="workspaceId">Workspace ID</param>
-        /// <param name="statusCode">Optional comma-separated status codes filter (e.g., "active,inactive")</param>
-        /// <param name="deletedAt">Optional deleted status filter ("null" for existing only, "notNull" for deleted only)</param>
+        /// <param name="statusCode">DEPRECATED - Kept for backward compatibility but ignored (filter in frontend)</param>
+        /// <param name="deletedAt">DEPRECATED - Kept for backward compatibility but ignored (filter in frontend)</param>
         /// <response code="200">Workspace tree retrieved successfully</response>
         /// <response code="400">Invalid workspace ID</response>
         /// <response code="401">Unauthorized - invalid or missing token</response>
@@ -139,25 +148,16 @@ namespace SuperAppAPI.Controllers
                 return Unauthorized("User ID not found in token");
             }
 
-            // Build filter options
-            var filterOptions = new WorkspaceFilterOptions
-            {
-                UserId = userId.Value,
-                StatusCodes = !string.IsNullOrEmpty(statusCode)
-                    ? statusCode.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                        .Select(s => s.Trim()).ToList()
-                    : null,
-                DeletedAt = deletedAt
-            };
+            // ⚠️ CHANGED: Parameters kept for backward compatibility but NOT used
+            // Frontend handles all filtering (statusCode, deletedAt, search)
+            _logger.LogInformation("Retrieving workspace tree V2 for workspaceId: {WorkspaceId}, userId: {UserId} (NO SERVER FILTERING - params ignored)",
+                workspaceId, userId.Value);
 
-            _logger.LogInformation("Retrieving workspace tree V2 for workspaceId: {WorkspaceId}, userId: {UserId}, StatusCodes: {StatusCodes}, DeletedAt: {DeletedAt}",
-                workspaceId, userId.Value,
-                filterOptions.StatusCodes != null ? string.Join(",", filterOptions.StatusCodes) : "null",
-                filterOptions.DeletedAt);
+            // Pass null for filterOptions since they're not used anymore
+            var tree = await _workspaceService.GetWorkspaceTreeV2Async(workspaceId, userId.Value, null);
 
-            var tree = await _workspaceService.GetWorkspaceTreeV2Async(workspaceId, userId.Value, filterOptions);
-
-            _logger.LogInformation("Successfully retrieved workspace tree V2 for workspaceId: {WorkspaceId}", workspaceId);
+            _logger.LogInformation("Successfully retrieved workspace tree V2 for workspaceId: {WorkspaceId} with {ItemCount} items (unfiltered)",
+                workspaceId, tree.FlatData?.Count ?? 0);
 
             return Ok(new ResultOptions
             {

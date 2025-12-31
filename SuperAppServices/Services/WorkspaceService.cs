@@ -132,18 +132,24 @@ namespace SuperAppServices.Services
         }
 
         /// <summary>
-        /// Gets workspace tree with all items (V2 - with full entity data)
-        /// V2 structure: Clear separation between workspace_items properties and entity data
-        /// Supports filtering by status code (for notes/files) and deleted status
+        /// Gets workspace tree V2 with ALL items (no server-side filtering)
+        ///
+        /// ⚠️ PERFORMANCE NOTE:
+        /// This endpoint returns ALL workspace items. Frontend handles filtering by:
+        /// - deletedAt (show/hide deleted items)
+        /// - statusCode (draft/published notes/files)
+        /// - search text (name matching)
+        ///
+        /// The filterOptions parameter is kept for backward compatibility but ignored.
+        ///
+        /// See WorkspaceRepository.GetWorkspaceTreeAsync for detailed performance notes.
         /// </summary>
         public async Task<WorkspaceDTO> GetWorkspaceTreeV2Async(int workspaceId, int userId, WorkspaceFilterOptions? filterOptions = null)
         {
             try
             {
-                _logger.LogInformation("Getting workspace tree V2 for WorkspaceId: {WorkspaceId}, UserId: {UserId}, StatusCodes: {StatusCodes}, DeletedAt: {DeletedAt}",
-                    workspaceId, userId,
-                    filterOptions?.StatusCodes != null ? string.Join(",", filterOptions.StatusCodes) : "null",
-                    filterOptions?.DeletedAt);
+                _logger.LogInformation("Getting workspace tree V2 for WorkspaceId: {WorkspaceId}, UserId: {UserId} (NO SERVER FILTERING - all items returned)",
+                    workspaceId, userId);
 
                 // Get workspace info
                 var workspace = await _workspaceRepository.GetWorkspaceByIdAsync(workspaceId, userId);
@@ -154,8 +160,10 @@ namespace SuperAppServices.Services
                     throw new KeyNotFoundException($"Workspace with ID {workspaceId} not found");
                 }
 
-                // Get workspace tree (tags, notes, files) with filters applied at repository level
-                var workspaceWithTree = await _workspaceRepository.GetWorkspaceTreeAsync(workspaceId, userId, filterOptions);
+                // ⚠️ CHANGED: Get ALL workspace items (no server-side filtering)
+                // Frontend will filter by deletedAt, statusCode, and search text
+                // filterOptions parameter kept for backward compatibility but not used
+                var workspaceWithTree = await _workspaceRepository.GetWorkspaceTreeAsync(workspaceId, userId, null);
                 if (workspaceWithTree == null)
                 {
                     _logger.LogWarning("Workspace tree data not found for workspace {WorkspaceId}", workspaceId);
@@ -163,13 +171,13 @@ namespace SuperAppServices.Services
                 }
 
                 // Transform to V2 structure (workspace_items properties + Data property with entity data)
-                // Filters already applied at repository level (status_code and deleted_at)
+                // ⚠️ CHANGED: No filters applied - returns all items
                 var itemsV2 = TransformToV2Structure(workspaceWithTree.Items);
 
                 // Populate workspace links for notes in the tree
                 await PopulateWorkspaceLinksForTreeAsync(itemsV2);
 
-                // Count items by type
+                // Count ALL items by type (including deleted)
                 int folderCount = itemsV2.Count(i => i.EntityType == 2);
                 int noteCount = itemsV2.Count(i => i.EntityType == 3);
                 int fileCount = itemsV2.Count(i => i.EntityType == 4);
@@ -198,10 +206,10 @@ namespace SuperAppServices.Services
                     CreatedAt = workspace.CreatedAt ?? DateTime.UtcNow,
                     UpdatedAt = workspace.UpdatedAt,
                     DeletedAt = workspace.DeletedAt,
-                    FlatData = itemsV2 // ✅ FLAT list with full entity data in 'Data' property
+                    FlatData = itemsV2 // ✅ FLAT list with ALL items (unfiltered - frontend will apply filters)
                 };
 
-                _logger.LogInformation("Successfully retrieved workspace tree V2 with {ItemCount} items for workspace {WorkspaceId} (after filters)",
+                _logger.LogInformation("Successfully retrieved workspace tree V2 with {ItemCount} items for workspace {WorkspaceId} (unfiltered - frontend will apply filters)",
                     itemsV2.Count, workspaceId);
 
                 return response;
