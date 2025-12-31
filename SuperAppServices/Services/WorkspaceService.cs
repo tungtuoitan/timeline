@@ -172,7 +172,8 @@ namespace SuperAppServices.Services
 
                 // Transform to V2 structure (workspace_items properties + Data property with entity data)
                 // ⚠️ CHANGED: No filters applied - returns all items
-                var itemsV2 = TransformToV2Structure(workspaceWithTree.Items);
+                // ✅ NEW: Queries full entity data from DB (Description, StatusCode, Type, etc.)
+                var itemsV2 = await TransformToV2StructureAsync(workspaceWithTree.Items);
 
                 // Populate workspace links for notes in the tree
                 await PopulateWorkspaceLinksForTreeAsync(itemsV2);
@@ -324,9 +325,30 @@ namespace SuperAppServices.Services
         /// <summary>
         /// Transforms WorkspaceItem (mixed structure) to WorkspaceItemResponseV2 (clear separation)
         /// Reorganizes data: workspace_items properties at root + entity data in 'Data' property
+        /// Queries full entity data from DB to populate Description, Type, StatusCode, etc.
         /// </summary>
-        private List<WorkspaceItemResponseV2> TransformToV2Structure(List<SuperAppModels.Models.WorkspaceItem> items)
+        private async Task<List<WorkspaceItemResponseV2>> TransformToV2StructureAsync(List<SuperAppModels.Models.WorkspaceItem> items)
         {
+            // ===== STEP 1: Preload full entity data from DB =====
+            // Extract entity IDs by type
+            var folderIds = items.Where(i => i.Type.ToLowerInvariant() == "folder").Select(i => (int)i.ItemId).Distinct().ToList();
+            var noteIds = items.Where(i => i.Type.ToLowerInvariant() == "note").Select(i => (int)i.ItemId).Distinct().ToList();
+            var fileIds = items.Where(i => i.Type.ToLowerInvariant() == "file").Select(i => (int)i.ItemId).Distinct().ToList();
+
+            // Query full entity data (Description, Type, StatusCode, etc.)
+            var foldersDict = folderIds.Any()
+                ? await _context.Folders.AsNoTracking().Where(f => folderIds.Contains(f.Id)).ToDictionaryAsync(f => f.Id)
+                : new Dictionary<int, SuperAppModels.Models.Folder>();
+
+            var notesDict = noteIds.Any()
+                ? await _context.Notes.AsNoTracking().Where(n => noteIds.Contains(n.Id)).ToDictionaryAsync(n => n.Id)
+                : new Dictionary<int, SuperAppModels.Models.Note>();
+
+            var filesDict = fileIds.Any()
+                ? await _context.Files.AsNoTracking().Where(f => fileIds.Contains(f.Id)).ToDictionaryAsync(f => f.Id)
+                : new Dictionary<int, SuperAppModels.Models.File>();
+
+            // ===== STEP 2: Transform items with full entity data =====
             return items.Select(item =>
             {
                 // Determine EntityType byte value
@@ -338,50 +360,50 @@ namespace SuperAppServices.Services
                     _ => throw new InvalidOperationException($"Unknown item type: {item.Type}")
                 };
 
-                // Create entity data object based on type
+                // Create entity data object based on type WITH FULL DATA FROM DB
                 object entityData = entityType switch
                 {
-                    2 => new FolderData
+                    2 when foldersDict.TryGetValue((int)item.ItemId, out var folder) => new FolderData
                     {
-                        Id = (int)item.ItemId,
-                        UserId = item.UserId,
-                        Name = item.Name,
-                        Description = null, // Not available in current WorkspaceItem
-                        Color = item.Color,
-                        Icon = item.Icon,
-                        CreatedAt = item.CreatedAt,
-                        UpdatedAt = item.UpdatedAt,
-                        DeletedAt = item.DeletedAt,
-                        CopyInfo = null
+                        Id = folder.Id,
+                        UserId = folder.UserId,
+                        Name = folder.Name,
+                        Description = folder.Description, // ✅ FROM DB
+                        Color = folder.Color,
+                        Icon = folder.Icon,
+                        CreatedAt = folder.CreatedAt ?? DateTime.UtcNow,
+                        UpdatedAt = folder.UpdatedAt,
+                        DeletedAt = folder.DeletedAt,
+                        CopyInfo = folder.CopyInfo
                     },
-                    3 => new NoteData
+                    3 when notesDict.TryGetValue((int)item.ItemId, out var note) => new NoteData
                     {
-                        Id = (int)item.ItemId,
-                        UserId = item.UserId,
-                        Name = item.Name,
-                        Description = null, // Not available in current WorkspaceItem
-                        StatusCode = null,
-                        CreatedAt = item.CreatedAt,
-                        UpdatedAt = item.UpdatedAt,
-                        DeletedAt = item.DeletedAt,
-                        CopyInfo = null
+                        Id = note.Id,
+                        UserId = note.UserId,
+                        Name = note.Name,
+                        Description = note.Description, // ✅ FROM DB
+                        StatusCode = note.StatusCode,   // ✅ FROM DB
+                        CreatedAt = note.CreatedAt ?? DateTime.UtcNow,
+                        UpdatedAt = note.UpdatedAt,
+                        DeletedAt = note.DeletedAt,
+                        CopyInfo = note.CopyInfo
                     },
-                    4 => new FileData
+                    4 when filesDict.TryGetValue((int)item.ItemId, out var file) => new FileData
                     {
-                        Id = (int)item.ItemId,
-                        UserId = item.UserId,
-                        Name = item.Name,
-                        Url = null, // Not available in current WorkspaceItem
-                        FileSize = null,
-                        MimeType = null,
-                        Extension = null,
-                        StatusCode = null,
-                        CreatedAt = item.CreatedAt,
-                        UpdatedAt = item.UpdatedAt,
-                        DeletedAt = item.DeletedAt,
-                        CopyInfo = null
+                        Id = file.Id,
+                        UserId = file.UserId,
+                        Name = file.Name,
+                        Url = file.Url,             // ✅ FROM DB
+                        FileSize = file.FileSize,   // ✅ FROM DB
+                        MimeType = file.MimeType,   // ✅ FROM DB
+                        Extension = file.Extension, // ✅ FROM DB
+                        StatusCode = file.StatusCode, // ✅ FROM DB
+                        CreatedAt = file.CreatedAt ?? DateTime.UtcNow,
+                        UpdatedAt = file.UpdatedAt,
+                        DeletedAt = file.DeletedAt,
+                        CopyInfo = file.CopyInfo
                     },
-                    _ => throw new InvalidOperationException($"Unsupported item type: {entityType}")
+                    _ => throw new InvalidOperationException($"Unsupported or missing entity data for type: {entityType}")
                 };
 
                 // Build WorkspaceItemResponseV2 with clear separation

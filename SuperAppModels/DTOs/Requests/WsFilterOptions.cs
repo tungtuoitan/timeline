@@ -1,19 +1,24 @@
 namespace SuperAppModels.DTOs.Requests
 {
     /// <summary>
-    /// Filter options for querying workspaces
+    /// Filter options for querying workspaces (extends common FilterOptions)
     /// </summary>
-    public class WsFilterOptions
+    public class WsFilterOptions : FilterOptions
     {
+        /// <summary>
+        /// User email for filtering (optional)
+        /// </summary>
+        public string? UserEmail { get; set; }
+
         /// <summary>
         /// User ID for filtering (optional)
         /// </summary>
         public int? UserId { get; set; }
 
         /// <summary>
-        /// Search text for filtering by name or description
+        /// Tag IDs for filtering workspaces by tags
         /// </summary>
-        public string? SearchText { get; set; }
+        public List<int>? TagIds { get; set; }
 
         /// <summary>
         /// Page number for pagination (default: 1)

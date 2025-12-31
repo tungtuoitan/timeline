@@ -17,6 +17,8 @@ namespace SuperAppModels.DTOs
         public object? Object { get; set; }
         [JsonPropertyName("data")]
         public List<object>? Data { get; set; }
+        [JsonPropertyName("totalCount")]
+        public int? TotalCount { get; set; }
         [JsonPropertyName("status")]
         public int? Status { get; set; }
         [JsonPropertyName("reference")]

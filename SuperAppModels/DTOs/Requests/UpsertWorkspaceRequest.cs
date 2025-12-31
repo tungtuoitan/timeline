@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace SuperAppModels.DTOs.Requests
 {
     /// <summary>
@@ -21,6 +23,17 @@ namespace SuperAppModels.DTOs.Requests
         public string? Description { get; set; }
 
         /// <summary>
+        /// Status code for workspace (optional, max 50 chars)
+        /// </summary>
+        public string? StatusCode { get; set; }
+
+        /// <summary>
+        /// Tag IDs associated with this workspace
+        /// </summary>
+        [JsonPropertyName("tags")]
+        public List<int>? TagIds { get; set; }
+
+        /// <summary>
         /// User ID (set by backend from authenticated user)
         /// </summary>
         public int? UserId { get; set; }
@@ -29,7 +42,7 @@ namespace SuperAppModels.DTOs.Requests
         /// Optional: Soft delete timestamp (null = active, DateTime = soft deleted)
         /// Enables soft delete/restore via upsert
         /// </summary>
-        [System.Text.Json.Serialization.JsonPropertyName("deletedAt")]
+        [JsonPropertyName("deletedAt")]
         public DateTime? DeletedAt { get; set; }
     }
 }

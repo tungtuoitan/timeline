@@ -59,31 +59,70 @@ namespace SuperAppDataRepositories.Repositories
                 // Filter by search text if provided
                 if (!string.IsNullOrWhiteSpace(filterOptions.SearchText))
                 {
-                    query = query.Where(w => w.Name.Contains(filterOptions.SearchText) || 
+                    query = query.Where(w => w.Name.Contains(filterOptions.SearchText) ||
                                            (w.Description != null && w.Description.Contains(filterOptions.SearchText)));
                 }
+
+                // ===== NEW FILTERS (matching NoteRepository pattern) =====
+
+                // Filter by status code (comma-separated list)
+                if (filterOptions.StatusCodes != null && filterOptions.StatusCodes.Any())
+                {
+                    query = query.Where(w => w.StatusCode != null && filterOptions.StatusCodes.Contains(w.StatusCode));
+                }
+
+                // Filter by deletedAt
+                if (!string.IsNullOrEmpty(filterOptions.DeletedAt))
+                {
+                    if (filterOptions.DeletedAt == "null")
+                    {
+                        // Show only active (not deleted)
+                        query = query.Where(w => w.DeletedAt == null);
+                    }
+                    else if (filterOptions.DeletedAt == "notNull")
+                    {
+                        // Show only deleted
+                        query = query.Where(w => w.DeletedAt != null);
+                    }
+                }
+
+                // Filter by created date range
+                if (filterOptions.CreatedFrom.HasValue)
+                {
+                    query = query.Where(w => w.CreatedAt >= filterOptions.CreatedFrom.Value);
+                }
+
+                if (filterOptions.CreatedTo.HasValue)
+                {
+                    query = query.Where(w => w.CreatedAt <= filterOptions.CreatedTo.Value);
+                }
+
+                // ===== END NEW FILTERS =====
 
                 // Sorting
                 query = filterOptions.SortBy?.ToLower() switch
                 {
-                    "name" => filterOptions.SortOrder?.ToLower() == "asc" 
-                        ? query.OrderBy(w => w.Name) 
+                    "name" => filterOptions.SortOrder?.ToLower() == "asc"
+                        ? query.OrderBy(w => w.Name)
                         : query.OrderByDescending(w => w.Name),
-                    "updatedat" => filterOptions.SortOrder?.ToLower() == "asc" 
-                        ? query.OrderBy(w => w.UpdatedAt) 
+                    "updatedat" => filterOptions.SortOrder?.ToLower() == "asc"
+                        ? query.OrderBy(w => w.UpdatedAt)
                         : query.OrderByDescending(w => w.UpdatedAt),
-                    _ => filterOptions.SortOrder?.ToLower() == "asc" 
-                        ? query.OrderBy(w => w.CreatedAt) 
+                    _ => filterOptions.SortOrder?.ToLower() == "asc"
+                        ? query.OrderBy(w => w.CreatedAt)
                         : query.OrderByDescending(w => w.CreatedAt)
                 };
+
+                // Calculate total count BEFORE pagination
+                var totalCount = await query.CountAsync();
 
                 // Pagination
                 if (filterOptions.PageNumber.HasValue && filterOptions.PageSize.HasValue)
                 {
                     var pageNumber = filterOptions.PageNumber.Value < 1 ? 1 : filterOptions.PageNumber.Value;
-                    var pageSize = filterOptions.PageSize.Value < 1 ? 20 : 
+                    var pageSize = filterOptions.PageSize.Value < 1 ? 20 :
                                   filterOptions.PageSize.Value > 100 ? 100 : filterOptions.PageSize.Value;
-                    
+
                     query = query
                         .Skip((pageNumber - 1) * pageSize)
                         .Take(pageSize);
@@ -91,13 +130,14 @@ namespace SuperAppDataRepositories.Repositories
 
                 var workspaces = await query.ToListAsync();
 
-                _logger.LogInformation("Successfully retrieved {Count} workspaces", workspaces.Count);
-                
+                _logger.LogInformation("Successfully retrieved {Count} workspaces (Total: {TotalCount})", workspaces.Count, totalCount);
+
                 return new ResultOptions
                 {
                     Success = true,
                     Message = "Workspaces retrieved successfully",
                     Data = workspaces.Cast<object>().ToList(),
+                    TotalCount = totalCount,
                     Status = 200
                 };
             }

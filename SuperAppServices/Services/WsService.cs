@@ -34,41 +34,33 @@ namespace SuperAppServices.Services
         /// <summary>
         /// Get all workspaces with optional filters
         /// </summary>
-        public async Task<ResultOptions> GetWorkspacesAsync(int userId, string? searchText, string? ids = null)
+        public async Task<ResultOptions> GetWorkspacesAsync(WsFilterOptions filterOptions)
         {
             try
             {
-                _logger.LogInformation("Getting workspaces for UserId: {UserId}, SearchText: {SearchText}, Ids: {Ids}",
-                    userId, searchText, ids);
-
-                var filterOptions = new WsFilterOptions
-                {
-                    UserId = userId,  // ✅ Filter by userId
-                    SearchText = searchText,
-                    Ids = !string.IsNullOrEmpty(ids)
-                        ? ids.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList()
-                        : null
-                };
+                _logger.LogInformation("Getting workspaces for UserId: {UserId}, SearchText: {SearchText}, PageNumber: {PageNumber}, PageSize: {PageSize}",
+                    filterOptions.UserId, filterOptions.SearchText, filterOptions.PageNumber, filterOptions.PageSize);
 
                 // Repository returns ResultOptions
                 var result = await _wsRepository.GetWorkspacesAsync(filterOptions);
-                
+
                 if (!result.Success)
                 {
                     return result; // Return repository error as-is
                 }
 
-                // Map Workspace entities to WorkspaceDTO
+                // Map Workspace entities to WsResponse
                 var workspaces = result.Data?.Cast<Workspace>().ToList() ?? new List<Workspace>();
-                var response = _mapper.Map<List<WorkspaceDTO>>(workspaces);
+                var response = _mapper.Map<List<WsResponse>>(workspaces);
 
-                _logger.LogInformation("Successfully retrieved {Count} workspaces", response.Count);
-                
+                _logger.LogInformation("Successfully retrieved {Count} workspaces (Total: {TotalCount})", response.Count, result.TotalCount);
+
                 return new ResultOptions
                 {
                     Success = true,
                     Message = "Workspaces retrieved successfully",
                     Data = response.Cast<object>().ToList(),
+                    TotalCount = result.TotalCount, // Pass through totalCount from repository
                     Status = 200
                 };
             }
@@ -101,11 +93,11 @@ namespace SuperAppServices.Services
                     return result; // Return repository error as-is
                 }
 
-                // Map Workspace entity to WorkspaceDTO
+                // Map Workspace entity to WsResponse
                 var workspace = result.Object as Workspace;
                 if (workspace != null)
                 {
-                    var response = _mapper.Map<WorkspaceDTO>(workspace);
+                    var response = _mapper.Map<WsResponse>(workspace);
                     _logger.LogInformation("Successfully retrieved workspace with ID: {WorkspaceId}", workspaceId);
                     return new ResultOptions
                     {
@@ -160,7 +152,7 @@ namespace SuperAppServices.Services
                 var successCount = 0;
                 var failCount = 0;
                 var errors = new List<string>();
-                var results = new List<WorkspaceDTO>();
+                var results = new List<WsResponse>();
 
                 foreach (var request in requests)
                 {
@@ -200,7 +192,7 @@ namespace SuperAppServices.Services
                         var savedWorkspace = result.Object as Workspace;
                         if (savedWorkspace != null)
                         {
-                            var response = _mapper.Map<WorkspaceDTO>(savedWorkspace);
+                            var response = _mapper.Map<WsResponse>(savedWorkspace);
                             results.Add(response);
                             successCount++;
                             _logger.LogInformation("Successfully upserted workspace with ID: {WorkspaceId}", savedWorkspace.Id);

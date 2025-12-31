@@ -27,6 +27,16 @@ public class WsResponse
     public string? Description { get; set; }
 
     /// <summary>
+    /// Workspace status code (e.g., "active", "inactive")
+    /// </summary>
+    public string? StatusCode { get; set; }
+
+    /// <summary>
+    /// Hashtags string (comma-separated or JSON array)
+    /// </summary>
+    public string? Hashtags { get; set; }
+
+    /// <summary>
     /// When the workspace was created
     /// </summary>
     public DateTime CreatedAt { get; set; }
