@@ -34,7 +34,7 @@ namespace SuperAppModels.DTOs.Requests
         /// Note description/content preview
         /// Maps to notes.description
         /// </summary>
-        [StringLength(5000, ErrorMessage = "Description cannot exceed 5000 characters")]
+        //[StringLength(5000, ErrorMessage = "Description cannot exceed 5000 characters")]
         public string? Description { get; set; }
 
         /// <summary>

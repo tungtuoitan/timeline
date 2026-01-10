@@ -166,11 +166,16 @@ namespace SuperAppAPI
                     // Register Business Services
                     services.AddScoped<SuperAppServices.Interfaces.IWorkspaceService, SuperAppServices.Services.WorkspaceService>();
                     services.AddScoped<SuperAppServices.Interfaces.IWorkspaceItemService, SuperAppServices.Services.WorkspaceItemService>();
+                    services.AddScoped<SuperAppServices.Interfaces.IWorkspaceItemHelperService, SuperAppServices.Services.WorkspaceItemHelperService>();
                     services.AddScoped<SuperAppServices.Interfaces.IWsService, SuperAppServices.Services.WsService>();
                     services.AddScoped<SuperAppServices.Interfaces.INoteService, SuperAppServices.Services.NoteService>();
                     services.AddScoped<SuperAppServices.Interfaces.IAuthService, SuperAppServices.Services.AuthService>();
                     services.AddScoped<SuperAppServices.Interfaces.IStandardRegistryService, SuperAppServices.Services.StandardRegistryService>();
                     services.AddScoped<SuperAppServices.Interfaces.IUserProfileService, SuperAppServices.Services.UserProfileService>();
+                    // TODO: Integrate KeywordServiceV2 with PathIds design
+                     //services.AddScoped<SuperAppServices.Interfaces.IKeywordService, SuperAppServices.Services.KeywordService>();
+                    services.AddScoped<SuperAppServices.Services.KeywordServiceV2>();
+                    services.AddScoped<SuperAppServices.Services.WorkspaceItemPathService>();
                 });
 
     }

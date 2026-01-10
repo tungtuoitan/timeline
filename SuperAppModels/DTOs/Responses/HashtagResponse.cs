@@ -28,7 +28,7 @@ namespace SuperAppModels.DTOs.Responses
         /// <summary>
         /// URL-friendly slug
         /// </summary>
-        public string Slug { get; set; } = string.Empty;
+        //public string Slug { get; set; } = string.Empty;
 
         /// <summary>
         /// Tag color (hex format)

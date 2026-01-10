@@ -7,7 +7,7 @@ using SuperAppModels.DTOs.Responses;
 using SuperAppDataRepositories.Data;
 using SuperAppServices.Interfaces;
 
-namespace SuperAppServices.Services
+namespace SuperAppServices.Services 
 {
     /// <summary>
     /// Service for managing workspace items with action-based batch operations
@@ -19,13 +19,16 @@ namespace SuperAppServices.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<WorkspaceItemService> _logger;
+        private readonly IWorkspaceItemHelperService _helperService;
 
         public WorkspaceItemService(
             ApplicationDbContext context,
-            ILogger<WorkspaceItemService> logger)
+            ILogger<WorkspaceItemService> logger,
+            IWorkspaceItemHelperService helperService)
         {
             _context = context;
             _logger = logger;
+            _helperService = helperService;
         }
 
         /// <summary>
@@ -62,7 +65,13 @@ namespace SuperAppServices.Services
                         "Starting batch upsert transaction for {Count} workspace items in workspace {WorkspaceId}",
                         requests.Count, workspaceId);
 
-                    // ===== STEP 2: PRELOAD ALL DATA (Batch Queries - No N+1!) =====
+
+
+
+
+
+
+                    // ===== STEP 2: PRELOAD DATA =====
 
                     // Preload workspace items for UpdateFolder/Move/Delete/Restore actions
                     var itemIdsToUpdate = requests
@@ -129,13 +138,23 @@ namespace SuperAppServices.Services
                     var notesToUpdateDict = new Dictionary<int, Note>();
                     var filesToUpdateDict = new Dictionary<int, SuperAppModels.Models.File>();
 
-                    // ===== STEP 3: VALIDATE ALL REQUESTS (Fail-Fast) =====
+
+
+
+
+
+
+
+
+
+
+                    // ===== STEP 3: VALIDATE =====
 
                     var validationErrors = new List<string>();
 
                     foreach (var request in requests)
                     {
-                        var validationResult = ValidateRequest(
+                        var validationResult = _helperService.ValidateRequest(
                             request,
                             existingItemsDict,
                             existingFolderIds,
@@ -157,7 +176,7 @@ namespace SuperAppServices.Services
                     {
                         if (moveRequest.Id.HasValue && moveRequest.ParentId.HasValue)
                         {
-                            var circularCheck = await CheckCircularDependencyAsync(
+                            var circularCheck = await _helperService.CheckCircularDependencyAsync(
                                 moveRequest.Id.Value,
                                 moveRequest.ParentId.Value,
                                 existingItemsDict);
@@ -180,7 +199,21 @@ namespace SuperAppServices.Services
                         };
                     }
 
-                    // ===== STEP 4: PROCESS ALL REQUESTS (Track Changes, Don't Save Yet!) =====
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    // ===== STEP 4: PROCESS REQUESTS =====
 
                     var upsertedItems = new List<WorkspaceItemEntity>();
 
@@ -189,34 +222,34 @@ namespace SuperAppServices.Services
                         switch (request.Action)
                         {
                             case WorkspaceItemAction.Create:
-                                await ProcessCreateActionAsync(request, userId, workspaceId, upsertedItems);
+                                await _helperService.ProcessCreateActionAsync(request, userId, workspaceId, upsertedItems);
                                 break;
 
                             case WorkspaceItemAction.Add:
-                                ProcessAddAction(request, workspaceId, upsertedItems);
+                                _helperService.ProcessAddAction(request, workspaceId, upsertedItems);
                                 break;
 
                             case WorkspaceItemAction.Move:
-                                ProcessMoveAction(request, existingItemsDict, upsertedItems);
+                                _helperService.ProcessMoveAction(request, existingItemsDict, upsertedItems);
                                 break;
 
                             case WorkspaceItemAction.MoveCross:
-                                await ProcessMoveCrossActionAsync(request, existingItemsDict, upsertedItems);
+                                await _helperService.ProcessMoveCrossActionAsync(request, existingItemsDict, upsertedItems);
                                 break;
 
                             case WorkspaceItemAction.UpdateFolder:
-                                ProcessUpdateFolderAction(
+                                await _helperService.ProcessUpdateFolderActionAsync(
                                     request,
                                     existingItemsDict,
                                     foldersToUpdateDict);
                                 break;
 
                             case WorkspaceItemAction.Delete:
-                                ProcessDeleteAction(request, existingItemsDict, upsertedItems);
+                                _helperService.ProcessDeleteAction(request, existingItemsDict, upsertedItems);
                                 break;
 
                             case WorkspaceItemAction.Restore:
-                                ProcessRestoreAction(request, existingItemsDict, upsertedItems);
+                                _helperService.ProcessRestoreAction(request, existingItemsDict, upsertedItems);
                                 break;
 
                             default:
@@ -224,10 +257,30 @@ namespace SuperAppServices.Services
                         }
                     }
 
+
+
+
+
+
+
+
+
+
                     // ===== STEP 5: SINGLE SAVECHANGES (Transaction Atomicity!) =====
                     await _context.SaveChangesAsync();
 
-                    // ===== STEP 5.5: Load entity data for response (WorkspaceItemV2 structure) =====
+
+                    // ===== STEP 5.1: SYNC KEYWORDS =====
+                    await _helperService.SyncPathIdsAndKeywordsAsync(requests, upsertedItems, userId);
+
+
+
+
+
+
+
+
+                    // ===== STEP 5.5: RESPONSE   =====
                     var responseItems = new List<object>();
 
                     foreach (var item in upsertedItems)
@@ -314,7 +367,15 @@ namespace SuperAppServices.Services
                         });
                     }
 
-                    // ===== STEP 6: Commit Transaction =====
+
+
+
+
+
+
+
+
+                    // ===== STEP 6: COMMIT =====
                     await transaction.CommitAsync();
 
                     _logger.LogInformation(
@@ -363,529 +424,6 @@ namespace SuperAppServices.Services
                     };
                 }
             });
-        }
-
-        // =====================================================================
-        // VALIDATION METHODS
-        // =====================================================================
-
-        /// <summary>
-        /// Validate request based on action type
-        /// Returns error message if invalid, null if valid
-        /// </summary>
-        private string? ValidateRequest(
-            UpsertWorkspaceItemRequest request,
-            Dictionary<int, WorkspaceItemEntity> existingItemsDict,
-            List<int> existingFolderIds,
-            List<int> existingNoteIds,
-            List<int> existingFileIds,
-            Dictionary<int, Folder> foldersToUpdateDict,
-            Dictionary<int, Note> notesToUpdateDict,
-            Dictionary<int, SuperAppModels.Models.File> filesToUpdateDict)
-        {
-            switch (request.Action)
-            {
-                case WorkspaceItemAction.Create:
-                    // Required: EntityType, EntityData
-                    if (!request.EntityType.HasValue)
-                        return "Create action requires EntityType";
-
-                    if (request.EntityType.Value < 2 || request.EntityType.Value > 4)
-                        return $"Invalid EntityType: {request.EntityType}";
-
-                    if (!HasEntityData(request))
-                        return $"Create action requires entity data for EntityType {request.EntityType}";
-
-                    return null;
-
-                case WorkspaceItemAction.Add:
-                    // Required: EntityType, EntityId
-                    if (!request.EntityType.HasValue)
-                        return "Add action requires EntityType";
-
-                    if (!request.EntityId.HasValue || request.EntityId.Value <= 0)
-                        return "Add action requires valid EntityId";
-
-                    // Validate entity exists
-                    var entityExists = request.EntityType.Value switch
-                    {
-                        2 => existingFolderIds.Contains(request.EntityId.Value),
-                        3 => existingNoteIds.Contains(request.EntityId.Value),
-                        4 => existingFileIds.Contains(request.EntityId.Value),
-                        _ => false
-                    };
-
-                    if (!entityExists)
-                        return $"Entity with EntityType={request.EntityType} and EntityId={request.EntityId} not found";
-
-                    return null;
-
-                case WorkspaceItemAction.Move:
-                    // Required: Id + ParentId (within same workspace)
-                    if (!request.Id.HasValue || request.Id.Value <= 0)
-                        return "Move action requires valid Id";
-
-                    //if (!request.ParentId.HasValue)
-                    //    return "Move action requires ParentId";
-
-                    if (!existingItemsDict.ContainsKey(request.Id.Value))
-                        return $"Workspace item ID {request.Id} not found";
-
-                    return null;
-
-                case WorkspaceItemAction.MoveCross:
-                    // Required: Id + WorkspaceId (target workspace)
-                    // Optional: ParentId (target parent in new workspace, null = root)
-                    if (!request.Id.HasValue || request.Id.Value <= 0)
-                        return "MoveCross action requires valid Id";
-
-                    if (!request.WorkspaceId.HasValue || request.WorkspaceId.Value <= 0)
-                        return "MoveCross action requires valid target WorkspaceId";
-
-                    if (!existingItemsDict.ContainsKey(request.Id.Value))
-                        return $"Workspace item ID {request.Id} not found";
-
-                    // Validate that target workspace is different from source workspace
-                    var sourceItem = existingItemsDict[request.Id.Value];
-                    if (sourceItem.WorkspaceId == request.WorkspaceId.Value)
-                        return "MoveCross requires target workspace to be different from source workspace";
-
-                    return null;
-
-                case WorkspaceItemAction.UpdateFolder:
-                    // Required: Id, FolderData
-                    if (!request.Id.HasValue || request.Id.Value <= 0)
-                        return "UpdateFolder action requires valid Id";
-
-                    if (!existingItemsDict.ContainsKey(request.Id.Value))
-                        return $"Workspace item ID {request.Id} not found";
-
-                    var workspaceItem = existingItemsDict[request.Id.Value];
-
-                    // ONLY support Folder (EntityType = 2)
-                    if (workspaceItem.EntityType != 2)
-                        return $"UpdateFolder action only supports folders (EntityType=2), but got EntityType={workspaceItem.EntityType}";
-
-                    // Validate folder exists
-                    if (!foldersToUpdateDict.ContainsKey(workspaceItem.EntityId))
-                        return $"Folder with EntityId={workspaceItem.EntityId} not found for update";
-
-                    // Validate FolderData is provided
-                    if (request.FolderData == null)
-                        return "UpdateFolder action requires FolderData";
-
-                    return null;
-
-                case WorkspaceItemAction.Delete:
-                    // Required: Id
-                    if (!request.Id.HasValue || request.Id.Value <= 0)
-                        return "Delete action requires valid Id";
-
-                    if (!existingItemsDict.ContainsKey(request.Id.Value))
-                        return $"Workspace item ID {request.Id} not found";
-
-                    return null;
-
-                case WorkspaceItemAction.Restore:
-                    // Required: Id
-                    if (!request.Id.HasValue || request.Id.Value <= 0)
-                        return "Restore action requires valid Id";
-
-                    if (!existingItemsDict.ContainsKey(request.Id.Value))
-                        return $"Workspace item ID {request.Id} not found";
-
-                    var itemToRestore = existingItemsDict[request.Id.Value];
-                    if (itemToRestore.DeletedAt == null)
-                        return $"Workspace item ID {request.Id} is not deleted, cannot restore";
-
-                    return null;
-
-                default:
-                    return $"Unsupported action: {request.Action}";
-            }
-        }
-
-        /// <summary>
-        /// Check for circular dependency when moving an item
-        /// Returns error message if circular dependency detected, null if safe
-        /// </summary>
-        private async Task<string?> CheckCircularDependencyAsync(
-            int itemId,
-            int newParentId,
-            Dictionary<int, WorkspaceItemEntity> existingItemsDict)
-        {
-            // Can't move item to itself
-            if (itemId == newParentId)
-                return $"Cannot move item {itemId} to itself";
-
-            // Check if newParentId is a descendant of itemId (would create cycle)
-            var currentParentId = newParentId;
-            var visited = new HashSet<int> { itemId };
-            var maxDepth = 100; // Prevent infinite loop
-            var depth = 0;
-
-            while (currentParentId > 0 && depth < maxDepth)
-            {
-                if (visited.Contains(currentParentId))
-                    return $"Circular dependency detected: moving item {itemId} to parent {newParentId} would create a cycle";
-
-                visited.Add(currentParentId);
-
-                // Get parent from preloaded dict or database
-                WorkspaceItemEntity? parent = null;
-                if (existingItemsDict.ContainsKey(currentParentId))
-                {
-                    parent = existingItemsDict[currentParentId];
-                }
-                else
-                {
-                    parent = await _context.WorkspaceItems.FindAsync(currentParentId);
-                }
-
-                if (parent == null || !parent.ParentId.HasValue)
-                    break;
-
-                currentParentId = parent.ParentId.Value;
-                depth++;
-            }
-
-            if (depth >= maxDepth)
-                return $"Maximum tree depth exceeded when checking circular dependency for item {itemId}";
-
-            return null; // No circular dependency
-        }
-
-        /// <summary>
-        /// Check if request has entity data (for CREATE/UPDATE actions)
-        /// </summary>
-        /// <param name="request">Workspace item request</param>
-        /// <param name="entityType">Override EntityType (for UPDATE action where EntityType comes from existing item)</param>
-        private bool HasEntityData(UpsertWorkspaceItemRequest request, byte? entityType = null)
-        {
-            // Use provided entityType (UPDATE) or request.EntityType (CREATE)
-            var typeToCheck = entityType ?? request.EntityType;
-
-            if (!typeToCheck.HasValue)
-                return false;
-
-            return typeToCheck.Value switch
-            {
-                2 => request.FolderData != null,
-                3 => request.NoteData != null,
-                4 => request.FileData != null,
-                _ => false
-            };
-        }
-
-        // =====================================================================
-        // ACTION PROCESSING METHODS (Track Changes Only, No SaveChanges!)
-        // =====================================================================
-
-        /// <summary>
-        /// CREATE: Create new entity + workspace_item
-        /// </summary>
-        private async Task ProcessCreateActionAsync(
-            UpsertWorkspaceItemRequest request,
-            int userId,
-            int workspaceId,
-            List<WorkspaceItemEntity> upsertedItems)
-        {
-            _logger.LogInformation(
-                "Processing CREATE action: EntityType={EntityType}",
-                request.EntityType);
-
-            // Create entity (just track, don't save!)
-            int entityId = 0;
-            switch (request.EntityType!.Value)
-            {
-                case 2: // Folder
-                    var folderData = request.FolderData!;
-                    var newFolder = new Folder
-                    {
-                        UserId = userId,
-                        Name = folderData.Name,
-                        Description = folderData.Description,
-                        Color = folderData.Color,
-                        Icon = folderData.Icon,
-                        CreatedAt = DateTime.UtcNow,
-                        DeletedAt = null
-                    };
-                    _context.Folders.Add(newFolder);
-                    // Note: ID will be generated after SaveChangesAsync
-                    // We need to save to get the ID for workspace_item
-                    await _context.SaveChangesAsync();
-                    entityId = newFolder.Id;
-                    break;
-
-                case 3: // Note
-                    var noteData = request.NoteData!;
-                    var newNote = new Note
-                    {
-                        UserId = userId,
-                        Name = noteData.Name,
-                        Description = noteData.Description,
-                        StatusCode = noteData.StatusCode,
-                        CreatedAt = DateTime.UtcNow,
-                        DeletedAt = null
-                    };
-                    _context.Notes.Add(newNote);
-                    await _context.SaveChangesAsync();
-                    entityId = newNote.Id;
-                    break;
-
-                case 4: // File
-                    var fileData = request.FileData!;
-                    var newFile = new SuperAppModels.Models.File
-                    {
-                        UserId = userId,
-                        Name = fileData.Name,
-                        Url = fileData.Url,
-                        FileSize = fileData.FileSize,
-                        MimeType = fileData.MimeType,
-                        Extension = fileData.Extension,
-                        StatusCode = fileData.StatusCode,
-                        CreatedAt = DateTime.UtcNow,
-                        DeletedAt = null
-                    };
-                    _context.Files.Add(newFile);
-                    await _context.SaveChangesAsync();
-                    entityId = newFile.Id;
-                    break;
-            }
-
-            // Create workspace_item
-            var newItem = new WorkspaceItemEntity
-            {
-                WorkspaceId = request.WorkspaceId ?? workspaceId,
-                ParentId = request.ParentId,
-                EntityType = request.EntityType.Value,
-                EntityId = entityId,
-                CopyInfo = request.CopyInfo,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = null,
-                DeletedAt = null
-            };
-
-            _context.WorkspaceItems.Add(newItem);
-            upsertedItems.Add(newItem);
-
-            _logger.LogInformation(
-                "Created entity ID {EntityId} and workspace_item for EntityType {EntityType}",
-                entityId, request.EntityType);
-        }
-
-        /// <summary>
-        /// ADD: Add existing entity to workspace
-        /// </summary>
-        private void ProcessAddAction(
-            UpsertWorkspaceItemRequest request,
-            int workspaceId,
-            List<WorkspaceItemEntity> upsertedItems)
-        {
-            _logger.LogInformation(
-                "Processing ADD action: EntityType={EntityType}, EntityId={EntityId}",
-                request.EntityType, request.EntityId);
-
-            var newItem = new WorkspaceItemEntity
-            {
-                WorkspaceId = request.WorkspaceId ?? workspaceId,
-                ParentId = request.ParentId,
-                EntityType = request.EntityType!.Value,
-                EntityId = request.EntityId!.Value,
-                CopyInfo = request.CopyInfo,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = null,
-                DeletedAt = null
-            };
-
-            _context.WorkspaceItems.Add(newItem);
-            upsertedItems.Add(newItem);
-
-            _logger.LogInformation(
-                "Added existing entity ID {EntityId} to workspace as workspace_item",
-                request.EntityId);
-        }
-
-        /// <summary>
-        /// MOVE: Change workspace_item location
-        /// </summary>
-        private void ProcessMoveAction(
-            UpsertWorkspaceItemRequest request,
-            Dictionary<int, WorkspaceItemEntity> existingItemsDict,
-            List<WorkspaceItemEntity> upsertedItems)
-        {
-            _logger.LogInformation(
-                "Processing MOVE action: Id={Id}, ParentId={ParentId}, WorkspaceId={WorkspaceId}",
-                request.Id, request.ParentId, request.WorkspaceId);
-
-            var existingItem = existingItemsDict[request.Id!.Value];
-
-            // Update location
-            existingItem.ParentId = request.ParentId; // null thì set null
-
-            if (request.WorkspaceId.HasValue)
-                existingItem.WorkspaceId = request.WorkspaceId.Value;
-
-            existingItem.UpdatedAt = DateTime.UtcNow;
-            upsertedItems.Add(existingItem);
-
-            _logger.LogInformation(
-                "Moved workspace_item ID {WorkspaceItemId} to ParentId={ParentId}, WorkspaceId={WorkspaceId}",
-                request.Id, existingItem.ParentId, existingItem.WorkspaceId);
-        }
-
-        /// <summary>
-        /// MOVE CROSS: Move workspace_item to another workspace with all descendants
-        /// </summary>
-        private async Task ProcessMoveCrossActionAsync(
-            UpsertWorkspaceItemRequest request,
-            Dictionary<int, WorkspaceItemEntity> existingItemsDict,
-            List<WorkspaceItemEntity> upsertedItems)
-        {
-            _logger.LogInformation(
-                "Processing MOVE_CROSS action: Id={Id}, TargetWorkspaceId={WorkspaceId}, TargetParentId={ParentId}",
-                request.Id, request.WorkspaceId, request.ParentId);
-
-            var rootItem = existingItemsDict[request.Id!.Value];
-            var targetWorkspaceId = request.WorkspaceId!.Value;
-            var targetParentId = request.ParentId; // null = root level in target workspace
-
-            // ===== STEP 1: Update root item =====
-            rootItem.WorkspaceId = targetWorkspaceId;
-            rootItem.ParentId = targetParentId;
-            rootItem.UpdatedAt = DateTime.UtcNow;
-            upsertedItems.Add(rootItem);
-
-            _logger.LogInformation(
-                "Updated root item {WorkspaceItemId} to workspace {TargetWorkspaceId}",
-                rootItem.Id, targetWorkspaceId);
-
-            // ===== STEP 2: Find and update all descendants recursively =====
-            var allDescendants = await GetAllDescendantsAsync(rootItem.Id);
-
-            _logger.LogInformation(
-                "Found {Count} descendants to move with root item {WorkspaceItemId}",
-                allDescendants.Count, rootItem.Id);
-
-            foreach (var descendant in allDescendants)
-            {
-                descendant.WorkspaceId = targetWorkspaceId;
-                descendant.UpdatedAt = DateTime.UtcNow;
-                upsertedItems.Add(descendant);
-
-                _logger.LogDebug(
-                    "Updated descendant {WorkspaceItemId} to workspace {TargetWorkspaceId}",
-                    descendant.Id, targetWorkspaceId);
-            }
-
-            _logger.LogInformation(
-                "Completed MOVE_CROSS: Moved {TotalCount} items (1 root + {DescendantsCount} descendants) to workspace {TargetWorkspaceId}",
-                allDescendants.Count + 1, allDescendants.Count, targetWorkspaceId);
-        }
-
-        /// <summary>
-        /// Recursively get all descendants of a workspace item
-        /// </summary>
-        private async Task<List<WorkspaceItemEntity>> GetAllDescendantsAsync(int parentWorkspaceItemId)
-        {
-            var descendants = new List<WorkspaceItemEntity>();
-            var queue = new Queue<int>();
-            queue.Enqueue(parentWorkspaceItemId);
-
-            while (queue.Count > 0)
-            {
-                var currentParentId = queue.Dequeue();
-
-                // Find direct children
-                var children = await _context.WorkspaceItems
-                    .Where(wi => wi.ParentId == currentParentId)
-                    .ToListAsync();
-
-                foreach (var child in children)
-                {
-                    descendants.Add(child);
-                    queue.Enqueue(child.Id); // Add to queue to process its children
-                }
-            }
-
-            return descendants;
-        }
-
-        /// <summary>
-        /// UPDATE FOLDER: Update folder data (FOLDER ONLY)
-        /// Notes and Files use their own entity-specific APIs for updates
-        /// </summary>
-        private void ProcessUpdateFolderAction(
-            UpsertWorkspaceItemRequest request,
-            Dictionary<int, WorkspaceItemEntity> existingItemsDict,
-            Dictionary<int, Folder> foldersToUpdateDict)
-        {
-            _logger.LogInformation(
-                "Processing UPDATE_FOLDER action: Id={Id}",
-                request.Id);
-
-            var workspaceItem = existingItemsDict[request.Id!.Value];
-
-            // Update folder entity
-            var folder = foldersToUpdateDict[workspaceItem.EntityId];
-            var folderData = request.FolderData!;
-
-            folder.Name = folderData.Name;
-            folder.Description = folderData.Description;
-            folder.Color = folderData.Color;
-            folder.Icon = folderData.Icon;
-            folder.UpdatedAt = DateTime.UtcNow;
-
-            if (folderData.DeletedAt.HasValue)
-                folder.DeletedAt = folderData.DeletedAt;
-
-            _logger.LogInformation(
-                "Updated folder (EntityId={EntityId}) for workspace_item ID {WorkspaceItemId}",
-                workspaceItem.EntityId, request.Id);
-        }
-
-        /// <summary>
-        /// DELETE: Soft delete workspace_item
-        /// </summary>
-        private void ProcessDeleteAction(
-            UpsertWorkspaceItemRequest request,
-            Dictionary<int, WorkspaceItemEntity> existingItemsDict,
-            List<WorkspaceItemEntity> upsertedItems)
-        {
-            _logger.LogInformation(
-                "Processing DELETE action: Id={Id}",
-                request.Id);
-
-            var existingItem = existingItemsDict[request.Id!.Value];
-            existingItem.DeletedAt = DateTime.UtcNow;
-            existingItem.UpdatedAt = DateTime.UtcNow;
-            upsertedItems.Add(existingItem);
-
-            _logger.LogInformation(
-                "Soft deleted workspace_item ID {WorkspaceItemId}",
-                request.Id);
-        }
-
-        /// <summary>
-        /// RESTORE: Restore deleted workspace_item
-        /// </summary>
-        private void ProcessRestoreAction(
-            UpsertWorkspaceItemRequest request,
-            Dictionary<int, WorkspaceItemEntity> existingItemsDict,
-            List<WorkspaceItemEntity> upsertedItems)
-        {
-            _logger.LogInformation(
-                "Processing RESTORE action: Id={Id}",
-                request.Id);
-
-            var existingItem = existingItemsDict[request.Id!.Value];
-            existingItem.DeletedAt = null;
-            existingItem.UpdatedAt = DateTime.UtcNow;
-            upsertedItems.Add(existingItem);
-
-            _logger.LogInformation(
-                "Restored workspace_item ID {WorkspaceItemId}",
-                request.Id);
         }
     }
 }

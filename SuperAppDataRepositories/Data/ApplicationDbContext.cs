@@ -30,6 +30,7 @@ namespace SuperAppDataRepositories.Data
 
         // System Tables (dbo schema)
         public DbSet<StandardRegistry> StandardRegistries { get; set; }
+        public DbSet<Keyword> Keywords { get; set; }
 
         // ⚠️ REMOVED - Tables không tồn tại trong schema mới:
         // - Tag/EntityType/EntityTag → Sẽ tạo models mới cho dbo.hashtags, dbo.entities, dbo.entity_hashtags
