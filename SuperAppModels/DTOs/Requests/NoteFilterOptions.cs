@@ -44,5 +44,10 @@ namespace SuperAppModels.DTOs.Requests
         /// Specific note IDs to retrieve (for restoring tabs)
         /// </summary>
         public List<int>? Ids { get; set; }
+
+        /// <summary>
+        /// Specific workspace item IDs to retrieve notes from (for keyword navigation)
+        /// </summary>
+        public List<int>? WorkspaceItemIds { get; set; }
     }
 }
