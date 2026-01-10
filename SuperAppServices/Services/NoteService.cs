@@ -21,19 +21,22 @@ namespace SuperAppServices.Services
         private readonly ApplicationDbContext _context;
         private readonly IMapper _mapper;
         private readonly ILogger<NoteService> _logger;
+        private readonly KeywordServiceV2 _keywordService;
 
         public NoteService(
             INoteRepository noteRepository,
             IUserRepository userRepository,
             ApplicationDbContext context,
             IMapper mapper,
-            ILogger<NoteService> logger)
+            ILogger<NoteService> logger,
+            KeywordServiceV2 keywordService)
         {
             _noteRepository = noteRepository ?? throw new ArgumentNullException(nameof(noteRepository));
             _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _keywordService = keywordService ?? throw new ArgumentNullException(nameof(keywordService));
         }
 
         /// <summary>
@@ -193,6 +196,27 @@ namespace SuperAppServices.Services
                     note.DeletedAt = request.DeletedAt;  // Map deletedAt for soft delete/restore
                     note.UserId = request.UserId.Value;
 
+                    // Process external links in description: ((name|url)) → [[id]]
+                    if (!string.IsNullOrEmpty(note.Description))
+                    {
+                        try
+                        {
+                            note.Description = await _keywordService.ProcessExternalLinksInDescriptionAsync(
+                                note.Description,
+                                note.UserId);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error processing external links for note with Name: {Name}", note.Name);
+                            return new ResultOptions
+                            {
+                                Success = false,
+                                Message = $"Error processing external links: {ex.Message}",
+                                Status = 500
+                            };
+                        }
+                    }
+
                     noteRequests.Add((note, request.TagIds));
                 }
 
@@ -208,6 +232,9 @@ namespace SuperAppServices.Services
                 // Map Note entities to NoteDTOs
                 var notes = result.Data?.Cast<Note>().ToList() ?? new List<Note>();
                 var noteDTOs = _mapper.Map<List<NoteDTO>>(notes);
+
+                // Sync keywords for all workspace_items that reference these notes
+                await SyncKeywordsForNotesAsync(notes, requests);
 
                 _logger.LogInformation("Batch upsert transaction completed successfully: {Count} notes upserted",
                     noteDTOs.Count);
@@ -256,6 +283,21 @@ namespace SuperAppServices.Services
                 // Repository now returns ResultOptions
                 var result = await _noteRepository.DeleteNotesAsync(noteIds);
 
+                // Hard delete keywords for deleted notes (set HardDeletedAt)
+                if (result.Success)
+                {
+                    try
+                    {
+                        await _keywordService.HardDeleteNoteKeywordsAsync(noteIds);
+                        _logger.LogInformation("Hard deleted keywords for {Count} notes", noteIds.Count);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error hard deleting keywords for notes {NoteIds}", string.Join(",", noteIds));
+                        // Don't fail the operation - keywords can be cleaned up later
+                    }
+                }
+
                 _logger.LogInformation("Delete operation result: Success={Success}, Message={Message}", result.Success, result.Message);
                 return result;
             }
@@ -268,6 +310,66 @@ namespace SuperAppServices.Services
                     Message = ex.Message,
                     Status = 500
                 };
+            }
+        }
+
+        /// <summary>
+        /// Sync keywords for notes that have workspace_items
+        /// Only syncs for notes that are in workspace_items table (ignores orphaned notes)
+        /// </summary>
+        private async Task SyncKeywordsForNotesAsync(List<Note> notes, List<UpsertNoteRequest> requests)
+        {
+            if (notes == null || !notes.Any())
+                return;
+
+            try
+            {
+                var noteIds = notes.Select(n => n.Id).ToList();
+
+                // Get all workspace_items for these notes (EntityType=3 for notes)
+                var workspaceItems = await _context.WorkspaceItems
+                    .Where(wi => wi.EntityType == 3 && noteIds.Contains(wi.EntityId))
+                    .Select(wi => new { wi.Id, wi.EntityId })
+                    .ToListAsync();
+
+                if (!workspaceItems.Any())
+                {
+                    _logger.LogInformation("No workspace_items found for notes, skipping keyword sync");
+                    return;
+                }
+
+                _logger.LogInformation("Syncing keywords for {Count} workspace_items", workspaceItems.Count);
+
+                // Sync keywords for each workspace_item
+                foreach (var workspaceItem in workspaceItems)
+                {
+                    // Get userId from request
+                    var request = requests.FirstOrDefault(r => r.Id == workspaceItem.EntityId);
+                    if (request == null || !request.UserId.HasValue)
+                    {
+                        _logger.LogWarning("Cannot find userId for note {NoteId}, skipping keyword sync", workspaceItem.EntityId);
+                        continue;
+                    }
+
+                    try
+                    {
+                        await _keywordService.SyncNoteKeywordAsync(workspaceItem.Id, request.UserId.Value);
+                        _logger.LogInformation("Synced keywords for workspace_item {WorkspaceItemId}, note {NoteId}",
+                            workspaceItem.Id, workspaceItem.EntityId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error syncing keywords for workspace_item {WorkspaceItemId}", workspaceItem.Id);
+                        // Don't throw - continue syncing other items
+                    }
+                }
+
+                _logger.LogInformation("Completed keyword sync for notes");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error syncing keywords for notes");
+                // Don't throw - keyword sync failure shouldn't fail the whole operation
             }
         }
 

@@ -40,7 +40,7 @@ public class WorkspaceItemResponse
     /// <summary>
     /// URL-friendly slug for the item
     /// </summary>
-    public string? Slug { get; set; }
+    //public string? Slug { get; set; }
 
     /// <summary>
     /// Hex color code for display (e.g., #FF5733)

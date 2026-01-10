@@ -18,17 +18,20 @@ namespace SuperAppServices.Services
         private readonly IUserRepository _userRepository;
         private readonly IMapper _mapper;
         private readonly ILogger<WsService> _logger;
+        private readonly KeywordServiceV2 _keywordService;
 
-        public WsService( 
+        public WsService(
             IWsRepository wsRepository,
             IUserRepository userRepository,
             IMapper mapper,
-            ILogger<WsService> logger)
+            ILogger<WsService> logger,
+            KeywordServiceV2 keywordService)
         {
             _wsRepository = wsRepository ?? throw new ArgumentNullException(nameof(wsRepository));
             _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _keywordService = keywordService ?? throw new ArgumentNullException(nameof(keywordService));
         }
 
         /// <summary>
@@ -181,6 +184,8 @@ namespace SuperAppServices.Services
                         // Upsert workspace (create or update)
                         var result = await _wsRepository.UpsertWorkspaceAsync(workspace);
 
+                        await _keywordService.SyncWorkspaceKeywordAsync(workspace.Id, workspace.UserId);
+
                         if (!result.Success)
                         {
                             errors.Add($"Workspace ID {request.Id}: {result.Message}");
@@ -265,6 +270,27 @@ namespace SuperAppServices.Services
                 _logger.LogInformation("Deleting workspaces with IDs: {WorkspaceIds})",
                     workspaceIds);
 
+                // Parse workspace IDs
+                var ids = workspaceIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(id => int.TryParse(id.Trim(), out var parsedId) ? parsedId : (int?)null)
+                    .Where(id => id.HasValue)
+                    .Select(id => id!.Value)
+                    .ToList();
+
+                // Delete workspace keywords first (FK constraint requires this)
+                foreach (var id in ids)
+                {
+                    try
+                    {
+                        await _keywordService.DeleteWorkspaceKeywordAsync(id);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error deleting workspace keyword for WorkspaceId: {WorkspaceId}", id);
+                        // Continue with workspace deletion even if keyword deletion fails
+                    }
+                }
+
                 var result = await _wsRepository.DeleteWorkspacesCascadeAsync(workspaceIds);
 
                 if (result.Success)
@@ -285,7 +311,5 @@ namespace SuperAppServices.Services
                 };
             }
         }
-
-      
     }
 }

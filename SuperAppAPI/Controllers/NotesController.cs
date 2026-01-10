@@ -4,7 +4,7 @@ using SuperAppAPI.Exceptions;
 using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
-using SuperAppModels.DTOs.Responses;
+using SuperAppModels.DTOs.Responses; 
 using SuperAppServices.Interfaces;
 
 namespace SuperAppAPI.Controllers
@@ -12,7 +12,7 @@ namespace SuperAppAPI.Controllers
     /// <summary>
     /// Controller for managing notes operations
     /// </summary>
-    [ApiController]
+     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
     public class NotesController : ControllerBase
@@ -57,6 +57,7 @@ namespace SuperAppAPI.Controllers
         /// <param name="createdAtFrom">Optional created date from filter (ISO date string)</param>
         /// <param name="createdAtTo">Optional created date to filter (ISO date string)</param>
         /// <param name="ids">Optional comma-separated note IDs (e.g., "1,2,3") for restoring tabs</param>
+        /// <param name="workspaceItemIds">Optional comma-separated workspace item IDs (e.g., "1,2,3") for keyword navigation</param>
         /// <returns>ResultOptions containing list of notes matching the criteria</returns>
         /// <response code="200">Notes retrieved successfully</response>
         /// <response code="401">Unauthorized - invalid or missing token</response>
@@ -71,7 +72,8 @@ namespace SuperAppAPI.Controllers
             [FromQuery] string? deletedAt = null,
             [FromQuery] string? createdAtFrom = null,
             [FromQuery] string? createdAtTo = null,
-            [FromQuery] string? ids = null)
+            [FromQuery] string? ids = null,
+            [FromQuery] string? workspaceItemIds = null)
         {
             // Get userId from JWT token claims
             var userId = GetAuthenticatedUserId();
@@ -100,6 +102,9 @@ namespace SuperAppAPI.Controllers
                     : null,
                 Ids = !string.IsNullOrEmpty(ids)
                     ? ids.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList()
+                    : null,
+                WorkspaceItemIds = !string.IsNullOrEmpty(workspaceItemIds)
+                    ? workspaceItemIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList()
                     : null
             };
 

@@ -5,6 +5,7 @@ using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
+using SuperAppModels.Helpers;
 
 namespace SuperAppDataRepositories.Repositories
 {
@@ -15,7 +16,7 @@ namespace SuperAppDataRepositories.Repositories
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<NoteRepository> _logger;
-
+ 
         public NoteRepository(
             ApplicationDbContext context,
             ILogger<NoteRepository> logger)
@@ -63,6 +64,27 @@ namespace SuperAppDataRepositories.Repositories
                 if (filterOptions.Ids?.Count > 0)
                 {
                     query = query.Where(n => filterOptions.Ids.Contains(n.Id));
+                }
+
+                // Filter by workspace item IDs - find notes through workspace_items
+                if (filterOptions.WorkspaceItemIds?.Count > 0)
+                {
+                    // Get entityIds from workspace_items where id IN workspaceItemIds AND entityType = 3 (note)
+                    var noteIds = await _context.WorkspaceItems
+                        .AsNoTracking()
+                        .Where(wi => filterOptions.WorkspaceItemIds.Contains(wi.Id) && wi.EntityType == 3)
+                        .Select(wi => wi.EntityId)
+                        .ToListAsync();
+
+                    if (noteIds.Any())
+                    {
+                        query = query.Where(n => noteIds.Contains(n.Id));
+                    }
+                    else
+                    {
+                        // No matching notes found, return empty result
+                        query = query.Where(n => false);
+                    }
                 }
 
                 // Filter by status code (comma-separated list)
@@ -451,8 +473,42 @@ namespace SuperAppDataRepositories.Repositories
                         }
                     }
 
-                    // Save all changes in the transaction
+                    // Save all changes in the transaction (first save to get IDs)
                     await _context.SaveChangesAsync();
+
+                    // ===== STEP 4: Replace Negative NoteIds in Wiki Links =====
+                    // For newly created notes, replace negative noteIds in description with real noteId
+                    var notesToUpdateDescription = new List<Note>();
+                    
+                    foreach (var note in upsertedNotes)
+                    {
+                        // Only process newly created notes with description containing wiki links
+                        if (NoteDescriptionProcessor.ContainsWikiLinks(note.Description))
+                        {
+                            var updatedDescription = NoteDescriptionProcessor.ReplaceNegativeNoteIdInWikiLinks(note.Description, note.Id);
+
+                            // Only update if description changed
+                            if (updatedDescription != note.Description)
+                            {
+                                _logger.LogInformation(
+                                    "Replacing negative noteIds in description for note ID: {NoteId}",
+                                    note.Id);
+
+                                note.Description = updatedDescription;
+                                note.UpdatedAt = DateTime.UtcNow;
+                                notesToUpdateDescription.Add(note);
+                            }
+                        }
+                    }
+
+                    // Save again if any descriptions were updated
+                    if (notesToUpdateDescription.Any())
+                    {
+                        _logger.LogInformation(
+                            "Updating {Count} note descriptions with real noteIds",
+                            notesToUpdateDescription.Count);
+                        await _context.SaveChangesAsync();
+                    }
 
                     // Commit transaction
                     await transaction.CommitAsync();
