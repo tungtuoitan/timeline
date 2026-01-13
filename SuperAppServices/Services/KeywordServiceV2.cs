@@ -34,15 +34,23 @@ namespace SuperAppServices.Services
         /// </summary>
         public async Task<List<KeywordDto>> GetKeywordsAsync(int userId)
         {
-            // Get all keywords from Keywords table (including workspace keywords)
-            // Exclude hard deleted keywords
-            var keywords = await _context.Keywords
-                .Where(k => k.UserId == userId)
-                .ToListAsync();
+            try
+            {
+                // Get all keywords from Keywords table (including workspace keywords)
+                // Exclude hard deleted keywords
+                var keywords = await _context.Keywords
+                    .Where(k => k.UserId == userId)
+                    .ToListAsync();
 
-            var enrichedKeywords = await EnrichWithLongLinksAsync(keywords);
+                var enrichedKeywords = await EnrichWithLongLinksAsync(keywords);
 
-            return enrichedKeywords;
+                return enrichedKeywords;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting keywords for UserId: {UserId}", userId);
+                throw;
+            }
         }
 
         /// <summary>
@@ -271,45 +279,70 @@ namespace SuperAppServices.Services
         /// </summary>
         public async Task<Keyword> SyncWorkspaceKeywordAsync(int workspaceId, int userId)
         {
-            var workspace = await _context.Workspaces.FindAsync(workspaceId);
-            if (workspace == null)
-                throw new ArgumentException($"Workspace {workspaceId} not found");
-
-            var link = $"w{workspaceId}";
-
-            // Find existing keyword by WorkspaceId
-            var keyword = await _context.Keywords
-                .FirstOrDefaultAsync(k => k.WorkspaceId == workspaceId && k.Type == "workspace");
-
-            if (keyword == null)
+            try
             {
-                // Create new keyword
-                var nameIndex = await GetNextNameIndexAsync(workspace.Name);
-                keyword = new Keyword(
-                    name: workspace.Name,
-                    nameIndex: nameIndex,
-                    link: link,
-                    type: "workspace",
-                    userId: userId,
-                    workspaceId: workspaceId
-                );
-                _context.Keywords.Add(keyword);
-            }
-            else
-            {
-                // Update existing keyword (keep existing nameIndex)
-                keyword.Update(
-                    name: workspace.Name,
-                    nameIndex: keyword.NameIndex, // Keep existing nameIndex
-                    link: link,
-                    type: "workspace",
-                    description: workspace.Description,
-                    workspaceId: workspaceId
-                );
-            }
+                var workspace = await _context.Workspaces.FindAsync(workspaceId);
+                if (workspace == null)
+                    throw new ArgumentException($"Workspace {workspaceId} not found");
 
-            await _context.SaveChangesAsync();
-            return keyword;
+                var link = $"w{workspaceId}";
+
+                // Find existing keyword by WorkspaceId
+                var keyword = await _context.Keywords
+                    .FirstOrDefaultAsync(k => k.WorkspaceId == workspaceId && k.Type == "workspace");
+
+                if (keyword == null)
+                {
+                    // Create new keyword
+                    var nameIndex = await GetNextNameIndexAsync(workspace.Name);
+                    keyword = new Keyword(
+                        name: workspace.Name,
+                        nameIndex: nameIndex,
+                        link: link,
+                        type: "workspace",
+                        userId: userId,
+                        workspaceId: workspaceId
+                    );
+                    _context.Keywords.Add(keyword);
+                }
+                else
+                {
+                    // Check if updating will cause duplicate (Name + NameIndex already exists for another keyword)
+                    var duplicateKeyword = await _context.Keywords
+                        .FirstOrDefaultAsync(k => k.Name == workspace.Name &&
+                                                  k.NameIndex == keyword.NameIndex &&
+                                                  k.Id != keyword.Id &&
+                                                  k.HardDeletedAt == null);
+
+                    int nameIndexToUse = keyword.NameIndex;
+                    if (duplicateKeyword != null)
+                    {
+                        // Generate new nameIndex to avoid duplicate
+                        nameIndexToUse = await GetNextNameIndexAsync(workspace.Name);
+                        _logger.LogWarning(
+                            "Duplicate detected when updating workspace keyword ID {KeywordId}. Name '{Name}' + NameIndex {OldIndex} already exists (Keyword ID {DuplicateId}). Generating new NameIndex: {NewIndex}",
+                            keyword.Id, workspace.Name, keyword.NameIndex, duplicateKeyword.Id, nameIndexToUse);
+                    }
+
+                    // Update existing keyword
+                    keyword.Update(
+                        name: workspace.Name,
+                        nameIndex: nameIndexToUse,
+                        link: link,
+                        type: "workspace",
+                        description: workspace.Description,
+                        workspaceId: workspaceId
+                    );
+                }
+
+                await _context.SaveChangesAsync();
+                return keyword;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error syncing workspace keyword for WorkspaceId: {WorkspaceId}", workspaceId);
+                throw;
+            }
         }
 
         /// <summary>
@@ -317,50 +350,75 @@ namespace SuperAppServices.Services
         /// </summary>
         public async Task<Keyword> SyncFolderKeywordAsync(int workspaceItemId, int userId)
         {
-            var item = await _context.Set<WorkspaceItemEntity>().FindAsync(workspaceItemId);
-            if (item == null || item.EntityType != 2)
-                throw new ArgumentException($"Folder workspace item {workspaceItemId} not found");
-
-            var folder = await _context.Folders.FindAsync(item.EntityId);
-            if (folder == null)
-                throw new ArgumentException($"Folder {item.EntityId} not found");
-
-            var link = await BuildItemLinkAsync(item.PathIds, item.WorkspaceId, workspaceItemId);
-
-            // Find existing keyword by TargetItemId (stable identifier - doesn't change on move)
-            var keyword = await _context.Keywords
-                .FirstOrDefaultAsync(k => k.TargetItemId == workspaceItemId);
-
-            if (keyword == null)
+            try
             {
-                // Create new keyword
-                var nameIndex = await GetNextNameIndexAsync(folder.Name);
-                keyword = new Keyword(
-                    name: folder.Name,
-                    nameIndex: nameIndex,
-                    link: link,
-                    type: "folder",
-                    userId: userId,
-                    targetItemId: workspaceItemId,
-                    pathIds: item.PathIds
-                );
-                _context.Keywords.Add(keyword);
-            }
-            else
-            {
-                // Update existing keyword (keep existing nameIndex)
-                keyword.Update(
-                    name: folder.Name,
-                    nameIndex: keyword.NameIndex, // Keep existing nameIndex
-                    link: link,
-                    type: "folder",
-                    targetItemId: workspaceItemId,
-                    pathIds: item.PathIds
-                );
-            }
+                var item = await _context.Set<WorkspaceItemEntity>().FindAsync(workspaceItemId);
+                if (item == null || item.EntityType != 2)
+                    throw new ArgumentException($"Folder workspace item {workspaceItemId} not found");
 
-            await _context.SaveChangesAsync();
-            return keyword;
+                var folder = await _context.Folders.FindAsync(item.EntityId);
+                if (folder == null)
+                    throw new ArgumentException($"Folder {item.EntityId} not found");
+
+                var link = await BuildItemLinkAsync(item.PathIds, item.WorkspaceId, workspaceItemId);
+
+                // Find existing keyword by TargetItemId (stable identifier - doesn't change on move)
+                var keyword = await _context.Keywords
+                    .FirstOrDefaultAsync(k => k.TargetItemId == workspaceItemId);
+
+                if (keyword == null)
+                {
+                    // Create new keyword
+                    var nameIndex = await GetNextNameIndexAsync(folder.Name);
+                    keyword = new Keyword(
+                        name: folder.Name,
+                        nameIndex: nameIndex,
+                        link: link,
+                        type: "folder",
+                        userId: userId,
+                        targetItemId: workspaceItemId,
+                        pathIds: item.PathIds
+                    );
+                    _context.Keywords.Add(keyword);
+                }
+                else
+                {
+                    // Check if updating will cause duplicate (Name + NameIndex already exists for another keyword)
+                    var duplicateKeyword = await _context.Keywords
+                        .FirstOrDefaultAsync(k => k.Name == folder.Name &&
+                                                  k.NameIndex == keyword.NameIndex &&
+                                                  k.Id != keyword.Id &&
+                                                  k.HardDeletedAt == null);
+
+                    int nameIndexToUse = keyword.NameIndex;
+                    if (duplicateKeyword != null)
+                    {
+                        // Generate new nameIndex to avoid duplicate
+                        nameIndexToUse = await GetNextNameIndexAsync(folder.Name);
+                        _logger.LogWarning(
+                            "Duplicate detected when updating folder keyword ID {KeywordId}. Name '{Name}' + NameIndex {OldIndex} already exists (Keyword ID {DuplicateId}). Generating new NameIndex: {NewIndex}",
+                            keyword.Id, folder.Name, keyword.NameIndex, duplicateKeyword.Id, nameIndexToUse);
+                    }
+
+                    // Update existing keyword
+                    keyword.Update(
+                        name: folder.Name,
+                        nameIndex: nameIndexToUse,
+                        link: link,
+                        type: "folder",
+                        targetItemId: workspaceItemId,
+                        pathIds: item.PathIds
+                    );
+                }
+
+                await _context.SaveChangesAsync();
+                return keyword;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error syncing folder keyword for WorkspaceItemId: {WorkspaceItemId}", workspaceItemId);
+                throw;
+            }
         }
 
         /// <summary>
@@ -368,74 +426,99 @@ namespace SuperAppServices.Services
         /// </summary>
         public async Task<Keyword> SyncNoteKeywordAsync(int workspaceItemId, int userId)
         {
-            var item = await _context.Set<WorkspaceItemEntity>().FindAsync(workspaceItemId);
-            if (item == null || item.EntityType != 3)
-                throw new ArgumentException($"Note workspace item {workspaceItemId} not found");
-
-            var note = await _context.Notes.FindAsync(item.EntityId);
-            if (note == null)
-                throw new ArgumentException($"Note {item.EntityId} not found");
-
-            _logger.LogInformation("SyncNoteKeywordAsync - WorkspaceItemId: {WorkspaceItemId}, PathIds: '{PathIds}', WorkspaceId: {WorkspaceId}",
-                workspaceItemId, item.PathIds, item.WorkspaceId);
-
-            var link = await BuildItemLinkAsync(item.PathIds, item.WorkspaceId, workspaceItemId);
-
-            _logger.LogInformation("SyncNoteKeywordAsync - Built link: '{Link}' for note '{NoteName}'", link, note.Name);
-
-            // Find existing keyword by TargetItemId (stable identifier - doesn't change on move)
-            var keyword = await _context.Keywords
-                .FirstOrDefaultAsync(k => k.TargetItemId == workspaceItemId);
-
-            if (keyword == null)
+            try
             {
-                _logger.LogInformation("Creating new keyword for note '{NoteName}' with link '{Link}'", note.Name, link);
-                
-                // Check if link already exists (safety check)
-                var existingKeywordWithSameLink = await _context.Keywords
-                    .FirstOrDefaultAsync(k => k.Link == link);
-                
-                if (existingKeywordWithSameLink != null)
+                var item = await _context.Set<WorkspaceItemEntity>().FindAsync(workspaceItemId);
+                if (item == null || item.EntityType != 3)
+                    throw new ArgumentException($"Note workspace item {workspaceItemId} not found");
+
+                var note = await _context.Notes.FindAsync(item.EntityId);
+                if (note == null)
+                    throw new ArgumentException($"Note {item.EntityId} not found");
+
+                _logger.LogInformation("SyncNoteKeywordAsync - WorkspaceItemId: {WorkspaceItemId}, PathIds: '{PathIds}', WorkspaceId: {WorkspaceId}",
+                    workspaceItemId, item.PathIds, item.WorkspaceId);
+
+                var link = await BuildItemLinkAsync(item.PathIds, item.WorkspaceId, workspaceItemId);
+
+                _logger.LogInformation("SyncNoteKeywordAsync - Built link: '{Link}' for note '{NoteName}'", link, note.Name);
+
+                // Find existing keyword by TargetItemId (stable identifier - doesn't change on move)
+                var keyword = await _context.Keywords
+                    .FirstOrDefaultAsync(k => k.TargetItemId == workspaceItemId);
+
+                if (keyword == null)
                 {
-                    _logger.LogError("DUPLICATE LINK DETECTED! Link '{Link}' already exists for keyword ID {KeywordId} (TargetItemId: {ExistingTargetItemId}). Current item: {CurrentItemId}",
-                        link, existingKeywordWithSameLink.Id, existingKeywordWithSameLink.TargetItemId, workspaceItemId);
-                    throw new InvalidOperationException($"Duplicate keyword link detected: {link}");
+                    _logger.LogInformation("Creating new keyword for note '{NoteName}' with link '{Link}'", note.Name, link);
+
+                    // Check if link already exists (safety check)
+                    var existingKeywordWithSameLink = await _context.Keywords
+                        .FirstOrDefaultAsync(k => k.Link == link);
+
+                    if (existingKeywordWithSameLink != null)
+                    {
+                        _logger.LogError("DUPLICATE LINK DETECTED! Link '{Link}' already exists for keyword ID {KeywordId} (TargetItemId: {ExistingTargetItemId}). Current item: {CurrentItemId}",
+                            link, existingKeywordWithSameLink.Id, existingKeywordWithSameLink.TargetItemId, workspaceItemId);
+                        throw new InvalidOperationException($"Duplicate keyword link detected: {link}");
+                    }
+
+                    // Create new keyword
+                    var nameIndex = await GetNextNameIndexAsync(note.Name);
+                    keyword = new Keyword(
+                        name: note.Name,
+                        nameIndex: nameIndex,
+                        link: link,
+                        type: "note",
+                        userId: userId,
+                        targetItemId: workspaceItemId,
+                        pathIds: item.PathIds
+                    );
+                    _context.Keywords.Add(keyword);
+                }
+                else
+                {
+                    _logger.LogInformation("Updating existing keyword ID {KeywordId} for note '{NoteName}' with new link '{Link}'", keyword.Id, note.Name, link);
+
+                    // Check if updating will cause duplicate (Name + NameIndex already exists for another keyword)
+                    var duplicateKeyword = await _context.Keywords
+                        .FirstOrDefaultAsync(k => k.Name == note.Name &&
+                                                  k.NameIndex == keyword.NameIndex &&
+                                                  k.Id != keyword.Id &&
+                                                  k.HardDeletedAt == null);
+
+                    int nameIndexToUse = keyword.NameIndex;
+                    if (duplicateKeyword != null)
+                    {
+                        // Generate new nameIndex to avoid duplicate
+                        nameIndexToUse = await GetNextNameIndexAsync(note.Name);
+                        _logger.LogWarning(
+                            "Duplicate detected when updating note keyword ID {KeywordId}. Name '{Name}' + NameIndex {OldIndex} already exists (Keyword ID {DuplicateId}). Generating new NameIndex: {NewIndex}",
+                            keyword.Id, note.Name, keyword.NameIndex, duplicateKeyword.Id, nameIndexToUse);
+                    }
+
+                    // Update existing keyword
+                    keyword.Update(
+                        name: note.Name,
+                        nameIndex: nameIndexToUse,
+                        link: link,
+                        type: "note",
+                        targetItemId: workspaceItemId,
+                        pathIds: item.PathIds
+                    );
                 }
 
-                // Create new keyword
-                var nameIndex = await GetNextNameIndexAsync(note.Name);
-                keyword = new Keyword(
-                    name: note.Name,
-                    nameIndex: nameIndex,
-                    link: link,
-                    type: "note",
-                    userId: userId,
-                    targetItemId: workspaceItemId,
-                    pathIds: item.PathIds
-                );
-                _context.Keywords.Add(keyword);
+                await _context.SaveChangesAsync();
+
+                // Sync headings
+                await SyncNoteHeadingsAsync(note, workspaceItemId, userId);
+
+                return keyword;
             }
-            else
+            catch (Exception ex)
             {
-                _logger.LogInformation("Updating existing keyword ID {KeywordId} for note '{NoteName}' with new link '{Link}'", keyword.Id, note.Name, link);
-                
-                // Update existing keyword (keep existing nameIndex)
-                keyword.Update(
-                    name: note.Name,
-                    nameIndex: keyword.NameIndex, // Keep existing nameIndex
-                    link: link,
-                    type: "note",
-                    targetItemId: workspaceItemId,
-                    pathIds: item.PathIds
-                );
+                _logger.LogError(ex, "Error syncing note keyword for WorkspaceItemId: {WorkspaceItemId}", workspaceItemId);
+                throw;
             }
-
-            await _context.SaveChangesAsync();
-
-            // Sync headings
-            await SyncNoteHeadingsAsync(note, workspaceItemId, userId);
-
-            return keyword;
         }
 
         /// <summary>
@@ -705,87 +788,95 @@ namespace SuperAppServices.Services
         /// <returns>Updated description with [[id]] format</returns>
         public async Task<string> ProcessExternalLinksInDescriptionAsync(string description, int userId)
         {
-            if (string.IsNullOrEmpty(description))
-                return description;
-
-            // Match ((name|url)) where url can be any string (no need http/https)
-            var externalLinkPattern = new Regex(@"\(\(([^\|\)]+)\|([^\)]+)\)\)");
-
-            var matches = externalLinkPattern.Matches(description);
-
-            if (matches.Count == 0)
-                return description; // No external links found
-
-            _logger.LogInformation("Found {Count} external links in description", matches.Count);
-
-            var updatedDescription = description;
-
-            // CRITICAL: Track nameIndex assignments in this batch to avoid duplicates
-            var batchNameIndexTracker = new Dictionary<string, int>();
-
-            // Process each external link
-            foreach (Match match in matches)
+            try
             {
-                var originalText = match.Value; // ((name|url))
-                var name = match.Groups[1].Value.Trim();
-                var url = match.Groups[2].Value.Trim();
+                if (string.IsNullOrEmpty(description))
+                    return description;
 
-                try
+                // Match ((name|url)) where url can be any string (no need http/https)
+                var externalLinkPattern = new Regex(@"\(\(([^\|\)]+)\|([^\)]+)\)\)");
+
+                var matches = externalLinkPattern.Matches(description);
+
+                if (matches.Count == 0)
+                    return description; // No external links found
+
+                _logger.LogInformation("Found {Count} external links in description", matches.Count);
+
+                var updatedDescription = description;
+
+                // CRITICAL: Track nameIndex assignments in this batch to avoid duplicates
+                var batchNameIndexTracker = new Dictionary<string, int>();
+
+                // Process each external link
+                foreach (Match match in matches)
                 {
-                    // Check if keyword with this URL already exists for this user
-                    var existingKeyword = await _context.Keywords
-                        .FirstOrDefaultAsync(k =>
-                            k.ExternalUrl == url &&
-                            k.UserId == userId &&
-                            k.Type == "external" &&
-                            k.HardDeletedAt == null);
+                    var originalText = match.Value; // ((name|url))
+                    var name = match.Groups[1].Value.Trim();
+                    var url = match.Groups[2].Value.Trim();
 
-                    Keyword keyword;
-
-                    if (existingKeyword != null)
+                    try
                     {
-                        // Reuse existing keyword
-                        keyword = existingKeyword;
-                        _logger.LogInformation("Reusing existing external keyword ID {KeywordId} for URL: {Url}",
-                            keyword.Id, url);
+                        // Check if keyword with this URL already exists for this user
+                        var existingKeyword = await _context.Keywords
+                            .FirstOrDefaultAsync(k =>
+                                k.ExternalUrl == url &&
+                                k.UserId == userId &&
+                                k.Type == "external" &&
+                                k.HardDeletedAt == null);
+
+                        Keyword keyword;
+
+                        if (existingKeyword != null)
+                        {
+                            // Reuse existing keyword
+                            keyword = existingKeyword;
+                            _logger.LogInformation("Reusing existing external keyword ID {KeywordId} for URL: {Url}",
+                                keyword.Id, url);
+                        }
+                        else
+                        {
+                            // Create new external keyword - pass batch tracker to avoid duplicate nameIndex
+                            var nameIndex = await GetNextNameIndexAsync(name, batchNameIndexTracker);
+
+                            keyword = new Keyword(
+                                name: name,
+                                nameIndex: nameIndex,
+                                link: url,
+                                type: "external",
+                                userId: userId,
+                                externalUrl: url
+                            );
+
+                            _context.Keywords.Add(keyword);
+
+                            // Save to get the ID (within the same transaction context)
+                            await _context.SaveChangesAsync();
+
+                            _logger.LogInformation("Created new external keyword ID {KeywordId} for name '{Name}' and URL: {Url}",
+                                keyword.Id, name, url);
+                        }
+
+                        // Replace ((name|url)) with [[id]]
+                        var replacement = $"[[{keyword.Id}]]";
+                        updatedDescription = updatedDescription.Replace(originalText, replacement);
+
+                        _logger.LogInformation("Replaced '{Original}' with '{Replacement}'", originalText, replacement);
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        // Create new external keyword - pass batch tracker to avoid duplicate nameIndex
-                        var nameIndex = await GetNextNameIndexAsync(name, batchNameIndexTracker);
-
-                        keyword = new Keyword(
-                            name: name,
-                            nameIndex: nameIndex,
-                            link: url,
-                            type: "external",
-                            userId: userId,
-                            externalUrl: url
-                        );
-
-                        _context.Keywords.Add(keyword);
-
-                        // Save to get the ID (within the same transaction context)
-                        await _context.SaveChangesAsync();
-
-                        _logger.LogInformation("Created new external keyword ID {KeywordId} for name '{Name}' and URL: {Url}",
-                            keyword.Id, name, url);
+                        _logger.LogError(ex, "Error processing external link: {OriginalText}", originalText);
+                        // Continue processing other links - don't fail the whole operation
                     }
-
-                    // Replace ((name|url)) with [[id]]
-                    var replacement = $"[[{keyword.Id}]]";
-                    updatedDescription = updatedDescription.Replace(originalText, replacement);
-
-                    _logger.LogInformation("Replaced '{Original}' with '{Replacement}'", originalText, replacement);
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error processing external link: {OriginalText}", originalText);
-                    // Continue processing other links - don't fail the whole operation
-                }
+
+                return updatedDescription;
             }
-
-            return updatedDescription;
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing external links in description for UserId: {UserId}", userId);
+                throw;
+            }
         }
 
         #endregion
@@ -797,48 +888,56 @@ namespace SuperAppServices.Services
         /// </summary>
         public async Task RebuildLinksAfterMoveAsync(string oldPathIdsPrefix, string newPathIdsPrefix)
         {
-            // Find all keywords with PathIds starting with old prefix
-            var keywords = await _context.Keywords
-                .Where(k => k.PathIds != null && k.PathIds.StartsWith(oldPathIdsPrefix))
-                .ToListAsync();
-
-            _logger.LogInformation("Rebuilding {Count} keywords after move", keywords.Count);
-
-            // Fetch workspace IDs for all keywords
-            var targetItemIds = keywords
-                .Where(k => k.TargetItemId.HasValue)
-                .Select(k => k.TargetItemId!.Value)
-                .Distinct()
-                .ToList();
-
-            var itemWorkspaces = await _context.Set<WorkspaceItemEntity>()
-                .Where(i => targetItemIds.Contains(i.Id))
-                .Select(i => new { i.Id, i.WorkspaceId })
-                .ToListAsync();
-
-            var workspaceMap = itemWorkspaces.ToDictionary(i => i.Id, i => i.WorkspaceId);
-
-            foreach (var keyword in keywords)
+            try
             {
-                // Update PathIds
-                keyword.PathIds = keyword.PathIds!.Replace(oldPathIdsPrefix, newPathIdsPrefix);
+                // Find all keywords with PathIds starting with old prefix
+                var keywords = await _context.Keywords
+                    .Where(k => k.PathIds != null && k.PathIds.StartsWith(oldPathIdsPrefix))
+                    .ToListAsync();
 
-                // Rebuild Link
-                if (keyword.TargetItemId.HasValue && workspaceMap.ContainsKey(keyword.TargetItemId.Value))
+                _logger.LogInformation("Rebuilding {Count} keywords after move", keywords.Count);
+
+                // Fetch workspace IDs for all keywords
+                var targetItemIds = keywords
+                    .Where(k => k.TargetItemId.HasValue)
+                    .Select(k => k.TargetItemId!.Value)
+                    .Distinct()
+                    .ToList();
+
+                var itemWorkspaces = await _context.Set<WorkspaceItemEntity>()
+                    .Where(i => targetItemIds.Contains(i.Id))
+                    .Select(i => new { i.Id, i.WorkspaceId })
+                    .ToListAsync();
+
+                var workspaceMap = itemWorkspaces.ToDictionary(i => i.Id, i => i.WorkspaceId);
+
+                foreach (var keyword in keywords)
                 {
-                    var workspaceId = workspaceMap[keyword.TargetItemId.Value];
-                    keyword.Link = await BuildItemLinkAsync(keyword.PathIds, workspaceId, keyword.TargetItemId.Value);
-                }
-                else
-                {
-                    // Fallback: keep old link format or log warning
-                    _logger.LogWarning("Cannot rebuild link for keyword {Id}: missing TargetItemId or WorkspaceId", keyword.Id);
+                    // Update PathIds
+                    keyword.PathIds = keyword.PathIds!.Replace(oldPathIdsPrefix, newPathIdsPrefix);
+
+                    // Rebuild Link
+                    if (keyword.TargetItemId.HasValue && workspaceMap.ContainsKey(keyword.TargetItemId.Value))
+                    {
+                        var workspaceId = workspaceMap[keyword.TargetItemId.Value];
+                        keyword.Link = await BuildItemLinkAsync(keyword.PathIds, workspaceId, keyword.TargetItemId.Value);
+                    }
+                    else
+                    {
+                        // Fallback: keep old link format or log warning
+                        _logger.LogWarning("Cannot rebuild link for keyword {Id}: missing TargetItemId or WorkspaceId", keyword.Id);
+                    }
+
+                    keyword.UpdatedAt = DateTime.UtcNow;
                 }
 
-                keyword.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
             }
-
-            await _context.SaveChangesAsync();
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error rebuilding links after move from '{OldPrefix}' to '{NewPrefix}'", oldPathIdsPrefix, newPathIdsPrefix);
+                throw;
+            }
         }
 
         #endregion
@@ -851,15 +950,23 @@ namespace SuperAppServices.Services
         /// </summary>
         public async Task DeleteWorkspaceKeywordAsync(int workspaceId)
         {
-            var keyword = await _context.Keywords
-                .FirstOrDefaultAsync(k => k.WorkspaceId == workspaceId && k.Type == "workspace");
-
-            if (keyword != null && keyword.HardDeletedAt == null)
+            try
             {
-                keyword.HardDeletedAt = DateTime.UtcNow;
-                keyword.UpdatedAt = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("Soft deleted workspace keyword for WorkspaceId: {WorkspaceId}", workspaceId);
+                var keyword = await _context.Keywords
+                    .FirstOrDefaultAsync(k => k.WorkspaceId == workspaceId && k.Type == "workspace");
+
+                if (keyword != null && keyword.HardDeletedAt == null)
+                {
+                    keyword.HardDeletedAt = DateTime.UtcNow;
+                    keyword.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                    _logger.LogInformation("Soft deleted workspace keyword for WorkspaceId: {WorkspaceId}", workspaceId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting workspace keyword for WorkspaceId: {WorkspaceId}", workspaceId);
+                throw;
             }
         }
 
@@ -868,12 +975,20 @@ namespace SuperAppServices.Services
         /// </summary>
         public async Task DeleteKeywordsByPathAsync(string pathIds)
         {
-            var keywords = await _context.Keywords
-                .Where(k => k.PathIds != null && k.PathIds.StartsWith(pathIds))
-                .ToListAsync();
+            try
+            {
+                var keywords = await _context.Keywords
+                    .Where(k => k.PathIds != null && k.PathIds.StartsWith(pathIds))
+                    .ToListAsync();
 
-            _context.Keywords.RemoveRange(keywords);
-            await _context.SaveChangesAsync();
+                _context.Keywords.RemoveRange(keywords);
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting keywords by path: {PathIds}", pathIds);
+                throw;
+            }
         }
 
         /// <summary>
@@ -882,51 +997,59 @@ namespace SuperAppServices.Services
         /// </summary>
         public async Task HardDeleteNoteKeywordsAsync(List<int> noteIds)
         {
-            if (noteIds == null || !noteIds.Any())
-                return;
-
-            _logger.LogInformation("Hard deleting keywords for {Count} notes", noteIds.Count);
-
-            // Get all workspace_items for these notes (EntityType=3)
-            var workspaceItems = await _context.WorkspaceItems
-                .Where(wi => wi.EntityType == 3 && noteIds.Contains(wi.EntityId))
-                .Select(wi => wi.Id)
-                .ToListAsync();
-
-            if (!workspaceItems.Any())
+            try
             {
-                _logger.LogInformation("No workspace_items found for notes, skipping keyword hard delete");
-                return;
+                if (noteIds == null || !noteIds.Any())
+                    return;
+
+                _logger.LogInformation("Hard deleting keywords for {Count} notes", noteIds.Count);
+
+                // Get all workspace_items for these notes (EntityType=3)
+                var workspaceItems = await _context.WorkspaceItems
+                    .Where(wi => wi.EntityType == 3 && noteIds.Contains(wi.EntityId))
+                    .Select(wi => wi.Id)
+                    .ToListAsync();
+
+                if (!workspaceItems.Any())
+                {
+                    _logger.LogInformation("No workspace_items found for notes, skipping keyword hard delete");
+                    return;
+                }
+
+                // Find all keywords for these notes:
+                // 1. Note keywords (TargetItemId matches workspace_item)
+                // 2. Heading keywords (NoteItemId matches workspace_item)
+                var keywords = await _context.Keywords
+                    .Where(k => (k.TargetItemId.HasValue && workspaceItems.Contains(k.TargetItemId.Value)) ||
+                               (k.NoteItemId.HasValue && workspaceItems.Contains(k.NoteItemId.Value)))
+                    .Where(k => k.HardDeletedAt == null) // Only mark non-deleted keywords
+                    .ToListAsync();
+
+                if (!keywords.Any())
+                {
+                    _logger.LogInformation("No keywords found for notes, skipping hard delete");
+                    return;
+                }
+
+                // Set HardDeletedAt for all keywords
+                var now = DateTime.UtcNow;
+                foreach (var keyword in keywords)
+                {
+                    keyword.HardDeletedAt = now;
+                    keyword.UpdatedAt = now;
+                }
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation(
+                    "Hard deleted {Count} keywords (notes + headings) for {NoteCount} notes",
+                    keywords.Count, noteIds.Count);
             }
-
-            // Find all keywords for these notes:
-            // 1. Note keywords (TargetItemId matches workspace_item)
-            // 2. Heading keywords (NoteItemId matches workspace_item)
-            var keywords = await _context.Keywords
-                .Where(k => (k.TargetItemId.HasValue && workspaceItems.Contains(k.TargetItemId.Value)) ||
-                           (k.NoteItemId.HasValue && workspaceItems.Contains(k.NoteItemId.Value)))
-                .Where(k => k.HardDeletedAt == null) // Only mark non-deleted keywords
-                .ToListAsync();
-
-            if (!keywords.Any())
+            catch (Exception ex)
             {
-                _logger.LogInformation("No keywords found for notes, skipping hard delete");
-                return;
+                _logger.LogError(ex, "Error hard deleting keywords for notes: {NoteIds}", string.Join(",", noteIds ?? new List<int>()));
+                throw;
             }
-
-            // Set HardDeletedAt for all keywords
-            var now = DateTime.UtcNow;
-            foreach (var keyword in keywords)
-            {
-                keyword.HardDeletedAt = now;
-                keyword.UpdatedAt = now;
-            }
-
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation(
-                "Hard deleted {Count} keywords (notes + headings) for {NoteCount} notes",
-                keywords.Count, noteIds.Count);
         }
 
         #endregion
