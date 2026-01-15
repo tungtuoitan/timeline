@@ -57,5 +57,29 @@ namespace SuperAppModels.DTOs.Responses
         /// </summary>
         public string? Description { get; set; }
         public DateTime? HardDeletedAt { get; set; }
+
+        // ===== New fields for folder/note/file keywords =====
+
+        /// <summary>
+        /// Workspace item ID (workspace_items.id)
+        /// Only populated for folder/note/file keywords
+        /// </summary>
+        public int? WorkspaceItemId { get; set; }
+
+        /// <summary>
+        /// Entity ID (folders.id / notes.id / files.id)
+        /// Only populated for folder/note/file keywords
+        /// </summary>
+        public int? EntityId { get; set; }
+
+        /// <summary>
+        /// Color for folder/note/file
+        /// </summary>
+        public string? Color { get; set; }
+
+        /// <summary>
+        /// Icon for folder/note/file
+        /// </summary>
+        public string? Icon { get; set; }
     }
 }

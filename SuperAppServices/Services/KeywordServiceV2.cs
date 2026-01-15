@@ -93,11 +93,13 @@ namespace SuperAppServices.Services
                 .ToListAsync();
             var workspaceNames = workspaceNamesList.ToDictionary(w => w.Id, w => w.Name);
 
-            var folderNamesList = await _context.Folders
+            var folderDataList = await _context.Folders
                 .Where(f => folderIds.Contains(f.Id))
-                .Select(f => new { f.Id, f.Name })
+                .Select(f => new { f.Id, f.Name, f.Color, f.Icon })
                 .ToListAsync();
-            var folderNames = folderNamesList.ToDictionary(f => f.Id, f => f.Name);
+            var folderNames = folderDataList.ToDictionary(f => f.Id, f => f.Name);
+            var folderColors = folderDataList.ToDictionary(f => f.Id, f => f.Color);
+            var folderIcons = folderDataList.ToDictionary(f => f.Id, f => f.Icon);
 
             var noteNamesList = await _context.Notes
                 .Where(n => noteIds.Contains(n.Id))
@@ -151,16 +153,43 @@ namespace SuperAppServices.Services
             var pathLongLinkCache = new Dictionary<string, string>();
 
             // Map keywords to DTOs
-            return keywords.Select(k => new KeywordDto
+            return keywords.Select(k =>
             {
-                Id = k.Id,
-                Name = k.Name,
-                NameIndex = k.NameIndex,
-                Type = k.Type,
-                Link = k.Link,
-                LongLink = ComputeLongLink(k, itemMap, workspaceNames, folderNames, noteNames, pathLongLinkCache, nameIndexMap),
-                Description = k.Description,
-                HardDeletedAt = k.HardDeletedAt,
+                // Get WorkspaceItemId and EntityId for folder/note/file keywords
+                int? workspaceItemId = null;
+                int? entityId = null;
+                string? color = null;
+                string? icon = null;
+
+                if (k.TargetItemId.HasValue && itemMap.TryGetValue(k.TargetItemId.Value, out var itemInfo))
+                {
+                    workspaceItemId = k.TargetItemId.Value;
+                    entityId = itemInfo.EntityId;
+
+                    // Get color/icon based on entity type
+                    if (itemInfo.EntityType == 2) // Folder
+                    {
+                        folderColors.TryGetValue(itemInfo.EntityId, out color);
+                        folderIcons.TryGetValue(itemInfo.EntityId, out icon);
+                    }
+                    // Note (entityType=3) and File (entityType=4) - color/icon will be added later
+                }
+
+                return new KeywordDto
+                {
+                    Id = k.Id,
+                    Name = k.Name,
+                    NameIndex = k.NameIndex,
+                    Type = k.Type,
+                    Link = k.Link,
+                    LongLink = ComputeLongLink(k, itemMap, workspaceNames, folderNames, noteNames, pathLongLinkCache, nameIndexMap),
+                    Description = k.Description,
+                    HardDeletedAt = k.HardDeletedAt,
+                    WorkspaceItemId = workspaceItemId,
+                    EntityId = entityId,
+                    Color = color,
+                    Icon = icon,
+                };
             }).ToList();
         }
 
