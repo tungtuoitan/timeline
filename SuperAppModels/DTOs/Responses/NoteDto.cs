@@ -7,6 +7,8 @@ namespace SuperAppModels.DTOs.Responses
         public string? Description { get; set; }
         public string? Type { get; set; }
         public string? StatusCode { get; set; } // Status code from standard_registries
+        public string? Icon { get; set; } // Icon type for visual display
+        public string? Color { get; set; } // Hex color code for icon
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public DateTime? DeletedAt { get; set; } // ✅ Track if note is deleted

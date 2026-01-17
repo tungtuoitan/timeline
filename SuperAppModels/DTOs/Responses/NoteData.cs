@@ -21,6 +21,12 @@ public class NoteData
     /// <summary>Status code (notes.status_code)</summary>
     public string? StatusCode { get; set; }
 
+    /// <summary>Icon type for visual display (notes.icon)</summary>
+    public string? Icon { get; set; }
+
+    /// <summary>Hex color code for icon (notes.color)</summary>
+    public string? Color { get; set; }
+
     /// <summary>Created timestamp (notes.created_at)</summary>
     public DateTime CreatedAt { get; set; }
 
