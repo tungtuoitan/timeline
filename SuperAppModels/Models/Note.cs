@@ -13,6 +13,10 @@ namespace SuperAppModels.Models
         // Status (no FK reference)
         public string? StatusCode { get; set; } // status_code (simple string, no FK)
 
+        // Visual styling
+        public string? Icon { get; set; } // icon (icon type for display)
+        public string? Color { get; set; } // color (hex color for icon)
+
         // Timestamps (ITimestampEntity)
         public DateTime? CreatedAt { get; set; } // created_at
         public DateTime? UpdatedAt { get; set; } // updated_at

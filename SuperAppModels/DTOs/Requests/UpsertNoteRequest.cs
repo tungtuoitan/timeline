@@ -32,6 +32,18 @@ namespace SuperAppModels.DTOs.Requests
         [StringLength(50, ErrorMessage = "StatusCode cannot exceed 50 characters")]
         public string? StatusCode { get; set; }
 
+        /// <summary>
+        /// Icon type for visual display (e.g., "NOTE", "TASK", "BUG")
+        /// </summary>
+        [StringLength(50, ErrorMessage = "Icon cannot exceed 50 characters")]
+        public string? Icon { get; set; }
+
+        /// <summary>
+        /// Hex color code for icon (e.g., "#42A5F5")
+        /// </summary>
+        [StringLength(20, ErrorMessage = "Color cannot exceed 20 characters")]
+        public string? Color { get; set; }
+
         [JsonPropertyName("tags")]
         public List<int>? TagIds { get; set; }
 

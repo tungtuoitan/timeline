@@ -56,5 +56,10 @@ namespace SuperAppModels.DTOs.Requests
         /// </summary>
         [JsonPropertyName("deletedAt")]
         public DateTime? DeletedAt { get; set; }
+
+        [JsonPropertyName("icon")]
+        public string? Icon { get; set; }
+        [JsonPropertyName("color")]
+        public string? Color { get; set; }
     }
 }

@@ -383,6 +383,8 @@ namespace SuperAppServices.Services
                         Name = note.Name,
                         Description = note.Description, // ✅ FROM DB
                         StatusCode = note.StatusCode,   // ✅ FROM DB
+                        Icon = note.Icon,               // ✅ FROM DB
+                        Color = note.Color,             // ✅ FROM DB
                         CreatedAt = note.CreatedAt ?? DateTime.UtcNow,
                         UpdatedAt = note.UpdatedAt,
                         DeletedAt = note.DeletedAt,

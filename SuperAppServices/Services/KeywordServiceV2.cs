@@ -101,11 +101,13 @@ namespace SuperAppServices.Services
             var folderColors = folderDataList.ToDictionary(f => f.Id, f => f.Color);
             var folderIcons = folderDataList.ToDictionary(f => f.Id, f => f.Icon);
 
-            var noteNamesList = await _context.Notes
+            var noteDataList = await _context.Notes
                 .Where(n => noteIds.Contains(n.Id))
-                .Select(n => new { n.Id, n.Name })
+                .Select(n => new { n.Id, n.Name, n.Icon, n.Color })
                 .ToListAsync();
-            var noteNames = noteNamesList.ToDictionary(n => n.Id, n => n.Name);
+            var noteNames = noteDataList.ToDictionary(n => n.Id, n => n.Name);
+            var noteIcons = noteDataList.ToDictionary(n => n.Id, n => n.Icon);
+            var noteColors = noteDataList.ToDictionary(n => n.Id, n => n.Color);
 
             // Build nameIndex maps for each entity type
             // We need to calculate nameIndex based on all keywords with same name
@@ -172,7 +174,12 @@ namespace SuperAppServices.Services
                         folderColors.TryGetValue(itemInfo.EntityId, out color);
                         folderIcons.TryGetValue(itemInfo.EntityId, out icon);
                     }
-                    // Note (entityType=3) and File (entityType=4) - color/icon will be added later
+                    else if (itemInfo.EntityType == 3) // Note
+                    {
+                        noteColors.TryGetValue(itemInfo.EntityId, out color);
+                        noteIcons.TryGetValue(itemInfo.EntityId, out icon);
+                    }
+                    // File (entityType=4) - color/icon will be added later if needed
                 }
 
                 return new KeywordDto
