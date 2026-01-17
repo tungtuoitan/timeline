@@ -452,6 +452,8 @@ namespace SuperAppDataRepositories.Repositories
                             existingNote.Description = note.Description;
                             existingNote.UserId = note.UserId;
                             existingNote.StatusCode = note.StatusCode;
+                            existingNote.Icon = note.Icon;
+                            existingNote.Color = note.Color;
                             existingNote.DeletedAt = note.DeletedAt;  // Handle soft delete/restore
                             existingNote.UpdatedAt = DateTime.UtcNow;
 

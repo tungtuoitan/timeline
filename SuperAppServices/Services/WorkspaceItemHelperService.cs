@@ -293,6 +293,8 @@ namespace SuperAppServices.Services
                         Name = noteData.Name,
                         Description = noteData.Description,
                         StatusCode = noteData.StatusCode,
+                        Icon = noteData.Icon,
+                        Color = noteData.Color,
                         CreatedAt = DateTime.UtcNow,
                         DeletedAt = null
                     };
