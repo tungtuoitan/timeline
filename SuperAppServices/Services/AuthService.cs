@@ -48,7 +48,7 @@ namespace SuperAppServices.Services
                 ?? throw new InvalidOperationException("JWT Key not configured");
             _jwtIssuer = _configuration["Jwt:Issuer"] ?? "SuperApp";
             _jwtAudience = _configuration["Jwt:Audience"] ?? "SuperApp-API";
-            _jwtExpirationMinutes = int.Parse(_configuration["Jwt:ExpirationMinutes"] ?? "180");
+            _jwtExpirationMinutes = int.Parse(_configuration["Jwt:ExpirationMinutes"] ?? "300");
         }
 
         /// <summary>
