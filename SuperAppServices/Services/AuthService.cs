@@ -54,14 +54,16 @@ namespace SuperAppServices.Services
         /// <summary>
         /// Authenticate user with Google OAuth authorization code
         /// </summary>
-        public async Task<AuthResponse> GoogleLoginAsync(string authorizationCode)
+        /// <param name="authorizationCode">Authorization code from Google OAuth flow</param>
+        /// <param name="codeVerifier">PKCE code verifier (optional for backward compatibility)</param>
+        public async Task<AuthResponse> GoogleLoginAsync(string authorizationCode, string? codeVerifier = null)
         {
             try
             {
-                _logger.LogInformation("Starting Google login with authorization code");
+                _logger.LogInformation("Starting Google login with authorization code (PKCE: {HasPkce})", !string.IsNullOrEmpty(codeVerifier));
 
-                // Step 1: Exchange authorization code for Google tokens
-                var googleTokenResponse = await ExchangeCodeForGoogleTokenAsync(authorizationCode);
+                // Step 1: Exchange authorization code for Google tokens (with PKCE if provided)
+                var googleTokenResponse = await ExchangeCodeForGoogleTokenAsync(authorizationCode, codeVerifier);
                 _logger.LogInformation("Successfully exchanged code for Google tokens");
 
                 // Step 2: Verify ID token and get user info
@@ -198,8 +200,11 @@ namespace SuperAppServices.Services
 
         /// <summary>
         /// Exchange authorization code for Google tokens
+        /// Supports PKCE (RFC 7636) when code_verifier is provided
         /// </summary>
-        private async Task<GoogleTokenResponse> ExchangeCodeForGoogleTokenAsync(string code)
+        /// <param name="code">Authorization code from Google</param>
+        /// <param name="codeVerifier">PKCE code verifier (optional)</param>
+        private async Task<GoogleTokenResponse> ExchangeCodeForGoogleTokenAsync(string code, string? codeVerifier = null)
         {
             var client = _httpClientFactory.CreateClient();
             var tokenEndpoint = "https://oauth2.googleapis.com/token";
@@ -214,6 +219,7 @@ namespace SuperAppServices.Services
             _logger.LogInformation("RedirectUri: {RedirectUri}", redirectUri);
             _logger.LogInformation("Code (first 20 chars): {Code}...", code.Length > 20 ? code.Substring(0, 20) : code);
             _logger.LogInformation("ClientSecret configured: {HasSecret}", !string.IsNullOrEmpty(clientSecret));
+            _logger.LogInformation("PKCE code_verifier provided: {HasCodeVerifier}", !string.IsNullOrEmpty(codeVerifier));
 
             var requestData = new Dictionary<string, string>
             {
@@ -223,6 +229,13 @@ namespace SuperAppServices.Services
                 { "redirect_uri", redirectUri },
                 { "grant_type", "authorization_code" }
             };
+
+            // Add PKCE code_verifier if provided (RFC 7636)
+            if (!string.IsNullOrEmpty(codeVerifier))
+            {
+                requestData.Add("code_verifier", codeVerifier);
+                _logger.LogInformation("Added code_verifier to token request (PKCE enabled)");
+            }
 
             _logger.LogInformation("Sending token request to Google...");
             var response = await client.PostAsync(tokenEndpoint, new FormUrlEncodedContent(requestData));

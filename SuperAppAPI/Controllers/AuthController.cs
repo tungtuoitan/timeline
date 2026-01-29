@@ -43,7 +43,7 @@ namespace SuperAppAPI.Controllers
                     });
                 }
 
-                var result = await _authService.GoogleLoginAsync(request.Code);
+                var result = await _authService.GoogleLoginAsync(request.Code, request.CodeVerifier);
 
                 if (!result.Success)
                 {
