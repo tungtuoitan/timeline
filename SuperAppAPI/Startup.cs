@@ -107,7 +107,8 @@ namespace SuperAppAPI
                             "http://localhost:3003",
                             "http://localhost:5000",
                             "https://unparcelled-geralyn-deutoplasmic.ngrok-free.dev",
-                            "https://aeronautically-undanceable-rebecka.ngrok-free.dev"
+                            "https://aeronautically-undanceable-rebecka.ngrok-free.dev",
+                            "https://www.tungle.uk/"
                             )
                            .AllowAnyMethod()
                            .AllowAnyHeader()
