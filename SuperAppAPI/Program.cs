@@ -182,6 +182,10 @@ namespace SuperAppAPI
                     // Personal Productivity App Services
                     services.AddScoped<SuperAppServices.Interfaces.IProjectService, SuperAppServices.Services.ProjectService>();
                     services.AddScoped<SuperAppServices.Interfaces.ITaskService, SuperAppServices.Services.TaskService>();
+
+                    // File Upload Services (Google Drive)
+                    services.AddScoped<SuperAppServices.Interfaces.IGoogleDriveService, SuperAppServices.Services.GoogleDriveService>();
+                    services.AddScoped<SuperAppServices.Interfaces.IFileService, SuperAppServices.Services.FileService>();
                 });
 
     }
