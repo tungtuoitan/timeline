@@ -6,6 +6,12 @@ namespace SuperAppModels.DTOs.Requests
     public class TaskFilterOptions
     {
         /// <summary>
+        /// User ID for filtering tasks via project ownership (required for data isolation)
+        /// Tasks belong to user through their projects
+        /// </summary>
+        public int UserId { get; set; }
+
+        /// <summary>
         /// Comma-separated project IDs to filter tasks
         /// </summary>
         public List<int>? ProjectIds { get; set; }

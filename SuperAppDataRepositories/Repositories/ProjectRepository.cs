@@ -31,9 +31,12 @@ namespace SuperAppDataRepositories.Repositories
         {
             try
             {
-                _logger.LogInformation("Getting projects with filters");
+                _logger.LogInformation("Getting projects for userId: {UserId}", filterOptions.UserId);
 
                 var query = _context.Projects.AsNoTracking();
+
+                // Filter by user ID (required for data isolation)
+                query = query.Where(p => p.UserId == filterOptions.UserId);
 
                 // Filter by IDs if provided
                 if (filterOptions.Ids?.Count > 0)
@@ -160,6 +163,7 @@ namespace SuperAppDataRepositories.Repositories
                             existingProject.Status = project.Status;
                             existingProject.DeletedAt = project.DeletedAt;
                             existingProject.UpdatedAt = DateTime.UtcNow;
+                            // UserId is immutable after creation
 
                             upsertedProjects.Add(existingProject);
                         }
@@ -171,6 +175,7 @@ namespace SuperAppDataRepositories.Repositories
                             project.CreatedAt = DateTime.UtcNow;
                             project.UpdatedAt = DateTime.UtcNow;
                             project.DeletedAt = null;
+                            // UserId should already be set from the request
 
                             _context.Projects.Add(project);
                             upsertedProjects.Add(project);

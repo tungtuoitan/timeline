@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppServices.Interfaces;
@@ -21,6 +22,27 @@ namespace SuperAppAPI.Controllers
         {
             _taskService = taskService;
             _logger = logger;
+        }
+
+        /// <summary>
+        /// Get authenticated user ID from JWT claims
+        /// </summary>
+        private int? GetAuthenticatedUserId()
+        {
+            var userIdClaim = User.GetUserId();
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            {
+                return null;
+            }
+            return userId;
+        }
+
+        /// <summary>
+        /// Get authenticated user email from JWT claims
+        /// </summary>
+        private string? GetAuthenticatedUserEmail()
+        {
+            return User.GetUserEmail();
         }
 
         /// <summary>
@@ -50,9 +72,19 @@ namespace SuperAppAPI.Controllers
             [FromQuery] string? deletedAt = null,
             [FromQuery] string? ids = null)
         {
+            // Get userId from JWT token claims
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
+
+            var userEmail = GetAuthenticatedUserEmail();
+
             // Build filter options
             var filterOptions = new TaskFilterOptions
             {
+                UserId = userId.Value,
                 ProjectIds = !string.IsNullOrEmpty(projectIds)
                     ? projectIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
                         .Select(s => int.TryParse(s.Trim(), out var id) ? id : 0)
@@ -73,12 +105,13 @@ namespace SuperAppAPI.Controllers
             };
 
             _logger.LogInformation(
-                "Retrieving tasks with ProjectIds: {ProjectIds}, SearchText: {SearchText}, Status: {Status}, DeletedAt: {DeletedAt}",
-                projectIds, searchText, status, deletedAt);
+                "Retrieving tasks for userId: {UserId}, UserEmail: {UserEmail}, ProjectIds: {ProjectIds}, SearchText: {SearchText}, Status: {Status}, DeletedAt: {DeletedAt}",
+                userId.Value, userEmail, projectIds, searchText, status, deletedAt);
 
             var response = await _taskService.GetTasksAsync(filterOptions);
 
-            _logger.LogInformation("Successfully retrieved tasks, Success: {Success}", response.Success);
+            _logger.LogInformation("Successfully retrieved tasks for user: {UserEmail}, Success: {Success}",
+                userEmail, response.Success);
 
             return Ok(response);
         }
@@ -115,11 +148,22 @@ namespace SuperAppAPI.Controllers
                 return BadRequest("At least one task is required");
             }
 
-            _logger.LogInformation("Batch upserting {Count} tasks", requests.Count);
+            // Get userId from JWT token claims
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
+
+            var userEmail = GetAuthenticatedUserEmail();
+
+            _logger.LogInformation("Batch upserting {Count} tasks for user: {UserEmail}",
+                requests.Count, userEmail);
 
             var response = await _taskService.UpsertTasksAsync(requests);
 
-            _logger.LogInformation("Batch upsert tasks completed, Success: {Success}", response.Success);
+            _logger.LogInformation("Batch upsert tasks completed for user: {UserEmail}, Success: {Success}",
+                userEmail, response.Success);
 
             return Ok(response);
         }
