@@ -1,0 +1,37 @@
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+
+namespace SuperAppModels.DTOs.Requests
+{
+    /// <summary>
+    /// Request for creating or updating a project (upsert operation)
+    /// If Id is 0, creates a new project. Otherwise, updates the existing project.
+    /// </summary>
+    public class UpsertProjectRequest
+    {
+        /// <summary>
+        /// Project ID (0 for create, >0 for update)
+        /// </summary>
+        [JsonPropertyName("id")]
+        public int Id { get; set; }
+
+        [Required(ErrorMessage = "Name is required")]
+        [StringLength(255, MinimumLength = 1, ErrorMessage = "Name must be between 1 and 255 characters")]
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("description")]
+        public string? Description { get; set; }
+
+        [StringLength(50, ErrorMessage = "Status cannot exceed 50 characters")]
+        [JsonPropertyName("status")]
+        public string Status { get; set; } = "open";
+
+        /// <summary>
+        /// Optional: Soft delete timestamp (null = active, DateTime = soft deleted)
+        /// Enables soft delete/restore via upsert
+        /// </summary>
+        [JsonPropertyName("deletedAt")]
+        public DateTime? DeletedAt { get; set; }
+    }
+}
