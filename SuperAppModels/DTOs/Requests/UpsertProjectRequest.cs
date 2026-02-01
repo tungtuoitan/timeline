@@ -15,6 +15,12 @@ namespace SuperAppModels.DTOs.Requests
         [JsonPropertyName("id")]
         public int Id { get; set; }
 
+        /// <summary>
+        /// User ID (set by server from JWT token)
+        /// </summary>
+        [JsonPropertyName("userId")]
+        public int UserId { get; set; }
+
         [Required(ErrorMessage = "Name is required")]
         [StringLength(255, MinimumLength = 1, ErrorMessage = "Name must be between 1 and 255 characters")]
         [JsonPropertyName("name")]

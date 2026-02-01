@@ -95,6 +95,7 @@ namespace SuperAppServices.Services
                     var project = new Project
                     {
                         Id = request.Id,
+                        UserId = request.UserId,
                         Name = request.Name,
                         Description = request.Description,
                         Status = request.Status,

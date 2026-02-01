@@ -20,6 +20,10 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("id")
                 .ValueGeneratedOnAdd();
 
+            builder.Property(p => p.UserId)
+                .HasColumnName("user_id")
+                .IsRequired();
+
             builder.Property(p => p.Name)
                 .HasColumnName("name")
                 .HasMaxLength(255)
@@ -44,6 +48,9 @@ namespace SuperAppDataRepositories.Data.Configurations
 
             builder.Property(p => p.DeletedAt)
                 .HasColumnName("deleted_at");
+
+            // Index for user_id for faster queries
+            builder.HasIndex(p => p.UserId);
         }
     }
 }
