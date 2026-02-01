@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppServices.Interfaces;
@@ -24,6 +25,27 @@ namespace SuperAppAPI.Controllers
         }
 
         /// <summary>
+        /// Get authenticated user ID from JWT claims
+        /// </summary>
+        private int? GetAuthenticatedUserId()
+        {
+            var userIdClaim = User.GetUserId();
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            {
+                return null;
+            }
+            return userId;
+        }
+
+        /// <summary>
+        /// Get authenticated user email from JWT claims
+        /// </summary>
+        private string? GetAuthenticatedUserEmail()
+        {
+            return User.GetUserEmail();
+        }
+
+        /// <summary>
         /// Gets all projects with optional filtering
         /// </summary>
         /// <param name="searchText">Optional search text filter for name/description</param>
@@ -43,9 +65,19 @@ namespace SuperAppAPI.Controllers
             [FromQuery] string? deletedAt = null,
             [FromQuery] string? ids = null)
         {
+            // Get userId from JWT token claims
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
+
+            var userEmail = GetAuthenticatedUserEmail();
+
             // Build filter options
             var filterOptions = new ProjectFilterOptions
             {
+                UserId = userId.Value,
                 SearchText = searchText,
                 Status = status,
                 DeletedAt = deletedAt,
@@ -58,12 +90,13 @@ namespace SuperAppAPI.Controllers
             };
 
             _logger.LogInformation(
-                "Retrieving projects with SearchText: {SearchText}, Status: {Status}, DeletedAt: {DeletedAt}",
-                searchText, status, deletedAt);
+                "Retrieving projects for userId: {UserId}, UserEmail: {UserEmail}, SearchText: {SearchText}, Status: {Status}, DeletedAt: {DeletedAt}",
+                userId.Value, userEmail, searchText, status, deletedAt);
 
             var response = await _projectService.GetProjectsAsync(filterOptions);
 
-            _logger.LogInformation("Successfully retrieved projects, Success: {Success}", response.Success);
+            _logger.LogInformation("Successfully retrieved projects for user: {UserEmail}, Success: {Success}",
+                userEmail, response.Success);
 
             return Ok(response);
         }
@@ -100,11 +133,28 @@ namespace SuperAppAPI.Controllers
                 return BadRequest("At least one project is required");
             }
 
-            _logger.LogInformation("Batch upserting {Count} projects", requests.Count);
+            // Get userId from JWT token claims
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
+
+            var userEmail = GetAuthenticatedUserEmail();
+
+            // Set userId for all requests
+            foreach (var request in requests)
+            {
+                request.UserId = userId.Value;
+            }
+
+            _logger.LogInformation("Batch upserting {Count} projects for user: {UserEmail}",
+                requests.Count, userEmail);
 
             var response = await _projectService.UpsertProjectsAsync(requests);
 
-            _logger.LogInformation("Batch upsert projects completed, Success: {Success}", response.Success);
+            _logger.LogInformation("Batch upsert projects completed for user: {UserEmail}, Success: {Success}",
+                userEmail, response.Success);
 
             return Ok(response);
         }

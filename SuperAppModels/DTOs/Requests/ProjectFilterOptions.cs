@@ -6,6 +6,11 @@ namespace SuperAppModels.DTOs.Requests
     public class ProjectFilterOptions
     {
         /// <summary>
+        /// User ID for filtering projects (required for data isolation)
+        /// </summary>
+        public int UserId { get; set; }
+
+        /// <summary>
         /// Search text for name/description
         /// </summary>
         public string? SearchText { get; set; }

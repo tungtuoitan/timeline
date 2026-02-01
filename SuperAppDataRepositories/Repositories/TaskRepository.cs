@@ -27,19 +27,30 @@ namespace SuperAppDataRepositories.Repositories
         /// <summary>
         /// Gets all tasks with filtering options
         /// Returns raw list (no tree building)
+        /// Tasks are filtered by user through project ownership
         /// </summary>
         public async Task<ResultOptions> GetTasksAsync(TaskFilterOptions filterOptions)
         {
             try
             {
-                _logger.LogInformation("Getting tasks with filters");
+                _logger.LogInformation("Getting tasks for userId: {UserId}", filterOptions.UserId);
+
+                // Get user's project IDs first for data isolation
+                var userProjectIds = await _context.Projects
+                    .Where(p => p.UserId == filterOptions.UserId)
+                    .Select(p => p.Id)
+                    .ToListAsync();
 
                 var query = _context.ProTasks.AsNoTracking();
 
-                // Filter by project IDs
+                // Filter by user's projects (required for data isolation)
+                query = query.Where(t => userProjectIds.Contains(t.ProjectId));
+
+                // Filter by specific project IDs (must be subset of user's projects)
                 if (filterOptions.ProjectIds?.Count > 0)
                 {
-                    query = query.Where(t => filterOptions.ProjectIds.Contains(t.ProjectId));
+                    var validProjectIds = filterOptions.ProjectIds.Intersect(userProjectIds).ToList();
+                    query = query.Where(t => validProjectIds.Contains(t.ProjectId));
                 }
 
                 // Filter by task IDs
