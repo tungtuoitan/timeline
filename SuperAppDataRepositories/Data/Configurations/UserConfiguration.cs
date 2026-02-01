@@ -41,6 +41,18 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("is_active")
                 .HasDefaultValue(true);
 
+            // Google OAuth tokens
+            builder.Property(u => u.GoogleAccessToken)
+                .HasColumnName("google_access_token")
+                .HasMaxLength(2048);
+
+            builder.Property(u => u.GoogleRefreshToken)
+                .HasColumnName("google_refresh_token")
+                .HasMaxLength(512);
+
+            builder.Property(u => u.GoogleTokenExpiresAt)
+                .HasColumnName("google_token_expires_at");
+
             builder.Property(u => u.LastLoginAt)
                 .HasColumnName("last_login_at");
 
