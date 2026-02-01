@@ -32,6 +32,10 @@ namespace SuperAppDataRepositories.Data
         public DbSet<StandardRegistry> StandardRegistries { get; set; }
         public DbSet<Keyword> Keywords { get; set; }
 
+        // Personal Productivity App Tables (pro schema)
+        public DbSet<Project> Projects { get; set; }
+        public DbSet<ProTask> ProTasks { get; set; }
+
         // ⚠️ REMOVED - Tables không tồn tại trong schema mới:
         // - Tag/EntityType/EntityTag → Sẽ tạo models mới cho dbo.hashtags, dbo.entities, dbo.entity_hashtags
         // - WorkspaceMember, WorkspaceRelationshipType → Dropped
