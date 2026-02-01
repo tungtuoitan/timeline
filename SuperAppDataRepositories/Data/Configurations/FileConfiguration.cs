@@ -65,6 +65,11 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("copy_info")
                 .HasColumnType("nvarchar(max)");
 
+            // Google Drive file ID
+            builder.Property(f => f.GoogleDriveFileId)
+                .HasColumnName("google_drive_file_id")
+                .HasMaxLength(100);
+
             // Indexes - match schema
             builder.HasIndex(f => f.UserId)
                 .HasDatabaseName("IX_files_user")
@@ -75,6 +80,11 @@ namespace SuperAppDataRepositories.Data.Configurations
 
             builder.HasIndex(f => f.CreatedAt)
                 .HasDatabaseName("IX_files_created");
+
+            // Index for Google Drive file ID
+            builder.HasIndex(f => f.GoogleDriveFileId)
+                .HasDatabaseName("IX_files_drive_file_id")
+                .HasFilter("[google_drive_file_id] IS NOT NULL");
 
             // Relationships
             builder.HasOne(f => f.User)

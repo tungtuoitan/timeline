@@ -2,12 +2,12 @@ namespace SuperAppModels.Models
 {
     /// <summary>
     /// File attachment entity
-    /// Primary table: ws.files
+    /// Primary table: dbo.files
     /// Schema: REBUILD_SIMPLIFIED_SCHEMA.sql
     /// </summary>
     public class File : ITimestampEntity
     {
-        // Database columns - EXACTLY match ws.files schema
+        // Database columns - EXACTLY match dbo.files schema
         public int Id { get; set; } // id (PRIMARY KEY)
         public int UserId { get; set; } // user_id (FOREIGN KEY)
 
@@ -20,6 +20,9 @@ namespace SuperAppModels.Models
 
         // Status (no FK reference)
         public string? StatusCode { get; set; } // status_code (simple string, no FK)
+
+        // Google Drive file ID (for user's personal Drive)
+        public string? GoogleDriveFileId { get; set; } // google_drive_file_id
 
         // Timestamps (ITimestampEntity)
         public DateTime? CreatedAt { get; set; } // created_at

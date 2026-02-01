@@ -74,11 +74,16 @@ namespace SuperAppServices.Services
                 var user = await GetOrCreateGoogleUserAsync(googleUserInfo);
                 _logger.LogInformation("User found/created with ID: {UserId}", user.Id);
 
-                // Step 4: Update last login
+                // Step 4: Save Google tokens for Drive access
+                user.GoogleAccessToken = googleTokenResponse.AccessToken;
+                user.GoogleRefreshToken = googleTokenResponse.RefreshToken;
+                user.GoogleTokenExpiresAt = DateTime.UtcNow.AddSeconds(googleTokenResponse.ExpiresIn);
+
+                // Step 5: Update last login
                 user.RecordLogin();
                 await _userRepository.UpdateAsync(user);
 
-                // Step 5: Get UserProfile (if exists) to include filters
+                // Step 6: Get UserProfile (if exists) to include filters
                 string? userFilters = null;
                 try
                 {
@@ -99,10 +104,10 @@ namespace SuperAppServices.Services
                     // Continue without filters - this is not a critical error
                 }
 
-                // Step 6: Generate JWT token
+                // Step 7: Generate JWT token
                 var jwtToken = GenerateJwtToken(user);
 
-                // Step 7: Build response
+                // Step 8: Build response
                 return new AuthResponse
                 {
                     Success = true,
