@@ -34,6 +34,18 @@ namespace SuperAppModels.DTOs.Requests
         public string Status { get; set; } = "open";
 
         /// <summary>
+        /// Project start date
+        /// </summary>
+        [JsonPropertyName("startDate")]
+        public DateTime? StartDate { get; set; }
+
+        /// <summary>
+        /// Project end date
+        /// </summary>
+        [JsonPropertyName("endDate")]
+        public DateTime? EndDate { get; set; }
+
+        /// <summary>
         /// Optional: Soft delete timestamp (null = active, DateTime = soft deleted)
         /// Enables soft delete/restore via upsert
         /// </summary>

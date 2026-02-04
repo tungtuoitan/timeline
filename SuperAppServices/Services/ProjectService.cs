@@ -99,6 +99,8 @@ namespace SuperAppServices.Services
                         Name = request.Name,
                         Description = request.Description,
                         Status = request.Status,
+                        StartDate = request.StartDate,
+                        EndDate = request.EndDate,
                         DeletedAt = request.DeletedAt
                     };
 
