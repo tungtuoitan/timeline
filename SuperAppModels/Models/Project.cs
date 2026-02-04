@@ -23,6 +23,12 @@ namespace SuperAppModels.Models
         [JsonPropertyName("status")]
         public string Status { get; set; } = "open";
 
+        [JsonPropertyName("startDate")]
+        public DateTime? StartDate { get; set; }
+
+        [JsonPropertyName("endDate")]
+        public DateTime? EndDate { get; set; }
+
         [JsonPropertyName("createdAt")]
         public DateTime CreatedAt { get; set; }
 

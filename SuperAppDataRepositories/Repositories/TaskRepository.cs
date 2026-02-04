@@ -100,15 +100,55 @@ namespace SuperAppDataRepositories.Repositories
                 // Order by order_index, then created_at
                 query = query.OrderBy(t => t.OrderIndex).ThenBy(t => t.CreatedAt);
 
-                var tasks = await query.ToListAsync();
+                // Join with projects and parent tasks to get limit dates
+                var tasksWithLimits = await query
+                    .Join(
+                        _context.Projects,
+                        task => task.ProjectId,
+                        project => project.Id,
+                        (task, project) => new { Task = task, Project = project }
+                    )
+                    .GroupJoin(
+                        _context.ProTasks,
+                        tp => tp.Task.ParentTaskId,
+                        parentTask => parentTask.Id,
+                        (tp, parentTasks) => new { tp.Task, tp.Project, ParentTasks = parentTasks }
+                    )
+                    .SelectMany(
+                        x => x.ParentTasks.DefaultIfEmpty(),
+                        (x, parentTask) => new ProTask
+                        {
+                            Id = x.Task.Id,
+                            ProjectId = x.Task.ProjectId,
+                            ParentTaskId = x.Task.ParentTaskId,
+                            Type = x.Task.Type,
+                            Title = x.Task.Title,
+                            Note = x.Task.Note,
+                            Status = x.Task.Status,
+                            Priority = x.Task.Priority,
+                            StartDate = x.Task.StartDate,
+                            EndDate = x.Task.EndDate,
+                            OrderIndex = x.Task.OrderIndex,
+                            CreatedAt = x.Task.CreatedAt,
+                            UpdatedAt = x.Task.UpdatedAt,
+                            DeletedAt = x.Task.DeletedAt,
+                            // Limit dates from project
+                            ProjectStartDate = x.Project.StartDate,
+                            ProjectEndDate = x.Project.EndDate,
+                            // Limit dates from parent task (null if no parent)
+                            ParentStartDate = parentTask != null ? parentTask.StartDate : null,
+                            ParentEndDate = parentTask != null ? parentTask.EndDate : null
+                        }
+                    )
+                    .ToListAsync();
 
-                _logger.LogInformation("Successfully retrieved {Count} tasks", tasks.Count);
+                _logger.LogInformation("Successfully retrieved {Count} tasks with limit dates", tasksWithLimits.Count);
 
                 return new ResultOptions
                 {
                     Success = true,
                     Message = "Tasks retrieved successfully",
-                    Data = tasks.Cast<object>().ToList(),
+                    Data = tasksWithLimits.Cast<object>().ToList(),
                     Status = 200
                 };
             }

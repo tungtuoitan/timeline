@@ -38,6 +38,12 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasDefaultValue("open")
                 .IsRequired();
 
+            builder.Property(p => p.StartDate)
+                .HasColumnName("start_date");
+
+            builder.Property(p => p.EndDate)
+                .HasColumnName("end_date");
+
             builder.Property(p => p.CreatedAt)
                 .HasColumnName("created_at")
                 .HasDefaultValueSql("SYSDATETIME()");
