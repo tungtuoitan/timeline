@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
 
 namespace SuperAppModels.Models
@@ -50,5 +51,24 @@ namespace SuperAppModels.Models
 
         [JsonPropertyName("deletedAt")]
         public DateTime? DeletedAt { get; set; }
+
+        // Limit dates for warning display (computed from project/parent task)
+        // Not stored in database - populated by query join
+
+        [NotMapped]
+        [JsonPropertyName("projectStartDate")]
+        public DateTime? ProjectStartDate { get; set; }
+
+        [NotMapped]
+        [JsonPropertyName("projectEndDate")]
+        public DateTime? ProjectEndDate { get; set; }
+
+        [NotMapped]
+        [JsonPropertyName("parentStartDate")]
+        public DateTime? ParentStartDate { get; set; }
+
+        [NotMapped]
+        [JsonPropertyName("parentEndDate")]
+        public DateTime? ParentEndDate { get; set; }
     }
 }
