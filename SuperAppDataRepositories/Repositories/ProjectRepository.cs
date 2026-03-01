@@ -51,10 +51,10 @@ namespace SuperAppDataRepositories.Repositories
                                            (p.Description != null && p.Description.Contains(filterOptions.SearchText)));
                 }
 
-                // Filter by status
-                if (!string.IsNullOrWhiteSpace(filterOptions.Status))
+                // Filter by status codes (multi-select)
+                if (filterOptions.StatusCodes?.Count > 0)
                 {
-                    query = query.Where(p => p.Status == filterOptions.Status);
+                    query = query.Where(p => filterOptions.StatusCodes.Contains(p.Status));
                 }
 
                 // Filter by deletedAt
