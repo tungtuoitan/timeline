@@ -16,9 +16,9 @@ namespace SuperAppModels.DTOs.Requests
         public string? SearchText { get; set; }
 
         /// <summary>
-        /// Filter by status (e.g., "open", "closed")
+        /// Filter by multiple statuses (e.g., ["active", "completed"])
         /// </summary>
-        public string? Status { get; set; }
+        public List<string>? StatusCodes { get; set; }
 
         /// <summary>
         /// Filter by deletedAt: "null" for active only, "notNull" for deleted only
