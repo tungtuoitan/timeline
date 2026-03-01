@@ -49,7 +49,7 @@ namespace SuperAppAPI.Controllers
         /// Gets all projects with optional filtering
         /// </summary>
         /// <param name="searchText">Optional search text filter for name/description</param>
-        /// <param name="status">Optional status filter (e.g., "open", "closed")</param>
+        /// <param name="status">Optional comma-separated status codes filter (e.g., "active,completed")</param>
         /// <param name="deletedAt">Optional deleted status filter ("null" for active only, "notNull" for deleted only)</param>
         /// <param name="ids">Optional comma-separated project IDs (e.g., "1,2,3")</param>
         /// <returns>ResultOptions containing list of projects</returns>
@@ -79,7 +79,9 @@ namespace SuperAppAPI.Controllers
             {
                 UserId = userId.Value,
                 SearchText = searchText,
-                Status = status,
+                StatusCodes = !string.IsNullOrEmpty(status)
+                    ? status.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList()
+                    : null,
                 DeletedAt = deletedAt,
                 Ids = !string.IsNullOrEmpty(ids)
                     ? ids.Split(',', StringSplitOptions.RemoveEmptyEntries)
@@ -90,8 +92,10 @@ namespace SuperAppAPI.Controllers
             };
 
             _logger.LogInformation(
-                "Retrieving projects for userId: {UserId}, UserEmail: {UserEmail}, SearchText: {SearchText}, Status: {Status}, DeletedAt: {DeletedAt}",
-                userId.Value, userEmail, searchText, status, deletedAt);
+                "Retrieving projects for userId: {UserId}, UserEmail: {UserEmail}, SearchText: {SearchText}, StatusCodes: {StatusCodes}, DeletedAt: {DeletedAt}",
+                userId.Value, userEmail, searchText,
+                filterOptions.StatusCodes != null ? string.Join(",", filterOptions.StatusCodes) : "null",
+                deletedAt);
 
             var response = await _projectService.GetProjectsAsync(filterOptions);
 
