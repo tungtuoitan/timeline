@@ -69,13 +69,13 @@ namespace SuperAppDataRepositories.Repositories
                 // Filter by status
                 if (!string.IsNullOrWhiteSpace(filterOptions.Status))
                 {
-                    query = query.Where(t => t.Status == filterOptions.Status);
+                    query = query.Where(t => filterOptions.Status.Contains(t.Status));
                 }
 
                 // Filter by priority
                 if (!string.IsNullOrWhiteSpace(filterOptions.Priority))
                 {
-                    query = query.Where(t => t.Priority == filterOptions.Priority);
+                    query = query.Where(t => filterOptions.Priority.Contains(t.Priority));
                 }
 
                 // Filter by type
