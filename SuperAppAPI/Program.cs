@@ -164,7 +164,7 @@ namespace SuperAppAPI
                     services.AddScoped<IUserProfileRepository, UserProfileRepository>();
                     services.AddScoped<IProjectRepository, ProjectRepository>();
                     services.AddScoped<ITaskRepository, TaskRepository>();
-                    services.AddScoped<ITaskWorkspaceItemRepository, TaskWorkspaceItemRepository>();
+                    services.AddScoped<ITargetKeywordRepository, TargetKeywordRepository>();
 
                     // Register Business Services
                     services.AddScoped<SuperAppServices.Interfaces.IWorkspaceService, SuperAppServices.Services.WorkspaceService>();

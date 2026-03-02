@@ -118,5 +118,63 @@ namespace SuperAppAPI.Controllers
 
             return Ok(result);
         }
+        /// <summary>
+        /// Get all keywords linked to a target entity
+        /// </summary>
+        [HttpGet("target-keywords")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetTargetKeywords([FromQuery] int targetId, [FromQuery] string targetType)
+        {
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+                return Unauthorized("User ID not found in token");
+
+            _logger.LogInformation("Getting keywords for targetId: {TargetId}, targetType: {TargetType}", targetId, targetType);
+
+            var response = await _keywordService.GetTargetKeywordsAsync(targetId, targetType);
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Link a keyword to a target entity
+        /// </summary>
+        [HttpPost("target-keywords")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> LinkTargetKeyword([FromBody] LinkTargetKeywordRequest request)
+        {
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+                return Unauthorized("User ID not found in token");
+
+            if (request == null)
+                return BadRequest("Request body is required");
+
+            _logger.LogInformation("Linking keywordId: {KeywordId} to targetId: {TargetId} ({TargetType})",
+                request.KeywordId, request.TargetId, request.TargetType);
+
+            var response = await _keywordService.LinkTargetKeywordAsync(request);
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Unlink a keyword from a target entity
+        /// </summary>
+        [HttpDelete("target-keywords/{id}")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> UnlinkTargetKeyword(int id)
+        {
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+                return Unauthorized("User ID not found in token");
+
+            _logger.LogInformation("Unlinking TargetKeyword with ID: {Id}", id);
+
+            var response = await _keywordService.UnlinkTargetKeywordAsync(id);
+            return Ok(response);
+        }
     }
 }
