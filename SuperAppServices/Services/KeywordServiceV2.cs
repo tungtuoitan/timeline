@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
+using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
@@ -17,13 +18,16 @@ namespace SuperAppServices.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<KeywordServiceV2> _logger;
+        private readonly ITargetKeywordRepository _targetKeywordRepository;
 
         public KeywordServiceV2(
             ApplicationDbContext context,
-            ILogger<KeywordServiceV2> logger)
+            ILogger<KeywordServiceV2> logger,
+            ITargetKeywordRepository targetKeywordRepository)
         {
             _context = context;
             _logger = logger;
+            _targetKeywordRepository = targetKeywordRepository;
         }
 
         #region Get Keywords with LongLink
@@ -1224,6 +1228,31 @@ namespace SuperAppServices.Services
             }
 
             return headings;
+        }
+
+        #endregion
+
+        #region TargetKeywords
+
+        public async Task<ResultOptions> GetTargetKeywordsAsync(int targetId, string targetType)
+        {
+            return await _targetKeywordRepository.GetByTargetAsync(targetId, targetType);
+        }
+
+        public async Task<ResultOptions> LinkTargetKeywordAsync(LinkTargetKeywordRequest request)
+        {
+            var item = new TargetKeyword
+            {
+                TargetId = request.TargetId,
+                TargetType = request.TargetType,
+                KeywordId = request.KeywordId
+            };
+            return await _targetKeywordRepository.CreateAsync(item);
+        }
+
+        public async Task<ResultOptions> UnlinkTargetKeywordAsync(int id)
+        {
+            return await _targetKeywordRepository.DeleteAsync(id);
         }
 
         #endregion
