@@ -106,7 +106,8 @@ namespace SuperAppServices.Services
                         StartDate = request.StartDate,
                         EndDate = request.EndDate,
                         OrderIndex = request.OrderIndex,
-                        DeletedAt = request.DeletedAt
+                        DeletedAt = request.DeletedAt,
+                        FolderWorkspaceItemId = request.FolderWorkspaceItemId
                     };
 
                     tasks.Add(task);
