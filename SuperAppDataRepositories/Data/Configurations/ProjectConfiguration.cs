@@ -55,6 +55,9 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(p => p.DeletedAt)
                 .HasColumnName("deleted_at");
 
+            builder.Property(p => p.WorkspaceId)
+                .HasColumnName("workspace_id");
+
             // Index for user_id for faster queries
             builder.HasIndex(p => p.UserId);
         }
