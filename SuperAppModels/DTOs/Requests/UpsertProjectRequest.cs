@@ -51,5 +51,12 @@ namespace SuperAppModels.DTOs.Requests
         /// </summary>
         [JsonPropertyName("deletedAt")]
         public DateTime? DeletedAt { get; set; }
+
+        /// <summary>
+        /// Optional: Workspace ID linked to this project (1:1 relationship)
+        /// Set automatically by backend when creating a new project
+        /// </summary>
+        [JsonPropertyName("workspaceId")]
+        public int? WorkspaceId { get; set; }
     }
 }

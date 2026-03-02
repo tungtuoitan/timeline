@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Extensions;
+using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
+using SuperAppModels.Models;
 using SuperAppServices.Interfaces;
 
 namespace SuperAppAPI.Controllers
@@ -17,11 +19,16 @@ namespace SuperAppAPI.Controllers
     {
         private readonly ITaskService _taskService;
         private readonly ILogger<TaskController> _logger;
+        private readonly ITaskWorkspaceItemRepository _taskWorkspaceItemRepository;
 
-        public TaskController(ITaskService taskService, ILogger<TaskController> logger)
+        public TaskController(
+            ITaskService taskService,
+            ILogger<TaskController> logger,
+            ITaskWorkspaceItemRepository taskWorkspaceItemRepository)
         {
             _taskService = taskService;
             _logger = logger;
+            _taskWorkspaceItemRepository = taskWorkspaceItemRepository;
         }
 
         /// <summary>
@@ -165,6 +172,72 @@ namespace SuperAppAPI.Controllers
             _logger.LogInformation("Batch upsert tasks completed for user: {UserEmail}, Success: {Success}",
                 userEmail, response.Success);
 
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Gets all workspace items (folders/notes) linked to a task
+        /// </summary>
+        [HttpGet("{taskId}/workspace-items")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetTaskWorkspaceItems(int taskId)
+        {
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+                return Unauthorized("User ID not found in token");
+
+            _logger.LogInformation("Getting workspace items for taskId: {TaskId}", taskId);
+
+            var response = await _taskWorkspaceItemRepository.GetByTaskIdAsync(taskId);
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Links a workspace item (folder/note) to a task
+        /// </summary>
+        [HttpPost("{taskId}/workspace-items")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> LinkTaskWorkspaceItem(int taskId, [FromBody] LinkTaskWorkspaceItemRequest request)
+        {
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+                return Unauthorized("User ID not found in token");
+
+            if (request == null)
+                return BadRequest("Request body is required");
+
+            var item = new TaskWorkspaceItem
+            {
+                TaskId = taskId,
+                WorkspaceItemId = request.WorkspaceItemId,
+                ItemType = request.ItemType
+            };
+
+            _logger.LogInformation("Linking workspace item {WorkspaceItemId} (type: {ItemType}) to task {TaskId}",
+                request.WorkspaceItemId, request.ItemType, taskId);
+
+            var response = await _taskWorkspaceItemRepository.CreateAsync(item);
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Unlinks a workspace item from a task
+        /// </summary>
+        [HttpDelete("{taskId}/workspace-items/{id}")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> UnlinkTaskWorkspaceItem(int taskId, int id)
+        {
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+                return Unauthorized("User ID not found in token");
+
+            _logger.LogInformation("Unlinking workspace item {Id} from task {TaskId}", id, taskId);
+
+            var response = await _taskWorkspaceItemRepository.DeleteAsync(id);
             return Ok(response);
         }
     }

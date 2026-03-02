@@ -13,13 +13,16 @@ namespace SuperAppServices.Services
     public class ProjectService : IProjectService
     {
         private readonly IProjectRepository _projectRepository;
+        private readonly IWsRepository _wsRepository;
         private readonly ILogger<ProjectService> _logger;
 
         public ProjectService(
             IProjectRepository projectRepository,
+            IWsRepository wsRepository,
             ILogger<ProjectService> logger)
         {
             _projectRepository = projectRepository ?? throw new ArgumentNullException(nameof(projectRepository));
+            _wsRepository = wsRepository ?? throw new ArgumentNullException(nameof(wsRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -92,6 +95,28 @@ namespace SuperAppServices.Services
                         };
                     }
 
+                    // Auto-create workspace for new projects
+                    if (request.Id == 0 && !request.WorkspaceId.HasValue)
+                    {
+                        _logger.LogInformation("Auto-creating workspace for new project: '{Name}'", request.Name);
+                        var workspace = new Workspace
+                        {
+                            Name = request.Name,
+                            UserId = request.UserId,
+                            StatusCode = "active"
+                        };
+                        var wsResult = await _wsRepository.UpsertWorkspaceAsync(workspace);
+                        if (wsResult.Success && wsResult.Object is Workspace createdWs)
+                        {
+                            request.WorkspaceId = createdWs.Id;
+                            _logger.LogInformation("Auto-created workspace ID: {WorkspaceId} for project: '{Name}'", createdWs.Id, request.Name);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Failed to auto-create workspace for project: '{Name}'. Continuing without workspace.", request.Name);
+                        }
+                    }
+
                     var project = new Project
                     {
                         Id = request.Id,
@@ -101,7 +126,8 @@ namespace SuperAppServices.Services
                         Status = request.Status,
                         StartDate = request.StartDate,
                         EndDate = request.EndDate,
-                        DeletedAt = request.DeletedAt
+                        DeletedAt = request.DeletedAt,
+                        WorkspaceId = request.WorkspaceId
                     };
 
                     projects.Add(project);

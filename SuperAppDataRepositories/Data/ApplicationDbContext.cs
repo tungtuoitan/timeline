@@ -35,6 +35,7 @@ namespace SuperAppDataRepositories.Data
         // Personal Productivity App Tables (pro schema)
         public DbSet<Project> Projects { get; set; }
         public DbSet<ProTask> ProTasks { get; set; }
+        public DbSet<TaskWorkspaceItem> TaskWorkspaceItems { get; set; }
 
         // ⚠️ REMOVED - Tables không tồn tại trong schema mới:
         // - Tag/EntityType/EntityTag → Sẽ tạo models mới cho dbo.hashtags, dbo.entities, dbo.entity_hashtags
