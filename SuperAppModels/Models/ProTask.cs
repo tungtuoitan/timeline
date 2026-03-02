@@ -52,6 +52,13 @@ namespace SuperAppModels.Models
         [JsonPropertyName("deletedAt")]
         public DateTime? DeletedAt { get; set; }
 
+        /// <summary>
+        /// Workspace item ID of the folder linked to this task (ws.workspace_items.id)
+        /// Set when the first note is created for this task
+        /// </summary>
+        [JsonPropertyName("folderWorkspaceItemId")]
+        public int? FolderWorkspaceItemId { get; set; }
+
         // Limit dates for warning display (computed from project/parent task)
         // Not stored in database - populated by query join
 
