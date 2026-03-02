@@ -56,5 +56,12 @@ namespace SuperAppModels.DTOs.Requests
         /// </summary>
         [JsonPropertyName("deletedAt")]
         public DateTime? DeletedAt { get; set; }
+
+        /// <summary>
+        /// Optional: Workspace item ID of the folder linked to this task
+        /// Set when the first note is created for this task
+        /// </summary>
+        [JsonPropertyName("folderWorkspaceItemId")]
+        public int? FolderWorkspaceItemId { get; set; }
     }
 }

@@ -132,6 +132,7 @@ namespace SuperAppDataRepositories.Repositories
                             CreatedAt = x.Task.CreatedAt,
                             UpdatedAt = x.Task.UpdatedAt,
                             DeletedAt = x.Task.DeletedAt,
+                            FolderWorkspaceItemId = x.Task.FolderWorkspaceItemId,
                             // Limit dates from project
                             ProjectStartDate = x.Project.StartDate,
                             ProjectEndDate = x.Project.EndDate,
@@ -255,6 +256,7 @@ namespace SuperAppDataRepositories.Repositories
                             existingTask.EndDate = task.EndDate;
                             existingTask.OrderIndex = task.OrderIndex;
                             existingTask.DeletedAt = task.DeletedAt;
+                            existingTask.FolderWorkspaceItemId = task.FolderWorkspaceItemId;
                             existingTask.UpdatedAt = DateTime.UtcNow;
 
                             upsertedTasks.Add(existingTask);
