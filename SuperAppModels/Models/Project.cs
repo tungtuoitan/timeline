@@ -37,5 +37,8 @@ namespace SuperAppModels.Models
 
         [JsonPropertyName("deletedAt")]
         public DateTime? DeletedAt { get; set; }
+
+        [JsonPropertyName("workspaceId")]
+        public int? WorkspaceId { get; set; }
     }
 }
