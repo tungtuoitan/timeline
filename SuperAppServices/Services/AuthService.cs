@@ -66,6 +66,7 @@ namespace SuperAppServices.Services
                 // Enforce PKCE - codeVerifier is required
                 if (string.IsNullOrEmpty(codeVerifier))
                 {
+                    _logger.LogWarning("Google login rejected: missing PKCE code_verifier");
                     return new AuthResponse
                     {
                         Success = false,
@@ -74,19 +75,40 @@ namespace SuperAppServices.Services
                     };
                 }
 
-                _logger.LogInformation("Starting Google login with authorization code (PKCE enabled)");
+                _logger.LogInformation("Google login started. CodeLength={CodeLength}, VerifierLength={VerifierLength}",
+                    authorizationCode.Length, codeVerifier.Length);
 
                 // Step 1: Exchange authorization code for Google tokens
-                var googleTokenResponse = await ExchangeCodeForGoogleTokenAsync(authorizationCode, codeVerifier);
-                _logger.LogInformation("Successfully exchanged code for Google tokens");
+                GoogleTokenResponse googleTokenResponse;
+                try
+                {
+                    googleTokenResponse = await ExchangeCodeForGoogleTokenAsync(authorizationCode, codeVerifier);
+                    _logger.LogInformation("Google token exchange succeeded. HasRefreshToken={HasRefreshToken}, ExpiresIn={ExpiresIn}s",
+                        !string.IsNullOrEmpty(googleTokenResponse.RefreshToken), googleTokenResponse.ExpiresIn);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Google token exchange failed");
+                    return new AuthResponse { Success = false, Message = "Google login failed", Error = ex.Message };
+                }
 
                 // Step 2: Verify ID token using Google.Apis.Auth library (offline, validates audience)
-                var googleUserInfo = await VerifyGoogleIdTokenAsync(googleTokenResponse.IdToken);
-                _logger.LogInformation("Successfully verified Google ID token for email: {Email}", googleUserInfo.Email);
+                GoogleUserInfo googleUserInfo;
+                try
+                {
+                    googleUserInfo = await VerifyGoogleIdTokenAsync(googleTokenResponse.IdToken);
+                    _logger.LogInformation("Google ID token verified. Email={Email}, EmailVerified={EmailVerified}",
+                        googleUserInfo.Email, googleUserInfo.EmailVerified);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Google ID token verification failed");
+                    return new AuthResponse { Success = false, Message = "Google login failed", Error = ex.Message };
+                }
 
                 // Step 3: Get or create user in database
                 var user = await GetOrCreateGoogleUserAsync(googleUserInfo);
-                _logger.LogInformation("User found/created with ID: {UserId}", user.Id);
+                _logger.LogInformation("User resolved. UserId={UserId}, Email={Email}", user.Id, user.Email);
 
                 // Step 4: Save Google tokens for Drive access
                 user.GoogleAccessToken = googleTokenResponse.AccessToken;
@@ -105,19 +127,27 @@ namespace SuperAppServices.Services
                     if (userProfile != null)
                     {
                         userFilters = userProfile.Filters;
+                        _logger.LogDebug("UserProfile loaded for UserId={UserId}, HasFilters={HasFilters}", user.Id, !string.IsNullOrEmpty(userFilters));
+                    }
+                    else
+                    {
+                        _logger.LogDebug("No UserProfile found for UserId={UserId}", user.Id);
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to get user profile for userId: {UserId}", user.Id);
-                    // Continue without filters - this is not a critical error
+                    _logger.LogWarning(ex, "Failed to get user profile for UserId={UserId}, continuing without filters", user.Id);
                 }
 
                 // Step 7: Generate JWT token
                 var jwtToken = GenerateJwtToken(user);
+                _logger.LogDebug("JWT token generated for UserId={UserId}", user.Id);
 
                 // Step 8: Generate refresh token and store in DB
                 var (plaintext, refreshTokenEntity) = await GenerateAndStoreRefreshTokenAsync(user.Id);
+                _logger.LogDebug("Refresh token stored. TokenId={TokenId}, ExpiresAt={ExpiresAt}", refreshTokenEntity.Id, refreshTokenEntity.ExpiresAt);
+
+                _logger.LogInformation("Google login successful. UserId={UserId}, Email={Email}", user.Id, user.Email);
 
                 // Step 9: Build response
                 return new AuthResponse
@@ -142,7 +172,7 @@ namespace SuperAppServices.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Google login failed: {ErrorMessage}", ex.Message);
+                _logger.LogError(ex, "Unexpected error during Google login");
                 return new AuthResponse
                 {
                     Success = false,
@@ -233,6 +263,9 @@ namespace SuperAppServices.Services
             var clientSecret = _configuration["OAuth:Google:ClientSecret"] ?? "";
             var redirectUri = _configuration["OAuth:Google:RedirectUri"] ?? "";
 
+            _logger.LogDebug("Exchanging code with Google. RedirectUri={RedirectUri}, HasClientId={HasClientId}, HasClientSecret={HasClientSecret}, HasCodeVerifier={HasCodeVerifier}",
+                redirectUri, !string.IsNullOrEmpty(clientId), !string.IsNullOrEmpty(clientSecret), !string.IsNullOrEmpty(codeVerifier));
+
             var requestData = new Dictionary<string, string>
             {
                 { "code", code },
@@ -252,7 +285,8 @@ namespace SuperAppServices.Services
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
-                _logger.LogError("Google token exchange failed. Status: {StatusCode}", response.StatusCode);
+                _logger.LogError("Google token exchange failed. StatusCode={StatusCode}, Response={ErrorContent}",
+                    (int)response.StatusCode, errorContent);
                 throw new Exception($"Failed to exchange code: {errorContent}");
             }
 
@@ -264,6 +298,7 @@ namespace SuperAppServices.Services
 
             if (tokenResponse == null || string.IsNullOrEmpty(tokenResponse.IdToken))
             {
+                _logger.LogError("Google returned success but token response is invalid or missing IdToken. ResponseLength={Length}", responseContent.Length);
                 throw new Exception("Invalid token response from Google");
             }
 
