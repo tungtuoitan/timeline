@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Hosting;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
 using SuperAppServices.Interfaces;
@@ -15,19 +16,31 @@ namespace SuperAppAPI.Controllers
     {
         private readonly IAuthService _authService;
         private readonly ILogger<AuthController> _logger;
+        private readonly IWebHostEnvironment _env;
 
-        public AuthController(IAuthService authService, ILogger<AuthController> logger)
+        public AuthController(IAuthService authService, ILogger<AuthController> logger, IWebHostEnvironment env)
         {
             _authService = authService;
             _logger = logger;
+            _env = env;
+        }
+
+        private void SetRefreshTokenCookie(string token)
+        {
+            Response.Cookies.Append("refreshToken", token, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = !_env.IsDevelopment(),
+                SameSite = SameSiteMode.Strict,
+                Expires = DateTimeOffset.UtcNow.AddDays(7),
+                Path = "/api/auth"
+            });
         }
 
         /// <summary>
         /// Google OAuth login
         /// Exchange authorization code for JWT token
         /// </summary>
-        /// <param name="request">Google authorization code</param>
-        /// <returns>Authentication response with JWT token</returns>
         [HttpPost("google/login")]
         public async Task<ActionResult<AuthResponse>> GoogleLogin([FromBody] GoogleCodeRequest request)
         {
@@ -51,6 +64,9 @@ namespace SuperAppAPI.Controllers
                     return Unauthorized(result);
                 }
 
+                if (result.RefreshTokenPlaintext != null)
+                    SetRefreshTokenCookie(result.RefreshTokenPlaintext);
+
                 _logger.LogInformation("User {Email} logged in successfully via Google", result.User?.Email);
                 return Ok(result);
             }
@@ -69,9 +85,6 @@ namespace SuperAppAPI.Controllers
         /// <summary>
         /// Local login with username and password
         /// </summary>
-        /// <param name="username">Username or email</param>
-        /// <param name="password">Password</param>
-        /// <returns>Authentication response with JWT token</returns>
         [HttpPost("login")]
         public async Task<ActionResult<AuthResponse>> Login([FromForm] string username, [FromForm] string password)
         {
@@ -95,6 +108,9 @@ namespace SuperAppAPI.Controllers
                     return Unauthorized(result);
                 }
 
+                if (result.RefreshTokenPlaintext != null)
+                    SetRefreshTokenCookie(result.RefreshTokenPlaintext);
+
                 _logger.LogInformation("User {Username} logged in successfully", username);
                 return Ok(result);
             }
@@ -108,6 +124,43 @@ namespace SuperAppAPI.Controllers
                     Error = "Internal server error"
                 });
             }
+        }
+
+        /// <summary>
+        /// Refresh access token using HttpOnly cookie refresh token
+        /// </summary>
+        [HttpPost("refresh")]
+        public async Task<ActionResult<AuthResponse>> Refresh()
+        {
+            var refreshToken = Request.Cookies["refreshToken"];
+            if (string.IsNullOrEmpty(refreshToken))
+                return Unauthorized(new AuthResponse { Success = false, Message = "No refresh token", Error = "Missing cookie" });
+
+            var result = await _authService.RefreshTokenAsync(refreshToken);
+            if (!result.Success)
+            {
+                Response.Cookies.Delete("refreshToken", new CookieOptions { Path = "/api/auth" });
+                return Unauthorized(result);
+            }
+
+            if (result.RefreshTokenPlaintext != null)
+                SetRefreshTokenCookie(result.RefreshTokenPlaintext);
+
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Logout - revoke refresh token and clear cookie
+        /// </summary>
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout()
+        {
+            var refreshToken = Request.Cookies["refreshToken"];
+            if (!string.IsNullOrEmpty(refreshToken))
+                await _authService.RevokeRefreshTokenAsync(refreshToken);
+
+            Response.Cookies.Delete("refreshToken", new CookieOptions { Path = "/api/auth" });
+            return Ok();
         }
     }
 }
