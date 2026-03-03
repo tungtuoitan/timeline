@@ -31,5 +31,18 @@ namespace SuperAppServices.Interfaces
         /// <param name="user">User entity</param>
         /// <returns>JWT token string</returns>
         string GenerateJwtToken(User user);
+
+        /// <summary>
+        /// Refresh access token using a valid refresh token
+        /// </summary>
+        /// <param name="refreshToken">Plaintext refresh token (from HttpOnly cookie)</param>
+        /// <returns>New authentication response with new access token and refresh token</returns>
+        Task<AuthResponse> RefreshTokenAsync(string refreshToken);
+
+        /// <summary>
+        /// Revoke a refresh token (logout)
+        /// </summary>
+        /// <param name="refreshToken">Plaintext refresh token to revoke</param>
+        Task RevokeRefreshTokenAsync(string refreshToken);
     }
 }

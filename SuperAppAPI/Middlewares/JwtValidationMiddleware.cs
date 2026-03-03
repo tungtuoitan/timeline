@@ -102,8 +102,12 @@ namespace SuperAppAPI.Middlewares
             var anonymousEndpoints = new[]
             {
                 "/api/authen/login",
-                "/api/authen/signup", 
+                "/api/authen/signup",
                 "/api/authen/googlelogin",
+                "/api/auth/login",
+                "/api/auth/google/login",
+                "/api/auth/refresh",
+                "/api/auth/logout",
                 "/api/health",
                 "/swagger",
                 "/favicon.ico"

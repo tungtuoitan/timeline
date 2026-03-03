@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
 using Google.Apis.Auth;
@@ -21,6 +22,7 @@ namespace SuperAppServices.Services
     {
         private readonly IUserRepository _userRepository;
         private readonly IUserProfileRepository _userProfileRepository;
+        private readonly IRefreshTokenRepository _refreshTokenRepository;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
         private readonly Microsoft.Extensions.Logging.ILogger<AuthService> _logger;
@@ -32,12 +34,14 @@ namespace SuperAppServices.Services
         public AuthService(
             IUserRepository userRepository,
             IUserProfileRepository userProfileRepository,
+            IRefreshTokenRepository refreshTokenRepository,
             IHttpClientFactory httpClientFactory,
             IConfiguration configuration,
             Microsoft.Extensions.Logging.ILogger<AuthService> logger)
         {
             _userRepository = userRepository;
             _userProfileRepository = userProfileRepository;
+            _refreshTokenRepository = refreshTokenRepository;
             _httpClientFactory = httpClientFactory;
             _configuration = configuration;
             _logger = logger;
@@ -47,7 +51,7 @@ namespace SuperAppServices.Services
                 ?? throw new InvalidOperationException("JWT Key not configured");
             _jwtIssuer = _configuration["Jwt:Issuer"] ?? "SuperApp";
             _jwtAudience = _configuration["Jwt:Audience"] ?? "SuperApp-API";
-            _jwtExpirationMinutes = int.Parse(_configuration["Jwt:ExpirationMinutes"] ?? "300");
+            _jwtExpirationMinutes = int.Parse(_configuration["Jwt:ExpirationMinutes"] ?? "15");
         }
 
         /// <summary>
@@ -112,7 +116,10 @@ namespace SuperAppServices.Services
                 // Step 7: Generate JWT token
                 var jwtToken = GenerateJwtToken(user);
 
-                // Step 8: Build response
+                // Step 8: Generate refresh token and store in DB
+                var (plaintext, refreshTokenEntity) = await GenerateAndStoreRefreshTokenAsync(user.Id);
+
+                // Step 9: Build response
                 return new AuthResponse
                 {
                     Success = true,
@@ -129,7 +136,8 @@ namespace SuperAppServices.Services
                         TokenType = "Bearer",
                         Filters = userFilters
                     },
-                    ExpiresAt = DateTime.UtcNow.AddMinutes(_jwtExpirationMinutes)
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(_jwtExpirationMinutes),
+                    RefreshTokenPlaintext = plaintext
                 };
             }
             catch (Exception ex)
@@ -181,6 +189,9 @@ namespace SuperAppServices.Services
                 // Generate JWT token
                 var jwtToken = GenerateJwtToken(user);
 
+                // Generate refresh token and store in DB
+                var (plaintext, _) = await GenerateAndStoreRefreshTokenAsync(user.Id);
+
                 return new AuthResponse
                 {
                     Success = true,
@@ -194,7 +205,8 @@ namespace SuperAppServices.Services
                         Token = jwtToken,
                         TokenType = "Bearer"
                     },
-                    ExpiresAt = DateTime.UtcNow.AddMinutes(_jwtExpirationMinutes)
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(_jwtExpirationMinutes),
+                    RefreshTokenPlaintext = plaintext
                 };
             }
             catch (Exception ex)
@@ -347,6 +359,112 @@ namespace SuperAppServices.Services
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        /// <summary>
+        /// Refresh access token using a valid refresh token (token rotation)
+        /// </summary>
+        public async Task<AuthResponse> RefreshTokenAsync(string refreshToken)
+        {
+            var tokenHash = HashToken(refreshToken);
+            var storedToken = await _refreshTokenRepository.GetByTokenHashAsync(tokenHash);
+
+            if (storedToken == null)
+            {
+                return new AuthResponse { Success = false, Message = "Invalid refresh token", Error = "Token not found" };
+            }
+
+            // Reuse attack detection: token was already revoked
+            if (storedToken.RevokedAt != null)
+            {
+                _logger.LogWarning("Refresh token reuse detected for userId: {UserId}. Revoking all tokens.", storedToken.UserId);
+                await _refreshTokenRepository.RevokeAllUserTokensAsync(storedToken.UserId);
+                return new AuthResponse { Success = false, Message = "Token reuse detected", Error = "Security violation" };
+            }
+
+            if (storedToken.ExpiresAt <= DateTime.UtcNow)
+            {
+                return new AuthResponse { Success = false, Message = "Refresh token expired", Error = "Token expired" };
+            }
+
+            var user = storedToken.User;
+
+            // Generate new tokens
+            var newJwtToken = GenerateJwtToken(user);
+            var (newPlaintext, newTokenEntity) = await GenerateAndStoreRefreshTokenAsync(user.Id);
+
+            // Revoke old token and link to new one
+            storedToken.RevokedAt = DateTime.UtcNow;
+            storedToken.ReplacedByTokenHash = newTokenEntity.TokenHash;
+            await _refreshTokenRepository.UpdateAsync(storedToken);
+
+            string? userFilters = null;
+            try
+            {
+                var userProfile = await _userProfileRepository.GetByUserIdAsync(user.Id);
+                if (userProfile != null) userFilters = userProfile.Filters;
+            }
+            catch { }
+
+            return new AuthResponse
+            {
+                Success = true,
+                Message = "Token refreshed",
+                User = new UserData
+                {
+                    Id = user.Id,
+                    Email = user.Email,
+                    Phone = user.Phone,
+                    AuthType = user.AuthType,
+                    Token = newJwtToken,
+                    TokenType = "Bearer",
+                    Filters = userFilters
+                },
+                ExpiresAt = DateTime.UtcNow.AddMinutes(_jwtExpirationMinutes),
+                RefreshTokenPlaintext = newPlaintext
+            };
+        }
+
+        /// <summary>
+        /// Revoke a refresh token (logout)
+        /// </summary>
+        public async Task RevokeRefreshTokenAsync(string refreshToken)
+        {
+            var tokenHash = HashToken(refreshToken);
+            var storedToken = await _refreshTokenRepository.GetByTokenHashAsync(tokenHash);
+            if (storedToken != null && storedToken.RevokedAt == null)
+            {
+                storedToken.RevokedAt = DateTime.UtcNow;
+                await _refreshTokenRepository.UpdateAsync(storedToken);
+            }
+        }
+
+        /// <summary>
+        /// Generate a cryptographically secure refresh token, store SHA-256 hash in DB
+        /// </summary>
+        private async Task<(string plaintext, RefreshToken entity)> GenerateAndStoreRefreshTokenAsync(int userId)
+        {
+            var randomBytes = RandomNumberGenerator.GetBytes(64);
+            var plaintext = Convert.ToBase64String(randomBytes)
+                .Replace('+', '-').Replace('/', '_').Replace("=", "");
+            var tokenHash = HashToken(plaintext);
+
+            var entity = new RefreshToken
+            {
+                TokenHash = tokenHash,
+                UserId = userId,
+                ExpiresAt = DateTime.UtcNow.AddDays(7),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _refreshTokenRepository.CreateAsync(entity);
+            return (plaintext, entity);
+        }
+
+        private static string HashToken(string token)
+        {
+            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+            return Convert.ToHexString(bytes).ToLowerInvariant();
         }
     }
 

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace SuperAppModels.DTOs.Responses
 {
     /// <summary>
@@ -29,6 +31,12 @@ namespace SuperAppModels.DTOs.Responses
         /// Token expiration time (UTC)
         /// </summary>
         public DateTime? ExpiresAt { get; set; }
+
+        /// <summary>
+        /// Plaintext refresh token - only used internally to set HttpOnly cookie, never serialized to JSON
+        /// </summary>
+        [JsonIgnore]
+        public string? RefreshTokenPlaintext { get; set; }
     }
 
     /// <summary>

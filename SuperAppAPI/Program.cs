@@ -162,6 +162,7 @@ namespace SuperAppAPI
                     services.AddScoped<IStandardRegistryRepository, StandardRegistryRepository>();
                     services.AddScoped<IUserRepository, UserRepository>();
                     services.AddScoped<IUserProfileRepository, UserProfileRepository>();
+                    services.AddScoped<SuperAppDataRepositories.Ins.IRefreshTokenRepository, SuperAppDataRepositories.Repositories.RefreshTokenRepository>();
                     services.AddScoped<IProjectRepository, ProjectRepository>();
                     services.AddScoped<ITaskRepository, TaskRepository>();
                     services.AddScoped<ITargetKeywordRepository, TargetKeywordRepository>();
