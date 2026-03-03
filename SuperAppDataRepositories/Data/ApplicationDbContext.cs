@@ -32,6 +32,9 @@ namespace SuperAppDataRepositories.Data
         public DbSet<StandardRegistry> StandardRegistries { get; set; }
         public DbSet<Keyword> Keywords { get; set; }
 
+        // Auth Tables (auth schema)
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
+
         // Personal Productivity App Tables (pro schema)
         public DbSet<Project> Projects { get; set; }
         public DbSet<ProTask> ProTasks { get; set; }
