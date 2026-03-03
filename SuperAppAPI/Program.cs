@@ -43,11 +43,22 @@ namespace SuperAppAPI
                 }
             }
 
+            var logPath = Path.Combine(AppContext.BaseDirectory, "Logs", "superapp-.log");
+
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
-                .WriteTo.Console()
-                .WriteTo.File("Logs/superapp.log", rollingInterval: RollingInterval.Day)
+                .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
+                .MinimumLevel.Override("System", Serilog.Events.LogEventLevel.Warning)
+                .Enrich.FromLogContext()
+                .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext}{NewLine}{Message:lj}{NewLine}{Exception}")
+                .WriteTo.File(
+                    path: logPath,
+                    rollingInterval: RollingInterval.Day,
+                    retainedFileCountLimit: 30,
+                    outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}")
                 .CreateLogger();
+
+            Console.WriteLine($"Logs directory: {Path.GetDirectoryName(logPath)}");
 
             try{
                 Log.Information(">>  >>  >>  Starting up the SuperApp application...");
