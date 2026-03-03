@@ -37,17 +37,18 @@ namespace SuperAppAPI.Controllers
             });
         }
 
-        /// <summary>
-        /// Google OAuth login
-        /// Exchange authorization code for JWT token
-        /// </summary>
         [HttpPost("google/login")]
         public async Task<ActionResult<AuthResponse>> GoogleLogin([FromBody] GoogleCodeRequest request)
         {
+            var traceId = HttpContext.TraceIdentifier;
+            _logger.LogInformation("Google login request received. TraceId={TraceId}, HasCode={HasCode}, HasVerifier={HasVerifier}",
+                traceId, !string.IsNullOrWhiteSpace(request?.Code), !string.IsNullOrWhiteSpace(request?.CodeVerifier));
+
             try
             {
-                if (string.IsNullOrWhiteSpace(request.Code))
+                if (string.IsNullOrWhiteSpace(request?.Code))
                 {
+                    _logger.LogWarning("Google login rejected: missing authorization code. TraceId={TraceId}", traceId);
                     return BadRequest(new AuthResponse
                     {
                         Success = false,
@@ -60,19 +61,19 @@ namespace SuperAppAPI.Controllers
 
                 if (!result.Success)
                 {
-                    _logger.LogWarning("Google login failed: {Error}", result.Error);
+                    _logger.LogWarning("Google login failed. TraceId={TraceId}, Error={Error}", traceId, result.Error);
                     return Unauthorized(result);
                 }
 
                 if (result.RefreshTokenPlaintext != null)
                     SetRefreshTokenCookie(result.RefreshTokenPlaintext);
 
-                _logger.LogInformation("User {Email} logged in successfully via Google", result.User?.Email);
+                _logger.LogInformation("Google login successful. TraceId={TraceId}, Email={Email}", traceId, result.User?.Email);
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error during Google login");
+                _logger.LogError(ex, "Unhandled exception during Google login. TraceId={TraceId}", traceId);
                 return StatusCode(500, new AuthResponse
                 {
                     Success = false,
