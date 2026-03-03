@@ -1,10 +1,9 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using System.Text.Json;
 using System.Text.Json.Serialization;
+using Google.Apis.Auth;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using SuperAppDataRepositories.Ins;
@@ -55,18 +54,29 @@ namespace SuperAppServices.Services
         /// Authenticate user with Google OAuth authorization code
         /// </summary>
         /// <param name="authorizationCode">Authorization code from Google OAuth flow</param>
-        /// <param name="codeVerifier">PKCE code verifier (optional for backward compatibility)</param>
+        /// <param name="codeVerifier">PKCE code verifier (required)</param>
         public async Task<AuthResponse> GoogleLoginAsync(string authorizationCode, string? codeVerifier = null)
         {
             try
             {
-                _logger.LogInformation("Starting Google login with authorization code (PKCE: {HasPkce})", !string.IsNullOrEmpty(codeVerifier));
+                // Enforce PKCE - codeVerifier is required
+                if (string.IsNullOrEmpty(codeVerifier))
+                {
+                    return new AuthResponse
+                    {
+                        Success = false,
+                        Message = "PKCE code verifier is required",
+                        Error = "Missing code_verifier"
+                    };
+                }
 
-                // Step 1: Exchange authorization code for Google tokens (with PKCE if provided)
+                _logger.LogInformation("Starting Google login with authorization code (PKCE enabled)");
+
+                // Step 1: Exchange authorization code for Google tokens
                 var googleTokenResponse = await ExchangeCodeForGoogleTokenAsync(authorizationCode, codeVerifier);
                 _logger.LogInformation("Successfully exchanged code for Google tokens");
 
-                // Step 2: Verify ID token and get user info
+                // Step 2: Verify ID token using Google.Apis.Auth library (offline, validates audience)
                 var googleUserInfo = await VerifyGoogleIdTokenAsync(googleTokenResponse.IdToken);
                 _logger.LogInformation("Successfully verified Google ID token for email: {Email}", googleUserInfo.Email);
 
@@ -91,11 +101,6 @@ namespace SuperAppServices.Services
                     if (userProfile != null)
                     {
                         userFilters = userProfile.Filters;
-                        _logger.LogInformation("Found user profile with filters for userId: {UserId}", user.Id);
-                    }
-                    else
-                    {
-                        _logger.LogInformation("No user profile found for userId: {UserId}", user.Id);
                     }
                 }
                 catch (Exception ex)
@@ -207,8 +212,6 @@ namespace SuperAppServices.Services
         /// Exchange authorization code for Google tokens
         /// Supports PKCE (RFC 7636) when code_verifier is provided
         /// </summary>
-        /// <param name="code">Authorization code from Google</param>
-        /// <param name="codeVerifier">PKCE code verifier (optional)</param>
         private async Task<GoogleTokenResponse> ExchangeCodeForGoogleTokenAsync(string code, string? codeVerifier = null)
         {
             var client = _httpClientFactory.CreateClient();
@@ -217,14 +220,6 @@ namespace SuperAppServices.Services
             var clientId = _configuration["OAuth:Google:ClientId"] ?? "";
             var clientSecret = _configuration["OAuth:Google:ClientSecret"] ?? "";
             var redirectUri = _configuration["OAuth:Google:RedirectUri"] ?? "";
-
-            // Log all parameters (mask sensitive data)
-            _logger.LogInformation("===== Google OAuth Token Exchange =====");
-            _logger.LogInformation("ClientId: {ClientId}", clientId);
-            _logger.LogInformation("RedirectUri: {RedirectUri}", redirectUri);
-            _logger.LogInformation("Code (first 20 chars): {Code}...", code.Length > 20 ? code.Substring(0, 20) : code);
-            _logger.LogInformation("ClientSecret configured: {HasSecret}", !string.IsNullOrEmpty(clientSecret));
-            _logger.LogInformation("PKCE code_verifier provided: {HasCodeVerifier}", !string.IsNullOrEmpty(codeVerifier));
 
             var requestData = new Dictionary<string, string>
             {
@@ -235,29 +230,22 @@ namespace SuperAppServices.Services
                 { "grant_type", "authorization_code" }
             };
 
-            // Add PKCE code_verifier if provided (RFC 7636)
             if (!string.IsNullOrEmpty(codeVerifier))
             {
                 requestData.Add("code_verifier", codeVerifier);
-                _logger.LogInformation("Added code_verifier to token request (PKCE enabled)");
             }
 
-            _logger.LogInformation("Sending token request to Google...");
             var response = await client.PostAsync(tokenEndpoint, new FormUrlEncodedContent(requestData));
 
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
-                _logger.LogError("===== Google Token Exchange FAILED =====");
-                _logger.LogError("Status Code: {StatusCode}", response.StatusCode);
-                _logger.LogError("Error Response: {Error}", errorContent);
-                _logger.LogError("Expected RedirectUri in Google Console: {RedirectUri}", redirectUri);
-                _logger.LogError("Make sure this exact URI is in Google Cloud Console > Credentials > OAuth 2.0 Client > Authorized redirect URIs");
+                _logger.LogError("Google token exchange failed. Status: {StatusCode}", response.StatusCode);
                 throw new Exception($"Failed to exchange code: {errorContent}");
             }
 
             var responseContent = await response.Content.ReadAsStringAsync();
-            var tokenResponse = JsonSerializer.Deserialize<GoogleTokenResponse>(responseContent, new JsonSerializerOptions
+            var tokenResponse = System.Text.Json.JsonSerializer.Deserialize<GoogleTokenResponse>(responseContent, new System.Text.Json.JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             });
@@ -271,32 +259,33 @@ namespace SuperAppServices.Services
         }
 
         /// <summary>
-        /// Verify Google ID token and extract user info
+        /// Verify Google ID token using Google.Apis.Auth library (offline validation, validates audience)
         /// </summary>
         private async Task<GoogleUserInfo> VerifyGoogleIdTokenAsync(string idToken)
         {
-            var client = _httpClientFactory.CreateClient();
-            var verifyEndpoint = $"https://oauth2.googleapis.com/tokeninfo?id_token={idToken}";
+            var clientId = _configuration["OAuth:Google:ClientId"] ?? "";
 
-            var response = await client.GetAsync(verifyEndpoint);
-
-            if (!response.IsSuccessStatusCode)
+            var validationSettings = new GoogleJsonWebSignature.ValidationSettings
             {
-                throw new Exception("Invalid Google ID token");
+                Audience = new[] { clientId }
+            };
+
+            var payload = await GoogleJsonWebSignature.ValidateAsync(idToken, validationSettings);
+
+            if (!payload.EmailVerified)
+            {
+                throw new Exception("Google account email is not verified");
             }
 
-            var responseContent = await response.Content.ReadAsStringAsync();
-            var userInfo = JsonSerializer.Deserialize<GoogleUserInfo>(responseContent, new JsonSerializerOptions
+            return new GoogleUserInfo
             {
-                PropertyNameCaseInsensitive = true
-            });
-
-            if (userInfo == null || string.IsNullOrEmpty(userInfo.Email))
-            {
-                throw new Exception("Invalid user info from Google");
-            }
-
-            return userInfo;
+                Sub = payload.Subject,
+                Email = payload.Email,
+                EmailVerified = payload.EmailVerified,
+                GivenName = payload.GivenName,
+                FamilyName = payload.FamilyName,
+                Picture = payload.Picture,
+            };
         }
 
         /// <summary>
@@ -308,11 +297,12 @@ namespace SuperAppServices.Services
 
             if (existingUser != null)
             {
-                // Update auth type if it was previously local
+                // If previously a local account, keep authType as-is - do not silently overwrite
                 if (existingUser.AuthType != "google")
                 {
-                    existingUser.AuthType = "google";
-                    await _userRepository.UpdateAsync(existingUser);
+                    _logger.LogWarning(
+                        "User {Email} previously authenticated via '{AuthType}', now logging in via Google. AuthType not changed.",
+                        existingUser.Email, existingUser.AuthType);
                 }
                 return existingUser;
             }
@@ -382,39 +372,17 @@ namespace SuperAppServices.Services
     }
 
     /// <summary>
-    /// Google user info model
+    /// Google user info model (populated from verified JWT payload)
     /// </summary>
     internal class GoogleUserInfo
     {
-        [JsonPropertyName("sub")]
         public string? Sub { get; set; }
-
-        [JsonPropertyName("email")]
         public string Email { get; set; } = string.Empty;
-
-        [JsonPropertyName("email_verified")]
-        public string EmailVerifiedString { get; set; } = "false";
-
-        [JsonPropertyName("name")]
-        public string? Name { get; set; }
-
-        [JsonPropertyName("given_name")]
+        public bool EmailVerified { get; set; }
         public string? GivenName { get; set; }
-
-        [JsonPropertyName("family_name")]
         public string? FamilyName { get; set; }
-
-        [JsonPropertyName("picture")]
         public string? Picture { get; set; }
 
-        [JsonPropertyName("iat")]
-        public string? Iat { get; set; }
-
-        [JsonPropertyName("exp")]
-        public string? Exp { get; set; }
-
-        // Computed properties
-        public bool EmailVerified => EmailVerifiedString?.ToLower() == "true";
         public string? FirstName => GivenName;
         public string? LastName => FamilyName;
     }
