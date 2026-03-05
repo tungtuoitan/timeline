@@ -21,7 +21,7 @@ namespace SuperAppAPI.Controllers
         }
 
         /// <summary>
-        /// Receive a diagnostic event from the frontend.
+        /// Receive a single diagnostic event from the frontend.
         /// POST /api/diagnostic/log
         /// </summary>
         [HttpPost("log")]
@@ -39,6 +39,33 @@ namespace SuperAppAPI.Controllers
                 request?.ClientTimestamp, DateTime.UtcNow.ToString("O"), clientIp);
             return Ok();
         }
+
+        /// <summary>
+        /// Receive a batch of debug log entries from the frontend store.
+        /// POST /api/diagnostic/logs
+        /// </summary>
+        [HttpPost("logs")]
+        public IActionResult Logs([FromBody] DiagnosticBatchRequest? request)
+        {
+            if (request?.Entries == null || request.Entries.Count == 0)
+                return Ok();
+
+            var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var serverTs = DateTime.UtcNow.ToString("O");
+
+            foreach (var entry in request.Entries)
+            {
+                _logger.LogInformation(
+                    "FE_LOG #{Id} Category={Category} Event={Event} Data={Data} " +
+                    "Origin={WindowOrigin} Href={WindowHref} UA={UserAgent} " +
+                    "ClientTs={ClientTimestamp} ServerTs={ServerTimestamp} Ip={ClientIp}",
+                    entry.Id, entry.Category, entry.Event, entry.Data != null ? System.Text.Json.JsonSerializer.Serialize(entry.Data) : null,
+                    entry.WindowOrigin, entry.WindowHref, entry.UserAgent,
+                    entry.Timestamp, serverTs, clientIp);
+            }
+
+            return Ok();
+        }
     }
 
     public record DiagnosticLogRequest(
@@ -51,5 +78,18 @@ namespace SuperAppAPI.Controllers
         string? Platform,
         string? ScreenSize,
         string? ClientTimestamp
+    );
+
+    public record DiagnosticBatchRequest(List<DiagnosticEntryDto> Entries);
+
+    public record DiagnosticEntryDto(
+        int Id,
+        string Timestamp,
+        string Category,
+        string Event,
+        Dictionary<string, object>? Data,
+        string WindowOrigin,
+        string WindowHref,
+        string UserAgent
     );
 }
