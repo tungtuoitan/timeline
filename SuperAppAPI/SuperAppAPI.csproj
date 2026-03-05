@@ -41,5 +41,9 @@
     <ProjectReference Include="..\SuperAppServices\SuperAppServices.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Logs\" />
+  </ItemGroup>
+
 
 </Project>
