@@ -108,6 +108,7 @@ namespace SuperAppAPI.Middlewares
                 "/api/auth/google/login",
                 "/api/auth/refresh",
                 "/api/auth/logout",
+                "/api/diagnostic",
                 "/api/health",
                 "/swagger",
                 "/favicon.ico"
