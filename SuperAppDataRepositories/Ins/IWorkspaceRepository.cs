@@ -76,5 +76,10 @@ namespace SuperAppDataRepositories.Ins
         /// <param name="userId">User ID for access validation</param>
         /// <returns>Result options with upserted items</returns>
         Task<ResultOptions> UpsertWorkspaceItemsAsync(List<UpsertWorkspaceItemRequest> requests, int userId);
+
+        /// <summary>
+        /// Updates only the name of a folder identified by its workspace_items.id
+        /// </summary>
+        Task<ResultOptions> UpdateFolderNameByWorkspaceItemIdAsync(int workspaceItemId, string name);
     }
 }
