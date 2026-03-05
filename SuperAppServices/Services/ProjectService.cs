@@ -95,8 +95,8 @@ namespace SuperAppServices.Services
                         };
                     }
 
-                    // Auto-create workspace for new projects or existing projects missing a workspace
-                    if (!request.WorkspaceId.HasValue)
+                    // Auto-create workspace for new projects only
+                    if (request.Id == 0 && !request.WorkspaceId.HasValue)
                     {
                         _logger.LogInformation("Auto-creating workspace for project: '{Name}'", request.Name);
                         var workspace = new Workspace
