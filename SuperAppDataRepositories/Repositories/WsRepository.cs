@@ -363,6 +363,35 @@ namespace SuperAppDataRepositories.Repositories
         }
 
         /// <summary>
+        /// Updates only the name of an existing workspace
+        /// </summary>
+        public async Task<ResultOptions> UpdateWorkspaceNameAsync(int workspaceId, string name)
+        {
+            try
+            {
+                var affectedRows = await _context.Workspaces
+                    .Where(w => w.Id == workspaceId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(w => w.Name, name)
+                        .SetProperty(w => w.UpdatedAt, DateTime.UtcNow));
+
+                if (affectedRows == 0)
+                {
+                    _logger.LogWarning("Workspace not found for name update with ID: {WorkspaceId}", workspaceId);
+                    return new ResultOptions { Success = false, Message = $"Workspace {workspaceId} not found", Status = 404 };
+                }
+
+                _logger.LogInformation("Updated workspace name to '{Name}' for ID: {WorkspaceId}", name, workspaceId);
+                return new ResultOptions { Success = true, Status = 200 };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating workspace name for ID: {WorkspaceId}", workspaceId);
+                return new ResultOptions { Success = false, Message = ex.Message, Status = 500 };
+            }
+        }
+
+        /// <summary>
         /// Deletes multiple workspaces with CASCADE to all items (folders/notes/files) using stored procedure
         /// UNIFORMLY treats all tables: either ALL soft delete OR ALL hard delete
         /// </summary>

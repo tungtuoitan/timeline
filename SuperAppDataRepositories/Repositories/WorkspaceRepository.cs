@@ -959,5 +959,44 @@ namespace SuperAppDataRepositories.Repositories
                 _ => "unknown"
             };
         }
+
+        /// <summary>
+        /// Updates only the name of a folder identified by its workspace_items.id
+        /// </summary>
+        public async Task<ResultOptions> UpdateFolderNameByWorkspaceItemIdAsync(int workspaceItemId, string name)
+        {
+            try
+            {
+                var item = await _context.WorkspaceItems
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(wi => wi.Id == workspaceItemId && wi.EntityType == 2);
+
+                if (item == null)
+                {
+                    _logger.LogWarning("Folder workspace item not found with ID: {WorkspaceItemId}", workspaceItemId);
+                    return new ResultOptions { Success = false, Message = $"Folder workspace item {workspaceItemId} not found", Status = 404 };
+                }
+
+                var affectedRows = await _context.Folders
+                    .Where(f => f.Id == item.EntityId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(f => f.Name, name)
+                        .SetProperty(f => f.UpdatedAt, DateTime.UtcNow));
+
+                if (affectedRows == 0)
+                {
+                    _logger.LogWarning("Folder not found for name update with ID: {FolderId}", item.EntityId);
+                    return new ResultOptions { Success = false, Message = $"Folder {item.EntityId} not found", Status = 404 };
+                }
+
+                _logger.LogInformation("Updated folder name to '{Name}' for workspace item ID: {WorkspaceItemId}", name, workspaceItemId);
+                return new ResultOptions { Success = true, Status = 200 };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating folder name for workspace item ID: {WorkspaceItemId}", workspaceItemId);
+                return new ResultOptions { Success = false, Message = ex.Message, Status = 500 };
+            }
+        }
     }
 }

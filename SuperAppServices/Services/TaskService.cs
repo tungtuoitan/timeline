@@ -13,13 +13,16 @@ namespace SuperAppServices.Services
     public class TaskService : ITaskService
     {
         private readonly ITaskRepository _taskRepository;
+        private readonly IWorkspaceRepository _workspaceRepository;
         private readonly ILogger<TaskService> _logger;
 
         public TaskService(
             ITaskRepository taskRepository,
+            IWorkspaceRepository workspaceRepository,
             ILogger<TaskService> logger)
         {
             _taskRepository = taskRepository ?? throw new ArgumentNullException(nameof(taskRepository));
+            _workspaceRepository = workspaceRepository ?? throw new ArgumentNullException(nameof(workspaceRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -91,6 +94,13 @@ namespace SuperAppServices.Services
                             Message = "Cannot set deletedAt on a new task. Use existing ID for soft delete/restore.",
                             Status = 400
                         };
+                    }
+
+                    // Sync folder name when updating an existing task that has a linked folder
+                    if (request.Id > 0 && request.FolderWorkspaceItemId.HasValue)
+                    {
+                        await _workspaceRepository.UpdateFolderNameByWorkspaceItemIdAsync(request.FolderWorkspaceItemId.Value, request.Title);
+                        _logger.LogInformation("Synced folder name to '{Title}' for workspace item ID: {FolderWorkspaceItemId}", request.Title, request.FolderWorkspaceItemId.Value);
                     }
 
                     var task = new ProTask
