@@ -315,6 +315,8 @@ namespace SuperAppServices.Services
             var validationSettings = new GoogleJsonWebSignature.ValidationSettings
             {
                 Audience = new[] { clientId }
+                //,IssuedAtClockTolerance = TimeSpan.FromMinutes(5),
+                //ExpirationTimeClockTolerance = TimeSpan.FromMinutes(5)
             };
 
             var payload = await GoogleJsonWebSignature.ValidateAsync(idToken, validationSettings);
