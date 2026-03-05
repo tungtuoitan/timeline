@@ -59,6 +59,7 @@ namespace SuperAppAPI
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "SuperApp", Version = "v1" });
+                c.CustomSchemaIds(type => type.FullName?.Replace("+", "."));
                 
                 // TEMPORARY: JWT Authentication to Swagger DISABLED for development
                 /*
