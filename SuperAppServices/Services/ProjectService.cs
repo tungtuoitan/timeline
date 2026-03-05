@@ -116,6 +116,12 @@ namespace SuperAppServices.Services
                             _logger.LogWarning("Failed to auto-create workspace for project: '{Name}'. Continuing without workspace.", request.Name);
                         }
                     }
+                    // Sync workspace name when updating an existing project that has a workspace
+                    else if (request.Id > 0 && request.WorkspaceId.HasValue)
+                    {
+                        await _wsRepository.UpdateWorkspaceNameAsync(request.WorkspaceId.Value, request.Name);
+                        _logger.LogInformation("Synced workspace name to '{Name}' for workspace ID: {WorkspaceId}", request.Name, request.WorkspaceId.Value);
+                    }
 
                     var project = new Project
                     {
