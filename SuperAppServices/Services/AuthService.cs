@@ -187,40 +187,32 @@ namespace SuperAppServices.Services
         /// </summary>
         public async Task<AuthResponse> LocalLoginAsync(string username, string password)
         {
+            _logger.LogInformation("[AUTH] local-login-start | Username={Username}", username);
             try
             {
                 var user = await _userRepository.GetByEmailAsync(username);
 
                 if (user == null)
                 {
-                    return new AuthResponse
-                    {
-                        Success = false,
-                        Message = "Invalid credentials",
-                        Error = "User not found"
-                    };
+                    _logger.LogWarning("[AUTH] local-login-failed | Username={Username} | Reason=UserNotFound", username);
+                    return new AuthResponse { Success = false, Message = "Invalid credentials", Error = "User not found" };
                 }
 
-                // Verify password (assuming BCrypt is used)
                 if (!BCrypt.Net.BCrypt.Verify(password, user.Password))
                 {
-                    return new AuthResponse
-                    {
-                        Success = false,
-                        Message = "Invalid credentials",
-                        Error = "Invalid password"
-                    };
+                    _logger.LogWarning("[AUTH] local-login-failed | Username={Username} | UserId={UserId} | Reason=WrongPassword", username, user.Id);
+                    return new AuthResponse { Success = false, Message = "Invalid credentials", Error = "Invalid password" };
                 }
 
-                // Update last login
                 user.RecordLogin();
                 await _userRepository.UpdateAsync(user);
 
-                // Generate JWT token
                 var jwtToken = GenerateJwtToken(user);
+                var (plaintext, tokenEntity) = await GenerateAndStoreRefreshTokenAsync(user.Id);
 
-                // Generate refresh token and store in DB
-                var (plaintext, _) = await GenerateAndStoreRefreshTokenAsync(user.Id);
+                _logger.LogInformation(
+                    "[AUTH] local-login-success | UserId={UserId} | Username={Username} | TokenId={TokenId} | RefreshExpiresAt={RefreshExpiresAt}",
+                    user.Id, username, tokenEntity.Id, tokenEntity.ExpiresAt);
 
                 return new AuthResponse
                 {
@@ -241,12 +233,8 @@ namespace SuperAppServices.Services
             }
             catch (Exception ex)
             {
-                return new AuthResponse
-                {
-                    Success = false,
-                    Message = "Login failed",
-                    Error = ex.Message
-                };
+                _logger.LogError(ex, "[AUTH] local-login-exception | Username={Username}", username);
+                return new AuthResponse { Success = false, Message = "Login failed", Error = ex.Message };
             }
         }
 
@@ -404,56 +392,70 @@ namespace SuperAppServices.Services
         public async Task<AuthResponse> RefreshTokenAsync(string refreshToken)
         {
             var tokenHash = HashToken(refreshToken);
+            _logger.LogInformation("[AUTH] refresh-start | TokenHashPrefix={Prefix}", tokenHash[..8]);
+
             var storedToken = await _refreshTokenRepository.GetByTokenHashAsync(tokenHash);
 
             if (storedToken == null)
             {
+                _logger.LogWarning("[AUTH] refresh-failed | Reason=TokenNotFound | TokenHashPrefix={Prefix}", tokenHash[..8]);
                 return new AuthResponse { Success = false, Message = "Invalid refresh token", Error = "Token not found" };
             }
 
-            // Reuse attack detection: token was already revoked
+            _logger.LogInformation(
+                "[AUTH] refresh-token-found | TokenId={TokenId} | UserId={UserId} | CreatedAt={CreatedAt} | ExpiresAt={ExpiresAt} | IsRevoked={IsRevoked}",
+                storedToken.Id, storedToken.UserId, storedToken.CreatedAt, storedToken.ExpiresAt, storedToken.RevokedAt != null);
+
             if (storedToken.RevokedAt != null)
             {
-                // Grace period: if this token was just rotated within the last 30 seconds
-                // (e.g. two devices refreshed concurrently), allow the replacement token to be used
-                // instead of triggering a full security lockout.
                 bool isRecentRotation = storedToken.ReplacedByTokenHash != null
                     && storedToken.RevokedAt > DateTime.UtcNow.AddSeconds(-30);
 
                 if (!isRecentRotation)
                 {
-                    _logger.LogWarning("Refresh token reuse detected for userId: {UserId}. Revoking all tokens.", storedToken.UserId);
+                    _logger.LogWarning(
+                        "[AUTH] refresh-reuse-attack | UserId={UserId} | TokenId={TokenId} | RevokedAt={RevokedAt} | HasReplacement={HasReplacement} | Action=RevokeAll",
+                        storedToken.UserId, storedToken.Id, storedToken.RevokedAt, storedToken.ReplacedByTokenHash != null);
                     await _refreshTokenRepository.RevokeAllUserTokensAsync(storedToken.UserId);
                     return new AuthResponse { Success = false, Message = "Token reuse detected", Error = "Security violation" };
                 }
 
-                // Recent rotation race: look up the replacement token and use it
-                _logger.LogInformation("Concurrent refresh detected for userId: {UserId}, redirecting to replacement token.", storedToken.UserId);
+                _logger.LogInformation(
+                    "[AUTH] refresh-concurrent-race | UserId={UserId} | TokenId={TokenId} | RevokedAt={RevokedAt} | FollowingReplacement | Action=Redirect",
+                    storedToken.UserId, storedToken.Id, storedToken.RevokedAt);
+
                 var replacementToken = await _refreshTokenRepository.GetByTokenHashAsync(storedToken.ReplacedByTokenHash!);
                 if (replacementToken == null || replacementToken.RevokedAt != null || replacementToken.ExpiresAt <= DateTime.UtcNow)
                 {
+                    _logger.LogWarning(
+                        "[AUTH] refresh-failed | UserId={UserId} | Reason=ReplacementUnavailable | ReplacementExists={Exists} | ReplacementRevoked={Revoked}",
+                        storedToken.UserId, replacementToken != null, replacementToken?.RevokedAt != null);
                     return new AuthResponse { Success = false, Message = "Refresh token expired or invalid", Error = "Token not available" };
                 }
 
-                // Issue new tokens from the replacement
                 storedToken = replacementToken;
+                _logger.LogInformation("[AUTH] refresh-redirected-to-replacement | NewTokenId={TokenId} | UserId={UserId}", storedToken.Id, storedToken.UserId);
             }
 
             if (storedToken.ExpiresAt <= DateTime.UtcNow)
             {
+                _logger.LogWarning(
+                    "[AUTH] refresh-failed | UserId={UserId} | TokenId={TokenId} | Reason=Expired | ExpiredAt={ExpiresAt}",
+                    storedToken.UserId, storedToken.Id, storedToken.ExpiresAt);
                 return new AuthResponse { Success = false, Message = "Refresh token expired", Error = "Token expired" };
             }
 
             var user = storedToken.User;
-
-            // Generate new tokens
             var newJwtToken = GenerateJwtToken(user);
             var (newPlaintext, newTokenEntity) = await GenerateAndStoreRefreshTokenAsync(user.Id);
 
-            // Revoke old token and link to new one
             storedToken.RevokedAt = DateTime.UtcNow;
             storedToken.ReplacedByTokenHash = newTokenEntity.TokenHash;
             await _refreshTokenRepository.UpdateAsync(storedToken);
+
+            _logger.LogInformation(
+                "[AUTH] refresh-success | UserId={UserId} | Email={Email} | OldTokenId={OldId} | NewTokenId={NewId} | NewExpiresAt={NewExpires}",
+                user.Id, user.Email, storedToken.Id, newTokenEntity.Id, newTokenEntity.ExpiresAt);
 
             string? userFilters = null;
             try
@@ -493,6 +495,15 @@ namespace SuperAppServices.Services
             {
                 storedToken.RevokedAt = DateTime.UtcNow;
                 await _refreshTokenRepository.UpdateAsync(storedToken);
+                _logger.LogInformation(
+                    "[AUTH] logout-token-revoked | UserId={UserId} | TokenId={TokenId}",
+                    storedToken.UserId, storedToken.Id);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "[AUTH] logout-token-skip | TokenHashPrefix={Prefix} | Found={Found} | AlreadyRevoked={Revoked}",
+                    tokenHash[..8], storedToken != null, storedToken?.RevokedAt != null);
             }
         }
 
