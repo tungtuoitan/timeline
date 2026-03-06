@@ -414,9 +414,29 @@ namespace SuperAppServices.Services
             // Reuse attack detection: token was already revoked
             if (storedToken.RevokedAt != null)
             {
-                _logger.LogWarning("Refresh token reuse detected for userId: {UserId}. Revoking all tokens.", storedToken.UserId);
-                await _refreshTokenRepository.RevokeAllUserTokensAsync(storedToken.UserId);
-                return new AuthResponse { Success = false, Message = "Token reuse detected", Error = "Security violation" };
+                // Grace period: if this token was just rotated within the last 30 seconds
+                // (e.g. two devices refreshed concurrently), allow the replacement token to be used
+                // instead of triggering a full security lockout.
+                bool isRecentRotation = storedToken.ReplacedByTokenHash != null
+                    && storedToken.RevokedAt > DateTime.UtcNow.AddSeconds(-30);
+
+                if (!isRecentRotation)
+                {
+                    _logger.LogWarning("Refresh token reuse detected for userId: {UserId}. Revoking all tokens.", storedToken.UserId);
+                    await _refreshTokenRepository.RevokeAllUserTokensAsync(storedToken.UserId);
+                    return new AuthResponse { Success = false, Message = "Token reuse detected", Error = "Security violation" };
+                }
+
+                // Recent rotation race: look up the replacement token and use it
+                _logger.LogInformation("Concurrent refresh detected for userId: {UserId}, redirecting to replacement token.", storedToken.UserId);
+                var replacementToken = await _refreshTokenRepository.GetByTokenHashAsync(storedToken.ReplacedByTokenHash!);
+                if (replacementToken == null || replacementToken.RevokedAt != null || replacementToken.ExpiresAt <= DateTime.UtcNow)
+                {
+                    return new AuthResponse { Success = false, Message = "Refresh token expired or invalid", Error = "Token not available" };
+                }
+
+                // Issue new tokens from the replacement
+                storedToken = replacementToken;
             }
 
             if (storedToken.ExpiresAt <= DateTime.UtcNow)
