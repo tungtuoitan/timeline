@@ -67,7 +67,7 @@ namespace SuperAppServices.Services
 
             // Fetch all workspace items needed
             var itemIds = keywords
-                .SelectMany(k => new[] { k.TargetItemId, k.NoteItemId })
+                .SelectMany(k => new[] { k.TargetItemId /*, k.NoteItemId REMOVED */ })
                 .Where(id => id.HasValue)
                 .Select(id => id!.Value)
                 .Distinct()
@@ -113,47 +113,14 @@ namespace SuperAppServices.Services
             var noteIcons = noteDataList.ToDictionary(n => n.Id, n => n.Icon);
             var noteColors = noteDataList.ToDictionary(n => n.Id, n => n.Color);
 
-            // Build nameIndex maps for each entity type
-            // We need to calculate nameIndex based on all keywords with same name
-            var allKeywords = await _context.Keywords
-                .Where(k => k.TargetItemId.HasValue)
-                .OrderBy(k => k.CreatedAt)
-                .ToListAsync();
-
-            // Build maps: (EntityType, EntityId) -> NameIndex
-            var nameIndexMap = new Dictionary<(byte EntityType, int EntityId), int>();
-
-            // Group workspaces by name to calculate nameIndex
-            var workspacesByName = workspaceNamesList.GroupBy(w => w.Name);
-            foreach (var group in workspacesByName)
-            {
-                var index = 1;
-                foreach (var ws in group.OrderBy(w => w.Id))
-                {
-                    nameIndexMap[(1, ws.Id)] = index++;
-                }
-            }
-
-            // For folders/notes, use existing keywords to get nameIndex
-            var folderKeywords = allKeywords.Where(k => k.Type == "folder" && k.TargetItemId.HasValue).ToList();
-            foreach (var kw in folderKeywords)
-            {
-                var item = items.FirstOrDefault(i => i.Id == kw.TargetItemId.Value);
-                if (item != null)
-                {
-                    nameIndexMap[(item.EntityType, item.EntityId)] = kw.NameIndex;
-                }
-            }
-
-            var noteKeywords = allKeywords.Where(k => k.Type == "note" && k.TargetItemId.HasValue).ToList();
-            foreach (var kw in noteKeywords)
-            {
-                var item = items.FirstOrDefault(i => i.Id == kw.TargetItemId.Value);
-                if (item != null)
-                {
-                    nameIndexMap[(item.EntityType, item.EntityId)] = kw.NameIndex;
-                }
-            }
+            // REMOVED: nameIndex maps no longer needed (NameIndex column removed from Keywords)
+            // var allKeywords = await _context.Keywords
+            //     .Where(k => k.TargetItemId.HasValue)
+            //     .OrderBy(k => k.CreatedAt)
+            //     .ToListAsync();
+            // var nameIndexMap = new Dictionary<(byte EntityType, int EntityId), int>();
+            // ... (workspace/folder/note nameIndex building logic removed)
+            var nameIndexMap = new Dictionary<(byte EntityType, int EntityId), int>(); // Kept as empty for ComputeLongLink signature compat
 
             // Build PathIds → LongLink cache
             var pathLongLinkCache = new Dictionary<string, string>();
@@ -190,7 +157,7 @@ namespace SuperAppServices.Services
                 {
                     Id = k.Id,
                     Name = k.Name,
-                    NameIndex = k.NameIndex,
+                    // NameIndex = k.NameIndex, // REMOVED
                     Type = k.Type,
                     Link = k.Link,
                     LongLink = ComputeLongLink(k, itemMap, workspaceNames, folderNames, noteNames, pathLongLinkCache, nameIndexMap),
@@ -224,16 +191,15 @@ namespace SuperAppServices.Services
             if (keyword.Type == "external")
                 return $"{keyword.Name}";
 
-            // Heading keyword
-            if (keyword.Type.StartsWith("h"))
-            {
-                if (!keyword.NoteItemId.HasValue || !itemMap.ContainsKey(keyword.NoteItemId.Value))
-                    return $"{keyword.Name}";
-
-                var noteItem = itemMap[keyword.NoteItemId.Value];
-                var noteLongLink = BuildLongLinkFromPathIds(noteItem.PathIds, noteItem.WorkspaceId, itemMap, workspaceNames, folderNames, noteNames, cache);
-                return $"{noteLongLink}/{keyword.Name}";
-            }
+            // REMOVED: Heading keyword logic (h1-h6 types no longer supported)
+            // if (keyword.Type.StartsWith("h"))
+            // {
+            //     if (!keyword.NoteItemId.HasValue || !itemMap.ContainsKey(keyword.NoteItemId.Value))
+            //         return $"{keyword.Name}";
+            //     var noteItem = itemMap[keyword.NoteItemId.Value];
+            //     var noteLongLink = BuildLongLinkFromPathIds(noteItem.PathIds, noteItem.WorkspaceId, itemMap, workspaceNames, folderNames, noteNames, cache);
+            //     return $"{noteLongLink}/{keyword.Name}";
+            // }
 
             // Folder/Note/File keyword
             if (!keyword.TargetItemId.HasValue || !itemMap.ContainsKey(keyword.TargetItemId.Value))
@@ -337,7 +303,7 @@ namespace SuperAppServices.Services
                     var nameIndex = await GetNextNameIndexAsync(workspace.Name);
                     keyword = new Keyword(
                         name: workspace.Name,
-                        nameIndex: nameIndex,
+                        // nameIndex: nameIndex, // REMOVED
                         link: link,
                         type: "workspace",
                         userId: userId,
@@ -347,27 +313,23 @@ namespace SuperAppServices.Services
                 }
                 else
                 {
-                    // Check if updating will cause duplicate (Name + NameIndex already exists for another keyword)
-                    var duplicateKeyword = await _context.Keywords
-                        .FirstOrDefaultAsync(k => k.Name == workspace.Name &&
-                                                  k.NameIndex == keyword.NameIndex &&
-                                                  k.Id != keyword.Id &&
-                                                  k.HardDeletedAt == null);
-
-                    int nameIndexToUse = keyword.NameIndex;
-                    if (duplicateKeyword != null)
-                    {
-                        // Generate new nameIndex to avoid duplicate
-                        nameIndexToUse = await GetNextNameIndexAsync(workspace.Name);
-                        _logger.LogWarning(
-                            "Duplicate detected when updating workspace keyword ID {KeywordId}. Name '{Name}' + NameIndex {OldIndex} already exists (Keyword ID {DuplicateId}). Generating new NameIndex: {NewIndex}",
-                            keyword.Id, workspace.Name, keyword.NameIndex, duplicateKeyword.Id, nameIndexToUse);
-                    }
+                    // REMOVED: NameIndex duplicate check no longer needed
+                    // var duplicateKeyword = await _context.Keywords
+                    //     .FirstOrDefaultAsync(k => k.Name == workspace.Name &&
+                    //                               k.NameIndex == keyword.NameIndex &&
+                    //                               k.Id != keyword.Id &&
+                    //                               k.HardDeletedAt == null);
+                    // int nameIndexToUse = keyword.NameIndex;
+                    // if (duplicateKeyword != null)
+                    // {
+                    //     nameIndexToUse = await GetNextNameIndexAsync(workspace.Name);
+                    //     _logger.LogWarning("Duplicate detected ...", ...);
+                    // }
 
                     // Update existing keyword
                     keyword.Update(
                         name: workspace.Name,
-                        nameIndex: nameIndexToUse,
+                        // nameIndex: nameIndexToUse, // REMOVED
                         link: link,
                         type: "workspace",
                         description: workspace.Description,
@@ -412,7 +374,7 @@ namespace SuperAppServices.Services
                     var nameIndex = await GetNextNameIndexAsync(folder.Name);
                     keyword = new Keyword(
                         name: folder.Name,
-                        nameIndex: nameIndex,
+                        // nameIndex: nameIndex, // REMOVED
                         link: link,
                         type: "folder",
                         userId: userId,
@@ -423,27 +385,23 @@ namespace SuperAppServices.Services
                 }
                 else
                 {
-                    // Check if updating will cause duplicate (Name + NameIndex already exists for another keyword)
-                    var duplicateKeyword = await _context.Keywords
-                        .FirstOrDefaultAsync(k => k.Name == folder.Name &&
-                                                  k.NameIndex == keyword.NameIndex &&
-                                                  k.Id != keyword.Id &&
-                                                  k.HardDeletedAt == null);
-
-                    int nameIndexToUse = keyword.NameIndex;
-                    if (duplicateKeyword != null)
-                    {
-                        // Generate new nameIndex to avoid duplicate
-                        nameIndexToUse = await GetNextNameIndexAsync(folder.Name);
-                        _logger.LogWarning(
-                            "Duplicate detected when updating folder keyword ID {KeywordId}. Name '{Name}' + NameIndex {OldIndex} already exists (Keyword ID {DuplicateId}). Generating new NameIndex: {NewIndex}",
-                            keyword.Id, folder.Name, keyword.NameIndex, duplicateKeyword.Id, nameIndexToUse);
-                    }
+                    // REMOVED: NameIndex duplicate check no longer needed
+                    // var duplicateKeyword = await _context.Keywords
+                    //     .FirstOrDefaultAsync(k => k.Name == folder.Name &&
+                    //                               k.NameIndex == keyword.NameIndex &&
+                    //                               k.Id != keyword.Id &&
+                    //                               k.HardDeletedAt == null);
+                    // int nameIndexToUse = keyword.NameIndex;
+                    // if (duplicateKeyword != null)
+                    // {
+                    //     nameIndexToUse = await GetNextNameIndexAsync(folder.Name);
+                    //     _logger.LogWarning("Duplicate detected ...", ...);
+                    // }
 
                     // Update existing keyword
                     keyword.Update(
                         name: folder.Name,
-                        nameIndex: nameIndexToUse,
+                        // nameIndex: nameIndexToUse, // REMOVED
                         link: link,
                         type: "folder",
                         targetItemId: workspaceItemId,
@@ -462,7 +420,7 @@ namespace SuperAppServices.Services
         }
 
         /// <summary>
-        /// Create or update note keyword + sync headings
+        /// Create or update note keyword
         /// </summary>
         public async Task<Keyword> SyncNoteKeywordAsync(int workspaceItemId, int userId)
         {
@@ -506,7 +464,7 @@ namespace SuperAppServices.Services
                     var nameIndex = await GetNextNameIndexAsync(note.Name);
                     keyword = new Keyword(
                         name: note.Name,
-                        nameIndex: nameIndex,
+                        // nameIndex: nameIndex, // REMOVED
                         link: link,
                         type: "note",
                         userId: userId,
@@ -519,27 +477,23 @@ namespace SuperAppServices.Services
                 {
                     _logger.LogInformation("Updating existing keyword ID {KeywordId} for note '{NoteName}' with new link '{Link}'", keyword.Id, note.Name, link);
 
-                    // Check if updating will cause duplicate (Name + NameIndex already exists for another keyword)
-                    var duplicateKeyword = await _context.Keywords
-                        .FirstOrDefaultAsync(k => k.Name == note.Name &&
-                                                  k.NameIndex == keyword.NameIndex &&
-                                                  k.Id != keyword.Id &&
-                                                  k.HardDeletedAt == null);
-
-                    int nameIndexToUse = keyword.NameIndex;
-                    if (duplicateKeyword != null)
-                    {
-                        // Generate new nameIndex to avoid duplicate
-                        nameIndexToUse = await GetNextNameIndexAsync(note.Name);
-                        _logger.LogWarning(
-                            "Duplicate detected when updating note keyword ID {KeywordId}. Name '{Name}' + NameIndex {OldIndex} already exists (Keyword ID {DuplicateId}). Generating new NameIndex: {NewIndex}",
-                            keyword.Id, note.Name, keyword.NameIndex, duplicateKeyword.Id, nameIndexToUse);
-                    }
+                    // REMOVED: NameIndex duplicate check no longer needed
+                    // var duplicateKeyword = await _context.Keywords
+                    //     .FirstOrDefaultAsync(k => k.Name == note.Name &&
+                    //                               k.NameIndex == keyword.NameIndex &&
+                    //                               k.Id != keyword.Id &&
+                    //                               k.HardDeletedAt == null);
+                    // int nameIndexToUse = keyword.NameIndex;
+                    // if (duplicateKeyword != null)
+                    // {
+                    //     nameIndexToUse = await GetNextNameIndexAsync(note.Name);
+                    //     _logger.LogWarning("Duplicate detected ...", keyword.Id, note.Name, ...);
+                    // }
 
                     // Update existing keyword
                     keyword.Update(
                         name: note.Name,
-                        nameIndex: nameIndexToUse,
+                        // nameIndex: nameIndexToUse, // REMOVED
                         link: link,
                         type: "note",
                         targetItemId: workspaceItemId,
@@ -550,7 +504,7 @@ namespace SuperAppServices.Services
                 await _context.SaveChangesAsync();
 
                 // Sync headings
-                await SyncNoteHeadingsAsync(note, workspaceItemId, userId);
+                //await SyncNoteHeadingsAsync(note, workspaceItemId, userId);
 
                 return keyword;
             }
@@ -561,128 +515,16 @@ namespace SuperAppServices.Services
             }
         }
 
-        /// <summary>
-        /// Sync headings for a note (soft delete old + insert/restore new)
-        /// Strategy: Mark old headings as deleted, then insert or restore matching headings
-        /// </summary>
-        private async Task SyncNoteHeadingsAsync(Note note, int noteWorkspaceItemId, int userId)
-        {
-            // Get all existing headings for this note (including soft deleted ones)
-            var existingHeadings = await _context.Keywords
-                .Where(k => k.NoteItemId == noteWorkspaceItemId &&
-                           (k.Type == "h1" || k.Type == "h2" || k.Type == "h3" ||
-                            k.Type == "h4" || k.Type == "h5" || k.Type == "h6"))
-                .ToListAsync();
-
-            // Extract new headings from markdown
-            if (string.IsNullOrEmpty(note.Description))
-            {
-                // No headings in markdown - delete all existing headings
-                foreach (var heading in existingHeadings.Where(h => h.HardDeletedAt == null))
-                {
-                    heading.HardDeletedAt = DateTime.UtcNow;
-                    heading.UpdatedAt = DateTime.UtcNow;
-                }
-                await _context.SaveChangesAsync();
-                return;
-            }
-
-            var headings = ExtractHeadingsFromMarkdown(note.Description);
-            var headingStack = new Stack<(int Level, string Title, int NameIndex)>();
-
-            var noteItem = await _context.Set<WorkspaceItemEntity>().FindAsync(noteWorkspaceItemId);
-            var noteLink = await BuildItemLinkAsync(noteItem!.PathIds, noteItem.WorkspaceId, noteWorkspaceItemId);
-
-            // Track which existing headings are still valid (to avoid soft deleting them)
-            var processedHeadingPaths = new HashSet<string>();
-
-            // CRITICAL: Track nameIndex assignments in this batch to avoid duplicates
-            var batchNameIndexTracker = new Dictionary<string, int>();
-
-            foreach (var (level, title) in headings)
-            {
-                // Pop headings with same or higher level
-                while (headingStack.Count > 0 && headingStack.Peek().Level >= level)
-                {
-                    headingStack.Pop();
-                }
-
-                // Build heading path for nameIndex calculation (full path to ensure uniqueness)
-                var headingPath = string.Join("/", headingStack.Reverse().Select(h => h.Title));
-                if (headingStack.Count > 0)
-                    headingPath += "/";
-                headingPath += title;
-
-                // Build links (include current title)
-                var headingPathForLink = headingStack.Count > 0
-                    ? string.Join("/", headingStack.Reverse().Select(h => h.Title)) + "/" + title
-                    : title;
-                var fullLink = $"{noteLink}/{headingPathForLink}";
-
-                // Check if heading already exists (by HeadingPath + NoteItemId + Type)
-                var existingHeading = existingHeadings.FirstOrDefault(h =>
-                    h.HeadingPath == headingPathForLink &&
-                    h.Type == $"h{level}");
-
-                if (existingHeading != null)
-                {
-                    // Restore if deleted, update if changed
-                    if (existingHeading.HardDeletedAt.HasValue)
-                    {
-                        existingHeading.HardDeletedAt = null;
-                        existingHeading.UpdatedAt = DateTime.UtcNow;
-                        _logger.LogInformation("Restored heading keyword {KeywordId} for note {NoteItemId}",
-                            existingHeading.Id, noteWorkspaceItemId);
-                    }
-
-                    // Update name/link if changed
-                    if (existingHeading.Name != title || existingHeading.Link != fullLink)
-                    {
-                        existingHeading.Name = title;
-                        existingHeading.Link = fullLink;
-                        existingHeading.UpdatedAt = DateTime.UtcNow;
-                    }
-
-                    processedHeadingPaths.Add(headingPathForLink);
-                    var nameIndex = existingHeading.NameIndex;
-                    headingStack.Push((level, title, nameIndex));
-                }
-                else
-                {
-                    // Create new heading - pass batch tracker to avoid duplicate nameIndex
-                    var nameIndex = await GetNextNameIndexAsync(title, batchNameIndexTracker);
-                    headingStack.Push((level, title, nameIndex));
-
-                    var heading = new Keyword(
-                        name: title, // Only the last heading title, not the full path
-                        nameIndex: nameIndex,
-                        link: fullLink,
-                        type: $"h{level}",
-                        userId: userId,
-                        noteItemId: noteWorkspaceItemId,
-                        headingPath: headingPathForLink
-                    );
-
-                    _context.Keywords.Add(heading);
-                    processedHeadingPaths.Add(headingPathForLink);
-                }
-            }
-
-            // delete headings that no longer exist in markdown
-            foreach (var heading in existingHeadings)
-            {
-                if (!processedHeadingPaths.Contains(heading.HeadingPath ?? "") &&
-                    heading.HardDeletedAt == null)
-                {
-                    heading.HardDeletedAt = DateTime.UtcNow;
-                    heading.UpdatedAt = DateTime.UtcNow;
-                    _logger.LogInformation("deleted heading keyword {KeywordId} (HeadingPath: {HeadingPath}) for note {NoteItemId}",
-                        heading.Id, heading.HeadingPath, noteWorkspaceItemId);
-                }
-            }
-
-            await _context.SaveChangesAsync();
-        }
+        // REMOVED: Heading sync logic - headings are no longer tracked as keywords
+        // private async Task SyncNoteHeadingsAsync(Note note, int noteWorkspaceItemId, int userId)
+        // {
+        //     var existingHeadings = await _context.Keywords
+        //         .Where(k => k.NoteItemId == noteWorkspaceItemId &&
+        //                    (k.Type == "h1" || k.Type == "h2" || k.Type == "h3" ||
+        //                     k.Type == "h4" || k.Type == "h5" || k.Type == "h6"))
+        //         .ToListAsync();
+        //     ... (full heading sync logic removed)
+        // }
 
         /// <summary>
         /// Batch upsert external keywords
@@ -729,7 +571,7 @@ namespace SuperAppServices.Services
                             // Update fields
                             keyword.Update(
                                 name: request.Name,
-                                nameIndex: keyword.NameIndex, // Keep existing nameIndex
+                                // nameIndex: keyword.NameIndex, // REMOVED
                                 link: request.Link,
                                 type: "external",
                                 externalUrl: request.Link
@@ -740,12 +582,12 @@ namespace SuperAppServices.Services
                         }
                         else
                         {
-                            // CREATE new external keyword - pass batch tracker to avoid duplicate nameIndex
+                            // CREATE new external keyword
                             var nameIndex = await GetNextNameIndexAsync(request.Name, batchNameIndexTracker);
 
                             keyword = new Keyword(
                                 name: request.Name,
-                                nameIndex: nameIndex,
+                                // nameIndex: nameIndex, // REMOVED
                                 link: request.Link,
                                 type: "external",
                                 userId: userId,
@@ -765,10 +607,10 @@ namespace SuperAppServices.Services
                         {
                             Id = keyword.Id,
                             Name = keyword.Name,
-                            NameIndex = keyword.NameIndex,
+                            // NameIndex = keyword.NameIndex, // REMOVED
                             Type = keyword.Type,
                             Link = keyword.Link,
-                            LongLink = $"{keyword.Name}", // External keywords have simple LongLink
+                            LongLink = $"{keyword.Name}",
                             Description = keyword.Description
                         };
 
@@ -876,12 +718,12 @@ namespace SuperAppServices.Services
                         }
                         else
                         {
-                            // Create new external keyword - pass batch tracker to avoid duplicate nameIndex
+                            // Create new external keyword
                             var nameIndex = await GetNextNameIndexAsync(name, batchNameIndexTracker);
 
                             keyword = new Keyword(
                                 name: name,
-                                nameIndex: nameIndex,
+                                // nameIndex: nameIndex, // REMOVED
                                 link: url,
                                 type: "external",
                                 userId: userId,
@@ -1058,11 +900,11 @@ namespace SuperAppServices.Services
 
                 // Find all keywords for these notes:
                 // 1. Note keywords (TargetItemId matches workspace_item)
-                // 2. Heading keywords (NoteItemId matches workspace_item)
+                // REMOVED: 2. Heading keywords (NoteItemId matches workspace_item)
                 var keywords = await _context.Keywords
-                    .Where(k => (k.TargetItemId.HasValue && workspaceItems.Contains(k.TargetItemId.Value)) ||
-                               (k.NoteItemId.HasValue && workspaceItems.Contains(k.NoteItemId.Value)))
-                    .Where(k => k.HardDeletedAt == null) // Only mark non-deleted keywords
+                    .Where(k => k.TargetItemId.HasValue && workspaceItems.Contains(k.TargetItemId.Value))
+                    // REMOVED: || (k.NoteItemId.HasValue && workspaceItems.Contains(k.NoteItemId.Value))
+                    .Where(k => k.HardDeletedAt == null)
                     .ToListAsync();
 
                 if (!keywords.Any())
@@ -1082,7 +924,7 @@ namespace SuperAppServices.Services
                 await _context.SaveChangesAsync();
 
                 _logger.LogInformation(
-                    "Hard deleted {Count} keywords (notes + headings) for {NoteCount} notes",
+                    "Hard deleted {Count} keywords (notes) for {NoteCount} notes",
                     keywords.Count, noteIds.Count);
             }
             catch (Exception ex)
@@ -1174,61 +1016,37 @@ namespace SuperAppServices.Services
             return string.Join("/", parts);
         }
 
-        /// <summary>
-        /// Get next nameIndex for a name
-        /// Supports batch operation by tracking assigned nameIndex values
-        /// </summary>
-        /// <param name="name">Keyword name</param>
-        /// <param name="batchTracker">Optional dictionary tracking nameIndex already assigned in current batch (key: name, value: max nameIndex used)</param>
-        /// <returns>Next available nameIndex</returns>
+        // REMOVED: GetNextNameIndexAsync - NameIndex column no longer exists in Keywords table
+        // private async Task<int> GetNextNameIndexAsync(string name, Dictionary<string, int>? batchTracker = null)
+        // {
+        //     var maxIndexDb = await _context.Keywords
+        //         .Where(k => k.Name == name)
+        //         .MaxAsync(k => (int?)k.NameIndex) ?? 0;
+        //     ... (full nameIndex logic removed)
+        // }
         private async Task<int> GetNextNameIndexAsync(string name, Dictionary<string, int>? batchTracker = null)
         {
-            // Get max nameIndex from database
-            var maxIndexDb = await _context.Keywords
-                .Where(k => k.Name == name)
-                .MaxAsync(k => (int?)k.NameIndex) ?? 0;
-
-            // If batch tracker provided, also check in-memory assigned values
-            var maxIndexBatch = 0;
-            if (batchTracker != null && batchTracker.TryGetValue(name, out var trackedIndex))
-            {
-                maxIndexBatch = trackedIndex;
-            }
-
-            // Use the higher value between DB and batch
-            var maxIndex = Math.Max(maxIndexDb, maxIndexBatch);
-            var nextIndex = maxIndex + 1;
-
-            // Update batch tracker if provided
-            if (batchTracker != null)
-            {
-                batchTracker[name] = nextIndex;
-            }
-
-            return nextIndex;
+            // REMOVED: NameIndex column no longer used - always return 1
+            return 1;
         }
 
-        /// <summary>
-        /// Extract headings from markdown
-        /// </summary>
-        private List<(int Level, string Title)> ExtractHeadingsFromMarkdown(string markdown)
-        {
-            var headings = new List<(int, string)>();
-            var lines = markdown.Split('\n');
-
-            foreach (var line in lines)
-            {
-                var match = Regex.Match(line.Trim(), @"^(#{1,6})\s+(.+)$");
-                if (match.Success)
-                {
-                    var level = match.Groups[1].Value.Length;
-                    var title = match.Groups[2].Value.Trim();
-                    headings.Add((level, title));
-                }
-            }
-
-            return headings;
-        }
+        // REMOVED: ExtractHeadingsFromMarkdown - headings are no longer tracked as keywords
+        // private List<(int Level, string Title)> ExtractHeadingsFromMarkdown(string markdown)
+        // {
+        //     var headings = new List<(int, string)>();
+        //     var lines = markdown.Split('\n');
+        //     foreach (var line in lines)
+        //     {
+        //         var match = Regex.Match(line.Trim(), @"^(#{1,6})\s+(.+)$");
+        //         if (match.Success)
+        //         {
+        //             var level = match.Groups[1].Value.Length;
+        //             var title = match.Groups[2].Value.Trim();
+        //             headings.Add((level, title));
+        //         }
+        //     }
+        //     return headings;
+        // }
 
         #endregion
 

@@ -16,11 +16,11 @@ namespace SuperAppModels.DTOs.Responses
         /// </summary>
         public string Name { get; set; } = string.Empty;
 
-        /// <summary>
-        /// Name index for handling duplicate names
-        /// Default: 1, increments for each duplicate name
-        /// </summary>
-        public int NameIndex { get; set; }
+        // /// <summary>
+        // /// Name index for handling duplicate names
+        // /// Default: 1, increments for each duplicate name
+        // /// </summary>
+        // public int NameIndex { get; set; } // REMOVED: no longer used
 
         /// <summary>
         /// Unique identifier link
