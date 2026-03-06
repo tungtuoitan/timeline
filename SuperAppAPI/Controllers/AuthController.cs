@@ -25,16 +25,25 @@ namespace SuperAppAPI.Controllers
             _env = env;
         }
 
+        private CookieOptions RefreshTokenCookieOptions() => new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = !_env.IsDevelopment(),
+            SameSite = SameSiteMode.Strict,
+            Expires = DateTimeOffset.UtcNow.AddDays(7),
+            Path = "/api/auth"
+        };
+
         private void SetRefreshTokenCookie(string token)
         {
-            Response.Cookies.Append("refreshToken", token, new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = !_env.IsDevelopment(),
-                SameSite = SameSiteMode.Strict,
-                Expires = DateTimeOffset.UtcNow.AddDays(7),
-                Path = "/api/auth"
-            });
+            Response.Cookies.Append("refreshToken", token, RefreshTokenCookieOptions());
+        }
+
+        private void DeleteRefreshTokenCookie()
+        {
+            var opts = RefreshTokenCookieOptions();
+            opts.Expires = DateTimeOffset.UtcNow.AddDays(-1);
+            Response.Cookies.Append("refreshToken", "", opts);
         }
 
         [HttpPost("google/login")]
@@ -140,7 +149,7 @@ namespace SuperAppAPI.Controllers
             var result = await _authService.RefreshTokenAsync(refreshToken);
             if (!result.Success)
             {
-                Response.Cookies.Delete("refreshToken", new CookieOptions { Path = "/api/auth" });
+                DeleteRefreshTokenCookie();
                 return Unauthorized(result);
             }
 
@@ -160,7 +169,7 @@ namespace SuperAppAPI.Controllers
             if (!string.IsNullOrEmpty(refreshToken))
                 await _authService.RevokeRefreshTokenAsync(refreshToken);
 
-            Response.Cookies.Delete("refreshToken", new CookieOptions { Path = "/api/auth" });
+            DeleteRefreshTokenCookie();
             return Ok();
         }
     }
