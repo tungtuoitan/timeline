@@ -70,16 +70,32 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         public async Task<IActionResult> UpsertTracks([FromBody] List<UpsertLifeLogTrackRequest> requests)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-            if (requests == null || !requests.Any()) return BadRequest("At least one track is required");
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                _logger.LogWarning("UpsertTracks ModelState invalid: {Errors}", string.Join("; ", errors));
+                return BadRequest(ModelState);
+            }
+            if (requests == null || !requests.Any())
+            {
+                _logger.LogWarning("UpsertTracks called with empty body");
+                return BadRequest("At least one track is required");
+            }
 
             var userId = GetAuthenticatedUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
 
             foreach (var r in requests) r.UserId = userId.Value;
 
-            _logger.LogInformation("UpsertTracks {Count} for userId: {UserId}", requests.Count, userId);
+            _logger.LogInformation("UpsertTracks {Count} for userId: {UserId} | data: {Data}",
+                requests.Count, userId,
+                string.Join("; ", requests.Select(r => $"[id={r.Id} name={r.Name} emoji={r.Emoji} color={r.Color} isSensitive={r.IsSensitive} deletedAt={r.DeletedAt}]")));
+
             var response = await _service.UpsertTracksAsync(requests);
+
+            _logger.LogInformation("UpsertTracks result: success={Success} message={Message} count={Count}",
+                response.Success, response.Message, response.Data?.Count ?? 0);
+
             return Ok(response);
         }
 
@@ -132,16 +148,32 @@ namespace SuperAppAPI.Controllers
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         public async Task<IActionResult> UpsertLogs([FromBody] List<UpsertLifeLogLogRequest> requests)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-            if (requests == null || !requests.Any()) return BadRequest("At least one log is required");
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                _logger.LogWarning("UpsertLogs ModelState invalid: {Errors}", string.Join("; ", errors));
+                return BadRequest(ModelState);
+            }
+            if (requests == null || !requests.Any())
+            {
+                _logger.LogWarning("UpsertLogs called with empty body");
+                return BadRequest("At least one log is required");
+            }
 
             var userId = GetAuthenticatedUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
 
             foreach (var r in requests) r.UserId = userId.Value;
 
-            _logger.LogInformation("UpsertLogs {Count} for userId: {UserId}", requests.Count, userId);
+            _logger.LogInformation("UpsertLogs {Count} for userId: {UserId} | data: {Data}",
+                requests.Count, userId,
+                string.Join("; ", requests.Select(r => $"[id={r.Id} type={r.Type} trackId={r.TrackId} title={r.Title} isSensitive={r.IsSensitive} occurAt={r.OccurAt} deletedAt={r.DeletedAt}]")));
+
             var response = await _service.UpsertLogsAsync(requests);
+
+            _logger.LogInformation("UpsertLogs result: success={Success} message={Message} count={Count}",
+                response.Success, response.Message, response.Data?.Count ?? 0);
+
             return Ok(response);
         }
     }
