@@ -78,9 +78,15 @@ namespace SuperAppDataRepositories.Repositories
                 try
                 {
                     var idsToUpdate = tracks.Where(t => t.Id > 0).Select(t => t.Id).ToList();
+                    _logger.LogInformation("Repo.UpsertTracksAsync: total={Total} toUpdate={ToUpdate} toCreate={ToCreate} ids=[{Ids}]",
+                        tracks.Count, idsToUpdate.Count, tracks.Count - idsToUpdate.Count, string.Join(",", idsToUpdate));
+
                     var existingDict = await _context.LifeLogTracks
                         .Where(t => idsToUpdate.Contains(t.Id))
                         .ToDictionaryAsync(t => t.Id, t => t);
+
+                    _logger.LogInformation("Repo.UpsertTracksAsync: found {Found} existing in DB out of {Requested}",
+                        existingDict.Count, idsToUpdate.Count);
 
                     var upserted = new List<LifeLogTrack>();
 
@@ -88,6 +94,7 @@ namespace SuperAppDataRepositories.Repositories
                     {
                         if (track.Id > 0 && existingDict.TryGetValue(track.Id, out var existing))
                         {
+                            _logger.LogInformation("Repo.UpsertTracksAsync: UPDATE id={Id} name={Name} deletedAt={DeletedAt}", track.Id, track.Name, track.DeletedAt);
                             existing.Name = track.Name;
                             existing.Emoji = track.Emoji;
                             existing.Description = track.Description;
@@ -99,6 +106,7 @@ namespace SuperAppDataRepositories.Repositories
                         }
                         else
                         {
+                            _logger.LogInformation("Repo.UpsertTracksAsync: CREATE name={Name} userId={UserId}", track.Name, track.UserId);
                             track.CreatedAt = DateTime.Now;
                             track.UpdatedAt = DateTime.Now;
                             track.DeletedAt = null;
@@ -109,6 +117,9 @@ namespace SuperAppDataRepositories.Repositories
 
                     await _context.SaveChangesAsync();
                     await transaction.CommitAsync();
+
+                    _logger.LogInformation("Repo.UpsertTracksAsync: committed {Count} tracks, new ids=[{Ids}]",
+                        upserted.Count, string.Join(",", upserted.Select(t => t.Id)));
 
                     return new ResultOptions
                     {
@@ -121,7 +132,7 @@ namespace SuperAppDataRepositories.Repositories
                 catch (Exception ex)
                 {
                     await transaction.RollbackAsync();
-                    _logger.LogError(ex, "Error upserting tracks - rolled back");
+                    _logger.LogError(ex, "Repo.UpsertTracksAsync exception (rolled back): {Message} | StackTrace: {Stack}", ex.Message, ex.StackTrace);
                     return new ResultOptions { Success = false, Message = ex.Message + " - rolled back", Status = 500 };
                 }
             });
@@ -193,9 +204,15 @@ namespace SuperAppDataRepositories.Repositories
                 try
                 {
                     var idsToUpdate = logs.Where(l => l.Id > 0).Select(l => l.Id).ToList();
+                    _logger.LogInformation("Repo.UpsertLogsAsync: total={Total} toUpdate={ToUpdate} toCreate={ToCreate} ids=[{Ids}]",
+                        logs.Count, idsToUpdate.Count, logs.Count - idsToUpdate.Count, string.Join(",", idsToUpdate));
+
                     var existingDict = await _context.LifeLogLogs
                         .Where(l => idsToUpdate.Contains(l.Id))
                         .ToDictionaryAsync(l => l.Id, l => l);
+
+                    _logger.LogInformation("Repo.UpsertLogsAsync: found {Found} existing in DB out of {Requested}",
+                        existingDict.Count, idsToUpdate.Count);
 
                     var upserted = new List<LifeLogLog>();
 
@@ -203,6 +220,8 @@ namespace SuperAppDataRepositories.Repositories
                     {
                         if (log.Id > 0 && existingDict.TryGetValue(log.Id, out var existing))
                         {
+                            _logger.LogInformation("Repo.UpsertLogsAsync: UPDATE id={Id} type={Type} trackId={TrackId} title={Title} deletedAt={DeletedAt}",
+                                log.Id, log.Type, log.TrackId, log.Title, log.DeletedAt);
                             existing.Type = log.Type;
                             existing.TrackId = log.TrackId;
                             existing.Title = log.Title;
@@ -216,6 +235,8 @@ namespace SuperAppDataRepositories.Repositories
                         }
                         else
                         {
+                            _logger.LogInformation("Repo.UpsertLogsAsync: CREATE type={Type} trackId={TrackId} title={Title} userId={UserId} occurAt={OccurAt}",
+                                log.Type, log.TrackId, log.Title, log.UserId, log.OccurAt);
                             log.CreatedAt = DateTime.Now;
                             log.UpdatedAt = DateTime.Now;
                             log.OccurAt = log.OccurAt ?? DateTime.Now;
@@ -228,6 +249,9 @@ namespace SuperAppDataRepositories.Repositories
                     await _context.SaveChangesAsync();
                     await transaction.CommitAsync();
 
+                    _logger.LogInformation("Repo.UpsertLogsAsync: committed {Count} logs, new ids=[{Ids}]",
+                        upserted.Count, string.Join(",", upserted.Select(l => l.Id)));
+
                     return new ResultOptions
                     {
                         Success = true,
@@ -239,7 +263,7 @@ namespace SuperAppDataRepositories.Repositories
                 catch (Exception ex)
                 {
                     await transaction.RollbackAsync();
-                    _logger.LogError(ex, "Error upserting logs - rolled back");
+                    _logger.LogError(ex, "Repo.UpsertLogsAsync exception (rolled back): {Message} | StackTrace: {Stack}", ex.Message, ex.StackTrace);
                     return new ResultOptions { Success = false, Message = ex.Message + " - rolled back", Status = 500 };
                 }
             });
