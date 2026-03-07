@@ -39,6 +39,9 @@ namespace SuperAppServices.Services
         {
             try
             {
+                _logger.LogInformation("Service.UpsertTracksAsync: {Count} tracks, ids=[{Ids}]",
+                    requests.Count, string.Join(",", requests.Select(r => r.Id)));
+
                 var tracks = requests.Select(r => new LifeLogTrack
                 {
                     Id = r.Id,
@@ -51,11 +54,16 @@ namespace SuperAppServices.Services
                     DeletedAt = r.DeletedAt
                 }).ToList();
 
-                return await _repo.UpsertTracksAsync(tracks);
+                var result = await _repo.UpsertTracksAsync(tracks);
+
+                _logger.LogInformation("Service.UpsertTracksAsync done: success={Success} message={Message}",
+                    result.Success, result.Message);
+
+                return result;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error upserting tracks");
+                _logger.LogError(ex, "Service.UpsertTracksAsync exception: {Message}", ex.Message);
                 return new ResultOptions { Success = false, Message = ex.Message, Status = 500 };
             }
         }
@@ -79,6 +87,9 @@ namespace SuperAppServices.Services
         {
             try
             {
+                _logger.LogInformation("Service.UpsertLogsAsync: {Count} logs, ids=[{Ids}]",
+                    requests.Count, string.Join(",", requests.Select(r => r.Id)));
+
                 var logs = requests.Select(r => new LifeLogLog
                 {
                     Id = r.Id,
@@ -93,11 +104,16 @@ namespace SuperAppServices.Services
                     DeletedAt = r.DeletedAt
                 }).ToList();
 
-                return await _repo.UpsertLogsAsync(logs);
+                var result = await _repo.UpsertLogsAsync(logs);
+
+                _logger.LogInformation("Service.UpsertLogsAsync done: success={Success} message={Message}",
+                    result.Success, result.Message);
+
+                return result;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error upserting logs");
+                _logger.LogError(ex, "Service.UpsertLogsAsync exception: {Message}", ex.Message);
                 return new ResultOptions { Success = false, Message = ex.Message, Status = 500 };
             }
         }
