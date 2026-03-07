@@ -196,6 +196,10 @@ namespace SuperAppAPI
                     services.AddScoped<SuperAppServices.Interfaces.IProjectService, SuperAppServices.Services.ProjectService>();
                     services.AddScoped<SuperAppServices.Interfaces.ITaskService, SuperAppServices.Services.TaskService>();
 
+                    // LifeLog Services
+                    services.AddScoped<SuperAppDataRepositories.Ins.ILifeLogRepository, SuperAppDataRepositories.Repositories.LifeLogRepository>();
+                    services.AddScoped<SuperAppServices.Interfaces.ILifeLogService, SuperAppServices.Services.LifeLogService>();
+
                     // File Upload Services (Google Drive)
                     services.AddScoped<SuperAppServices.Interfaces.IGoogleDriveService, SuperAppServices.Services.GoogleDriveService>();
                     services.AddScoped<SuperAppServices.Interfaces.IFileService, SuperAppServices.Services.FileService>();
