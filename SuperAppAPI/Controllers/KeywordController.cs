@@ -176,5 +176,30 @@ namespace SuperAppAPI.Controllers
             var response = await _keywordService.UnlinkTargetKeywordAsync(id);
             return Ok(response);
         }
+
+        /// <summary>
+        /// Full keyword sync: creates missing keywords, updates name/link mismatches.
+        /// Returns a report with counts and detail lists.
+        /// </summary>
+        [HttpPost("sync")]
+        [ProducesResponseType(typeof(KeywordSyncReportDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> SyncKeywords()
+        {
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+                return Unauthorized("User ID not found in token");
+
+            _logger.LogInformation("Starting keyword sync for userId: {UserId}", userId.Value);
+
+            var report = await _keywordService.SyncKeywordsAsync(userId.Value);
+
+            _logger.LogInformation(
+                "Keyword sync done — userId: {UserId}, total: {Total}, created: {Created}, updated: {Updated}",
+                userId.Value, report.TotalKeywords, report.CreatedCount, report.UpdatedCount);
+
+            return Ok(report);
+        }
     }
 }
