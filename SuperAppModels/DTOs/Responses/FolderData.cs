@@ -33,6 +33,4 @@ public class FolderData
     /// <summary>Soft delete timestamp (folders.deleted_at)</summary>
     public DateTime? DeletedAt { get; set; }
 
-    /// <summary>Copy metadata JSON (folders.copy_info)</summary>
-    public string? CopyInfo { get; set; }
 }

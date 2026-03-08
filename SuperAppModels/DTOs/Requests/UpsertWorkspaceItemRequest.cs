@@ -110,14 +110,6 @@ namespace SuperAppModels.DTOs.Requests
         [JsonPropertyName("entityId")]
         public int? EntityId { get; set; }
 
-        /// <summary>
-        /// Copy information JSON metadata (future feature)
-        /// Optional for: Create, Add
-        /// Maps to workspace_items.copy_info
-        /// </summary>
-        [StringLength(1000, ErrorMessage = "CopyInfo cannot exceed 1000 characters")]
-        [JsonPropertyName("copyInfo")]
-        public string? CopyInfo { get; set; }
 
         /// <summary>
         /// User email who created/updated the item (set by controller)

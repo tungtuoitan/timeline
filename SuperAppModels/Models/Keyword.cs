@@ -2,45 +2,33 @@ namespace SuperAppModels.Models
 {
     /// <summary>
     /// Keyword for markdown editor
-    /// Stores all keywords (workspace/folder/note/external) with PathIds design
-    /// Primary table: dbo.Keywords
+    /// TargetItemId stores:
+    ///   - workspace → Workspace.Id
+    ///   - folder/note/file → WorkspaceItem.Id
+    ///   - project → Project.Id
+    ///   - task → ProTask.Id
+    ///   - log → LifeLogLog.Id
+    ///   - track → LifeLogTrack.Id
     /// </summary>
     public class Keyword : ITimestampEntity
     {
-        // Database columns
         public int Id { get; set; }
         public int UserId { get; set; }
 
-        // Keyword info
         public string Name { get; set; } = string.Empty;
-        // public int NameIndex { get; set; } = 1; // REMOVED: no longer used
-        public string Type { get; set; } = string.Empty; // external/workspace/folder/note/file
+        public string Type { get; set; } = string.Empty; // workspace/folder/note/file/external/project/task/log/track
 
-        // Polymorphic references (only 1 should have value)
-        public int? WorkspaceId { get; set; } // FK to workspaces (for workspace type only)
-        public int? TargetItemId { get; set; } // FK to workspace_items (for folder/note/file)
-        // public int? NoteItemId { get; set; } // REMOVED: was FK to workspace_items (parent note for headings)
-        public string? ExternalUrl { get; set; } // Full URL for external type
+        public int? TargetItemId { get; set; }
 
-        // Path components
-        public string? PathIds { get; set; } // Copy from workspace_items
-        // public string? HeadingPath { get; set; } // REMOVED: was 'h1-Intro/h2-Setup' (heading only)
-
-        // Cached Link (NO LongLink - render runtime)
         public string Link { get; set; } = string.Empty;
-
         public string? Description { get; set; }
 
-        // Timestamps
         public DateTime? CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public DateTime? HardDeletedAt { get; set; }
 
-        // Navigation properties
         public User User { get; set; } = null!;
-        public Workspace? Workspace { get; set; }
         public WorkspaceItemEntity? TargetItem { get; set; }
-        // public WorkspaceItemEntity? NoteItem { get; set; } // REMOVED: was for heading keywords
 
         public Keyword()
         {
@@ -49,47 +37,25 @@ namespace SuperAppModels.Models
 
         public Keyword(
             string name,
-            // int nameIndex, // REMOVED
             string link,
             string type,
             int userId,
-            int? workspaceId = null,
-            int? targetItemId = null,
-            // int? noteItemId = null, // REMOVED
-            string? externalUrl = null,
-            string? pathIds = null
-            // string? headingPath = null // REMOVED
-            ) : this()
+            int? targetItemId = null)
+            : this()
         {
             Name = name ?? throw new ArgumentNullException(nameof(name));
             Link = link ?? throw new ArgumentNullException(nameof(link));
             Type = type ?? throw new ArgumentNullException(nameof(type));
-            // NameIndex = nameIndex; // REMOVED
             UserId = userId;
-            WorkspaceId = workspaceId;
             TargetItemId = targetItemId;
-            // NoteItemId = noteItemId; // REMOVED
-            ExternalUrl = externalUrl;
-            PathIds = pathIds;
-            // HeadingPath = headingPath; // REMOVED
         }
 
-        /// <summary>
-        /// Updates the keyword with validation and automatic timestamp management
-        /// </summary>
         public void Update(
             string name,
-            // int nameIndex, // REMOVED
             string link,
             string type,
             string? description = null,
-            int? workspaceId = null,
-            int? targetItemId = null,
-            // int? noteItemId = null, // REMOVED
-            string? externalUrl = null,
-            string? pathIds = null
-            // string? headingPath = null // REMOVED
-            )
+            int? targetItemId = null)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Name cannot be empty", nameof(name));
@@ -99,16 +65,10 @@ namespace SuperAppModels.Models
                 throw new ArgumentException("Type cannot be empty", nameof(type));
 
             Name = name;
-            // NameIndex = nameIndex; // REMOVED
             Link = link;
             Type = type;
             Description = description;
-            WorkspaceId = workspaceId;
             TargetItemId = targetItemId;
-            // NoteItemId = noteItemId; // REMOVED
-            ExternalUrl = externalUrl;
-            PathIds = pathIds;
-            // HeadingPath = headingPath; // REMOVED
             UpdatedAt = DateTime.UtcNow;
         }
     }

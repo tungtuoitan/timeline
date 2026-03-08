@@ -74,8 +74,7 @@ namespace SuperAppDataRepositories.Repositories
                         EntityId = i.EntityId,
                         CreatedAt = i.CreatedAt,
                         UpdatedAt = i.UpdatedAt,
-                        DeletedAt = i.DeletedAt,
-                        CopyInfo = i.CopyInfo
+                        DeletedAt = i.DeletedAt
                     })
                     .ToListAsync();
 
@@ -867,7 +866,6 @@ namespace SuperAppDataRepositories.Repositories
                             existingItem.EntityType = request.EntityType;
                             existingItem.EntityId = entityId; // Use entity ID from step 3A
                             existingItem.DeletedAt = request.DeletedAt;  // Soft delete/restore
-                            existingItem.CopyInfo = request.CopyInfo;
                             existingItem.UpdatedAt = DateTime.UtcNow;
 
                             upsertedItems.Add(existingItem);
@@ -881,7 +879,6 @@ namespace SuperAppDataRepositories.Repositories
                                 ParentId = request.ParentId,
                                 EntityType = request.EntityType,
                                 EntityId = entityId, // Use entity ID from step 3A
-                                CopyInfo = request.CopyInfo,
                                 CreatedAt = DateTime.UtcNow,
                                 UpdatedAt = null,
                                 DeletedAt = null
