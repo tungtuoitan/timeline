@@ -96,21 +96,23 @@ namespace SuperAppServices.Services
 
             var longLinkCache = new Dictionary<string, string>();
 
-            // Load log data (type + trackId) for log keywords
+            // Load log data (type + trackId + description) for log keywords
             var logIds = keywords
                 .Where(k => k.Type == "log" && k.TargetItemId.HasValue)
                 .Select(k => k.TargetItemId!.Value)
                 .Distinct().ToList();
             Dictionary<int, string> logTypeMap = new();
             Dictionary<int, int?> logTrackIdMap = new();
+            Dictionary<int, string?> logDescriptionMap = new();
             if (logIds.Any())
             {
                 var logData = await _context.LifeLogLogs
                     .Where(l => logIds.Contains(l.Id))
-                    .Select(l => new { l.Id, l.Type, l.TrackId })
+                    .Select(l => new { l.Id, l.Type, l.TrackId, l.Description })
                     .ToListAsync();
-                logTypeMap = logData.ToDictionary(l => l.Id, l => l.Type ?? "");
-                logTrackIdMap = logData.ToDictionary(l => l.Id, l => (int?)l.TrackId);
+                logTypeMap        = logData.ToDictionary(l => l.Id, l => l.Type ?? "");
+                logTrackIdMap     = logData.ToDictionary(l => l.Id, l => (int?)l.TrackId);
+                logDescriptionMap = logData.ToDictionary(l => l.Id, l => (string?)l.Description);
             }
 
             // Collect all track IDs: from track keywords + from track-type log keywords
@@ -122,16 +124,18 @@ namespace SuperAppServices.Services
                 .Select(id => id!.Value);
             var allTrackIds = trackIdsFromKeywords.Concat(trackIdsFromLogs).Distinct().ToList();
 
-            Dictionary<int, string?> trackEmojiMap = new();
-            Dictionary<int, string?> trackColorMap = new();
+            Dictionary<int, string?> trackEmojiMap       = new();
+            Dictionary<int, string?> trackColorMap       = new();
+            Dictionary<int, string?> trackDescriptionMap = new();
             if (allTrackIds.Any())
             {
                 var trackData = await _context.LifeLogTracks
                     .Where(t => allTrackIds.Contains(t.Id))
-                    .Select(t => new { t.Id, t.Emoji, t.Color })
+                    .Select(t => new { t.Id, t.Emoji, t.Color, t.Description })
                     .ToListAsync();
-                trackEmojiMap = trackData.ToDictionary(t => t.Id, t => (string?)t.Emoji);
-                trackColorMap = trackData.ToDictionary(t => t.Id, t => (string?)t.Color);
+                trackEmojiMap       = trackData.ToDictionary(t => t.Id, t => (string?)t.Emoji);
+                trackColorMap       = trackData.ToDictionary(t => t.Id, t => (string?)t.Color);
+                trackDescriptionMap = trackData.ToDictionary(t => t.Id, t => (string?)t.Description);
             }
 
             return keywords.Select(k =>
@@ -140,6 +144,7 @@ namespace SuperAppServices.Services
                 int? entityId = null;
                 string? color = null;
                 string? icon = null;
+                string? description = k.Description; // default: stored description
 
                 if (wsItemTypes.Contains(k.Type) &&
                     k.TargetItemId.HasValue &&
@@ -161,6 +166,9 @@ namespace SuperAppServices.Services
                 }
                 else if (k.Type == "log" && k.TargetItemId.HasValue)
                 {
+                    // Always use live description from LifeLogLogs
+                    logDescriptionMap.TryGetValue(k.TargetItemId.Value, out description);
+
                     if (logTypeMap.TryGetValue(k.TargetItemId.Value, out var logType))
                     {
                         if (logType == "track" &&
@@ -182,6 +190,9 @@ namespace SuperAppServices.Services
                 }
                 else if (k.Type == "track" && k.TargetItemId.HasValue)
                 {
+                    // Always use live description from LifeLogTracks
+                    trackDescriptionMap.TryGetValue(k.TargetItemId.Value, out description);
+
                     if (trackEmojiMap.TryGetValue(k.TargetItemId.Value, out var emoji))
                         icon = emoji;
                     if (trackColorMap.TryGetValue(k.TargetItemId.Value, out var trackColor))
@@ -195,7 +206,7 @@ namespace SuperAppServices.Services
                     Type = k.Type,
                     Link = k.Link,
                     LongLink = ComputeLongLink(k, itemMap, workspaceNames, folderNames, noteNames, longLinkCache),
-                    Description = k.Description,
+                    Description = description,
                     HardDeletedAt = k.HardDeletedAt,
                     WorkspaceItemId = workspaceItemId,
                     EntityId = entityId,
@@ -971,15 +982,14 @@ namespace SuperAppServices.Services
                 .Where(k => k.UserId == userId)
                 .ToListAsync();
 
-            // Index by (type, targetItemId) for exact-match lookup.
-            // UQ_Keywords_Link is unique on Link — we also build a link-index
-            // to skip creating a keyword when the expected link already exists.
+            // Index by (type, targetItemId) — project id=3 and task id=3 are different entities.
+            // UQ_Keywords_Link guards against duplicate links; existingLinks handles that.
             var kwIndex = existingKeywords
                 .Where(k => k.TargetItemId.HasValue)
                 .GroupBy(k => (k.Type, k.TargetItemId!.Value))
                 .ToDictionary(g => g.Key, g => g.First());
 
-            // Secondary index: existing links → skip insert if link already taken
+            // Guard against UQ_Keywords_Link violations
             var existingLinks = existingKeywords
                 .Select(k => k.Link)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
