@@ -36,8 +36,6 @@ public class NoteData
     /// <summary>Soft delete timestamp (notes.deleted_at)</summary>
     public DateTime? DeletedAt { get; set; }
 
-    /// <summary>Copy metadata JSON (notes.copy_info)</summary>
-    public string? CopyInfo { get; set; }
 
     /// <summary>List of workspaces that link to this note (populated from workspace_items)</summary>
     public List<WorkspaceLinkDTO>? WorkspaceLinks { get; set; }

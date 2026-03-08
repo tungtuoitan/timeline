@@ -303,8 +303,7 @@ namespace SuperAppServices.Services
                                         icon = f.Icon,
                                         createdAt = f.CreatedAt,
                                         updatedAt = f.UpdatedAt,
-                                        deletedAt = f.DeletedAt,
-                                        copyInfo = f.CopyInfo
+                                        deletedAt = f.DeletedAt
                                     })
                                     .FirstOrDefaultAsync();
                                 break;
@@ -322,8 +321,7 @@ namespace SuperAppServices.Services
                                         statusCode = n.StatusCode,
                                         createdAt = n.CreatedAt,
                                         updatedAt = n.UpdatedAt,
-                                        deletedAt = n.DeletedAt,
-                                        copyInfo = n.CopyInfo
+                                        deletedAt = n.DeletedAt
                                     })
                                     .FirstOrDefaultAsync();
                                 break;
@@ -344,8 +342,7 @@ namespace SuperAppServices.Services
                                         statusCode = f.StatusCode,
                                         createdAt = f.CreatedAt,
                                         updatedAt = f.UpdatedAt,
-                                        deletedAt = f.DeletedAt,
-                                        copyInfo = f.CopyInfo
+                                        deletedAt = f.DeletedAt
                                     })
                                     .FirstOrDefaultAsync();
                                 break;
@@ -362,7 +359,6 @@ namespace SuperAppServices.Services
                             createdAt = item.CreatedAt,
                             updatedAt = item.UpdatedAt,
                             deletedAt = item.DeletedAt,
-                            copyInfo = item.CopyInfo,
                             data = entityData // ← Full entity data (Folder/Note/File)
                         });
                     }

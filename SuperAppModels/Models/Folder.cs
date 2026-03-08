@@ -22,8 +22,6 @@ namespace SuperAppModels.Models
         public DateTime? UpdatedAt { get; set; } // updated_at
         public DateTime? DeletedAt { get; set; } // deleted_at (soft delete)
 
-        // Copy tracking (for future copy feature)
-        public string? CopyInfo { get; set; } // copy_info NVARCHAR(MAX) - JSON metadata
 
         // Navigation properties for EF Core
         public User User { get; set; } = null!;

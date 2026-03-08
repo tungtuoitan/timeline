@@ -41,8 +41,6 @@ public class WorkspaceItemResponseV2
     /// <summary>Soft delete timestamp (workspace_items.deleted_at)</summary>
     public DateTime? DeletedAt { get; set; }
 
-    /// <summary>Copy metadata JSON (workspace_items.copy_info)</summary>
-    public string? CopyInfo { get; set; }
 
     // ============================================
     // COMPUTED PROPERTIES
