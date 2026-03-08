@@ -96,6 +96,44 @@ namespace SuperAppServices.Services
 
             var longLinkCache = new Dictionary<string, string>();
 
+            // Load log data (type + trackId) for log keywords
+            var logIds = keywords
+                .Where(k => k.Type == "log" && k.TargetItemId.HasValue)
+                .Select(k => k.TargetItemId!.Value)
+                .Distinct().ToList();
+            Dictionary<int, string> logTypeMap = new();
+            Dictionary<int, int?> logTrackIdMap = new();
+            if (logIds.Any())
+            {
+                var logData = await _context.LifeLogLogs
+                    .Where(l => logIds.Contains(l.Id))
+                    .Select(l => new { l.Id, l.Type, l.TrackId })
+                    .ToListAsync();
+                logTypeMap = logData.ToDictionary(l => l.Id, l => l.Type ?? "");
+                logTrackIdMap = logData.ToDictionary(l => l.Id, l => (int?)l.TrackId);
+            }
+
+            // Collect all track IDs: from track keywords + from track-type log keywords
+            var trackIdsFromKeywords = keywords
+                .Where(k => k.Type == "track" && k.TargetItemId.HasValue)
+                .Select(k => k.TargetItemId!.Value);
+            var trackIdsFromLogs = logTrackIdMap.Values
+                .Where(id => id.HasValue && id.Value > 0)
+                .Select(id => id!.Value);
+            var allTrackIds = trackIdsFromKeywords.Concat(trackIdsFromLogs).Distinct().ToList();
+
+            Dictionary<int, string?> trackEmojiMap = new();
+            Dictionary<int, string?> trackColorMap = new();
+            if (allTrackIds.Any())
+            {
+                var trackData = await _context.LifeLogTracks
+                    .Where(t => allTrackIds.Contains(t.Id))
+                    .Select(t => new { t.Id, t.Emoji, t.Color })
+                    .ToListAsync();
+                trackEmojiMap = trackData.ToDictionary(t => t.Id, t => (string?)t.Emoji);
+                trackColorMap = trackData.ToDictionary(t => t.Id, t => (string?)t.Color);
+            }
+
             return keywords.Select(k =>
             {
                 int? workspaceItemId = null;
@@ -120,6 +158,34 @@ namespace SuperAppServices.Services
                         noteColors.TryGetValue(info.EntityId, out color);
                         noteIcons.TryGetValue(info.EntityId, out icon);
                     }
+                }
+                else if (k.Type == "log" && k.TargetItemId.HasValue)
+                {
+                    if (logTypeMap.TryGetValue(k.TargetItemId.Value, out var logType))
+                    {
+                        if (logType == "track" &&
+                            logTrackIdMap.TryGetValue(k.TargetItemId.Value, out var tid) &&
+                            tid.HasValue && tid.Value > 0)
+                        {
+                            // Track-type log: use the associated track's emoji and color
+                            if (trackEmojiMap.TryGetValue(tid.Value, out var trackEmoji))
+                                icon = trackEmoji;
+                            if (trackColorMap.TryGetValue(tid.Value, out var trackColor))
+                                color = trackColor;
+                        }
+                        else
+                        {
+                            // Regular log type (event, reflection, lesson, etc.)
+                            icon = logType;
+                        }
+                    }
+                }
+                else if (k.Type == "track" && k.TargetItemId.HasValue)
+                {
+                    if (trackEmojiMap.TryGetValue(k.TargetItemId.Value, out var emoji))
+                        icon = emoji;
+                    if (trackColorMap.TryGetValue(k.TargetItemId.Value, out var trackColor))
+                        color = trackColor;
                 }
 
                 return new KeywordDto
