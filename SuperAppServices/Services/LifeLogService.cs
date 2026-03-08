@@ -13,11 +13,13 @@ namespace SuperAppServices.Services
     {
         private readonly ILifeLogRepository _repo;
         private readonly ILogger<LifeLogService> _logger;
+        private readonly KeywordServiceV2 _keywordService;
 
-        public LifeLogService(ILifeLogRepository repo, ILogger<LifeLogService> logger)
+        public LifeLogService(ILifeLogRepository repo, ILogger<LifeLogService> logger, KeywordServiceV2 keywordService)
         {
             _repo = repo ?? throw new ArgumentNullException(nameof(repo));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _keywordService = keywordService ?? throw new ArgumentNullException(nameof(keywordService));
         }
 
         // ─── TRACKS ────────────────────────────────────────────────────────────
@@ -34,6 +36,9 @@ namespace SuperAppServices.Services
                 return new ResultOptions { Success = false, Message = ex.Message, Status = 500 };
             }
         }
+
+        public async Task<ResultOptions> GetTrackByIdAsync(int id, int userId)
+            => await GetTracksAsync(new LifeLogTrackFilterOptions { UserId = userId, Ids = new List<int> { id } });
 
         public async Task<ResultOptions> UpsertTracksAsync(List<UpsertLifeLogTrackRequest> requests)
         {
@@ -55,6 +60,16 @@ namespace SuperAppServices.Services
                 }).ToList();
 
                 var result = await _repo.UpsertTracksAsync(tracks);
+
+                if (result.Success)
+                {
+                    foreach (var (track, req) in tracks.Zip(requests))
+                    {
+                        if (track.Id > 0)
+                            try { await _keywordService.SyncTrackKeywordAsync(track.Id, req.UserId); }
+                            catch (Exception ex) { _logger.LogError(ex, "Error syncing keyword for track {Id}", track.Id); }
+                    }
+                }
 
                 _logger.LogInformation("Service.UpsertTracksAsync done: success={Success} message={Message}",
                     result.Success, result.Message);
@@ -83,6 +98,9 @@ namespace SuperAppServices.Services
             }
         }
 
+        public async Task<ResultOptions> GetLogByIdAsync(int id, int userId)
+            => await GetLogsAsync(new LifeLogLogFilterOptions { UserId = userId, Ids = new List<int> { id } });
+
         public async Task<ResultOptions> UpsertLogsAsync(List<UpsertLifeLogLogRequest> requests)
         {
             try
@@ -105,6 +123,16 @@ namespace SuperAppServices.Services
                 }).ToList();
 
                 var result = await _repo.UpsertLogsAsync(logs);
+
+                if (result.Success)
+                {
+                    foreach (var (log, req) in logs.Zip(requests))
+                    {
+                        if (log.Id > 0)
+                            try { await _keywordService.SyncLogKeywordAsync(log.Id, req.UserId); }
+                            catch (Exception ex) { _logger.LogError(ex, "Error syncing keyword for log {Id}", log.Id); }
+                    }
+                }
 
                 _logger.LogInformation("Service.UpsertLogsAsync done: success={Success} message={Message}",
                     result.Success, result.Message);

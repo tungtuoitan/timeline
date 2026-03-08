@@ -117,6 +117,18 @@ namespace SuperAppAPI.Controllers
         /// <response code="400">Invalid input data</response>
         /// <response code="401">Unauthorized - invalid or missing token</response>
         /// <response code="500">Internal server error</response>
+        [HttpGet("{id}")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetProjectById(int id)
+        {
+            var userId = GetAuthenticatedUserId();
+            if (userId == null) return Unauthorized("User ID not found in token");
+            _logger.LogInformation("Getting project by ID: {Id} for userId: {UserId}", id, userId.Value);
+            var response = await _projectService.GetProjectByIdAsync(id, userId.Value);
+            return Ok(response);
+        }
+
         [HttpPost]
         [HttpPost("batch")]
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
