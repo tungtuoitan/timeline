@@ -961,5 +961,264 @@ namespace SuperAppServices.Services
             => await _targetKeywordRepository.DeleteAsync(id);
 
         #endregion
+
+        #region Full Sync (compare + create missing)
+
+        public async Task<KeywordSyncReportDto> SyncKeywordsAsync(int userId)
+        {
+            // 1. Load all existing keywords for the user
+            var existingKeywords = await _context.Keywords
+                .Where(k => k.UserId == userId)
+                .ToListAsync();
+
+            // Index by (type, targetItemId) for exact-match lookup.
+            // UQ_Keywords_Link is unique on Link — we also build a link-index
+            // to skip creating a keyword when the expected link already exists.
+            var kwIndex = existingKeywords
+                .Where(k => k.TargetItemId.HasValue)
+                .GroupBy(k => (k.Type, k.TargetItemId!.Value))
+                .ToDictionary(g => g.Key, g => g.First());
+
+            // Secondary index: existing links → skip insert if link already taken
+            var existingLinks = existingKeywords
+                .Select(k => k.Link)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var updates = new List<KeywordSyncItemDto>();
+            var created = new List<KeywordSyncItemDto>();
+            var newKws  = new List<Keyword>();
+
+            // 2. Load source entities
+            var workspaces = await _context.Workspaces
+                .Where(w => w.UserId == userId && w.DeletedAt == null)
+                .Select(w => new { w.Id, w.Name })
+                .ToListAsync();
+
+            var projects = await _context.Projects
+                .Where(p => p.UserId == userId && p.DeletedAt == null)
+                .Select(p => new { p.Id, p.Name })
+                .ToListAsync();
+
+            // ProTask has no UserId — filter via project IDs owned by this user
+            var userProjectIds = projects.Select(p => p.Id).ToList();
+            var tasks = userProjectIds.Any()
+                ? await _context.ProTasks
+                    .Where(t => userProjectIds.Contains(t.ProjectId) && t.DeletedAt == null)
+                    .Select(t => new { t.Id, t.Title, t.ProjectId })
+                    .ToListAsync()
+                : new List<(int Id, string Title, int ProjectId)>()
+                    .Select(x => new { x.Id, x.Title, x.ProjectId }).ToList();
+
+            // Load logs with description
+            var logs = await _context.LifeLogLogs
+                .Where(l => l.UserId == userId && l.DeletedAt == null)
+                .Select(l => new { l.Id, l.Title, l.Description })
+                .ToListAsync();
+
+            // Load tracks with description
+            var tracks = await _context.LifeLogTracks
+                .Where(t => t.UserId == userId && t.DeletedAt == null)
+                .Select(t => new { t.Id, t.Name, t.Description })
+                .ToListAsync();
+
+            // WorkspaceItemEntity has no UserId — filter via workspace IDs owned by this user
+            var userWorkspaceIds = workspaces.Select(w => w.Id).ToList();
+            var wsItems = userWorkspaceIds.Any()
+                ? await _context.Set<WorkspaceItemEntity>()
+                    .Where(i => userWorkspaceIds.Contains(i.WorkspaceId) && i.DeletedAt == null &&
+                                (i.EntityType == 2 || i.EntityType == 3 || i.EntityType == 4))
+                    .Select(i => new { i.Id, i.EntityType, i.EntityId, i.WorkspaceId, i.PathIds })
+                    .ToListAsync()
+                : new List<(int Id, byte EntityType, int EntityId, int WorkspaceId, string PathIds)>()
+                    .Select(x => new { x.Id, x.EntityType, x.EntityId, x.WorkspaceId, x.PathIds }).ToList();
+
+            // Build entity-type map for link building
+            var allWsItemIds = wsItems.Select(i => i.Id).Distinct().ToList();
+            var pathItemIds  = wsItems.SelectMany(i => SyncParsePathIds(i.PathIds)).Distinct().ToList();
+            var allItemIds   = allWsItemIds.Concat(pathItemIds).Distinct().ToList();
+            var entityTypeMap = (await _context.Set<WorkspaceItemEntity>()
+                .Where(i => allItemIds.Contains(i.Id))
+                .Select(i => new { i.Id, i.EntityType })
+                .ToListAsync())
+                .ToDictionary(i => i.Id, i => i.EntityType);
+
+            var folderEntityIds = wsItems.Where(i => i.EntityType == 2).Select(i => i.EntityId).Distinct().ToList();
+            var noteEntityIds   = wsItems.Where(i => i.EntityType == 3).Select(i => i.EntityId).Distinct().ToList();
+
+            var folderNameMap = folderEntityIds.Any()
+                ? (await _context.Folders.Where(f => folderEntityIds.Contains(f.Id))
+                    .Select(f => new { f.Id, f.Name }).ToListAsync())
+                    .ToDictionary(f => f.Id, f => f.Name)
+                : new Dictionary<int, string>();
+
+            var noteNameMap = noteEntityIds.Any()
+                ? (await _context.Notes.Where(n => noteEntityIds.Contains(n.Id))
+                    .Select(n => new { n.Id, n.Name }).ToListAsync())
+                    .ToDictionary(n => n.Id, n => n.Name)
+                : new Dictionary<int, string>();
+
+            // 3. Compare + queue changes
+            foreach (var ws in workspaces)
+                ProcessKeyword(kwIndex, existingLinks, updates, created, newKws, "workspace", ws.Id, userId, ws.Name, $"sa/w{ws.Id}");
+
+            foreach (var p in projects)
+                ProcessKeyword(kwIndex, existingLinks, updates, created, newKws, "project", p.Id, userId, p.Name, $"sa/p{p.Id}");
+
+            foreach (var t in tasks)
+                ProcessKeyword(kwIndex, existingLinks, updates, created, newKws, "task", t.Id, userId, t.Title ?? $"Task {t.Id}", $"sa/p{t.ProjectId}/t{t.Id}");
+
+            foreach (var l in logs)
+                ProcessKeyword(kwIndex, existingLinks, updates, created, newKws, "log", l.Id, userId, l.Title ?? $"Log {l.Id}", $"sa/l{l.Id}", l.Description);
+
+            foreach (var t in tracks)
+                ProcessKeyword(kwIndex, existingLinks, updates, created, newKws, "track", t.Id, userId, t.Name, $"sa/tr{t.Id}", t.Description);
+
+            foreach (var item in wsItems)
+            {
+                string entityName = item.EntityType switch
+                {
+                    2 => folderNameMap.TryGetValue(item.EntityId, out var fn) ? fn : $"Folder{item.EntityId}",
+                    3 => noteNameMap.TryGetValue(item.EntityId, out var nn)   ? nn : $"Note{item.EntityId}",
+                    _ => $"File{item.EntityId}",
+                };
+                string kwType       = item.EntityType switch { 2 => "folder", 3 => "note", _ => "file" };
+                string expectedLink = SyncBuildLink(item.PathIds, item.WorkspaceId, item.Id, entityTypeMap);
+                ProcessKeyword(kwIndex, existingLinks, updates, created, newKws, kwType, item.Id, userId, entityName, expectedLink);
+            }
+
+            // 4. Persist
+            if (newKws.Any())
+                _context.Keywords.AddRange(newKws);
+
+            if (updates.Any() || newKws.Any())
+                await _context.SaveChangesAsync();
+
+            for (int i = 0; i < newKws.Count; i++)
+                created[i].Id = newKws[i].Id;
+
+            // 5. Build report
+            var allKeywords = await _context.Keywords
+                .Where(k => k.UserId == userId)
+                .ToListAsync();
+
+            return new KeywordSyncReportDto
+            {
+                TotalKeywords     = allKeywords.Count,
+                CountByType       = allKeywords
+                    .GroupBy(k => k.Type)
+                    .OrderBy(g => g.Key)
+                    .ToDictionary(g => g.Key, g => g.Count()),
+                HardDeletedCount  = allKeywords.Count(k => k.HardDeletedAt != null),
+                NameMismatchCount = updates.Count(u => u.NameChanged),
+                LinkMismatchCount = updates.Count(u => u.LinkChanged),
+                UpdatedCount      = updates.Count,
+                CreatedCount      = created.Count,
+                Updates           = updates,
+                Created           = created,
+            };
+        }
+
+        private static void ProcessKeyword(
+            Dictionary<(string Type, int TargetItemId), Keyword> kwIndex,
+            HashSet<string> existingLinks,
+            List<KeywordSyncItemDto> updates,
+            List<KeywordSyncItemDto> created,
+            List<Keyword> newKws,
+            string type, int targetItemId, int userId,
+            string expectedName, string expectedLink,
+            string? description = null)
+        {
+            if (kwIndex.TryGetValue((type, targetItemId), out var kw))
+            {
+                bool nameChanged = kw.Name != expectedName;
+                bool linkChanged = kw.Link != expectedLink;
+                if (!nameChanged && !linkChanged) return;
+
+                // If link would change but the new link is already taken, skip link update
+                if (linkChanged && existingLinks.Contains(expectedLink))
+                    linkChanged = false;
+
+                if (!nameChanged && !linkChanged) return;
+
+                updates.Add(new KeywordSyncItemDto
+                {
+                    Id          = kw.Id,
+                    Type        = type,
+                    OldName     = kw.Name,
+                    NewName     = nameChanged ? expectedName : kw.Name,
+                    OldLink     = kw.Link,
+                    NewLink     = linkChanged ? expectedLink : kw.Link,
+                    NameChanged = nameChanged,
+                    LinkChanged = linkChanged,
+                });
+
+                if (nameChanged) kw.Name = expectedName;
+                if (linkChanged)
+                {
+                    existingLinks.Remove(kw.Link);
+                    existingLinks.Add(expectedLink);
+                    kw.Link = expectedLink;
+                }
+                kw.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                // Skip if the expected link is already taken by another keyword
+                if (existingLinks.Contains(expectedLink)) return;
+
+                var newKw = new Keyword(
+                    name: expectedName,
+                    link: expectedLink,
+                    type: type,
+                    userId: userId,
+                    targetItemId: targetItemId);
+                if (description != null) newKw.Description = description;
+                newKws.Add(newKw);
+                existingLinks.Add(expectedLink); // reserve immediately for subsequent iterations
+
+                created.Add(new KeywordSyncItemDto
+                {
+                    Id          = 0,
+                    Type        = type,
+                    NewName     = expectedName,
+                    NewLink     = expectedLink,
+                    Description = description,
+                    NameChanged = false,
+                    LinkChanged = false,
+                });
+            }
+        }
+
+        private static List<int> SyncParsePathIds(string? pathIds)
+        {
+            if (string.IsNullOrEmpty(pathIds) || pathIds == "/") return new List<int>();
+            return pathIds.Trim('/').Split('/')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(s => int.TryParse(s, out var id) ? id : -1)
+                .Where(id => id > 0)
+                .ToList();
+        }
+
+        private static string SyncBuildLink(string? pathIds, int workspaceId, int currentItemId, Dictionary<int, byte> entityTypeMap)
+        {
+            var ids = SyncParsePathIds(pathIds);
+            if (!ids.Any())
+            {
+                entityTypeMap.TryGetValue(currentItemId, out var fallbackEt);
+                var fp = fallbackEt switch { 2 => "f", 3 => "n", 4 => "file", _ => "?" };
+                return $"sa/w{workspaceId}/{fp}{currentItemId}";
+            }
+
+            var parts = new List<string> { $"sa/w{workspaceId}" };
+            foreach (var id in ids)
+            {
+                if (!entityTypeMap.TryGetValue(id, out var et)) { parts.Add($"?{id}"); continue; }
+                var prefix = et switch { 2 => "f", 3 => "n", 4 => "file", _ => "?" };
+                parts.Add($"{prefix}{id}");
+            }
+            return string.Join("/", parts);
+        }
+
+        #endregion
     }
 }
