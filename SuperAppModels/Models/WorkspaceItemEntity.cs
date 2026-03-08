@@ -24,8 +24,6 @@ namespace SuperAppModels.Models
         public DateTime? UpdatedAt { get; set; } // updated_at DATETIME2
         public DateTime? DeletedAt { get; set; } // deleted_at DATETIME2
 
-        // Copy tracking (for future copy feature)
-        public string? CopyInfo { get; set; } // copy_info NVARCHAR(MAX) - JSON metadata
 
         // Navigation properties for EF Core
         public Workspace Workspace { get; set; } = null!;

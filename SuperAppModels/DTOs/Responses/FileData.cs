@@ -39,8 +39,6 @@ public class FileData
     /// <summary>Soft delete timestamp (files.deleted_at)</summary>
     public DateTime? DeletedAt { get; set; }
 
-    /// <summary>Copy metadata JSON (files.copy_info)</summary>
-    public string? CopyInfo { get; set; }
 
     /// <summary>Human-readable file size</summary>
     public string FileSizeFormatted

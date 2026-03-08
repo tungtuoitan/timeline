@@ -373,8 +373,7 @@ namespace SuperAppServices.Services
                         Icon = folder.Icon,
                         CreatedAt = folder.CreatedAt ?? DateTime.UtcNow,
                         UpdatedAt = folder.UpdatedAt,
-                        DeletedAt = folder.DeletedAt,
-                        CopyInfo = folder.CopyInfo
+                        DeletedAt = folder.DeletedAt
                     },
                     3 when notesDict.TryGetValue((int)item.ItemId, out var note) => new NoteData
                     {
@@ -387,8 +386,7 @@ namespace SuperAppServices.Services
                         Color = note.Color,             // ✅ FROM DB
                         CreatedAt = note.CreatedAt ?? DateTime.UtcNow,
                         UpdatedAt = note.UpdatedAt,
-                        DeletedAt = note.DeletedAt,
-                        CopyInfo = note.CopyInfo
+                        DeletedAt = note.DeletedAt
                     },
                     4 when filesDict.TryGetValue((int)item.ItemId, out var file) => new FileData
                     {
@@ -402,8 +400,7 @@ namespace SuperAppServices.Services
                         StatusCode = file.StatusCode, // ✅ FROM DB
                         CreatedAt = file.CreatedAt ?? DateTime.UtcNow,
                         UpdatedAt = file.UpdatedAt,
-                        DeletedAt = file.DeletedAt,
-                        CopyInfo = file.CopyInfo
+                        DeletedAt = file.DeletedAt
                     },
                     _ => throw new InvalidOperationException($"Unsupported or missing entity data for type: {entityType}")
                 };
@@ -420,7 +417,6 @@ namespace SuperAppServices.Services
                     CreatedAt = item.CreatedAt,
                     UpdatedAt = item.UpdatedAt,
                     DeletedAt = item.DeletedAt,
-                    CopyInfo = null,
 
                     // ============ COMPUTED PROPERTIES ============
                     Level = item.Level,

@@ -366,7 +366,6 @@ namespace SuperAppServices.Services
                 ParentId = request.ParentId,
                 EntityType = request.EntityType.Value,
                 EntityId = entityId,
-                CopyInfo = request.CopyInfo,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = null,
                 DeletedAt = null
@@ -419,7 +418,6 @@ namespace SuperAppServices.Services
                 ParentId = request.ParentId,
                 EntityType = request.EntityType!.Value,
                 EntityId = request.EntityId!.Value,
-                CopyInfo = request.CopyInfo,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = null,
                 DeletedAt = null
