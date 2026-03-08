@@ -15,15 +15,18 @@ namespace SuperAppServices.Services
         private readonly ITaskRepository _taskRepository;
         private readonly IWorkspaceRepository _workspaceRepository;
         private readonly ILogger<TaskService> _logger;
+        private readonly KeywordServiceV2 _keywordService;
 
         public TaskService(
             ITaskRepository taskRepository,
             IWorkspaceRepository workspaceRepository,
-            ILogger<TaskService> logger)
+            ILogger<TaskService> logger,
+            KeywordServiceV2 keywordService)
         {
             _taskRepository = taskRepository ?? throw new ArgumentNullException(nameof(taskRepository));
             _workspaceRepository = workspaceRepository ?? throw new ArgumentNullException(nameof(workspaceRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _keywordService = keywordService ?? throw new ArgumentNullException(nameof(keywordService));
         }
 
         /// <summary>
@@ -59,10 +62,15 @@ namespace SuperAppServices.Services
             }
         }
 
+        public async Task<ResultOptions> GetTaskByIdAsync(int id, int userId)
+        {
+            return await GetTasksAsync(new TaskFilterOptions { UserId = userId, Ids = new List<int> { id } });
+        }
+
         /// <summary>
         /// Batch upsert multiple tasks (create or update)
         /// </summary>
-        public async Task<ResultOptions> UpsertTasksAsync(List<UpsertTaskRequest> requests)
+        public async Task<ResultOptions> UpsertTasksAsync(List<UpsertTaskRequest> requests, int userId)
         {
             try
             {
@@ -124,6 +132,15 @@ namespace SuperAppServices.Services
                 }
 
                 var result = await _taskRepository.UpsertTasksAsync(tasks);
+
+                if (result.Success)
+                {
+                    foreach (var task in tasks.Where(t => t.Id > 0))
+                    {
+                        try { await _keywordService.SyncTaskKeywordAsync(task.Id, userId); }
+                        catch (Exception ex) { _logger.LogError(ex, "Error syncing keyword for task {Id}", task.Id); }
+                    }
+                }
 
                 if (!result.Success)
                 {

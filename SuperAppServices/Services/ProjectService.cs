@@ -15,15 +15,18 @@ namespace SuperAppServices.Services
         private readonly IProjectRepository _projectRepository;
         private readonly IWsRepository _wsRepository;
         private readonly ILogger<ProjectService> _logger;
+        private readonly KeywordServiceV2 _keywordService;
 
         public ProjectService(
             IProjectRepository projectRepository,
             IWsRepository wsRepository,
-            ILogger<ProjectService> logger)
+            ILogger<ProjectService> logger,
+            KeywordServiceV2 keywordService)
         {
             _projectRepository = projectRepository ?? throw new ArgumentNullException(nameof(projectRepository));
             _wsRepository = wsRepository ?? throw new ArgumentNullException(nameof(wsRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _keywordService = keywordService ?? throw new ArgumentNullException(nameof(keywordService));
         }
 
         /// <summary>
@@ -56,6 +59,11 @@ namespace SuperAppServices.Services
                     Status = 500
                 };
             }
+        }
+
+        public async Task<ResultOptions> GetProjectByIdAsync(int id, int userId)
+        {
+            return await GetProjectsAsync(new ProjectFilterOptions { UserId = userId, Ids = new List<int> { id } });
         }
 
         /// <summary>
@@ -140,6 +148,15 @@ namespace SuperAppServices.Services
                 }
 
                 var result = await _projectRepository.UpsertProjectsAsync(projects);
+
+                if (result.Success)
+                {
+                    foreach (var project in projects.Where(p => p.Id > 0))
+                    {
+                        try { await _keywordService.SyncProjectKeywordAsync(project.Id, project.UserId); }
+                        catch (Exception ex) { _logger.LogError(ex, "Error syncing keyword for project {Id}", project.Id); }
+                    }
+                }
 
                 if (!result.Success)
                 {
