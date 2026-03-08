@@ -66,6 +66,16 @@ namespace SuperAppAPI.Controllers
         /// <summary>
         /// POST /api/lifelog/tracks/batch - create or update tracks
         /// </summary>
+        [HttpGet("tracks/{id}")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetTrackById(int id)
+        {
+            var userId = GetAuthenticatedUserId();
+            if (userId == null) return Unauthorized("User ID not found in token");
+            var response = await _service.GetTrackByIdAsync(id, userId.Value);
+            return Ok(response);
+        }
+
         [HttpPost("tracks/batch")]
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         public async Task<IActionResult> UpsertTracks([FromBody] List<UpsertLifeLogTrackRequest> requests)
@@ -144,6 +154,16 @@ namespace SuperAppAPI.Controllers
         /// <summary>
         /// POST /api/lifelog/logs/batch - create or update log entries
         /// </summary>
+        [HttpGet("logs/{id}")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetLogById(int id)
+        {
+            var userId = GetAuthenticatedUserId();
+            if (userId == null) return Unauthorized("User ID not found in token");
+            var response = await _service.GetLogByIdAsync(id, userId.Value);
+            return Ok(response);
+        }
+
         [HttpPost("logs/batch")]
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         public async Task<IActionResult> UpsertLogs([FromBody] List<UpsertLifeLogLogRequest> requests)

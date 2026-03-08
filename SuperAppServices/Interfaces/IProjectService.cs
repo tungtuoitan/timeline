@@ -15,6 +15,8 @@ namespace SuperAppServices.Interfaces
         /// <returns>ResultOptions containing list of projects</returns>
         Task<ResultOptions> GetProjectsAsync(ProjectFilterOptions filterOptions);
 
+        Task<ResultOptions> GetProjectByIdAsync(int id, int userId);
+
         /// <summary>
         /// Batch create or update multiple projects (upsert)
         /// </summary>

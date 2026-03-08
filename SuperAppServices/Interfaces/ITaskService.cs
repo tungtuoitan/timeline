@@ -15,11 +15,13 @@ namespace SuperAppServices.Interfaces
         /// <returns>ResultOptions containing list of tasks (raw list, no tree)</returns>
         Task<ResultOptions> GetTasksAsync(TaskFilterOptions filterOptions);
 
+        Task<ResultOptions> GetTaskByIdAsync(int id, int userId);
+
         /// <summary>
         /// Batch create or update multiple tasks (upsert)
         /// </summary>
         /// <param name="requests">List of task upsert requests</param>
         /// <returns>ResultOptions containing batch operation results</returns>
-        Task<ResultOptions> UpsertTasksAsync(List<UpsertTaskRequest> requests);
+        Task<ResultOptions> UpsertTasksAsync(List<UpsertTaskRequest> requests, int userId);
     }
 }
