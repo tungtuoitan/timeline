@@ -957,6 +957,9 @@ namespace SuperAppServices.Services
         public async Task<ResultOptions> GetTargetKeywordsAsync(int targetId, string targetType)
             => await _targetKeywordRepository.GetByTargetAsync(targetId, targetType);
 
+        public async Task<ResultOptions> GetKeywordTargetsAsync(int keywordId)
+            => await _targetKeywordRepository.GetByKeywordIdAsync(keywordId);
+
         public async Task<ResultOptions> LinkTargetKeywordAsync(LinkTargetKeywordRequest request)
         {
             var item = new TargetKeyword
