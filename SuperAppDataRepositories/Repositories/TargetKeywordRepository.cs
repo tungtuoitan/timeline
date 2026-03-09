@@ -46,6 +46,29 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
+        public async Task<ResultOptions> GetByKeywordIdAsync(int keywordId)
+        {
+            try
+            {
+                var items = await _context.TargetKeywords
+                    .AsNoTracking()
+                    .Where(t => t.KeywordId == keywordId)
+                    .ToListAsync();
+
+                return new ResultOptions
+                {
+                    Success = true,
+                    Data = items.Cast<object>().ToList(),
+                    Status = 200
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting TargetKeywords for keywordId: {KeywordId}", keywordId);
+                return new ResultOptions { Success = false, Message = ex.Message, Status = 500 };
+            }
+        }
+
         public async Task<ResultOptions> CreateAsync(TargetKeyword item)
         {
             try

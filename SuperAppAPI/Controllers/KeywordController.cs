@@ -119,6 +119,22 @@ namespace SuperAppAPI.Controllers
             return Ok(result);
         }
         /// <summary>
+        /// Get all target entities that have linked this keyword (reverse lookup)
+        /// </summary>
+        [HttpGet("keyword-targets")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetKeywordTargets([FromQuery] int keywordId)
+        {
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+                return Unauthorized("User ID not found in token");
+
+            var response = await _keywordService.GetKeywordTargetsAsync(keywordId);
+            return Ok(response);
+        }
+
+        /// <summary>
         /// Get all keywords linked to a target entity
         /// </summary>
         [HttpGet("target-keywords")]
