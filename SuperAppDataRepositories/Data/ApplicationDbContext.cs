@@ -44,6 +44,11 @@ namespace SuperAppDataRepositories.Data
         public DbSet<LifeLogTrack> LifeLogTracks { get; set; }
         public DbSet<LifeLogLog> LifeLogLogs { get; set; }
 
+        // KnowledgeTree Tables (kt schema)
+        public DbSet<KtKnowledge> KtKnowledges { get; set; }
+        public DbSet<KtCard> KtCards { get; set; }
+        public DbSet<KtCardLink> KtCardLinks { get; set; }
+
         // ⚠️ REMOVED - Tables không tồn tại trong schema mới:
         // - Tag/EntityType/EntityTag → Sẽ tạo models mới cho dbo.hashtags, dbo.entities, dbo.entity_hashtags
         // - WorkspaceMember, WorkspaceRelationshipType → Dropped
