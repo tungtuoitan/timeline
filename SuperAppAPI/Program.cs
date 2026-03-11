@@ -169,6 +169,7 @@ namespace SuperAppAPI
                     // Register repositories (with EF Core)
                     services.AddScoped<INoteRepository, NoteRepository>();
                     services.AddScoped<SuperAppDataRepositories.Ins.IWorkspaceRepository, WorkspaceRepository>();
+                    services.AddScoped<SuperAppDataRepositories.Ins.IKWorkspaceRepository, KWorkspaceRepository>();
                     services.AddScoped<IWsRepository, WsRepository>();
                     services.AddScoped<IStandardRegistryRepository, StandardRegistryRepository>();
                     services.AddScoped<IUserRepository, UserRepository>();
@@ -182,6 +183,9 @@ namespace SuperAppAPI
                     services.AddScoped<SuperAppServices.Interfaces.IWorkspaceService, SuperAppServices.Services.WorkspaceService>();
                     services.AddScoped<SuperAppServices.Interfaces.IWorkspaceItemService, SuperAppServices.Services.WorkspaceItemService>();
                     services.AddScoped<SuperAppServices.Interfaces.IWorkspaceItemHelperService, SuperAppServices.Services.WorkspaceItemHelperService>();
+                    services.AddScoped<SuperAppServices.Interfaces.IKWorkspaceService, SuperAppServices.Services.KWorkspaceService>();
+                    services.AddScoped<SuperAppServices.Interfaces.IKWorkspaceItemService, SuperAppServices.Services.KWorkspaceItemService>();
+                    services.AddScoped<SuperAppServices.Interfaces.IKWorkspaceItemHelperService, SuperAppServices.Services.KWorkspaceItemHelperService>();
                     services.AddScoped<SuperAppServices.Interfaces.IWsService, SuperAppServices.Services.WsService>();
                     services.AddScoped<SuperAppServices.Interfaces.INoteService, SuperAppServices.Services.NoteService>();
                     services.AddScoped<SuperAppServices.Interfaces.IAuthService, SuperAppServices.Services.AuthService>();

@@ -54,6 +54,9 @@ namespace SuperAppServices.Mappings
             // Workspace mappings
             CreateMap<Workspace, WsResponse>();
             CreateMap<Workspace, WorkspaceDTO>();
+
+            // KWorkspace mappings
+            CreateMap<KWorkspace, WsResponse>();
             CreateMap<UpsertWorkspaceRequest, Workspace>()
                 .ForMember(dest => dest.Id, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
