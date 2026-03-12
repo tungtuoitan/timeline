@@ -4,43 +4,27 @@ using System.Text.Json.Serialization;
 namespace SuperAppModels.DTOs.Requests
 {
     /// <summary>
-    /// Request DTO for deleting multiple workspace items (folders, notes, files)
+    /// Request DTO for deleting multiple workspace items (ws schema - uses entity type+id)
     /// </summary>
     public class DeleteItemsRequest
     {
-        /// <summary>
-        /// List of items to delete (supports multi-select: folders, notes, files)
-        /// </summary>
-        [Required(ErrorMessage = "Items list is required")]
+        [Required]
         [MinLength(1, ErrorMessage = "At least one item is required")]
         [MaxLength(500, ErrorMessage = "Maximum 500 items can be deleted at once")]
         public List<ItemIdentifier> Items { get; set; } = new();
 
-        /// <summary>
-        /// Hard delete flag: true = permanently delete, false = soft delete (default)
-        /// Notes: Folders always hard deleted, Notes/Files follow this flag
-        /// </summary>
         [JsonPropertyName("isHardDelete")]
         public bool IsHardDelete { get; set; } = false;
 
-        /// <summary>
-        /// Item identifier (type + id)
-        /// </summary>
         public class ItemIdentifier
         {
-            /// <summary>
-            /// Item type: 2=folder, 3=note, 4=file
-            /// </summary>
-            [Required(ErrorMessage = "Item type is required")]
-            [Range(2, 4, ErrorMessage = "Item type must be 2 (folder), 3 (note), or 4 (file)")]
+            [Required]
+            [Range(2, 4)]
             [JsonPropertyName("type")]
             public byte Type { get; set; }
 
-            /// <summary>
-            /// Item ID
-            /// </summary>
-            [Required(ErrorMessage = "Item ID is required")]
-            [Range(1, int.MaxValue, ErrorMessage = "Item ID must be positive")]
+            [Required]
+            [Range(1, int.MaxValue)]
             [JsonPropertyName("id")]
             public int Id { get; set; }
         }
