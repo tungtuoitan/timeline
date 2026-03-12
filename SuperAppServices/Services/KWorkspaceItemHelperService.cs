@@ -204,7 +204,7 @@ namespace SuperAppServices.Services
             var targetWorkspaceId = request.WorkspaceId!.Value;
 
             rootItem.WorkspaceId = targetWorkspaceId;
-            rootItem.ParentId = request.ParentId;
+            rootItem.ParentId = request.ParentId > 0 ? request.ParentId : null;
             rootItem.UpdatedAt = DateTime.UtcNow;
             upsertedItems.Add(rootItem);
 

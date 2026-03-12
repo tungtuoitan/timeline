@@ -45,7 +45,9 @@ namespace SuperAppDataRepositories.Repositories
                 }
 
                 var items = await _context.KWorkspaceItems
-                    .Where(i => i.WorkspaceId == workspaceId && i.DeletedAt == null)
+                    .Where(i => i.WorkspaceId == workspaceId 
+                    //&& i.DeletedAt == null
+                    )
                     .ToListAsync();
 
                 _logger.LogInformation("Found {Count} items in kworkspace {WorkspaceId}", items.Count, workspaceId);
@@ -125,38 +127,38 @@ namespace SuperAppDataRepositories.Repositories
         /// <summary>
         /// Moves workspace items by their workspace_item IDs using sp_MoveWorkspaceItems
         /// </summary>
-        public async Task<ResultOptions> MoveItemsAsync(int sourceWorkspaceId, List<int> itemIds, int? targetParentId, int? targetWorkspaceId)
-        {
-            try
-            {
-                _logger.LogInformation("Moving {Count} items from workspace {SourceWorkspaceId}", itemIds.Count, sourceWorkspaceId);
+        //public async Task<ResultOptions> MoveItemsAsync(int sourceWorkspaceId, List<int> itemIds, int? targetParentId, int? targetWorkspaceId)
+        //{
+        //    try
+        //    {
+        //        _logger.LogInformation("Moving {Count} items from workspace {SourceWorkspaceId}", itemIds.Count, sourceWorkspaceId);
 
-                var itemIdsJson = JsonSerializer.Serialize(itemIds);
+        //        var itemIdsJson = JsonSerializer.Serialize(itemIds);
 
-                var sourceWorkspaceIdParam = new SqlParameter("@SourceWorkspaceId", sourceWorkspaceId);
-                var itemsParam = new SqlParameter("@ItemIds", SqlDbType.NVarChar, -1) { Value = itemIdsJson };
-                var targetParentIdParam = new SqlParameter("@TargetParentId", SqlDbType.Int) { Value = (object?)targetParentId ?? DBNull.Value };
-                var targetWorkspaceIdParam = new SqlParameter("@TargetWorkspaceId", SqlDbType.Int) { Value = (object?)targetWorkspaceId ?? DBNull.Value };
+        //        var sourceWorkspaceIdParam = new SqlParameter("@SourceWorkspaceId", sourceWorkspaceId);
+        //        var itemsParam = new SqlParameter("@ItemIds", SqlDbType.NVarChar, -1) { Value = itemIdsJson };
+        //        var targetParentIdParam = new SqlParameter("@TargetParentId", SqlDbType.Int) { Value = (object?)targetParentId ?? DBNull.Value };
+        //        var targetWorkspaceIdParam = new SqlParameter("@TargetWorkspaceId", SqlDbType.Int) { Value = (object?)targetWorkspaceId ?? DBNull.Value };
 
-                await _context.Database.ExecuteSqlRawAsync(
-                    "EXEC [kws].[sp_MoveWorkspaceItems] @SourceWorkspaceId, @ItemIds, @TargetParentId, @TargetWorkspaceId",
-                    sourceWorkspaceIdParam, itemsParam, targetParentIdParam, targetWorkspaceIdParam);
+        //        await _context.Database.ExecuteSqlRawAsync(
+        //            "EXEC [kws].[sp_MoveWorkspaceItems] @SourceWorkspaceId, @ItemIds, @TargetParentId, @TargetWorkspaceId",
+        //            sourceWorkspaceIdParam, itemsParam, targetParentIdParam, targetWorkspaceIdParam);
 
-                _logger.LogInformation("Successfully moved items from workspace {SourceWorkspaceId}", sourceWorkspaceId);
+        //        _logger.LogInformation("Successfully moved items from workspace {SourceWorkspaceId}", sourceWorkspaceId);
 
-                return new ResultOptions { Success = true, Message = "Items moved successfully", Status = 200 };
-            }
-            catch (SqlException ex)
-            {
-                _logger.LogError(ex, "SQL error while moving items from workspace {SourceWorkspaceId}", sourceWorkspaceId);
-                return new ResultOptions { Success = false, Message = $"Database error: {ex.Message}", Status = 500 };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error moving items from workspace {SourceWorkspaceId}", sourceWorkspaceId);
-                return new ResultOptions { Success = false, Message = $"Failed to move items: {ex.Message}", Status = 500 };
-            }
-        }
+        //        return new ResultOptions { Success = true, Message = "Items moved successfully", Status = 200 };
+        //    }
+        //    catch (SqlException ex)
+        //    {
+        //        _logger.LogError(ex, "SQL error while moving items from workspace {SourceWorkspaceId}", sourceWorkspaceId);
+        //        return new ResultOptions { Success = false, Message = $"Database error: {ex.Message}", Status = 500 };
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex, "Error moving items from workspace {SourceWorkspaceId}", sourceWorkspaceId);
+        //        return new ResultOptions { Success = false, Message = $"Failed to move items: {ex.Message}", Status = 500 };
+        //    }
+        //}
 
         /// <summary>
         /// Deletes workspace items by their workspace_item IDs using sp_DeleteWorkspaceItems

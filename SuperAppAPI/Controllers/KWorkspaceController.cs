@@ -94,24 +94,24 @@ namespace SuperAppAPI.Controllers
         }
 
         /// <summary>Moves multiple workspace items by workspace_item IDs</summary>
-        [HttpPatch("{workspaceId}/items/move")]
-        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
-        public async Task<IActionResult> MoveItems(int workspaceId, [FromBody] KMoveItemsRequest request)
-        {
-            if (workspaceId <= 0)
-                return BadRequest(new ResultOptions { Success = false, Message = "Workspace ID must be a positive integer", Status = 400 });
+        //[HttpPatch("{workspaceId}/items/move")]
+        //[ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        //public async Task<IActionResult> MoveItems(int workspaceId, [FromBody] KMoveItemsRequest request)
+        //{
+        //    if (workspaceId <= 0)
+        //        return BadRequest(new ResultOptions { Success = false, Message = "Workspace ID must be a positive integer", Status = 400 });
 
-            if (!ModelState.IsValid)
-                return BadRequest(new ResultOptions { Success = false, Message = "Invalid request data", Object = ModelState, Status = 400 });
+        //    if (!ModelState.IsValid)
+        //        return BadRequest(new ResultOptions { Success = false, Message = "Invalid request data", Object = ModelState, Status = 400 });
 
-            var userId = GetAuthenticatedUserId();
-            if (userId == null) return Unauthorized("User ID not found in token");
+        //    var userId = GetAuthenticatedUserId();
+        //    if (userId == null) return Unauthorized("User ID not found in token");
 
-            _logger.LogInformation("Moving {Count} items in workspace {WorkspaceId}", request.ItemIds.Count, workspaceId);
+        //    _logger.LogInformation("Moving {Count} items in workspace {WorkspaceId}", request.ItemIds.Count, workspaceId);
 
-            var result = await _KworkspaceService.MoveItemsAsync(workspaceId, userId.Value, request);
-            return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
-        }
+        //    var result = await _KworkspaceService.MoveItemsAsync(workspaceId, userId.Value, request);
+        //    return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+        //}
 
         /// <summary>Deletes multiple workspace items (and descendants) by workspace_item IDs</summary>
         [HttpDelete("{workspaceId}/items")]

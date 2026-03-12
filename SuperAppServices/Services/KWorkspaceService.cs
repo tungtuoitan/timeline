@@ -90,19 +90,19 @@ namespace SuperAppServices.Services
             }
         }
 
-        public async Task<ResultOptions> MoveItemsAsync(int workspaceId, int userId, KMoveItemsRequest request)
-        {
-            try
-            {
-                _logger.LogInformation("Moving {Count} items in workspace {WorkspaceId}", request.ItemIds.Count, workspaceId);
-                return await _workspaceRepository.MoveItemsAsync(workspaceId, request.ItemIds, request.TargetParentId, request.TargetWorkspaceId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error moving items in workspace {WorkspaceId}", workspaceId);
-                return new ResultOptions { Success = false, Message = "An error occurred while moving items", Status = 500 };
-            }
-        }
+        //public async Task<ResultOptions> MoveItemsAsync(int workspaceId, int userId, KMoveItemsRequest request)
+        //{
+        //    try
+        //    {
+        //        _logger.LogInformation("Moving {Count} items in workspace {WorkspaceId}", request.ItemIds.Count, workspaceId);
+        //        return await _workspaceRepository.MoveItemsAsync(workspaceId, request.ItemIds, request.TargetParentId, request.TargetWorkspaceId);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex, "Error moving items in workspace {WorkspaceId}", workspaceId);
+        //        return new ResultOptions { Success = false, Message = "An error occurred while moving items", Status = 500 };
+        //    }
+        //}
 
         public async Task<ResultOptions> DeleteItemsAsync(int workspaceId, int userId, KDeleteItemsRequest request)
         {
