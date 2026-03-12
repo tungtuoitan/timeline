@@ -5,39 +5,52 @@ using SuperAppModels.Models;
 namespace SuperAppDataRepositories.Data.Configurations
 {
     /// <summary>
-    /// EF Core configuration for KWorkspaceItemEntity entity
-    /// Maps to: kws.workspace_items table
+    /// EF Core configuration for KWorkspaceItemEntity
+    /// kws.workspace_items is now a self-contained node table (no entity_type/entity_id).
     /// </summary>
     public class KWorkspaceItemConfiguration : IEntityTypeConfiguration<KWorkspaceItemEntity>
     {
         public void Configure(EntityTypeBuilder<KWorkspaceItemEntity> builder)
         {
-            // Table mapping - kws schema (KWorkspace)
             builder.ToTable("workspace_items", "kws");
 
-            // Primary key
-            builder.HasKey(wi => wi.Id); 
+            builder.HasKey(wi => wi.Id);
             builder.Property(wi => wi.Id)
                 .HasColumnName("id")
                 .ValueGeneratedOnAdd();
 
-            // Properties 
             builder.Property(wi => wi.WorkspaceId)
                 .HasColumnName("workspace_id")
                 .IsRequired();
 
             builder.Property(wi => wi.ParentId)
                 .HasColumnName("parent_id")
-                .IsRequired(false); // Nullable for root-level items
+                .IsRequired(false);
 
-            builder.Property(wi => wi.EntityType)
-                .HasColumnName("entity_type")
+            // Node data
+            builder.Property(wi => wi.Name)
+                .HasColumnName("name")
+                .HasMaxLength(255)
                 .IsRequired();
 
-            builder.Property(wi => wi.EntityId)
-                .HasColumnName("entity_id")
-                .IsRequired();
+            builder.Property(wi => wi.Description)
+                .HasColumnName("description")
+                .HasColumnType("nvarchar(max)")
+                .IsRequired(false);
 
+            builder.Property(wi => wi.Color)
+                .HasColumnName("color")
+                .HasMaxLength(7)
+                .HasDefaultValue("#F59E0B")
+                .IsRequired(false);
+
+            builder.Property(wi => wi.Icon)
+                .HasColumnName("icon")
+                .HasMaxLength(50)
+                .HasDefaultValue("📁")
+                .IsRequired(false);
+
+            // Materialized Path
             builder.Property(wi => wi.PathIds)
                 .HasColumnName("PathIds")
                 .HasMaxLength(1000)
@@ -47,6 +60,7 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("PathDepth")
                 .HasDefaultValue(0);
 
+            // Timestamps
             builder.Property(wi => wi.CreatedAt)
                 .HasColumnName("created_at")
                 .HasDefaultValueSql("GETUTCDATE()");
@@ -66,31 +80,21 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasDatabaseName("IX_kworkspace_items_parent")
                 .HasFilter("[deleted_at] IS NULL");
 
-            builder.HasIndex(wi => new { wi.EntityType, wi.EntityId })
-                .HasDatabaseName("IX_kworkspace_items_item");
-
-            // Unique constraint: one item can only exist once per workspace
-            builder.HasIndex(wi => new { wi.WorkspaceId, wi.EntityType, wi.EntityId })
-                .HasDatabaseName("UQ_kworkspace_items_unique")
-                .IsUnique();
+            builder.HasIndex(wi => new { wi.PathIds, wi.PathDepth })
+                .HasDatabaseName("IX_kworkspace_items_path")
+                .HasFilter("[deleted_at] IS NULL");
 
             // Relationships
             builder.HasOne(wi => wi.KWorkspace)
-                .WithMany(w => w.Items)  // Explicitly map to KWorkspace.Items collection
+                .WithMany(w => w.Items)
                 .HasForeignKey(wi => wi.WorkspaceId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Self-referencing parent relationship (workspace_items.parent_id → workspace_items.id)
             builder.HasOne(wi => wi.Parent)
-                .WithMany()  // No inverse navigation property
+                .WithMany()
                 .HasForeignKey(wi => wi.ParentId)
                 .OnDelete(DeleteBehavior.NoAction)
-                .IsRequired(false);  // Nullable FK for root-level items
-
-            // Polymorphic relationships (navigations populated at runtime based on ItemType)
-            builder.Ignore(wi => wi.ChildFolder);
-            builder.Ignore(wi => wi.ChildNote);
-            builder.Ignore(wi => wi.ChildFile);
+                .IsRequired(false);
         }
     }
 }

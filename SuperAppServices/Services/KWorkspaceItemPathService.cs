@@ -196,19 +196,6 @@ namespace SuperAppServices.Services
             await _context.SaveChangesAsync();
 
             _logger.LogInformation("Moved item {Id} from {OldPath} to {NewPath}", itemId, oldPathIds, newPathIds);
-
-            // Return both old and new paths for keyword service
-            await OnItemMovedAsync(oldPathIds, newPathIds);
-        }
-
-        /// <summary>
-        /// Hook for keyword service to rebuild links after move
-        /// </summary>
-        private async Task OnItemMovedAsync(string oldPathIds, string newPathIds)
-        {
-            // TODO: Call KeywordServiceV2.RebuildLinksAfterMoveAsync
-            // For now, just log
-            _logger.LogInformation("Item moved: keywords need rebuild from {Old} to {New}", oldPathIds, newPathIds);
         }
 
         #endregion
@@ -235,18 +222,6 @@ namespace SuperAppServices.Services
 
             _context.Set<WorkspaceItemEntity>().RemoveRange(descendants);
             await _context.SaveChangesAsync();
-
-            // Delete keywords
-            await OnItemDeletedAsync(pathIds);
-        }
-
-        /// <summary>
-        /// Hook for keyword service to delete keywords
-        /// </summary>
-        private async Task OnItemDeletedAsync(string pathIds)
-        {
-            // TODO: Call KeywordServiceV2.DeleteKeywordsByPathAsync
-            _logger.LogInformation("Item deleted: keywords need cleanup for path {Path}", pathIds);
         }
 
         #endregion
