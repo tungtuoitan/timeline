@@ -1,16 +1,16 @@
 namespace SuperAppModels.Models
 {
     /// <summary>
-    /// Workspace with flat list of self-contained nodes (kws.workspace_items)
+    /// Knowledge base with flat node list (used as intermediate repository result)
     /// </summary>
-    public class KWorkspaceWithTree
+    public class KKnowledgeWithTree
     {
-        public int WorkspaceId { get; set; }
+        public int KnowledgeId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public int UserId { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
-        public List<KWorkspaceItemEntity> Items { get; set; } = new List<KWorkspaceItemEntity>();
+        public List<KNodeEntity> Nodes { get; set; } = new();
     }
 }

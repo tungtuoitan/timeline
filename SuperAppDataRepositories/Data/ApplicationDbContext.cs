@@ -20,9 +20,9 @@ namespace SuperAppDataRepositories.Data
         public DbSet<SuperAppModels.Models.File> Files { get; set; }
         public DbSet<WorkspaceItemEntity> WorkspaceItems { get; set; }
 
-        // KWorkspace Tables (kws schema)
-        public DbSet<KWorkspace> KWorkspaces { get; set; }
-        public DbSet<KWorkspaceItemEntity> KWorkspaceItems { get; set; }
+        // K Tables (k schema)
+        public DbSet<KKnowledge> KKnowledges { get; set; }
+        public DbSet<KNodeEntity> KNodes { get; set; }
 
         // Entity Tables (dbo schema)
         public DbSet<Note> Notes { get; set; }

@@ -25,7 +25,7 @@ namespace SuperAppModels.Models
 
         // Navigation properties for EF Core
         public ICollection<Workspace> Workspaces { get; set; } = new List<Workspace>();
-        public ICollection<KWorkspace> KWorkspaces { get; set; } = new List<KWorkspace>();
+        public ICollection<KKnowledge> KKnowledges { get; set; } = new List<KKnowledge>();
         public ICollection<Note> Notes { get; set; } = new List<Note>();
 
         public User()

@@ -4,20 +4,17 @@ using SuperAppModels.Models;
 
 namespace SuperAppDataRepositories.Data.Configurations
 {
-    public class KWorkspaceConfiguration : IEntityTypeConfiguration<KWorkspace>
+    public class KKnowledgeConfiguration : IEntityTypeConfiguration<KKnowledge>
     {
-        public void Configure(EntityTypeBuilder<KWorkspace> builder)
+        public void Configure(EntityTypeBuilder<KKnowledge> builder)
         {
-            // Table mapping - kws schema (KWorkspace)
-            builder.ToTable("workspaces", "kws");
+            builder.ToTable("knowledge", "k");
 
-            // Primary key
             builder.HasKey(w => w.Id);
-            builder.Property(w => w.Id) 
+            builder.Property(w => w.Id)
                 .HasColumnName("id")
                 .ValueGeneratedOnAdd();
- 
-            // Properties that EXIST in DB
+
             builder.Property(w => w.UserId)
                 .HasColumnName("user_id")
                 .IsRequired();
@@ -45,24 +42,17 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(w => w.DeletedAt)
                 .HasColumnName("deleted_at");
 
-            // Indexes
             builder.HasIndex(w => w.UserId)
-                .HasDatabaseName("IX_kworkspaces_user")
+                .HasDatabaseName("IX_k_knowledge_user")
                 .HasFilter("[deleted_at] IS NULL");
 
-            // Relationships
             builder.HasOne(w => w.User)
-                .WithMany(u => u.KWorkspaces)
+                .WithMany(u => u.KKnowledges)
                 .HasForeignKey(w => w.UserId)
-                .HasConstraintName("FK_kworkspaces_users_user_id")
+                .HasConstraintName("FK_k_knowledge_users_user_id")
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Note: status_code has no FK constraint - just a simple string field
-
-            builder.HasMany(w => w.Items)
-                .WithOne(wi => wi.KWorkspace)
-                .HasForeignKey(wi => wi.WorkspaceId)
-                .OnDelete(DeleteBehavior.Cascade);
+            // Note: KKnowledge ↔ KNodeEntity relationship is configured in KNodeConfiguration
         }
     }
 }

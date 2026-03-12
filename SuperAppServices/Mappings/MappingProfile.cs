@@ -55,8 +55,7 @@ namespace SuperAppServices.Mappings
             CreateMap<Workspace, WsResponse>();
             CreateMap<Workspace, WorkspaceDTO>();
 
-            // KWorkspace mappings
-            CreateMap<KWorkspace, WsResponse>();
+            // KKnowledge mappings — KKnowledge uses its own service layer, no AutoMapper needed
             CreateMap<UpsertWorkspaceRequest, Workspace>()
                 .ForMember(dest => dest.Id, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
