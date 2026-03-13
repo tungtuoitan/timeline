@@ -32,6 +32,9 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("status_code")
                 .HasMaxLength(50);
 
+            builder.Property(w => w.ImageBase64)
+                .HasColumnName("image_base64");
+
             builder.Property(w => w.CreatedAt)
                 .HasColumnName("created_at")
                 .HasDefaultValueSql("GETUTCDATE()");
