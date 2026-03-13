@@ -10,6 +10,7 @@ namespace SuperAppModels.Models
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public string? StatusCode { get; set; }
+        public string? ImageBase64 { get; set; }
         public DateTime? CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public DateTime? DeletedAt { get; set; }
@@ -29,12 +30,13 @@ namespace SuperAppModels.Models
             UserId = userId;
         }
 
-        public void Update(string name, string? description = null)
+        public void Update(string name, string? description = null, string? imageBase64 = null)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Name cannot be empty", nameof(name));
             Name = name;
             Description = description;
+            ImageBase64 = imageBase64;
             UpdatedAt = DateTime.UtcNow;
         }
 

@@ -118,6 +118,42 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
+        public async Task<KKnowledge> CreateAsync(KUpsertKnowledgeRequest request)
+        {
+            var entity = new KKnowledge(request.Name, request.UserId)
+            {
+                Description = request.Description,
+                ImageBase64 = request.ImageBase64,
+            };
+            _context.KKnowledges.Add(entity);
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("Created knowledge {Id} for user {UserId}", entity.Id, request.UserId);
+            return entity;
+        }
+
+        public async Task<KKnowledge?> UpdateAsync(int id, KUpsertKnowledgeRequest request)
+        {
+            var entity = await _context.KKnowledges
+                .FirstOrDefaultAsync(k => k.Id == id && k.UserId == request.UserId);
+            if (entity == null) return null;
+
+            entity.Update(request.Name, request.Description, request.ImageBase64);
+            await _context.SaveChangesAsync();
+            return entity;
+        }
+
+        public async Task<bool> SoftDeleteAsync(int id, int userId)
+        {
+            var entity = await _context.KKnowledges
+                .FirstOrDefaultAsync(k => k.Id == id && k.UserId == userId);
+            if (entity == null) return false;
+
+            entity.SoftDelete();
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("Soft-deleted knowledge {Id}", id);
+            return true;
+        }
+
         /// <summary>
         /// Hard-deletes nodes (and all descendants) via [k].[sp_DeleteNodes]
         /// </summary>

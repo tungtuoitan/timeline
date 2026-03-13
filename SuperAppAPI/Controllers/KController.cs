@@ -62,6 +62,50 @@ namespace SuperAppAPI.Controllers
             return Ok(result);
         }
 
+        /// <summary>Creates a new knowledge base</summary>
+        [HttpPost]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status201Created)]
+        public async Task<IActionResult> CreateKnowledge([FromBody] KUpsertKnowledgeRequest request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var userId = GetAuthenticatedUserId();
+            if (userId == null) return Unauthorized("User ID not found in token");
+
+            request.UserId = userId.Value;
+            var result = await _knowledgeService.CreateKnowledgeAsync(request);
+            return result.Success ? StatusCode(201, result) : StatusCode(result.Status ?? 500, result);
+        }
+
+        /// <summary>Updates an existing knowledge base (name, description, image)</summary>
+        [HttpPut("{id:int}")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        public async Task<IActionResult> UpdateKnowledge(int id, [FromBody] KUpsertKnowledgeRequest request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var userId = GetAuthenticatedUserId();
+            if (userId == null) return Unauthorized("User ID not found in token");
+
+            request.UserId = userId.Value;
+            var result = await _knowledgeService.UpdateKnowledgeAsync(id, request);
+            return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+        }
+
+        /// <summary>Soft-deletes a knowledge base</summary>
+        [HttpDelete("{id:int}")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        public async Task<IActionResult> SoftDeleteKnowledge(int id)
+        {
+            var userId = GetAuthenticatedUserId();
+            if (userId == null) return Unauthorized("User ID not found in token");
+
+            var result = await _knowledgeService.SoftDeleteKnowledgeAsync(id, userId.Value);
+            return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+        }
+
         /// <summary>
         /// Gets knowledge tree — flat list of nodes.
         /// Frontend builds hierarchy from parentId.

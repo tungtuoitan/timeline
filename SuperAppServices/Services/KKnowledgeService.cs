@@ -30,6 +30,7 @@ namespace SuperAppServices.Services
                 Name        = k.Name,
                 Description = k.Description,
                 StatusCode  = k.StatusCode,
+                ImageBase64 = k.ImageBase64,
                 CreatedAt   = k.CreatedAt,
                 UpdatedAt   = k.UpdatedAt,
                 DeletedAt   = k.DeletedAt
@@ -91,6 +92,78 @@ namespace SuperAppServices.Services
             {
                 _logger.LogError(ex, "Error deleting nodes in knowledge {KnowledgeId}", knowledgeId);
                 return new ResultOptions { Success = false, Message = "An error occurred while deleting nodes", Status = 500 };
+            }
+        }
+
+        public async Task<ResultOptions> CreateKnowledgeAsync(KUpsertKnowledgeRequest request)
+        {
+            try
+            {
+                var entity = await _repo.CreateAsync(request);
+                var summary = new KKnowledgeSummary
+                {
+                    Id          = entity.Id,
+                    UserId      = entity.UserId,
+                    Name        = entity.Name,
+                    Description = entity.Description,
+                    ImageBase64 = entity.ImageBase64,
+                    StatusCode  = entity.StatusCode,
+                    CreatedAt   = entity.CreatedAt,
+                    UpdatedAt   = entity.UpdatedAt,
+                    DeletedAt   = entity.DeletedAt,
+                };
+                return new ResultOptions { Success = true, Message = "Knowledge created", Object = summary, Status = 201 };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating knowledge for user {UserId}", request.UserId);
+                return new ResultOptions { Success = false, Message = "Failed to create knowledge", Status = 500 };
+            }
+        }
+
+        public async Task<ResultOptions> UpdateKnowledgeAsync(int id, KUpsertKnowledgeRequest request)
+        {
+            try
+            {
+                var entity = await _repo.UpdateAsync(id, request);
+                if (entity == null)
+                    return new ResultOptions { Success = false, Message = "Knowledge not found", Status = 404 };
+
+                var summary = new KKnowledgeSummary
+                {
+                    Id          = entity.Id,
+                    UserId      = entity.UserId,
+                    Name        = entity.Name,
+                    Description = entity.Description,
+                    ImageBase64 = entity.ImageBase64,
+                    StatusCode  = entity.StatusCode,
+                    CreatedAt   = entity.CreatedAt,
+                    UpdatedAt   = entity.UpdatedAt,
+                    DeletedAt   = entity.DeletedAt,
+                };
+                return new ResultOptions { Success = true, Message = "Knowledge updated", Object = summary, Status = 200 };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating knowledge {Id}", id);
+                return new ResultOptions { Success = false, Message = "Failed to update knowledge", Status = 500 };
+            }
+        }
+
+        public async Task<ResultOptions> SoftDeleteKnowledgeAsync(int id, int userId)
+        {
+            try
+            {
+                var deleted = await _repo.SoftDeleteAsync(id, userId);
+                if (!deleted)
+                    return new ResultOptions { Success = false, Message = "Knowledge not found", Status = 404 };
+
+                return new ResultOptions { Success = true, Message = "Knowledge deleted", Status = 200 };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error soft-deleting knowledge {Id}", id);
+                return new ResultOptions { Success = false, Message = "Failed to delete knowledge", Status = 500 };
             }
         }
     }
