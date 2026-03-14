@@ -21,10 +21,10 @@ namespace SuperAppServices.Validators
                 .MaximumLength(255)
                 .WithMessage("Folder name cannot exceed 255 characters");
 
-            RuleFor(x => x.Description)
-                .MaximumLength(1000)
-                .WithMessage("Description cannot exceed 1000 characters")
-                .When(x => x.Description != null);
+            //RuleFor(x => x.Description)
+            //    .MaximumLength(1000)
+            //    .WithMessage("Description cannot exceed 1000 characters")
+            //    .When(x => x.Description != null);
 
             RuleFor(x => x.Color)
                 .Matches(@"^#[0-9A-Fa-f]{6}$")
