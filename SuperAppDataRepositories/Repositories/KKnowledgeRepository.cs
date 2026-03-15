@@ -46,15 +46,33 @@ namespace SuperAppDataRepositories.Repositories
 
                 _logger.LogInformation("Found {Count} nodes in knowledge {KnowledgeId}", nodes.Count, knowledgeId);
 
+                // ── Shortcut resolution ──────────────────────────────────────────
+                // Load target nodes for all shortcut rows in one batch PK lookup.
+                // Uses IgnoreQueryFilters() to include soft-deleted targets so that
+                // resolved deleted_at can be propagated back to the shortcut node.
+                var shortcutTargetIds = nodes
+                    .Where(n => n.TypeCode == "shortcut" && n.RefTargetId.HasValue)
+                    .Select(n => n.RefTargetId!.Value)
+                    .Distinct()
+                    .ToList();
+
+                var shortcutTargets = shortcutTargetIds.Count > 0
+                    ? await _context.KNodes
+                        .IgnoreQueryFilters()
+                        .Where(n => shortcutTargetIds.Contains(n.Id))
+                        .ToDictionaryAsync(n => n.Id)
+                    : new Dictionary<int, KNodeEntity>();
+
                 return new KKnowledgeWithTree
                 {
-                    KnowledgeId = knowledge.Id,
-                    Name = knowledge.Name,
-                    Description = knowledge.Description,
-                    UserId = knowledge.UserId,
-                    CreatedAt = knowledge.CreatedAt ?? DateTime.UtcNow,
-                    UpdatedAt = knowledge.UpdatedAt,
-                    Nodes = nodes
+                    KnowledgeId     = knowledge.Id,
+                    Name            = knowledge.Name,
+                    Description     = knowledge.Description,
+                    UserId          = knowledge.UserId,
+                    CreatedAt       = knowledge.CreatedAt ?? DateTime.UtcNow,
+                    UpdatedAt       = knowledge.UpdatedAt,
+                    Nodes           = nodes,
+                    ShortcutTargets = shortcutTargets,
                 };
             }
             catch (Exception ex)
@@ -187,6 +205,41 @@ namespace SuperAppDataRepositories.Repositories
             {
                 _logger.LogError(ex, "Error deleting nodes from knowledge {KnowledgeId}", knowledgeId);
                 return new ResultOptions { Success = false, Message = $"Failed to delete nodes: {ex.Message}", Status = 500 };
+            }
+        }
+        /// <summary>
+        /// Hard-deletes a single shortcut row.
+        /// Validates that the node exists, belongs to the knowledge, and is a shortcut.
+        /// Shortcuts have no real DB children (children are virtual/grafted on the frontend),
+        /// so a simple single-row DELETE is safe.
+        /// </summary>
+        public async Task<bool> HardDeleteShortcutAsync(int knowledgeId, int nodeId)
+        {
+            try
+            {
+                var node = await _context.KNodes
+                    .FirstOrDefaultAsync(n =>
+                        n.Id          == nodeId      &&
+                        n.KnowledgeId == knowledgeId &&
+                        n.TypeCode    == "shortcut");
+
+                if (node == null) return false;
+
+                _context.KNodes.Remove(node);
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation(
+                    "Hard-deleted shortcut node {NodeId} from knowledge {KnowledgeId}",
+                    nodeId, knowledgeId);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Error hard-deleting shortcut node {NodeId} from knowledge {KnowledgeId}",
+                    nodeId, knowledgeId);
+                throw;
             }
         }
     }

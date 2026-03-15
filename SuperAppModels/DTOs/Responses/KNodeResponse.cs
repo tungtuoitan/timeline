@@ -17,8 +17,20 @@ namespace SuperAppModels.DTOs.Responses
         public string PathIds { get; set; } = "/";
         public int PathDepth { get; set; }
 
+        // Type — "draft" | "shortcut"
+        public string TypeCode { get; set; } = "draft";
+
+        // Shortcut: trỏ về node gốc (null = node thường)
+        public int? RefTargetId { get; set; }
+        public int? RefTargetKnowledgeId { get; set; }
+
         public DateTime? CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+
+        /// <summary>
+        /// Với shortcut: resolved từ node gốc (null = gốc đang sống, non-null = gốc đã bị xóa).
+        /// Với node thường: deleted_at của chính nó.
+        /// </summary>
         public DateTime? DeletedAt { get; set; }
     }
 }

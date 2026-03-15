@@ -57,5 +57,16 @@ namespace SuperAppModels.DTOs.Requests
         /// </summary>
         [JsonPropertyName("deletedAt")]
         public DateTime? DeletedAt { get; set; }
+
+        // ── Shortcut fields ───────────────────────────────────────────────────
+        // Nếu set cả hai → node được tạo với TypeCode = "shortcut"
+
+        /// <summary>k.node.id của node đích</summary>
+        [JsonPropertyName("refTargetId")]
+        public int? RefTargetId { get; set; }
+
+        /// <summary>k.knowledge.id của node đích (denormalized)</summary>
+        [JsonPropertyName("refTargetKnowledgeId")]
+        public int? RefTargetKnowledgeId { get; set; }
     }
 }

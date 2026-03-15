@@ -50,6 +50,22 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasDefaultValue("📁")
                 .IsRequired(false);
 
+            // Type code — "draft" (default) | "shortcut"
+            builder.Property(n => n.TypeCode)
+                .HasColumnName("type_code")
+                .HasMaxLength(50)
+                .HasDefaultValue("draft")
+                .IsRequired();
+
+            // Shortcut columns
+            builder.Property(n => n.RefTargetId)
+                .HasColumnName("ref_target_id")
+                .IsRequired(false);
+
+            builder.Property(n => n.RefTargetKnowledgeId)
+                .HasColumnName("ref_target_knowledge_id")
+                .IsRequired(false);
+
             // Materialized path
             builder.Property(n => n.PathIds)
                 .HasColumnName("PathIds")

@@ -3,6 +3,7 @@ using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
+using SuperAppModels.Models;
 using SuperAppServices.Interfaces;
 
 namespace SuperAppServices.Services
@@ -49,20 +50,35 @@ namespace SuperAppServices.Services
             if (tree == null)
                 throw new InvalidOperationException($"Failed to retrieve tree for knowledge {knowledgeId}");
 
-            var flatData = tree.Nodes.Select(n => new KNodeResponse
+            var flatData = tree.Nodes.Select(n =>
             {
-                Id          = n.Id,
-                KnowledgeId = n.KnowledgeId,
-                ParentId    = n.ParentId,
-                Name        = n.Name,
-                Description = n.Description,
-                Color       = n.Color,
-                Icon        = n.Icon,
-                PathIds     = n.PathIds,
-                PathDepth   = n.PathDepth,
-                CreatedAt   = n.CreatedAt,
-                UpdatedAt   = n.UpdatedAt,
-                DeletedAt   = n.DeletedAt
+                // For shortcut nodes: resolve all display fields from target.
+                // target == null  → target was hard-deleted (edge case, trigger cleans up later)
+                // target.DeletedAt != null → target soft-deleted → shortcut inherits deleted_at
+                KNodeEntity? target = null;
+                if (n.TypeCode == "shortcut" && n.RefTargetId.HasValue)
+                    tree.ShortcutTargets.TryGetValue(n.RefTargetId.Value, out target);
+
+                return new KNodeResponse
+                {
+                    Id          = n.Id,
+                    KnowledgeId = n.KnowledgeId,
+                    ParentId    = n.ParentId,
+                    TypeCode             = n.TypeCode,
+                    RefTargetId          = n.RefTargetId,
+                    RefTargetKnowledgeId = n.RefTargetKnowledgeId,
+                    // Resolved fields — shortcut reads from target, regular node from self
+                    Name        = target?.Name        ?? n.Name,
+                    Description = target?.Description ?? n.Description,
+                    Color       = target?.Color       ?? n.Color,
+                    Icon        = target?.Icon        ?? n.Icon,
+                    PathIds     = n.PathIds,
+                    PathDepth   = n.PathDepth,
+                    CreatedAt   = n.CreatedAt,
+                    UpdatedAt   = n.UpdatedAt,
+                    // deleted_at: shortcut inherits target's deleted_at (key design)
+                    DeletedAt   = target != null ? target.DeletedAt : n.DeletedAt,
+                };
             }).ToList();
 
             _logger.LogInformation("Retrieved {Count} nodes for knowledge {KnowledgeId}", flatData.Count, knowledgeId);
@@ -164,6 +180,37 @@ namespace SuperAppServices.Services
             {
                 _logger.LogError(ex, "Error soft-deleting knowledge {Id}", id);
                 return new ResultOptions { Success = false, Message = "Failed to delete knowledge", Status = 500 };
+            }
+        }
+
+        public async Task<ResultOptions> DeleteShortcutAsync(int knowledgeId, int nodeId, int userId)
+        {
+            try
+            {
+                // Verify the knowledge belongs to this user
+                var knowledge = await _repo.GetKnowledgeByIdAsync(knowledgeId, userId);
+                if (knowledge == null)
+                    return new ResultOptions { Success = false, Message = "Knowledge not found", Status = 404 };
+
+                var deleted = await _repo.HardDeleteShortcutAsync(knowledgeId, nodeId);
+                if (!deleted)
+                    return new ResultOptions
+                    {
+                        Success = false,
+                        Message = $"Node {nodeId} not found in knowledge {knowledgeId}, or it is not a shortcut",
+                        Status  = 404
+                    };
+
+                _logger.LogInformation(
+                    "Shortcut node {NodeId} hard-deleted from knowledge {KnowledgeId} by user {UserId}",
+                    nodeId, knowledgeId, userId);
+
+                return new ResultOptions { Success = true, Message = "Shortcut deleted", Status = 200 };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting shortcut {NodeId} in knowledge {KnowledgeId}", nodeId, knowledgeId);
+                return new ResultOptions { Success = false, Message = "Failed to delete shortcut", Status = 500 };
             }
         }
     }

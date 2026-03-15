@@ -16,6 +16,13 @@ namespace SuperAppModels.Models
         public string? Color { get; set; } = "#F59E0B";
         public string? Icon { get; set; } = "📁";
 
+        // Type — "draft" (default) | "shortcut"
+        public string TypeCode { get; set; } = "draft";
+
+        // Shortcut fields (null for regular nodes)
+        public int? RefTargetId { get; set; }
+        public int? RefTargetKnowledgeId { get; set; }
+
         // Materialized path
         public string PathIds { get; set; } = "/";
         public int PathDepth { get; set; } = 0;

@@ -16,6 +16,12 @@ namespace SuperAppDataRepositories.Ins
 
         /// <summary>Hard-deletes nodes and descendants via [k].[sp_DeleteNodes]</summary>
         Task<ResultOptions> DeleteNodesAsync(int knowledgeId, List<int> nodeIds);
+
+        /// <summary>
+        /// Hard-deletes a single shortcut row (type_code = 'shortcut').
+        /// Returns false if the node is not found or is not a shortcut.
+        /// </summary>
+        Task<bool> HardDeleteShortcutAsync(int knowledgeId, int nodeId);
     }
 }
 

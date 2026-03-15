@@ -10,6 +10,12 @@ namespace SuperAppServices.Interfaces
         Task<List<KKnowledgeSummary>> GetAllKnowledgesAsync(int userId, FilterOptions? filterOptions = null);
         Task<ResultOptions> DeleteNodesAsync(int knowledgeId, int userId, KDeleteNodesRequest request);
 
+        /// <summary>
+        /// Hard-deletes a single shortcut node row.
+        /// Validates ownership and that the node is a shortcut.
+        /// </summary>
+        Task<ResultOptions> DeleteShortcutAsync(int knowledgeId, int nodeId, int userId);
+
         Task<ResultOptions> CreateKnowledgeAsync(KUpsertKnowledgeRequest request);
         Task<ResultOptions> UpdateKnowledgeAsync(int id, KUpsertKnowledgeRequest request);
         Task<ResultOptions> SoftDeleteKnowledgeAsync(int id, int userId);

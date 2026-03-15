@@ -12,5 +12,12 @@ namespace SuperAppModels.Models
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public List<KNodeEntity> Nodes { get; set; } = new();
+
+        /// <summary>
+        /// Shortcut target nodes keyed by their ID.
+        /// Loaded in one batch query (PK lookup) — includes soft-deleted targets
+        /// so resolved deleted_at can be propagated to shortcut nodes.
+        /// </summary>
+        public Dictionary<int, KNodeEntity> ShortcutTargets { get; set; } = new();
     }
 }

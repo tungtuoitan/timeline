@@ -157,6 +157,21 @@ namespace SuperAppAPI.Controllers
             return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
         }
 
+        /// <summary>Hard-deletes a single shortcut node row (type_code = 'shortcut')</summary>
+        [HttpDelete("{knowledgeId}/shortcuts/{nodeId:int}")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        public async Task<IActionResult> DeleteShortcut(int knowledgeId, int nodeId)
+        {
+            if (knowledgeId <= 0 || nodeId <= 0)
+                return BadRequest(new ResultOptions { Success = false, Message = "Invalid IDs", Status = 400 });
+
+            var userId = GetAuthenticatedUserId();
+            if (userId == null) return Unauthorized("User ID not found in token");
+
+            var result = await _knowledgeService.DeleteShortcutAsync(knowledgeId, nodeId, userId.Value);
+            return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+        }
+
         /// <summary>
         /// Batch upsert nodes with explicit actions.
         /// Actions: Create, Update, Move, MoveCross, Delete, Restore

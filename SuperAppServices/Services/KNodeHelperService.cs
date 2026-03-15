@@ -1,3 +1,4 @@
+using Azure.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
@@ -35,8 +36,12 @@ namespace SuperAppServices.Services
                 case KNodeAction.Create:
                     if (request.NodeData == null)
                         return "Create action requires NodeData";
-                    if (string.IsNullOrWhiteSpace(request.NodeData.Name))
+                    // Shortcut: name không cần thiết (resolved từ target via JOIN)
+                    var isShortcut = request.NodeData.RefTargetId.HasValue;
+                    if (!isShortcut && string.IsNullOrWhiteSpace(request.NodeData.Name))
                         return "Create action requires a non-empty name";
+                    if (isShortcut && (!request.NodeData.RefTargetKnowledgeId.HasValue || request.NodeData.RefTargetKnowledgeId.Value <= 0))
+                        return "Shortcut requires a valid RefTargetKnowledgeId";
                     if (request.ParentId.HasValue && request.ParentId.Value <= 0)
                         return "Create action: parentId must be a positive integer or null";
                     return null;
@@ -141,23 +146,36 @@ namespace SuperAppServices.Services
             List<KNodeEntity> upserted)
         {
             var data = request.NodeData!;
+            var isShortcut = data.RefTargetId.HasValue && data.RefTargetKnowledgeId.HasValue;
+
             var newNode = new KNodeEntity
             {
-                KnowledgeId = request.KnowledgeId ?? knowledgeId,
-                ParentId    = request.ParentId,
-                Name        = data.Name,
-                Description = data.Description,
-                Color       = data.Color ?? "#F59E0B",
-                Icon        = data.Icon  ?? "📁",
-                CreatedAt   = DateTime.UtcNow,
-                DeletedAt   = null
+                KnowledgeId          = request.KnowledgeId ?? knowledgeId,
+                ParentId             = request.ParentId,
+                TypeCode             = isShortcut ? "shortcut" : "draft",
+                RefTargetId          = isShortcut ? data.RefTargetId          : null,
+                RefTargetKnowledgeId = isShortcut ? data.RefTargetKnowledgeId : null,
+
+                // Shortcut: không lưu content — resolved từ target via JOIN khi load tree
+                // Regular node: lưu bình thường
+                Name        = isShortcut ? string.Empty     : data.Name,
+                Description = isShortcut ? null             : data.Description,
+                Color       = isShortcut ? null             : (data.Color ?? "#F59E0B"),
+                Icon        = isShortcut ? null             : (data.Icon  ?? "📁"),
+
+                CreatedAt = DateTime.UtcNow,
+                DeletedAt = null,
             };
 
             _context.KNodes.Add(newNode);
             await _context.SaveChangesAsync();
 
             upserted.Add(newNode);
-            _logger.LogInformation("Created node ID {Id} (Name={Name})", newNode.Id, newNode.Name);
+            _logger.LogInformation(
+                isShortcut
+                    ? "Created shortcut ID {Id} → refTarget {RefId} (knowledge {RefKId})"
+                    : "Created node ID {Id} (Name={Name})",
+                newNode.Id, newNode.RefTargetId, newNode.RefTargetKnowledgeId);
         }
 
         public void ProcessUpdate(
@@ -269,7 +287,9 @@ namespace SuperAppServices.Services
 
         public async Task SyncPathIdsAsync(List<KNodeEntity> upserted)
         {
-            foreach (var node in upserted.Where(n => !n.DeletedAt.HasValue))
+            foreach (var node in upserted.Where(n => !n.DeletedAt.HasValue)
+                //&& !n.RefTargetId.HasValue && !n.RefTargetKnowledgeId.HasValue) // no need to update shortcut
+                )
             {
                 try { await RebuildPathIdsAsync(node); }
                 catch (Exception ex) { _logger.LogError(ex, "Failed to rebuild PathIds for node {Id}", node.Id); }
