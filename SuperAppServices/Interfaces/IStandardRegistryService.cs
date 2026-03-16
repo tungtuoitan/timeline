@@ -14,5 +14,8 @@ namespace SuperAppServices.Interfaces
         /// <param name="showAll">If true, returns all entries including inactive ones. If false, returns only active entries.</param>
         /// <returns>List of standard registry entries matching the criteria</returns>
         Task<List<StandardRegistry>> GetStandardRegistries(string? type = null, bool showAll = false);
+
+        /// <summary>Sets the checklist template for a taskType registry entry (updates json_detail).</summary>
+        Task SetChecklistTemplateAsync(string taskTypeCode, string template);
     }
 }

@@ -22,6 +22,15 @@ namespace SuperAppModels.Models
         [JsonPropertyName("type")]
         public string Type { get; set; } = "task";
 
+        [JsonPropertyName("taskType")]
+        [Column("task_type")]
+        public string TaskType { get; set; } = "personal";
+
+        /// <summary>JSON checklist definition and state (ChecklistJSON serialized). Null = no checklist.</summary>
+        [JsonPropertyName("checklistJson")]
+        [Column("checklist_json")]
+        public string? ChecklistJson { get; set; }
+
         [JsonPropertyName("title")]
         public string Title { get; set; } = string.Empty;
 
