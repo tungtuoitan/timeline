@@ -81,6 +81,9 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(t => t.DeletedAt)
                 .HasColumnName("deleted_at");
 
+            builder.Property(t => t.ChecklistJson)
+                .HasColumnName("checklist_json");
+
             // Index for common queries
             builder.HasIndex(t => t.ProjectId);
             builder.HasIndex(t => t.ParentTaskId);
