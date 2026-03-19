@@ -117,6 +117,7 @@ namespace SuperAppServices.Services
                         ProjectId = request.ProjectId,
                         ParentTaskId = request.ParentTaskId,
                         Type = request.Type,
+                        TaskType = request.TaskType,
                         Title = request.Title,
                         Note = request.Note,
                         Status = request.Status,
@@ -125,7 +126,8 @@ namespace SuperAppServices.Services
                         EndDate = request.EndDate,
                         OrderIndex = request.OrderIndex,
                         DeletedAt = request.DeletedAt,
-                        FolderWorkspaceItemId = request.FolderWorkspaceItemId
+                        FolderWorkspaceItemId = request.FolderWorkspaceItemId,
+                        ChecklistJson = request.ChecklistJson,
                     };
 
                     tasks.Add(task);

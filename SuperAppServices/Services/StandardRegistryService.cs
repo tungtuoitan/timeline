@@ -46,5 +46,17 @@ namespace SuperAppServices.Services
                 throw;
             }
         }
+
+        public async Task SetChecklistTemplateAsync(string taskTypeCode, string template)
+        {
+            _logger.LogInformation("Setting checklist template for taskType: {TaskTypeCode}", taskTypeCode);
+
+            // Build json_detail payload
+            var jsonDetail = System.Text.Json.JsonSerializer.Serialize(new { checklistTemplate = template });
+
+            await _repository.SetJsonDetailAsync(taskTypeCode, "taskType", jsonDetail);
+
+            _logger.LogInformation("Checklist template set successfully for taskType: {TaskTypeCode}", taskTypeCode);
+        }
     }
 }

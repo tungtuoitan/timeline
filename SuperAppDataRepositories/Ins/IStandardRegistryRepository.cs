@@ -14,5 +14,7 @@ namespace SuperAppDataRepositories.Ins
         /// <param name="showAll">If true, returns all entries including inactive ones. If false, returns only active entries.</param>
         /// <returns>List of standard registry entries matching the criteria</returns>
         Task<List<StandardRegistry>> GetByTypeAsync(string? type = null, bool showAll = false);
+
+        Task SetJsonDetailAsync(string code, string type, string jsonDetail);
     }
 }
