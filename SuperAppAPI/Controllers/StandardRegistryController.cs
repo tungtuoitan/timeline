@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Extensions;
+using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
 using SuperAppServices.Interfaces;
 
@@ -83,6 +84,42 @@ namespace SuperAppAPI.Controllers
                 _logger.LogError(ex, "Unexpected error occurred while retrieving standard registries for type: {Type}", type ?? "ALL");
                 return StatusCode(StatusCodes.Status500InternalServerError,
                     new { Message = "An error occurred while retrieving standard registries" });
+            }
+        }
+
+        /// <summary>
+        /// Sets the default checklist template for a taskType registry entry.
+        /// Saves the template text into json_detail as { "checklistTemplate": "..." }
+        /// </summary>
+        [HttpPost]
+        [Route("setChecklistTemplate")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> SetChecklistTemplate([FromBody] SetChecklistTemplateRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid) return BadRequest(ModelState);
+
+                var userEmail = GetAuthenticatedUserEmail();
+                if (string.IsNullOrEmpty(userEmail)) return Unauthorized(new { Message = "Invalid token claims" });
+
+                _logger.LogInformation("Setting checklist template for taskType: {TaskTypeCode}, User: {UserEmail}",
+                    request.TaskTypeCode, userEmail);
+
+                await _service.SetChecklistTemplateAsync(request.TaskTypeCode, request.Template);
+
+                return Ok(new { success = true, message = "Checklist template saved." });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error setting checklist template for taskType: {TaskTypeCode}", request.TaskTypeCode);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "An error occurred." });
             }
         }
     }

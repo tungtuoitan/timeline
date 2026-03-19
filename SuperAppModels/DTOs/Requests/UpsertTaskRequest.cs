@@ -26,6 +26,10 @@ namespace SuperAppModels.DTOs.Requests
         [JsonPropertyName("type")]
         public string Type { get; set; } = "task";
 
+        [StringLength(50, ErrorMessage = "TaskType cannot exceed 50 characters")]
+        [JsonPropertyName("taskType")]
+        public string TaskType { get; set; } = "personal";
+
         [Required(ErrorMessage = "Title is required")]
         [StringLength(500, MinimumLength = 1, ErrorMessage = "Title must be between 1 and 500 characters")]
         [JsonPropertyName("title")]
@@ -63,5 +67,9 @@ namespace SuperAppModels.DTOs.Requests
         /// </summary>
         [JsonPropertyName("folderWorkspaceItemId")]
         public int? FolderWorkspaceItemId { get; set; }
+
+        /// <summary>JSON checklist definition and state. Stored as ChecklistJSON object serialized to string.</summary>
+        [JsonPropertyName("checklistJson")]
+        public string? ChecklistJson { get; set; }
     }
 }

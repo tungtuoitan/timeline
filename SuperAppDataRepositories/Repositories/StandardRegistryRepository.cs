@@ -63,5 +63,17 @@ namespace SuperAppDataRepositories.Repositories
                 throw;
             }
         }
+
+        public async Task SetJsonDetailAsync(string code, string type, string jsonDetail)
+        {
+            var entity = await _context.StandardRegistries
+                .FirstOrDefaultAsync(r => r.Code == code && r.Type == type && r.IsActive == true);
+            if (entity == null)
+                throw new KeyNotFoundException($"Registry entry '{code}' of type '{type}' not found.");
+
+            entity.Json_detail = jsonDetail;
+            entity.LastModifiedDate = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
     }
 }

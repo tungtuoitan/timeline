@@ -122,6 +122,7 @@ namespace SuperAppDataRepositories.Repositories
                             ProjectId = x.Task.ProjectId,
                             ParentTaskId = x.Task.ParentTaskId,
                             Type = x.Task.Type,
+                            TaskType = x.Task.TaskType,
                             Title = x.Task.Title,
                             Note = x.Task.Note,
                             Status = x.Task.Status,
@@ -133,6 +134,7 @@ namespace SuperAppDataRepositories.Repositories
                             UpdatedAt = x.Task.UpdatedAt,
                             DeletedAt = x.Task.DeletedAt,
                             FolderWorkspaceItemId = x.Task.FolderWorkspaceItemId,
+                            ChecklistJson = x.Task.ChecklistJson,
                             // Limit dates from project
                             ProjectStartDate = x.Project.StartDate,
                             ProjectEndDate = x.Project.EndDate,
@@ -248,6 +250,8 @@ namespace SuperAppDataRepositories.Repositories
                             existingTask.ProjectId = task.ProjectId;
                             existingTask.ParentTaskId = task.ParentTaskId;
                             existingTask.Type = task.Type;
+                            existingTask.TaskType = task.TaskType;
+                            existingTask.ChecklistJson = task.ChecklistJson;
                             existingTask.Title = task.Title;
                             existingTask.Note = task.Note;
                             existingTask.Status = task.Status;

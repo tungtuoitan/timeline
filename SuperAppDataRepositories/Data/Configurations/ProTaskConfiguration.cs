@@ -33,6 +33,12 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasDefaultValue("task")
                 .IsRequired();
 
+            builder.Property(t => t.TaskType)
+                .HasColumnName("task_type")
+                .HasMaxLength(50)
+                .HasDefaultValue("personal")
+                .IsRequired();
+
             builder.Property(t => t.Title)
                 .HasColumnName("title")
                 .HasMaxLength(500)
@@ -74,6 +80,9 @@ namespace SuperAppDataRepositories.Data.Configurations
 
             builder.Property(t => t.DeletedAt)
                 .HasColumnName("deleted_at");
+
+            builder.Property(t => t.ChecklistJson)
+                .HasColumnName("checklist_json");
 
             // Index for common queries
             builder.HasIndex(t => t.ProjectId);
