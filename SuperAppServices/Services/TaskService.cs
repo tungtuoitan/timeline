@@ -128,6 +128,7 @@ namespace SuperAppServices.Services
                         DeletedAt = request.DeletedAt,
                         FolderWorkspaceItemId = request.FolderWorkspaceItemId,
                         ChecklistJson = request.ChecklistJson,
+                        ProcessJson = request.ProcessJson,
                     };
 
                     tasks.Add(task);

@@ -71,5 +71,9 @@ namespace SuperAppModels.DTOs.Requests
         /// <summary>JSON checklist definition and state. Stored as ChecklistJSON object serialized to string.</summary>
         [JsonPropertyName("checklistJson")]
         public string? ChecklistJson { get; set; }
+
+        /// <summary>JSON process/step definition and state. Same structure as ChecklistJSON.</summary>
+        [JsonPropertyName("processJson")]
+        public string? ProcessJson { get; set; }
     }
 }

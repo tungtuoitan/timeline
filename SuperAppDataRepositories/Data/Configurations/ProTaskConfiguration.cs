@@ -84,6 +84,9 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(t => t.ChecklistJson)
                 .HasColumnName("checklist_json");
 
+            builder.Property(t => t.ProcessJson)
+                .HasColumnName("process_json");
+
             // Index for common queries
             builder.HasIndex(t => t.ProjectId);
             builder.HasIndex(t => t.ParentTaskId);

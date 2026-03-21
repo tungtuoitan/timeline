@@ -135,6 +135,7 @@ namespace SuperAppDataRepositories.Repositories
                             DeletedAt = x.Task.DeletedAt,
                             FolderWorkspaceItemId = x.Task.FolderWorkspaceItemId,
                             ChecklistJson = x.Task.ChecklistJson,
+                            ProcessJson = x.Task.ProcessJson,
                             // Limit dates from project
                             ProjectStartDate = x.Project.StartDate,
                             ProjectEndDate = x.Project.EndDate,
@@ -252,6 +253,7 @@ namespace SuperAppDataRepositories.Repositories
                             existingTask.Type = task.Type;
                             existingTask.TaskType = task.TaskType;
                             existingTask.ChecklistJson = task.ChecklistJson;
+                            existingTask.ProcessJson = task.ProcessJson;
                             existingTask.Title = task.Title;
                             existingTask.Note = task.Note;
                             existingTask.Status = task.Status;
