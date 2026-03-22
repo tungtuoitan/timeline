@@ -31,6 +31,16 @@ namespace SuperAppModels.Models
         [Column("checklist_json")]
         public string? ChecklistJson { get; set; }
 
+        /// <summary>JSON process/step definition and state (same structure as ChecklistJSON). Null = no process.</summary>
+        [JsonPropertyName("processJson")]
+        [Column("process_json")]
+        public string? ProcessJson { get; set; }
+
+        /// <summary>JSON custom tabs: user-created tabs with name/version/content. Null = no custom tabs.</summary>
+        [JsonPropertyName("customTabsJson")]
+        [Column("custom_tabs_json")]
+        public string? CustomTabsJson { get; set; }
+
         [JsonPropertyName("title")]
         public string Title { get; set; } = string.Empty;
 

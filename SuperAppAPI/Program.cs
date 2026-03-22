@@ -178,6 +178,7 @@ namespace SuperAppAPI
                     services.AddScoped<IProjectRepository, ProjectRepository>();
                     services.AddScoped<ITaskRepository, TaskRepository>();
                     services.AddScoped<ITargetKeywordRepository, TargetKeywordRepository>();
+                    services.AddScoped<ITaskCommentRepository, TaskCommentRepository>();
 
                     // Register Business Services
                     services.AddScoped<SuperAppServices.Interfaces.IWorkspaceService, SuperAppServices.Services.WorkspaceService>();
@@ -199,6 +200,7 @@ namespace SuperAppAPI
                     // Personal Productivity App Services
                     services.AddScoped<SuperAppServices.Interfaces.IProjectService, SuperAppServices.Services.ProjectService>();
                     services.AddScoped<SuperAppServices.Interfaces.ITaskService, SuperAppServices.Services.TaskService>();
+                    services.AddScoped<SuperAppServices.Interfaces.ITaskCommentService, SuperAppServices.Services.TaskCommentService>();
 
                     // LifeLog Services
                     services.AddScoped<SuperAppDataRepositories.Ins.ILifeLogRepository, SuperAppDataRepositories.Repositories.LifeLogRepository>();

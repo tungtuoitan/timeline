@@ -43,6 +43,8 @@ namespace SuperAppDataRepositories.Data
         public DbSet<Project> Projects { get; set; }
         public DbSet<ProTask> ProTasks { get; set; }
         public DbSet<TargetKeyword> TargetKeywords { get; set; }
+        public DbSet<TaskChecklistHistory> TaskChecklistHistories { get; set; }
+        public DbSet<TaskComment> TaskComments { get; set; }
 
         // LifeLog Tables (log schema)
         public DbSet<LifeLogTrack> LifeLogTracks { get; set; }

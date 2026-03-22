@@ -23,5 +23,10 @@ namespace SuperAppServices.Interfaces
         /// <param name="requests">List of task upsert requests</param>
         /// <returns>ResultOptions containing batch operation results</returns>
         Task<ResultOptions> UpsertTasksAsync(List<UpsertTaskRequest> requests, int userId);
+
+        /// <summary>
+        /// Partial update a single task — only non-null fields in request are updated.
+        /// </summary>
+        Task<ResultOptions> PatchTaskAsync(int taskId, PatchTaskRequest request, int userId);
     }
 }
