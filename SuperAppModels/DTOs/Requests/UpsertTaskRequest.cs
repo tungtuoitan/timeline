@@ -75,5 +75,9 @@ namespace SuperAppModels.DTOs.Requests
         /// <summary>JSON process/step definition and state. Same structure as ChecklistJSON.</summary>
         [JsonPropertyName("processJson")]
         public string? ProcessJson { get; set; }
+
+        /// <summary>JSON custom tabs: user-created tabs with name/version/content.</summary>
+        [JsonPropertyName("customTabsJson")]
+        public string? CustomTabsJson { get; set; }
     }
 }

@@ -136,6 +136,7 @@ namespace SuperAppDataRepositories.Repositories
                             FolderWorkspaceItemId = x.Task.FolderWorkspaceItemId,
                             ChecklistJson = x.Task.ChecklistJson,
                             ProcessJson = x.Task.ProcessJson,
+                            CustomTabsJson = x.Task.CustomTabsJson,
                             // Limit dates from project
                             ProjectStartDate = x.Project.StartDate,
                             ProjectEndDate = x.Project.EndDate,
@@ -254,6 +255,7 @@ namespace SuperAppDataRepositories.Repositories
                             existingTask.TaskType = task.TaskType;
                             existingTask.ChecklistJson = task.ChecklistJson;
                             existingTask.ProcessJson = task.ProcessJson;
+                            existingTask.CustomTabsJson = task.CustomTabsJson;
                             existingTask.Title = task.Title;
                             existingTask.Note = task.Note;
                             existingTask.Status = task.Status;
@@ -328,6 +330,62 @@ namespace SuperAppDataRepositories.Repositories
                     };
                 }
             });
+        }
+
+        /// <summary>
+        /// Partial update: load existing task, merge non-null fields, save, return updated task with project/parent dates.
+        /// </summary>
+        public async Task<ResultOptions> PatchTaskAsync(int taskId, PatchTaskRequest request)
+        {
+            try
+            {
+                var existing = await _context.ProTasks.FindAsync(taskId);
+                if (existing == null)
+                {
+                    return new ResultOptions { Success = false, Message = $"Task with ID {taskId} not found", Status = 404 };
+                }
+
+                // Merge only non-null fields
+                if (request.Note != null) existing.Note = request.Note;
+                if (request.ChecklistJson != null) existing.ChecklistJson = request.ChecklistJson;
+                if (request.ProcessJson != null) existing.ProcessJson = request.ProcessJson;
+                if (request.CustomTabsJson != null) existing.CustomTabsJson = request.CustomTabsJson;
+                if (request.Status != null) existing.Status = request.Status;
+                existing.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("Patched task ID: {TaskId}", taskId);
+
+                // Re-query to get project/parent limit dates (same pattern as GetTasksAsync)
+                var project = await _context.Projects.FindAsync(existing.ProjectId);
+                ProTask? parentTask = existing.ParentTaskId.HasValue
+                    ? await _context.ProTasks.FindAsync(existing.ParentTaskId.Value)
+                    : null;
+
+                existing.ProjectStartDate = project?.StartDate;
+                existing.ProjectEndDate = project?.EndDate;
+                existing.ParentStartDate = parentTask?.StartDate;
+                existing.ParentEndDate = parentTask?.EndDate;
+
+                return new ResultOptions
+                {
+                    Success = true,
+                    Message = "Task patched successfully",
+                    Data = new List<object> { existing },
+                    Status = 200
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error patching task ID: {TaskId}", taskId);
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    Status = 500
+                };
+            }
         }
     }
 }

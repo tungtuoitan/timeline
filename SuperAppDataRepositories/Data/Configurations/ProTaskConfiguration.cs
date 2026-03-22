@@ -87,6 +87,9 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(t => t.ProcessJson)
                 .HasColumnName("process_json");
 
+            builder.Property(t => t.CustomTabsJson)
+                .HasColumnName("custom_tabs_json");
+
             // Index for common queries
             builder.HasIndex(t => t.ProjectId);
             builder.HasIndex(t => t.ParentTaskId);

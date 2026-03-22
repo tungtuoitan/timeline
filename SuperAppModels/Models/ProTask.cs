@@ -36,6 +36,11 @@ namespace SuperAppModels.Models
         [Column("process_json")]
         public string? ProcessJson { get; set; }
 
+        /// <summary>JSON custom tabs: user-created tabs with name/version/content. Null = no custom tabs.</summary>
+        [JsonPropertyName("customTabsJson")]
+        [Column("custom_tabs_json")]
+        public string? CustomTabsJson { get; set; }
+
         [JsonPropertyName("title")]
         public string Title { get; set; } = string.Empty;
 

@@ -129,6 +129,7 @@ namespace SuperAppServices.Services
                         FolderWorkspaceItemId = request.FolderWorkspaceItemId,
                         ChecklistJson = request.ChecklistJson,
                         ProcessJson = request.ProcessJson,
+                        CustomTabsJson = request.CustomTabsJson,
                     };
 
                     tasks.Add(task);
@@ -159,6 +160,36 @@ namespace SuperAppServices.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred during batch upsert");
+                return new ResultOptions
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    Status = 500
+                };
+            }
+        }
+        /// <summary>
+        /// Partial update a single task — delegates to repository for merge logic.
+        /// </summary>
+        public async Task<ResultOptions> PatchTaskAsync(int taskId, PatchTaskRequest request, int userId)
+        {
+            try
+            {
+                _logger.LogInformation("Patching task ID: {TaskId} for user: {UserId}", taskId, userId);
+
+                var result = await _taskRepository.PatchTaskAsync(taskId, request);
+
+                if (result.Success)
+                {
+                    try { await _keywordService.SyncTaskKeywordAsync(taskId, userId); }
+                    catch (Exception ex) { _logger.LogError(ex, "Error syncing keyword for task {Id}", taskId); }
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error patching task ID: {TaskId}", taskId);
                 return new ResultOptions
                 {
                     Success = false,
