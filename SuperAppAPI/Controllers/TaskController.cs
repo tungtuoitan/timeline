@@ -181,5 +181,36 @@ namespace SuperAppAPI.Controllers
 
             return Ok(response);
         }
+
+        /// <summary>
+        /// Partial update a single task — only non-null fields in request body are updated.
+        /// Use for section saves (process, checklist, description, custom tabs) to avoid overwriting other fields.
+        /// </summary>
+        [HttpPatch("{id}")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> PatchTask(int id, [FromBody] PatchTaskRequest request)
+        {
+            if (id <= 0)
+            {
+                return BadRequest("Invalid task ID");
+            }
+
+            var userId = GetAuthenticatedUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
+
+            _logger.LogInformation("Patching task ID: {Id} for user: {UserId}", id, userId.Value);
+
+            var response = await _taskService.PatchTaskAsync(id, request, userId.Value);
+
+            if (response.Status == 404) return NotFound(response);
+
+            return Ok(response);
+        }
     }
 }
