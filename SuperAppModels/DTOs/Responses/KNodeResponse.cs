@@ -14,6 +14,12 @@ namespace SuperAppModels.DTOs.Responses
         public string? Color { get; set; }
         public string? Icon { get; set; }
 
+        /// <summary>Node type — "entity" | "question" | null</summary>
+        public string? NodeType { get; set; }
+
+        /// <summary>Workflow status — "draft" | null</summary>
+        public string? StatusCode { get; set; }
+
         public string PathIds { get; set; } = "/";
         public int PathDepth { get; set; }
 

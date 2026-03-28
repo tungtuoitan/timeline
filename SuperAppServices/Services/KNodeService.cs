@@ -128,6 +128,8 @@ namespace SuperAppServices.Services
                         description = n.Description,
                         color       = n.Color,
                         icon        = n.Icon,
+                        nodeType    = n.NodeType,
+                        statusCode  = n.StatusCode,
                         pathIds     = n.PathIds,
                         pathDepth   = n.PathDepth,
                         createdAt   = n.CreatedAt,

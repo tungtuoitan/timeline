@@ -170,6 +170,7 @@ namespace SuperAppAPI
                     services.AddScoped<INoteRepository, NoteRepository>();
                     services.AddScoped<SuperAppDataRepositories.Ins.IWorkspaceRepository, WorkspaceRepository>();
                     services.AddScoped<SuperAppDataRepositories.Ins.IKKnowledgeRepository, KKnowledgeRepository>();
+                    services.AddScoped<SuperAppDataRepositories.Ins.IKTestRepository, KTestRepository>();
                     services.AddScoped<IWsRepository, WsRepository>();
                     services.AddScoped<IStandardRegistryRepository, StandardRegistryRepository>();
                     services.AddScoped<IUserRepository, UserRepository>();
@@ -187,6 +188,7 @@ namespace SuperAppAPI
                     services.AddScoped<SuperAppServices.Interfaces.IKKnowledgeService, SuperAppServices.Services.KKnowledgeService>();
                     services.AddScoped<SuperAppServices.Interfaces.IKNodeService, SuperAppServices.Services.KNodeService>();
                     services.AddScoped<SuperAppServices.Interfaces.IKNodeHelperService, SuperAppServices.Services.KNodeHelperService>();
+                    services.AddScoped<SuperAppServices.Interfaces.IKTestService, SuperAppServices.Services.KTestService>();
                     services.AddScoped<SuperAppServices.Interfaces.IWsService, SuperAppServices.Services.WsService>();
                     services.AddScoped<SuperAppServices.Interfaces.INoteService, SuperAppServices.Services.NoteService>();
                     services.AddScoped<SuperAppServices.Interfaces.IAuthService, SuperAppServices.Services.AuthService>();
@@ -209,6 +211,11 @@ namespace SuperAppAPI
                     // File Upload Services (Google Drive)
                     services.AddScoped<SuperAppServices.Interfaces.IGoogleDriveService, SuperAppServices.Services.GoogleDriveService>();
                     services.AddScoped<SuperAppServices.Interfaces.IFileService, SuperAppServices.Services.FileService>();
+
+                    // AI Services
+                    services.AddSingleton<SuperAppServices.Interfaces.IClaudibleService, SuperAppServices.Services.ClaudibleService>();
+                    services.AddScoped<SuperAppServices.Interfaces.IKGradingService, SuperAppServices.Services.KGradingService>();
+                    services.AddScoped<SuperAppServices.Interfaces.IKMarkdownImportService, SuperAppServices.Services.KMarkdownImportService>();
                 });
 
     }

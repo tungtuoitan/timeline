@@ -1,0 +1,36 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using SuperAppModels.Models;
+
+namespace SuperAppDataRepositories.Data.Configurations
+{
+    public class KQuizNodeConfiguration : IEntityTypeConfiguration<KQuizNodeEntity>
+    {
+        public void Configure(EntityTypeBuilder<KQuizNodeEntity> builder)
+        {
+            builder.ToTable("quiz_node", "k");
+
+            builder.HasKey(e => e.Id);
+            builder.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            builder.Property(e => e.QuizId).HasColumnName("quiz_id").IsRequired();
+            builder.Property(e => e.NodeId).HasColumnName("node_id").IsRequired();
+
+            builder.HasIndex(e => new { e.QuizId, e.NodeId })
+                .HasDatabaseName("UQ_kquiznode")
+                .IsUnique();
+
+            builder.HasIndex(e => e.QuizId).HasDatabaseName("IX_kquiznode_quiz");
+            builder.HasIndex(e => e.NodeId).HasDatabaseName("IX_kquiznode_node");
+
+            builder.HasOne(e => e.Quiz)
+                .WithMany(q => q.QuizNodes)
+                .HasForeignKey(e => e.QuizId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasOne(e => e.Node)
+                .WithMany()
+                .HasForeignKey(e => e.NodeId)
+                .OnDelete(DeleteBehavior.NoAction);
+        }
+    }
+}
