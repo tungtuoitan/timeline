@@ -52,6 +52,23 @@ namespace SuperAppModels.DTOs.Requests
         public string? Icon { get; set; }
 
         /// <summary>
+        /// Node type: "entity" | "question" | null
+        /// Maps to k.node.node_type
+        /// </summary>
+        [StringLength(50, ErrorMessage = "NodeType cannot exceed 50 characters")]
+        [JsonPropertyName("nodeType")]
+        public string? NodeType { get; set; }
+
+        /// <summary>
+        /// Workflow status — "draft" | null (active).
+        /// Pass null to activate a draft node.
+        /// Maps to k.node.status_code
+        /// </summary>
+        [StringLength(50, ErrorMessage = "StatusCode cannot exceed 50 characters")]
+        [JsonPropertyName("statusCode")]
+        public string? StatusCode { get; set; }
+
+        /// <summary>
         /// Soft delete timestamp (null = active, DateTime = soft deleted)
         /// Maps to folders.deleted_at
         /// </summary>

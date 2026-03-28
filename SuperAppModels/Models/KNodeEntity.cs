@@ -16,6 +16,12 @@ namespace SuperAppModels.Models
         public string? Color { get; set; } = "#F59E0B";
         public string? Icon { get; set; } = "📁";
 
+        /// <summary>Node type — "entity" | "question" | null</summary>
+        public string? NodeType { get; set; }
+
+        /// <summary>Workflow status — "draft" | null (active)</summary>
+        public string? StatusCode { get; set; }
+
         // Materialized path
         public string PathIds { get; set; } = "/";
         public int PathDepth { get; set; } = 0;
