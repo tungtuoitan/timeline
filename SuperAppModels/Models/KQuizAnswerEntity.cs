@@ -1,0 +1,1 @@
+// DELETED — answer_text moved to k.point_history

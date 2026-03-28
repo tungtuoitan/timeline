@@ -50,6 +50,16 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasDefaultValue("📁")
                 .IsRequired(false);
 
+            builder.Property(n => n.NodeType)
+                .HasColumnName("node_type")
+                .HasMaxLength(50)
+                .IsRequired(false);
+
+            builder.Property(n => n.StatusCode)
+                .HasColumnName("status_code")
+                .HasMaxLength(50)
+                .IsRequired(false);
+
             // Materialized path
             builder.Property(n => n.PathIds)
                 .HasColumnName("PathIds")

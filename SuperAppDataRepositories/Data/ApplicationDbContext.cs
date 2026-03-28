@@ -23,6 +23,9 @@ namespace SuperAppDataRepositories.Data
         // K Tables (k schema)
         public DbSet<KKnowledge> KKnowledges { get; set; }
         public DbSet<KNodeEntity> KNodes { get; set; }
+        public DbSet<KTestEntity> KTests { get; set; }
+        public DbSet<KTestNodeEntity> KTestNodes { get; set; }
+        public DbSet<KPointHistoryEntity> KPointHistory { get; set; }
 
         // Entity Tables (dbo schema)
         public DbSet<Note> Notes { get; set; }
