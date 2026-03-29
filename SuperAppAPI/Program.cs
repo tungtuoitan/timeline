@@ -203,6 +203,8 @@ namespace SuperAppAPI
                     services.AddScoped<SuperAppServices.Interfaces.IProjectService, SuperAppServices.Services.ProjectService>();
                     services.AddScoped<SuperAppServices.Interfaces.ITaskService, SuperAppServices.Services.TaskService>();
                     services.AddScoped<SuperAppServices.Interfaces.ITaskCommentService, SuperAppServices.Services.TaskCommentService>();
+                    services.AddScoped<SuperAppDataRepositories.Ins.IFlowRepository, SuperAppDataRepositories.Repositories.FlowRepository>();
+                    services.AddScoped<SuperAppServices.Interfaces.IFlowService, SuperAppServices.Services.FlowService>();
 
                     // LifeLog Services
                     services.AddScoped<SuperAppDataRepositories.Ins.ILifeLogRepository, SuperAppDataRepositories.Repositories.LifeLogRepository>();
