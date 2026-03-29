@@ -55,6 +55,10 @@ namespace SuperAppDataRepositories.Data
         public DbSet<LifeLogTrack> LifeLogTracks { get; set; }
         public DbSet<LifeLogLog> LifeLogLogs { get; set; }
 
+        // Conversation Tables (con schema)
+        public DbSet<ConTopic> ConTopics { get; set; }
+        public DbSet<ConMessage> ConMessages { get; set; }
+
         // ⚠️ REMOVED - Tables không tồn tại trong schema mới:
         // - Tag/EntityType/EntityTag → Sẽ tạo models mới cho dbo.hashtags, dbo.entities, dbo.entity_hashtags
         // - WorkspaceMember, WorkspaceRelationshipType → Dropped

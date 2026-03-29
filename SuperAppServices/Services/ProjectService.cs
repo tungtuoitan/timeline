@@ -141,7 +141,8 @@ namespace SuperAppServices.Services
                         StartDate = request.StartDate,
                         EndDate = request.EndDate,
                         DeletedAt = request.DeletedAt,
-                        WorkspaceId = request.WorkspaceId
+                        WorkspaceId = request.WorkspaceId,
+                        Image = request.Image
                     };
 
                     projects.Add(project);

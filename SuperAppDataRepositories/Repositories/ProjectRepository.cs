@@ -165,6 +165,7 @@ namespace SuperAppDataRepositories.Repositories
                             existingProject.EndDate = project.EndDate;
                             existingProject.DeletedAt = project.DeletedAt;
                             existingProject.WorkspaceId = project.WorkspaceId;
+                            existingProject.Image = project.Image;
                             existingProject.UpdatedAt = DateTime.UtcNow;
                             // UserId is immutable after creation
 

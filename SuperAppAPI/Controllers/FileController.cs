@@ -56,8 +56,8 @@ namespace SuperAppAPI.Controllers
         [RequestSizeLimit(MaxImageSize)]
         public async Task<IActionResult> UploadImage(
             IFormFile file,
-            [FromForm] string context,
-            [FromForm] int contextId)
+            [FromForm] string? context = null,
+            [FromForm] int contextId = 0)
         {
             try
             {
@@ -98,7 +98,7 @@ namespace SuperAppAPI.Controllers
                     stream,
                     file.FileName,
                     file.ContentType,
-                    context,
+                    context ?? "general",
                     contextId);
 
                 if (!result.Success)
@@ -139,8 +139,8 @@ namespace SuperAppAPI.Controllers
         [RequestSizeLimit(MaxFileSize)]
         public async Task<IActionResult> UploadAttachment(
             IFormFile file,
-            [FromForm] string context,
-            [FromForm] int contextId)
+            [FromForm] string? context = null,
+            [FromForm] int contextId = 0)
         {
             try
             {
@@ -183,7 +183,7 @@ namespace SuperAppAPI.Controllers
                     stream,
                     file.FileName,
                     file.ContentType,
-                    context,
+                    context ?? "general",
                     contextId);
 
                 if (!result.Success)
