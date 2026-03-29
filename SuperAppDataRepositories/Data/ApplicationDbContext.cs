@@ -48,6 +48,8 @@ namespace SuperAppDataRepositories.Data
         public DbSet<TargetKeyword> TargetKeywords { get; set; }
         public DbSet<TaskChecklistHistory> TaskChecklistHistories { get; set; }
         public DbSet<TaskComment> TaskComments { get; set; }
+        public DbSet<FlowEdge> FlowEdges { get; set; }
+        public DbSet<FlowNodePosition> FlowNodePositions { get; set; }
 
         // LifeLog Tables (log schema)
         public DbSet<LifeLogTrack> LifeLogTracks { get; set; }
