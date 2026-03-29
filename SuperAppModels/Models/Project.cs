@@ -40,5 +40,8 @@ namespace SuperAppModels.Models
 
         [JsonPropertyName("workspaceId")]
         public int? WorkspaceId { get; set; }
+
+        [JsonPropertyName("image")]
+        public string? Image { get; set; }
     }
 }

@@ -62,12 +62,14 @@ namespace SuperAppServices.Services
                     fileName, mimeType, userId, context, contextId);
 
                 // Validate context
-                if (string.IsNullOrWhiteSpace(context) || (context != "project" && context != "workspace"))
+                var validContexts = new[] { "project", "workspace", "conversation", "general" };
+                if (string.IsNullOrWhiteSpace(context) || !validContexts.Contains(context))
                 {
-                    return ResultOptions.Fail("Invalid context. Must be 'project' or 'workspace'.", 400);
+                    return ResultOptions.Fail($"Invalid context. Must be one of: {string.Join(", ", validContexts)}.", 400);
                 }
 
-                if (contextId <= 0)
+                // contextId is required only for project/workspace contexts
+                if ((context == "project" || context == "workspace") && contextId <= 0)
                 {
                     return ResultOptions.Fail("Invalid context ID.", 400);
                 }
