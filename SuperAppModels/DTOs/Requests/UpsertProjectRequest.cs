@@ -58,5 +58,8 @@ namespace SuperAppModels.DTOs.Requests
         /// </summary>
         [JsonPropertyName("workspaceId")]
         public int? WorkspaceId { get; set; }
+
+        [JsonPropertyName("image")]
+        public string? Image { get; set; }
     }
 }

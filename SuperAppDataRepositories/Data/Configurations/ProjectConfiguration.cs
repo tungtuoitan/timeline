@@ -58,6 +58,9 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(p => p.WorkspaceId)
                 .HasColumnName("workspace_id");
 
+            builder.Property(p => p.Image)
+                .HasColumnName("image");
+
             // Index for user_id for faster queries
             builder.HasIndex(p => p.UserId);
         }
