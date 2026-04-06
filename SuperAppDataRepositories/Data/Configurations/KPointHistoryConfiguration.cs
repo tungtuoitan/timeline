@@ -14,16 +14,17 @@ namespace SuperAppDataRepositories.Data.Configurations
 
             builder.Property(p => p.TestId).HasColumnName("test_id").IsRequired();
             builder.Property(p => p.UserId).HasColumnName("user_id").IsRequired();
-            builder.Property(p => p.NodeId).HasColumnName("node_id").IsRequired(false);
+            builder.Property(p => p.QuestionId).HasColumnName("question_id").IsRequired(false);
             builder.Property(p => p.AnswerText).HasColumnName("answer_text").HasColumnType("nvarchar(max)").IsRequired(false);
             builder.Property(p => p.Point).HasColumnName("point").HasDefaultValue(0);
+            builder.Property(p => p.ResponseTimeMs).HasColumnName("response_time_ms").IsRequired(false);
             builder.Property(p => p.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("GETUTCDATE()");
 
             builder.HasIndex(p => new { p.TestId, p.UserId })
                 .HasDatabaseName("IX_k_point_history_test_user");
 
-            builder.HasIndex(p => new { p.UserId, p.NodeId })
-                .HasDatabaseName("IX_k_point_history_user_node");
+            builder.HasIndex(p => new { p.UserId, p.QuestionId })
+                .HasDatabaseName("IX_k_point_history_user_question");
 
             builder.HasOne(p => p.Test)
                 .WithMany(t => t.PointHistory)

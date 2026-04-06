@@ -15,10 +15,12 @@ namespace SuperAppDataRepositories.Data.Configurations
 
             builder.Property(t => t.KnowledgeId).HasColumnName("knowledge_id").IsRequired();
             builder.Property(t => t.UserId).HasColumnName("user_id").IsRequired();
+            builder.Property(t => t.NodeId).HasColumnName("node_id").IsRequired(false);
             builder.Property(t => t.Title).HasColumnName("title").HasMaxLength(500).IsRequired();
             builder.Property(t => t.Level).HasColumnName("level").HasDefaultValue(1);
             builder.Property(t => t.Mode).HasColumnName("mode").HasMaxLength(50).HasDefaultValue("standard");
             builder.Property(t => t.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("active");
+            builder.Property(t => t.SortOrder).HasColumnName("sort_order").HasDefaultValue(0);
 
             builder.Property(t => t.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("GETUTCDATE()");
             builder.Property(t => t.UpdatedAt).HasColumnName("updated_at");

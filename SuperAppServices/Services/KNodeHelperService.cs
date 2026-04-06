@@ -167,7 +167,6 @@ namespace SuperAppServices.Services
                     Description = data.Description,
                     Color       = data.Color ?? "#F59E0B",
                     Icon        = data.Icon  ?? "📁",
-                    NodeType    = data.NodeType,
                     CreatedAt   = DateTime.UtcNow,
                     DeletedAt   = null
                 };
@@ -199,7 +198,6 @@ namespace SuperAppServices.Services
                 node.Description = data.Description;
                 if (data.Color != null) node.Color = data.Color;
                 if (data.Icon  != null) node.Icon  = data.Icon;
-                if (data.NodeType  != null) node.NodeType = data.NodeType;
                 if (data.StatusCode  != null) node.StatusCode = data.StatusCode;
                 node.UpdatedAt = DateTime.UtcNow;
 

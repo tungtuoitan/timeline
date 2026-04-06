@@ -3,13 +3,13 @@ using System.Text.Json.Serialization;
 
 namespace SuperAppModels.DTOs.Requests
 {
-    public class KSubmitAnswersRequest
+    public class KDailySubmitRequest
     {
         [Required]
-        public List<KAnswerItem> Answers { get; set; } = [];
+        public List<KDailyAnswerItem> Answers { get; set; } = [];
     }
 
-    public class KAnswerItem
+    public class KDailyAnswerItem
     {
         [Required]
         [JsonPropertyName("questionId")]
@@ -17,5 +17,9 @@ namespace SuperAppModels.DTOs.Requests
 
         [JsonPropertyName("answerText")]
         public string? AnswerText { get; set; }
+
+        /// <summary>Time in milliseconds the user took to answer.</summary>
+        [JsonPropertyName("responseTimeMs")]
+        public int? ResponseTimeMs { get; set; }
     }
 }

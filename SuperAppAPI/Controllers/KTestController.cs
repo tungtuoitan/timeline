@@ -23,15 +23,33 @@ namespace SuperAppAPI.Controllers
 
         private int? UserId => int.TryParse(User.GetUserId(), out var id) ? id : null;
 
-        // GET /api/k/{knowledgeId}/tests
-        [HttpGet("tests")]
-        public async Task<IActionResult> GetTests(int knowledgeId)
+        // GET /api/k/global-daily-queue (static segment before {knowledgeId} template)
+        [HttpGet("/api/k/global-daily-queue")]
+        public async Task<IActionResult> GetGlobalDailyQueue()
         {
             try
             {
                 var userId = UserId;
                 if (userId == null) return Unauthorized();
-                return Ok(await _service.GetTestsAsync(knowledgeId, userId.Value));
+                var result = await _service.GetGlobalDailyQueueAsync(userId.Value);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting global daily queue");
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
+            }
+        }
+
+        // GET /api/k/{knowledgeId}/tests?nodeId={nodeId}
+        [HttpGet("tests")]
+        public async Task<IActionResult> GetTests(int knowledgeId, [FromQuery] int? nodeId = null)
+        {
+            try
+            {
+                var userId = UserId;
+                if (userId == null) return Unauthorized();
+                return Ok(await _service.GetTestsAsync(knowledgeId, userId.Value, nodeId));
             }
             catch (Exception ex)
             {
@@ -58,22 +76,22 @@ namespace SuperAppAPI.Controllers
             }
         }
 
-        // POST /api/k/{knowledgeId}/tests/create
-        [HttpPost("tests/create")]
-        public async Task<IActionResult> CreateTestFromNodes(int knowledgeId, [FromBody] KCreateTestFromNodesRequest request)
+        // POST /api/k/{knowledgeId}/tests/create-empty
+        [HttpPost("tests/create-empty")]
+        public async Task<IActionResult> CreateEmptyTest(int knowledgeId, [FromBody] KCreateEmptyTestRequest request)
         {
             try
             {
                 if (!ModelState.IsValid) return BadRequest(ModelState);
                 var userId = UserId;
                 if (userId == null) return Unauthorized();
-                var result = await _service.CreateTestFromNodesAsync(knowledgeId, userId.Value, request);
+                var result = await _service.CreateEmptyTestAsync(knowledgeId, userId.Value, request);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error creating test for knowledge {KnowledgeId}", knowledgeId);
-                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred while creating the test", Status = 500 });
+                _logger.LogError(ex, "Error creating empty test for knowledge {KnowledgeId}", knowledgeId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
             }
         }
 
@@ -96,20 +114,38 @@ namespace SuperAppAPI.Controllers
             }
         }
 
-        // GET /api/k/{knowledgeId}/node-scores
-        [HttpGet("node-scores")]
-        public async Task<IActionResult> GetNodeScores(int knowledgeId)
+        // GET /api/k/{knowledgeId}/question-scores
+        [HttpGet("question-scores")]
+        public async Task<IActionResult> GetQuestionScores(int knowledgeId)
         {
             try
             {
                 var userId = UserId;
                 if (userId == null) return Unauthorized();
-                return Ok(await _service.GetNodeScoresAsync(knowledgeId, userId.Value));
+                return Ok(await _service.GetQuestionScoresAsync(knowledgeId, userId.Value));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting node scores for knowledge {KnowledgeId}", knowledgeId);
-                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred while retrieving node scores", Status = 500 });
+                _logger.LogError(ex, "Error getting question scores for knowledge {KnowledgeId}", knowledgeId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred while retrieving question scores", Status = 500 });
+            }
+        }
+
+        // PUT /api/k/{knowledgeId}/tests/reorder
+        [HttpPut("tests/reorder")]
+        public async Task<IActionResult> ReorderTests(int knowledgeId, [FromBody] List<int> orderedTestIds)
+        {
+            try
+            {
+                var userId = UserId;
+                if (userId == null) return Unauthorized();
+                var result = await _service.ReorderTestsAsync(knowledgeId, userId.Value, orderedTestIds);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error reordering tests for knowledge {KnowledgeId}", knowledgeId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
             }
         }
 
@@ -132,22 +168,98 @@ namespace SuperAppAPI.Controllers
             }
         }
 
-        // PATCH /api/k/{knowledgeId}/tests/{testId}/nodes
-        [HttpPatch("tests/{testId:int}/nodes")]
-        public async Task<IActionResult> UpdateTestNodes(int knowledgeId, int testId, [FromBody] KUpdateTestNodesRequest request)
+        // PATCH /api/k/{knowledgeId}/tests/{testId}/questions
+        [HttpPatch("tests/{testId:int}/questions")]
+        public async Task<IActionResult> UpdateQuestions(int knowledgeId, int testId, [FromBody] KUpdateQuestionsRequest request)
         {
             try
             {
                 if (!ModelState.IsValid) return BadRequest(ModelState);
                 var userId = UserId;
                 if (userId == null) return Unauthorized();
-                var result = await _service.UpdateTestNodesAsync(testId, knowledgeId, userId.Value, request);
+                var result = await _service.UpdateQuestionsAsync(testId, knowledgeId, userId.Value, request);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating test nodes for test {TestId}, knowledge {KnowledgeId}", testId, knowledgeId);
-                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred while updating test nodes", Status = 500 });
+                _logger.LogError(ex, "Error updating questions for test {TestId}, knowledge {KnowledgeId}", testId, knowledgeId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred while updating questions", Status = 500 });
+            }
+        }
+
+        // ── SRS / Daily Review ──────────────────────────────────────────────
+
+        // GET /api/k/{knowledgeId}/daily-queue
+        [HttpGet("daily-queue")]
+        public async Task<IActionResult> GetDailyQueue(int knowledgeId)
+        {
+            try
+            {
+                var userId = UserId;
+                if (userId == null) return Unauthorized();
+                var result = await _service.GetDailyQueueAsync(knowledgeId, userId.Value);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting daily queue for knowledge {KnowledgeId}", knowledgeId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
+            }
+        }
+
+        // GET /api/k/{knowledgeId}/tests/{testId}/daily-session?limit=30
+        [HttpGet("tests/{testId:int}/daily-session")]
+        public async Task<IActionResult> GetDailySession(int knowledgeId, int testId, [FromQuery] int limit = 30)
+        {
+            try
+            {
+                var userId = UserId;
+                if (userId == null) return Unauthorized();
+                var result = await _service.GetDailySessionAsync(testId, knowledgeId, userId.Value, limit);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting daily session for test {TestId}", testId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
+            }
+        }
+
+        // POST /api/k/{knowledgeId}/tests/{testId}/daily-submit
+        [HttpPost("tests/{testId:int}/daily-submit")]
+        public async Task<IActionResult> SubmitDailyAnswers(int knowledgeId, int testId, [FromBody] KDailySubmitRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid) return BadRequest(ModelState);
+                var userId = UserId;
+                if (userId == null) return Unauthorized();
+                var result = await _service.SubmitDailyAnswersAsync(testId, knowledgeId, userId.Value, request);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error submitting daily answers for test {TestId}", testId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
+            }
+        }
+
+        // PUT /api/k/{knowledgeId}/tests/{testId}/status
+        [HttpPut("tests/{testId:int}/status")]
+        public async Task<IActionResult> UpdateTestStatus(int knowledgeId, int testId, [FromBody] KUpdateTestStatusRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid) return BadRequest(ModelState);
+                var userId = UserId;
+                if (userId == null) return Unauthorized();
+                var result = await _service.UpdateTestStatusAsync(testId, knowledgeId, userId.Value, request.Status);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating test status for test {TestId}", testId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
             }
         }
     }

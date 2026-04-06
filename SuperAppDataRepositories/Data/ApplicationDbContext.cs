@@ -24,7 +24,7 @@ namespace SuperAppDataRepositories.Data
         public DbSet<KKnowledge> KKnowledges { get; set; }
         public DbSet<KNodeEntity> KNodes { get; set; }
         public DbSet<KTestEntity> KTests { get; set; }
-        public DbSet<KTestNodeEntity> KTestNodes { get; set; }
+        public DbSet<KQuestionEntity> KQuestions { get; set; }
         public DbSet<KPointHistoryEntity> KPointHistory { get; set; }
 
         // Entity Tables (dbo schema)
@@ -67,6 +67,9 @@ namespace SuperAppDataRepositories.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            // k.test_node is dropped — exclude from model
+            modelBuilder.Ignore<KTestNodeEntity>();
 
             // Apply all entity configurations from assembly
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);

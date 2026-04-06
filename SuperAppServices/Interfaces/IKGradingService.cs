@@ -2,7 +2,7 @@ using SuperAppModels.Models;
 
 namespace SuperAppServices.Interfaces
 {
-    public record KGradedAnswer(int NodeId, int Point, string? Comment = null);
+    public record KGradedAnswer(int QuestionId, int Point, string? Comment = null);
 
     public record KGradingResult(
         int TotalPoints,
@@ -12,11 +12,11 @@ namespace SuperAppServices.Interfaces
     public interface IKGradingService
     {
         /// <summary>
-        /// Grade a set of answers against their question nodes using AI.
+        /// Grade a set of answers against their questions using AI.
         /// </summary>
         Task<KGradingResult> GradeSubmissionAsync(
             string? testTitle,
-            List<(int NodeId, string? AnswerText)> submissions,
-            List<KNodeEntity> questionNodes);
+            List<(int QuestionId, string? AnswerText)> submissions,
+            List<KQuestionEntity> questions);
     }
 }
