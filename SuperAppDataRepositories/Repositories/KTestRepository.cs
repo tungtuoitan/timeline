@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
+using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
 using SuperAppModels.Models;
 
@@ -20,62 +21,63 @@ namespace SuperAppDataRepositories.Repositories
 
         // ── List tests with last submission stats ────────────────────────────
 
-        public async Task<List<KTestSummaryResponse>> GetTestSummariesAsync(int knowledgeId, int userId)
+        public async Task<List<KTestSummaryResponse>> GetTestSummariesAsync(int knowledgeId, int userId, int? nodeId = null)
         {
             try
             {
-                var tests = await _context.KTests
-                    .Where(t => t.KnowledgeId == knowledgeId && t.DeletedAt == null)
-                    .OrderByDescending(t => t.CreatedAt)
+                var testQuery = _context.KTests
+                    .Where(t => t.KnowledgeId == knowledgeId && t.DeletedAt == null);
+
+                if (nodeId.HasValue)
+                    testQuery = testQuery.Where(t => t.NodeId == nodeId.Value);
+
+                var tests = await testQuery
+                    .OrderBy(t => t.SortOrder)
+                    .ThenByDescending(t => t.CreatedAt)
                     .ToListAsync();
 
                 if (!tests.Any()) return [];
 
                 var testIds = tests.Select(t => t.Id).ToList();
 
-                // Node counts from k.test_node
-                var nodeCounts = await _context.KTestNodes
-                    .Where(tn => testIds.Contains(tn.TestId))
-                    .GroupBy(tn => tn.TestId)
+                // Question counts from k.question
+                var questionCounts = await _context.KQuestions
+                    .Where(q => testIds.Contains(q.TestId) && q.DeletedAt == null)
+                    .GroupBy(q => q.TestId)
                     .Select(g => new { TestId = g.Key, Count = g.Count() })
                     .ToDictionaryAsync(x => x.TestId, x => x.Count);
 
-                // Active node counts (IsActive = true)
-                var activeCounts = await _context.KTestNodes
-                    .Where(tn => testIds.Contains(tn.TestId) && tn.IsActive)
-                    .GroupBy(tn => tn.TestId)
+                var activeQuestionCounts = await _context.KQuestions
+                    .Where(q => testIds.Contains(q.TestId) && q.IsActive && q.DeletedAt == null)
+                    .GroupBy(q => q.TestId)
                     .Select(g => new { TestId = g.Key, Count = g.Count() })
                     .ToDictionaryAsync(x => x.TestId, x => x.Count);
 
-                // Latest point history per (test, node) — for last-submission score
+                // Latest point history per (test, question)
                 var latestRows = await _context.KPointHistory
                     .Where(p => testIds.Contains(p.TestId) && p.UserId == userId)
-                    .GroupBy(p => new { p.TestId, p.NodeId })
+                    .GroupBy(p => new { p.TestId, p.QuestionId })
                     .Select(g => g.OrderByDescending(p => p.CreatedAt).First())
                     .ToListAsync();
 
-                // All history rows for sparkline — group by (TestId, second-truncated timestamp)
-                // to identify individual submissions, then compute pct per submission
                 var allHistory = await _context.KPointHistory
                     .Where(p => testIds.Contains(p.TestId) && p.UserId == userId)
                     .OrderBy(p => p.CreatedAt)
                     .ToListAsync();
 
-                // Build scoreHistory per testId: last 10 submission pct values oldest→newest
                 var scoreHistoryByTest = allHistory
                     .GroupBy(p => p.TestId)
                     .ToDictionary(
                         g => g.Key,
                         g => g
-                            // Group rows into discrete submissions by truncating to second
                             .GroupBy(p => new DateTime(
                                 p.CreatedAt.Year, p.CreatedAt.Month, p.CreatedAt.Day,
                                 p.CreatedAt.Hour, p.CreatedAt.Minute, p.CreatedAt.Second))
                             .OrderBy(sg => sg.Key)
                             .Select(sg =>
                             {
-                                var total   = sg.Sum(x => x.Point);
-                                var maxPts  = sg.Count() * 5;
+                                var total  = sg.Sum(x => x.Point);
+                                var maxPts = sg.Count() * 5;
                                 return maxPts > 0 ? (int)Math.Round((double)total / maxPts * 100) : 0;
                             })
                             .TakeLast(10)
@@ -84,12 +86,12 @@ namespace SuperAppDataRepositories.Repositories
 
                 return tests.Select(t =>
                 {
-                    var rows        = latestRows.Where(r => r.TestId == t.Id).ToList();
-                    var nodeCount   = nodeCounts.TryGetValue(t.Id, out var c) ? c : 0;
-                    var activeCount = activeCounts.TryGetValue(t.Id, out var ac) ? ac : 0;
-                    int? total    = rows.Any() ? rows.Sum(r => r.Point) : null;
-                    int? max      = rows.Any() ? nodeCount * 5 : null;
-                    int? pct      = total.HasValue && max > 0
+                    var rows         = latestRows.Where(r => r.TestId == t.Id).ToList();
+                    var questionCount = questionCounts.TryGetValue(t.Id, out var c) ? c : 0;
+                    var activeCount  = activeQuestionCounts.TryGetValue(t.Id, out var ac) ? ac : 0;
+                    int? total = rows.Any() ? rows.Sum(r => r.Point) : null;
+                    int? max   = rows.Any() ? questionCount * 5 : null;
+                    int? pct   = total.HasValue && max > 0
                         ? (int)Math.Round((double)total.Value / max.Value * 100) : null;
 
                     return new KTestSummaryResponse
@@ -100,13 +102,15 @@ namespace SuperAppDataRepositories.Repositories
                         Title           = t.Title,
                         Level           = t.Level,
                         Mode            = t.Mode,
-                        NodeCount       = nodeCount,
+                        Status          = t.Status,
+                        NodeCount       = questionCount,
                         ActiveCount     = activeCount,
                         LastTotalPoints = total,
                         LastMaxPoints   = max,
                         LastPct         = pct,
                         LastSubmittedAt = rows.Any() ? rows.Max(r => r.CreatedAt) : null,
                         CreatedAt       = t.CreatedAt,
+                        SortOrder       = t.SortOrder,
                         ScoreHistory    = scoreHistoryByTest.TryGetValue(t.Id, out var hist) ? hist : [],
                     };
                 }).ToList();
@@ -118,14 +122,14 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
-        // ── Get test by ID (with nodes) ──────────────────────────────────────
+        // ── Get test by ID (with questions) ──────────────────────────────────
 
         public async Task<KTestEntity?> GetTestByIdAsync(int testId, int knowledgeId)
         {
             try
             {
                 return await _context.KTests
-                    .Include(t => t.TestNodes)
+                    .Include(t => t.Questions)
                     .FirstOrDefaultAsync(t => t.Id == testId && t.KnowledgeId == knowledgeId && t.DeletedAt == null);
             }
             catch (Exception ex)
@@ -135,28 +139,31 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
-        // ── Create test + test_node rows ─────────────────────────────────────
+        // ── Create test + k.question rows ────────────────────────────────────
 
-        public async Task<KTestEntity> CreateTestAsync(KTestEntity test, List<int> nodeIds)
+        public async Task<KTestEntity> CreateTestAsync(KTestEntity test, List<(string Name, string? Description)> questions)
         {
             try
             {
                 _context.KTests.Add(test);
                 await _context.SaveChangesAsync();
 
-                if (nodeIds.Any())
+                if (questions.Any())
                 {
-                    var testNodes = nodeIds.Select(nodeId => new KTestNodeEntity
+                    var rows = questions.Select((q, i) => new KQuestionEntity
                     {
-                        TestId = test.Id,
-                        NodeId = nodeId,
+                        TestId      = test.Id,
+                        Name        = q.Name,
+                        Description = q.Description,
+                        IsActive    = true,
+                        SortOrder   = i,
                     }).ToList();
 
-                    _context.KTestNodes.AddRange(testNodes);
+                    _context.KQuestions.AddRange(rows);
                     await _context.SaveChangesAsync();
                 }
 
-                _logger.LogInformation("Created test ID {Id} with {Count} nodes", test.Id, nodeIds.Count);
+                _logger.LogInformation("Created test ID {Id} with {Count} questions", test.Id, questions.Count);
                 return test;
             }
             catch (Exception ex)
@@ -166,83 +173,182 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
-        // ── Get question nodes ───────────────────────────────────────────────
+        // ── Get questions by IDs ──────────────────────────────────────────────
 
-        public async Task<List<KNodeEntity>> GetQuestionNodesAsync(
-            int knowledgeId,
-            List<int> entityNodeIds,
-            bool includeDescendants)
+        public async Task<List<KQuestionEntity>> GetQuestionsByIdsAsync(List<int> questionIds)
         {
             try
             {
-                IQueryable<KNodeEntity> query = _context.KNodes
-                    .Where(n => n.KnowledgeId == knowledgeId
-                             && n.DeletedAt == null
-                             && n.NodeType == "question");
-
-                if (!includeDescendants)
-                {
-                    query = query.Where(n => entityNodeIds.Contains(n.ParentId ?? -1));
-                }
-                else
-                {
-                    var pathPatterns = entityNodeIds.Select(id => $"/{id}/").ToList();
-                    query = query.Where(n => pathPatterns.Any(p => n.PathIds.Contains(p))
-                                          || entityNodeIds.Contains(n.ParentId ?? -1));
-                }
-
-                return await query.ToListAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting question nodes for knowledge {KnowledgeId}", knowledgeId);
-                throw;
-            }
-        }
-
-        // ── Get question nodes by IDs ────────────────────────────────────────
-
-        public async Task<List<KNodeEntity>> GetQuestionNodesByIdsAsync(List<int> nodeIds)
-        {
-            try
-            {
-                if (!nodeIds.Any()) return [];
-                return await _context.KNodes
-                    .Where(n => nodeIds.Contains(n.Id) && n.DeletedAt == null)
+                if (!questionIds.Any()) return [];
+                return await _context.KQuestions
+                    .Where(q => questionIds.Contains(q.Id))
                     .ToListAsync();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting question nodes by IDs (count={Count})", nodeIds.Count);
+                _logger.LogError(ex, "Error getting questions by IDs");
                 throw;
             }
         }
 
-        // ── Per-node score history for a test ───────────────────────────────────
+        // ── Add questions to test ─────────────────────────────────────────────
 
-        public async Task<List<KPointHistoryEntity>> GetHistoryForNodesAsync(int testId, int userId, List<int> nodeIds)
+        public async Task AddQuestionsAsync(int testId, List<KNewQuestionItem> questions)
+        {
+            try
+            {
+                if (!questions.Any()) return;
+
+                var maxOrder = await _context.KQuestions
+                    .Where(q => q.TestId == testId)
+                    .Select(q => (int?)q.SortOrder)
+                    .MaxAsync() ?? -1;
+
+                var rows = questions.Select((q, i) => new KQuestionEntity
+                {
+                    TestId      = testId,
+                    Name        = q.Name,
+                    Description = q.Description,
+                    IsActive    = true,
+                    SortOrder   = maxOrder + 1 + i,
+                }).ToList();
+
+                _context.KQuestions.AddRange(rows);
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Added {Count} questions to test {TestId}", rows.Count, testId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error adding questions to test {TestId}", testId);
+                throw;
+            }
+        }
+
+        // ── Update question name/description ─────────────────────────────────
+
+        public async Task UpdateQuestionsDataAsync(List<KUpdateQuestionItem> updates)
+        {
+            try
+            {
+                if (!updates.Any()) return;
+                var ids = updates.Select(u => u.Id).ToList();
+                var questions = await _context.KQuestions
+                    .Where(q => ids.Contains(q.Id))
+                    .ToListAsync();
+
+                foreach (var q in questions)
+                {
+                    var upd = updates.FirstOrDefault(u => u.Id == q.Id);
+                    if (upd == null) continue;
+                    q.Name        = upd.Name;
+                    q.Description = string.IsNullOrWhiteSpace(upd.Description) ? null : upd.Description;
+                    q.UpdatedAt   = DateTime.UtcNow;
+                }
+
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Updated {Count} questions", questions.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating questions data");
+                throw;
+            }
+        }
+
+        // ── Toggle IsActive on questions ──────────────────────────────────────
+
+        public async Task ToggleQuestionsActiveAsync(List<int> questionIds)
+        {
+            try
+            {
+                var questions = await _context.KQuestions
+                    .Where(q => questionIds.Contains(q.Id))
+                    .ToListAsync();
+
+                foreach (var q in questions)
+                    q.IsActive = !q.IsActive;
+
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Toggled IsActive for {Count} questions", questions.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error toggling questions active state");
+                throw;
+            }
+        }
+
+        // ── Soft-delete questions ─────────────────────────────────────────────
+
+        public async Task DeleteQuestionsAsync(List<int> questionIds)
+        {
+            try
+            {
+                var questions = await _context.KQuestions
+                    .Where(q => questionIds.Contains(q.Id))
+                    .ToListAsync();
+
+                foreach (var q in questions)
+                    q.DeletedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Soft-deleted {Count} questions", questions.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error soft-deleting questions");
+                throw;
+            }
+        }
+
+        // ── Restore soft-deleted questions ────────────────────────────────────
+
+        public async Task RestoreQuestionsAsync(List<int> questionIds)
+        {
+            try
+            {
+                var questions = await _context.KQuestions
+                    .Where(q => questionIds.Contains(q.Id))
+                    .ToListAsync();
+
+                foreach (var q in questions)
+                    q.DeletedAt = null;
+
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Restored {Count} questions", questions.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error restoring questions");
+                throw;
+            }
+        }
+
+        // ── Get history for questions ─────────────────────────────────────────
+
+        public async Task<List<KPointHistoryEntity>> GetHistoryForQuestionsAsync(int testId, int userId, List<int> questionIds)
         {
             try
             {
                 return await _context.KPointHistory
                     .Where(p => p.TestId == testId && p.UserId == userId
-                                && p.NodeId != null && nodeIds.Contains(p.NodeId.Value))
+                                && p.QuestionId != null && questionIds.Contains(p.QuestionId.Value))
                     .OrderBy(p => p.CreatedAt)
                     .ToListAsync();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting node history for test {TestId}", testId);
+                _logger.LogError(ex, "Error getting question history for test {TestId}", testId);
                 return [];
             }
         }
 
-        // ── Save submission ──────────────────────────────────────────────────
+        // ── Save submission ───────────────────────────────────────────────────
 
         public async Task SaveSubmissionAsync(
             int testId,
             int userId,
-            List<(int NodeId, string? AnswerText, int Point)> results)
+            List<(int QuestionId, string? AnswerText, int Point)> results)
         {
             try
             {
@@ -250,7 +356,7 @@ namespace SuperAppDataRepositories.Repositories
                 {
                     TestId     = testId,
                     UserId     = userId,
-                    NodeId     = r.NodeId,
+                    QuestionId = r.QuestionId,
                     AnswerText = r.AnswerText,
                     Point      = r.Point,
                     CreatedAt  = DateTime.UtcNow,
@@ -267,7 +373,7 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
-        // ── Get latest result for a test ─────────────────────────────────────
+        // ── Get latest result for a test ──────────────────────────────────────
 
         public async Task<List<KPointHistoryEntity>> GetLatestResultAsync(int testId, int userId)
         {
@@ -275,7 +381,7 @@ namespace SuperAppDataRepositories.Repositories
             {
                 return await _context.KPointHistory
                     .Where(p => p.TestId == testId && p.UserId == userId)
-                    .GroupBy(p => p.NodeId)
+                    .GroupBy(p => p.QuestionId)
                     .Select(g => g.OrderByDescending(p => p.CreatedAt).First())
                     .ToListAsync();
             }
@@ -286,9 +392,9 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
-        // ── Node scores (latest point per node, across all tests) ────────────
+        // ── Question scores (latest point per question, across all tests) ─────
 
-        public async Task<Dictionary<int, int>> GetNodeScoresAsync(int knowledgeId, int userId)
+        public async Task<Dictionary<int, int>> GetQuestionScoresAsync(int knowledgeId, int userId)
         {
             try
             {
@@ -300,21 +406,21 @@ namespace SuperAppDataRepositories.Repositories
                 if (!testIds.Any()) return [];
 
                 var rows = await _context.KPointHistory
-                    .Where(p => testIds.Contains(p.TestId) && p.UserId == userId && p.NodeId.HasValue)
-                    .GroupBy(p => p.NodeId!.Value)
-                    .Select(g => new { NodeId = g.Key, Point = g.OrderByDescending(p => p.CreatedAt).First().Point })
+                    .Where(p => testIds.Contains(p.TestId) && p.UserId == userId && p.QuestionId.HasValue)
+                    .GroupBy(p => p.QuestionId!.Value)
+                    .Select(g => new { QuestionId = g.Key, Point = g.OrderByDescending(p => p.CreatedAt).First().Point })
                     .ToListAsync();
 
-                return rows.ToDictionary(r => r.NodeId, r => r.Point);
+                return rows.ToDictionary(r => r.QuestionId, r => r.Point);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting node scores for knowledge {KnowledgeId}, user {UserId}", knowledgeId, userId);
+                _logger.LogError(ex, "Error getting question scores for knowledge {KnowledgeId}, user {UserId}", knowledgeId, userId);
                 throw;
             }
         }
 
-        // ── Update test title ────────────────────────────────────────────────
+        // ── Update test title ─────────────────────────────────────────────────
 
         public async Task<KTestEntity?> UpdateTestTitleAsync(int testId, int knowledgeId, string title)
         {
@@ -336,80 +442,308 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
-        // ── Add new test nodes ────────────────────────────────────────────────
+        // ── Reorder tests ─────────────────────────────────────────────────────
 
-        public async Task AddTestNodesAsync(int testId, List<int> nodeIds)
+        public async Task ReorderTestsAsync(int knowledgeId, List<int> orderedTestIds)
         {
             try
             {
-                // Avoid duplicate entries
-                var existing = await _context.KTestNodes
-                    .Where(tn => tn.TestId == testId && nodeIds.Contains(tn.NodeId))
-                    .Select(tn => tn.NodeId)
+                var tests = await _context.KTests
+                    .Where(t => t.KnowledgeId == knowledgeId && orderedTestIds.Contains(t.Id) && t.DeletedAt == null)
                     .ToListAsync();
 
-                var toAdd = nodeIds
-                    .Except(existing)
-                    .Select(nodeId => new KTestNodeEntity { TestId = testId, NodeId = nodeId, IsActive = true })
-                    .ToList();
-
-                if (toAdd.Count > 0)
+                for (int i = 0; i < orderedTestIds.Count; i++)
                 {
-                    _context.KTestNodes.AddRange(toAdd);
-                    await _context.SaveChangesAsync();
-                    _logger.LogInformation("Added {Count} test nodes to test {TestId}", toAdd.Count, testId);
+                    var test = tests.FirstOrDefault(t => t.Id == orderedTestIds[i]);
+                    if (test != null) test.SortOrder = i;
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error adding test nodes for test {TestId}", testId);
-                throw;
-            }
-        }
-
-        // ── Toggle IsActive on test nodes ────────────────────────────────────
-
-        public async Task ToggleTestNodesActiveAsync(List<int> testNodeIds)
-        {
-            try
-            {
-                var nodes = await _context.KTestNodes
-                    .Where(tn => testNodeIds.Contains(tn.Id))
-                    .ToListAsync();
-
-                foreach (var tn in nodes)
-                    tn.IsActive = !tn.IsActive;
 
                 await _context.SaveChangesAsync();
-                _logger.LogInformation("Toggled IsActive for {Count} test nodes", nodes.Count);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error toggling test nodes active state");
+                _logger.LogError(ex, "Error reordering tests for knowledge {KnowledgeId}", knowledgeId);
                 throw;
             }
         }
 
-        // ── Delete test nodes ─────────────────────────────────────────────────
+        // ══════════════════════════════════════════════════════════════════════
+        // SRS / Daily Review
+        // ══════════════════════════════════════════════════════════════════════
 
-        public async Task DeleteTestNodesAsync(List<int> testNodeIds)
+        public async Task<List<KDailyQueueItem>> GetDailyQueueAsync(int knowledgeId, int userId)
         {
             try
             {
-                var nodes = await _context.KTestNodes
-                    .Where(tn => testNodeIds.Contains(tn.Id))
+                var now = DateTime.UtcNow;
+
+                var knowledge = await _context.KKnowledges.FindAsync(knowledgeId);
+
+                var tests = await _context.KTests
+                    .Where(t => t.KnowledgeId == knowledgeId
+                             && t.DeletedAt == null
+                             && (t.Status == "learning" || t.Status == "mastered"))
+                    .OrderBy(t => t.SortOrder)
                     .ToListAsync();
 
-                if (nodes.Count > 0)
+                if (!tests.Any()) return [];
+
+                var testIds = tests.Select(t => t.Id).ToList();
+
+                var questions = await _context.KQuestions
+                    .Where(q => testIds.Contains(q.TestId) && q.IsActive && q.DeletedAt == null)
+                    .ToListAsync();
+
+                return tests.Select(t =>
                 {
-                    _context.KTestNodes.RemoveRange(nodes);
-                    await _context.SaveChangesAsync();
-                    _logger.LogInformation("Deleted {Count} test nodes", nodes.Count);
-                }
+                    var qs = questions.Where(q => q.TestId == t.Id).ToList();
+                    return new KDailyQueueItem
+                    {
+                        TestId        = t.Id,
+                        KnowledgeId   = knowledgeId,
+                        KnowledgeName = knowledge?.Name ?? "",
+                        Title         = t.Title,
+                        Level         = t.Level,
+                        Status        = t.Status,
+                        DueCount      = qs.Count(q => q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now),
+                        NewCount      = qs.Count(q => q.SrsNextReviewAt == null),
+                        ActiveCount   = qs.Count,
+                    };
+                }).ToList();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error deleting test nodes");
+                _logger.LogError(ex, "Error getting daily queue for knowledge {KnowledgeId}", knowledgeId);
+                throw;
+            }
+        }
+
+        public async Task<List<KDailyQueueItem>> GetGlobalDailyQueueAsync(int userId)
+        {
+            try
+            {
+                var now = DateTime.UtcNow;
+
+                var tests = await _context.KTests
+                    .Where(t => t.DeletedAt == null
+                             && (t.Status == "learning" || t.Status == "mastered"))
+                    .Join(_context.KKnowledges.Where(k => k.UserId == userId && k.DeletedAt == null),
+                          t => t.KnowledgeId, k => k.Id,
+                          (t, k) => new { Test = t, KnowledgeName = k.Name })
+                    .OrderBy(x => x.Test.KnowledgeId)
+                    .ThenBy(x => x.Test.SortOrder)
+                    .ToListAsync();
+
+                if (!tests.Any()) return [];
+
+                var testIds = tests.Select(x => x.Test.Id).ToList();
+
+                var questions = await _context.KQuestions
+                    .Where(q => testIds.Contains(q.TestId) && q.IsActive && q.DeletedAt == null)
+                    .ToListAsync();
+
+                return tests.Select(x =>
+                {
+                    var qs = questions.Where(q => q.TestId == x.Test.Id).ToList();
+                    return new KDailyQueueItem
+                    {
+                        TestId        = x.Test.Id,
+                        KnowledgeId   = x.Test.KnowledgeId,
+                        KnowledgeName = x.KnowledgeName,
+                        Title         = x.Test.Title,
+                        Level         = x.Test.Level,
+                        Status        = x.Test.Status,
+                        DueCount      = qs.Count(q => q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now),
+                        NewCount      = qs.Count(q => q.SrsNextReviewAt == null),
+                        ActiveCount   = qs.Count,
+                    };
+                }).ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting global daily queue for user {UserId}", userId);
+                throw;
+            }
+        }
+
+        public async Task<List<KQuestionEntity>> GetDailySessionQuestionsAsync(int testId, int dailyLimit, double newRatio)
+        {
+            try
+            {
+                var now = DateTime.UtcNow;
+                var dueLimit = (int)Math.Ceiling(dailyLimit * (1 - newRatio));
+                var newLimit = dailyLimit - dueLimit;
+
+                var dueQuestions = await _context.KQuestions
+                    .Where(q => q.TestId == testId && q.IsActive && q.DeletedAt == null
+                             && q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now)
+                    .OrderBy(q => q.SrsNextReviewAt)
+                    .Take(dueLimit)
+                    .ToListAsync();
+
+                var newQuestions = await _context.KQuestions
+                    .Where(q => q.TestId == testId && q.IsActive && q.DeletedAt == null
+                             && q.SrsNextReviewAt == null)
+                    .OrderBy(q => q.SortOrder)
+                    .Take(newLimit)
+                    .ToListAsync();
+
+                // If fewer due, fill remaining with new, and vice versa
+                var remaining = dailyLimit - dueQuestions.Count - newQuestions.Count;
+                if (remaining > 0 && dueQuestions.Count < dueLimit)
+                {
+                    var existingIds = dueQuestions.Select(q => q.Id).Concat(newQuestions.Select(q => q.Id)).ToHashSet();
+                    var extra = await _context.KQuestions
+                        .Where(q => q.TestId == testId && q.IsActive && q.DeletedAt == null
+                                 && q.SrsNextReviewAt == null && !existingIds.Contains(q.Id))
+                        .OrderBy(q => q.SortOrder)
+                        .Take(remaining)
+                        .ToListAsync();
+                    newQuestions.AddRange(extra);
+                }
+                else if (remaining > 0 && newQuestions.Count < newLimit)
+                {
+                    var existingIds = dueQuestions.Select(q => q.Id).Concat(newQuestions.Select(q => q.Id)).ToHashSet();
+                    var extra = await _context.KQuestions
+                        .Where(q => q.TestId == testId && q.IsActive && q.DeletedAt == null
+                                 && q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now
+                                 && !existingIds.Contains(q.Id))
+                        .OrderBy(q => q.SrsNextReviewAt)
+                        .Take(remaining)
+                        .ToListAsync();
+                    dueQuestions.AddRange(extra);
+                }
+
+                var result = new List<KQuestionEntity>();
+                result.AddRange(dueQuestions);
+                result.AddRange(newQuestions);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting daily session questions for test {TestId}", testId);
+                throw;
+            }
+        }
+
+        public async Task UpdateQuestionSrsAsync(int questionId, int interval, double easeFactor, int repetitions, DateTime? nextReviewAt)
+        {
+            try
+            {
+                var question = await _context.KQuestions.FindAsync(questionId);
+                if (question == null) return;
+
+                question.SrsInterval     = interval;
+                question.SrsEaseFactor   = easeFactor;
+                question.SrsRepetitions  = repetitions;
+                question.SrsNextReviewAt = nextReviewAt;
+                question.UpdatedAt       = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating SRS for question {QuestionId}", questionId);
+                throw;
+            }
+        }
+
+        public async Task SaveDailySubmissionAsync(
+            int testId, int userId,
+            List<(int QuestionId, string? AnswerText, int Point, int? ResponseTimeMs)> results)
+        {
+            try
+            {
+                var rows = results.Select(r => new KPointHistoryEntity
+                {
+                    TestId         = testId,
+                    UserId         = userId,
+                    QuestionId     = r.QuestionId,
+                    AnswerText     = r.AnswerText,
+                    Point          = r.Point,
+                    ResponseTimeMs = r.ResponseTimeMs,
+                    CreatedAt      = DateTime.UtcNow,
+                }).ToList();
+
+                _context.KPointHistory.AddRange(rows);
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error saving daily submission for test {TestId}", testId);
+                throw;
+            }
+        }
+
+        public async Task UpdateTestStatusAsync(int testId, string status)
+        {
+            try
+            {
+                var test = await _context.KTests.FindAsync(testId);
+                if (test == null) return;
+                test.Status    = status;
+                test.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating test status for {TestId}", testId);
+                throw;
+            }
+        }
+
+        public async Task<List<KSubmissionGroup>> GetRecentSubmissionGroupsAsync(int testId, int userId, int count)
+        {
+            try
+            {
+                // Group point_history rows by session (same second = same session)
+                var rows = await _context.KPointHistory
+                    .Where(p => p.TestId == testId && p.UserId == userId)
+                    .OrderByDescending(p => p.CreatedAt)
+                    .ToListAsync();
+
+                var groups = rows
+                    .GroupBy(p => new DateTime(
+                        p.CreatedAt.Year, p.CreatedAt.Month, p.CreatedAt.Day,
+                        p.CreatedAt.Hour, p.CreatedAt.Minute, p.CreatedAt.Second))
+                    .OrderByDescending(g => g.Key)
+                    .Take(count)
+                    .Select(g =>
+                    {
+                        var items = g.ToList();
+                        var avgPoint = items.Average(p => p.Point);
+
+                        // speed_ratio = responseTimeMs / readingTimeMs
+                        // readingTimeMs = wordCount(answer) / (200/60) * 1000
+                        var speedRatios = new List<double>();
+                        foreach (var p in items)
+                        {
+                            if (p.ResponseTimeMs == null || p.ResponseTimeMs <= 0) continue;
+                            // We need the expected answer length — look up the question
+                            var question = _context.KQuestions.Local
+                                .FirstOrDefault(q => q.Id == p.QuestionId)
+                                ?? _context.KQuestions.Find(p.QuestionId);
+                            if (question?.Description == null) continue;
+                            var wordCount = question.Description.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+                            if (wordCount == 0) continue;
+                            var readingTimeMs = wordCount / (200.0 / 60.0) * 1000.0;
+                            speedRatios.Add(p.ResponseTimeMs.Value / readingTimeMs);
+                        }
+
+                        return new KSubmissionGroup
+                        {
+                            SessionTime   = g.Key,
+                            AvgPoint      = avgPoint,
+                            AvgSpeedRatio = speedRatios.Count > 0 ? speedRatios.Average() : double.MaxValue,
+                        };
+                    })
+                    .ToList();
+
+                return groups;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting recent submission groups for test {TestId}", testId);
                 throw;
             }
         }

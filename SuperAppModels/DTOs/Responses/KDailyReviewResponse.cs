@@ -1,0 +1,27 @@
+namespace SuperAppModels.DTOs.Responses
+{
+    /// <summary>Summary of a test in the daily review queue.</summary>
+    public class KDailyQueueItemResponse
+    {
+        public int    TestId        { get; set; }
+        public int    KnowledgeId   { get; set; }
+        public string KnowledgeName { get; set; } = string.Empty;
+        public string Title         { get; set; } = string.Empty;
+        public int    Level         { get; set; }
+        public string? Status       { get; set; }
+        /// <summary>Questions due for review (next_review_at &lt;= now)</summary>
+        public int DueCount    { get; set; }
+        /// <summary>New questions (never reviewed, next_review_at is null)</summary>
+        public int NewCount    { get; set; }
+        /// <summary>Total active questions</summary>
+        public int ActiveCount { get; set; }
+    }
+
+    /// <summary>A question in a daily review session.</summary>
+    public class KDailySessionQuestionResponse
+    {
+        public int     Id       { get; set; }
+        public string  Question { get; set; } = string.Empty;
+        public string? Answer   { get; set; }
+    }
+}

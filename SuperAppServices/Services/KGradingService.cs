@@ -21,7 +21,7 @@ Rubric:
 - 0: Bỏ qua / không trả lời.
 
 Trả về JSON array (không có markdown):
-[{ ""nodeId"": <int>, ""point"": <0-5>, ""comment"": ""<nêu ngắn gọn những thứ bị thiếu, bị sai, tối đa 30 từ, nếu sai nhiều thì chỉ nêu những ý quan trọng nhất >"" }, ...]
+[{ ""questionId"": <int>, ""point"": <0-5>, ""comment"": ""<nêu ngắn gọn những thứ bị thiếu, bị sai, tối đa 30 từ, nếu sai nhiều thì chỉ nêu những ý quan trọng nhất >"" }, ...]
 
 Lưu ý: comment phải ngắn gọn, tối đa 15 từ, bằng tiếng Việt hoặc tiếng Anh tùy ngôn ngữ câu hỏi.";
 
@@ -33,38 +33,35 @@ Lưu ý: comment phải ngắn gọn, tối đa 15 từ, bằng tiếng Việt h
 
         public async Task<KGradingResult> GradeSubmissionAsync(
             string? testTitle,
-            List<(int NodeId, string? AnswerText)> submissions,
-            List<KNodeEntity> questionNodes)
+            List<(int QuestionId, string? AnswerText)> submissions,
+            List<KQuestionEntity> questions)
         {
-            // Separate skipped (null/empty answer) from answered
             var skipped  = submissions.Where(s => string.IsNullOrWhiteSpace(s.AnswerText)).ToList();
             var answered = submissions.Where(s => !string.IsNullOrWhiteSpace(s.AnswerText)).ToList();
 
             var results = new List<KGradedAnswer>();
 
-            // Skipped → 0 points immediately
-            results.AddRange(skipped.Select(s => new KGradedAnswer(s.NodeId, 0)));
+            results.AddRange(skipped.Select(s => new KGradedAnswer(s.QuestionId, 0)));
 
             if (answered.Any())
             {
                 try
                 {
-                    var nodeMap  = questionNodes.ToDictionary(n => n.Id);
-                    var prompt   = BuildGradingPrompt(testTitle, answered, nodeMap);
-                    var response = await _ai.ChatAsync(prompt, SystemPrompt);
-                    var graded   = ParseAiResponse(response);
+                    var questionMap = questions.ToDictionary(q => q.Id);
+                    var prompt      = BuildGradingPrompt(testTitle, answered, questionMap);
+                    var response    = await _ai.ChatAsync(prompt, SystemPrompt);
+                    var graded      = ParseAiResponse(response);
 
-                    // Map graded results; fall back to 0/null for any missing
-                    var gradedMap = graded.ToDictionary(g => g.NodeId);
+                    var gradedMap = graded.ToDictionary(g => g.QuestionId);
                     results.AddRange(answered.Select(s =>
-                        gradedMap.TryGetValue(s.NodeId, out var g)
+                        gradedMap.TryGetValue(s.QuestionId, out var g)
                             ? g
-                            : new KGradedAnswer(s.NodeId, 0)));
+                            : new KGradedAnswer(s.QuestionId, 0)));
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "AI grading failed — defaulting all answered to 0");
-                    results.AddRange(answered.Select(s => new KGradedAnswer(s.NodeId, 0)));
+                    results.AddRange(answered.Select(s => new KGradedAnswer(s.QuestionId, 0)));
                 }
             }
 
@@ -73,12 +70,10 @@ Lưu ý: comment phải ngắn gọn, tối đa 15 từ, bằng tiếng Việt h
             return new KGradingResult(total, max, results);
         }
 
-        // ── Private helpers ───────────────────────────────────────────────────
-
         private static string BuildGradingPrompt(
             string? testTitle,
-            List<(int NodeId, string? AnswerText)> answered,
-            Dictionary<int, KNodeEntity> nodeMap)
+            List<(int QuestionId, string? AnswerText)> answered,
+            Dictionary<int, KQuestionEntity> questionMap)
         {
             var sb = new System.Text.StringBuilder();
             if (!string.IsNullOrWhiteSpace(testTitle))
@@ -86,12 +81,12 @@ Lưu ý: comment phải ngắn gọn, tối đa 15 từ, bằng tiếng Việt h
 
             for (var i = 0; i < answered.Count; i++)
             {
-                var (nodeId, answerText) = answered[i];
-                nodeMap.TryGetValue(nodeId, out var node);
+                var (questionId, answerText) = answered[i];
+                questionMap.TryGetValue(questionId, out var q);
 
-                sb.AppendLine($"--- Câu {i + 1} (nodeId: {nodeId}) ---");
-                sb.AppendLine($"Câu hỏi: {node?.Name ?? "(không rõ)"}");
-                sb.AppendLine($"Đáp án mẫu: {node?.Description ?? "(không có đáp án mẫu)"}");
+                sb.AppendLine($"--- Câu {i + 1} (questionId: {questionId}) ---");
+                sb.AppendLine($"Câu hỏi: {q?.Name ?? "(không rõ)"}");
+                sb.AppendLine($"Đáp án mẫu: {q?.Description ?? "(không có đáp án mẫu)"}");
                 sb.AppendLine($"Câu trả lời của học viên: {answerText}");
                 sb.AppendLine();
             }
@@ -103,7 +98,6 @@ Lưu ý: comment phải ngắn gọn, tối đa 15 từ, bằng tiếng Việt h
         {
             if (string.IsNullOrWhiteSpace(response)) return [];
 
-            // Strip markdown code fences if present
             var json = response.Trim();
             if (json.StartsWith("```")) json = string.Join('\n', json.Split('\n').Skip(1).SkipLast(1));
 
@@ -112,10 +106,10 @@ Lưu ý: comment phải ngắn gọn, tối đa 15 từ, bằng tiếng Việt h
 
             return raw.Select(e =>
             {
-                var nodeId  = e.GetProperty("nodeId").GetInt32();
-                var point   = e.GetProperty("point").GetInt32();
-                var comment = e.TryGetProperty("comment", out var c) ? c.GetString() : null;
-                return new KGradedAnswer(nodeId, point, comment);
+                var questionId = e.GetProperty("questionId").GetInt32();
+                var point      = e.GetProperty("point").GetInt32();
+                var comment    = e.TryGetProperty("comment", out var c) ? c.GetString() : null;
+                return new KGradedAnswer(questionId, point, comment);
             }).ToList();
         }
     }

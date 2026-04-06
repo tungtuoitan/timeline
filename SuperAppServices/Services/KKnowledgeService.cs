@@ -68,7 +68,6 @@ namespace SuperAppServices.Services
                     Description = n.Description,
                     Color       = n.Color,
                     Icon        = n.Icon,
-                    NodeType    = n.NodeType,
                     StatusCode  = n.StatusCode,
                     PathIds     = n.PathIds,
                     PathDepth   = n.PathDepth,
