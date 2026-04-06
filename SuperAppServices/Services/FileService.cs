@@ -62,7 +62,7 @@ namespace SuperAppServices.Services
                     fileName, mimeType, userId, context, contextId);
 
                 // Validate context
-                var validContexts = new[] { "project", "workspace", "conversation", "general" };
+                var validContexts = new[] { "project", "workspace", "general" };
                 if (string.IsNullOrWhiteSpace(context) || !validContexts.Contains(context))
                 {
                     return ResultOptions.Fail($"Invalid context. Must be one of: {string.Join(", ", validContexts)}.", 400);
