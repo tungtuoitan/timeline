@@ -14,16 +14,16 @@ namespace SuperAppServices.Services
         private readonly IKGradingService _grading;
         private readonly ILogger<KTestService> _logger;
 
-        public KTestService(IKTestRepository repo, IKGradingService grading, ILogger<KTestService> logger) 
+        public KTestService(IKTestRepository repo, IKGradingService grading, ILogger<KTestService> logger)
         {
             _repo    = repo    ?? throw new ArgumentNullException(nameof(repo));
             _grading = grading ?? throw new ArgumentNullException(nameof(grading));
             _logger  = logger  ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task<List<KTestSummaryResponse>> GetTestsAsync(int knowledgeId, int userId)
+        public async Task<List<KTestSummaryResponse>> GetTestsAsync(int knowledgeId, int userId, int? nodeId = null)
         {
-            try   { return await _repo.GetTestSummariesAsync(knowledgeId, userId); }
+            try   { return await _repo.GetTestSummariesAsync(knowledgeId, userId, nodeId); }
             catch (Exception ex) { _logger.LogError(ex, "GetTests failed"); return []; }
         }
 
@@ -34,15 +34,12 @@ namespace SuperAppServices.Services
                 var test = await _repo.GetTestByIdAsync(testId, knowledgeId);
                 if (test == null) return Fail(404, "Test not found");
 
-                var testNodes     = test.TestNodes.ToList();
-                var nodeIds       = testNodes.Select(tn => tn.NodeId).ToList();
-                var questionNodes = await _repo.GetQuestionNodesByIdsAsync(nodeIds);
-                var nodeMap       = questionNodes.ToDictionary(n => n.Id);
+                var questions   = test.Questions.ToList();
+                var questionIds = questions.Select(q => q.Id).ToList();
 
-                // Per-node score history: last ≤10 points (0–5), oldest→newest
-                var allHistory = await _repo.GetHistoryForNodesAsync(test.Id, userId, nodeIds);
-                var historyByNode = allHistory
-                    .GroupBy(h => h.NodeId)
+                var allHistory = await _repo.GetHistoryForQuestionsAsync(test.Id, userId, questionIds);
+                var historyByQuestion = allHistory
+                    .GroupBy(h => h.QuestionId)
                     .ToDictionary(
                         g => g.Key!.Value,
                         g => g.OrderBy(h => h.CreatedAt)
@@ -57,20 +54,17 @@ namespace SuperAppServices.Services
                     Title       = test.Title,
                     Level       = test.Level,
                     Mode        = test.Mode,
-                    Questions   = testNodes
-                        .Where(tn => nodeMap.ContainsKey(tn.NodeId))
-                        .Select(tn =>
+                    Questions   = questions
+                        .OrderBy(q => q.SortOrder)
+                        .Select(q => new KTestQuestionResponse
                         {
-                            var node = nodeMap[tn.NodeId];
-                            return new KTestQuestionResponse
-                            {
-                                TestNodeId   = tn.Id,
-                                NodeId       = node.Id,
-                                Question     = node.Name,
-                                Answer       = node.Description,
-                                IsActive     = tn.IsActive,
-                                ScoreHistory = historyByNode.TryGetValue(node.Id, out var hist) ? hist : [],
-                            };
+                            Id           = q.Id,
+                            Question     = q.Name,
+                            Answer       = q.Description,
+                            IsActive     = q.IsActive,
+                            SortOrder    = q.SortOrder,
+                            DeletedAt    = q.DeletedAt,
+                            ScoreHistory = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
                         }).ToList(),
                     CreatedAt   = test.CreatedAt,
                 });
@@ -78,27 +72,20 @@ namespace SuperAppServices.Services
             catch (Exception ex) { _logger.LogError(ex, "GetTestDetail failed for {TestId}", testId); return Fail(500, "Failed"); }
         }
 
-        public async Task<ResultOptions> CreateTestFromNodesAsync(int knowledgeId, int userId, KCreateTestFromNodesRequest request)
+        public async Task<ResultOptions> CreateEmptyTestAsync(int knowledgeId, int userId, KCreateEmptyTestRequest request)
         {
             try
             {
-                var count         = Math.Clamp(request.Count, 1, 100);
-                var questionNodes = await _repo.GetQuestionNodesAsync(knowledgeId, request.NodeIds, request.IncludeDescendants);
-                if (!questionNodes.Any()) return Fail(400, "Không tìm thấy câu hỏi nào dưới các node đã chọn.");
-
-                var sampled = questionNodes.OrderBy(_ => Guid.NewGuid()).Take(count).ToList();
-                var nodeIds = sampled.Select(n => n.Id).ToList();
-
                 var test = new KTestEntity
                 {
                     KnowledgeId = knowledgeId,
                     UserId      = userId,
+                    NodeId      = request.NodeId,
                     Title       = request.Title,
-                    Level       = request.Level,
                     Mode        = "standard",
                 };
 
-                var created = await _repo.CreateTestAsync(test, nodeIds);
+                var created = await _repo.CreateTestAsync(test, []);
 
                 return Ok(new KTestDetailResponse
                 {
@@ -107,11 +94,11 @@ namespace SuperAppServices.Services
                     Title       = created.Title,
                     Level       = created.Level,
                     Mode        = created.Mode,
-                    Questions   = sampled.Select(n => new KTestQuestionResponse { NodeId = n.Id, Question = n.Name }).ToList(),
+                    Questions   = [],
                     CreatedAt   = created.CreatedAt,
                 });
             }
-            catch (Exception ex) { _logger.LogError(ex, "CreateTestFromNodes failed"); return Fail(500, "Failed to create test"); }
+            catch (Exception ex) { _logger.LogError(ex, "CreateEmptyTest failed"); return Fail(500, "Failed to create test"); }
         }
 
         public async Task<ResultOptions> SubmitAnswersAsync(int testId, int knowledgeId, int userId, KSubmitAnswersRequest request)
@@ -124,16 +111,16 @@ namespace SuperAppServices.Services
                 if (request.Answers == null || !request.Answers.Any())
                     return Fail(400, "Answers are required");
 
-                var nodeIds       = request.Answers.Select(a => a.NodeId).Distinct().ToList();
-                var questionNodes = await _repo.GetQuestionNodesByIdsAsync(nodeIds);
-                var nodeMap       = questionNodes.ToDictionary(n => n.Id);
+                var questionIds = request.Answers.Select(a => a.QuestionId).Distinct().ToList();
+                var questions   = await _repo.GetQuestionsByIdsAsync(questionIds);
+                var questionMap = questions.ToDictionary(q => q.Id);
 
-                var submissions = request.Answers.Select(a => (a.NodeId, a.AnswerText)).ToList();
-                var grading     = await _grading.GradeSubmissionAsync(test.Title, submissions, questionNodes);
+                var submissions = request.Answers.Select(a => (a.QuestionId, a.AnswerText)).ToList();
+                var grading     = await _grading.GradeSubmissionAsync(test.Title, submissions, questions);
 
                 var results = grading.Answers.Select(g => (
-                    g.NodeId,
-                    request.Answers.FirstOrDefault(a => a.NodeId == g.NodeId)?.AnswerText,
+                    g.QuestionId,
+                    request.Answers.FirstOrDefault(a => a.QuestionId == g.QuestionId)?.AnswerText,
                     g.Point
                 )).ToList();
 
@@ -149,13 +136,13 @@ namespace SuperAppServices.Services
                     Pct         = pct,
                     Grades      = grading.Answers.Select(g =>
                     {
-                        nodeMap.TryGetValue(g.NodeId, out var node);
-                        return new KNodeGradeResponse
+                        questionMap.TryGetValue(g.QuestionId, out var q);
+                        return new KQuestionGradeResponse
                         {
-                            NodeId         = g.NodeId,
-                            Question       = node?.Name ?? "",
-                            AnswerText     = request.Answers.FirstOrDefault(a => a.NodeId == g.NodeId)?.AnswerText,
-                            ExpectedAnswer = node?.Description,
+                            QuestionId     = g.QuestionId,
+                            Question       = q?.Name ?? "",
+                            AnswerText     = request.Answers.FirstOrDefault(a => a.QuestionId == g.QuestionId)?.AnswerText,
+                            ExpectedAnswer = q?.Description,
                             Point          = g.Point,
                             Comment        = g.Comment,
                         };
@@ -165,10 +152,10 @@ namespace SuperAppServices.Services
             catch (Exception ex) { _logger.LogError(ex, "SubmitAnswers failed for test {TestId}", testId); return Fail(500, "Failed to submit answers"); }
         }
 
-        public async Task<Dictionary<int, int>> GetNodeScoresAsync(int knowledgeId, int userId)
+        public async Task<Dictionary<int, int>> GetQuestionScoresAsync(int knowledgeId, int userId)
         {
-            try   { return await _repo.GetNodeScoresAsync(knowledgeId, userId); }
-            catch (Exception ex) { _logger.LogError(ex, "GetNodeScores failed"); return []; }
+            try   { return await _repo.GetQuestionScoresAsync(knowledgeId, userId); }
+            catch (Exception ex) { _logger.LogError(ex, "GetQuestionScores failed"); return []; }
         }
 
         public async Task<ResultOptions> UpdateTestAsync(int testId, int knowledgeId, int userId, KUpdateTestRequest request)
@@ -182,25 +169,199 @@ namespace SuperAppServices.Services
             catch (Exception ex) { _logger.LogError(ex, "UpdateTest failed for {TestId}", testId); return Fail(500, "Failed to update test"); }
         }
 
-        public async Task<ResultOptions> UpdateTestNodesAsync(int testId, int knowledgeId, int userId, KUpdateTestNodesRequest request)
+        public async Task<ResultOptions> UpdateQuestionsAsync(int testId, int knowledgeId, int userId, KUpdateQuestionsRequest request)
         {
             try
             {
                 var test = await _repo.GetTestByIdAsync(testId, knowledgeId);
                 if (test == null) return Fail(404, "Test not found");
 
-                if (request.AddNodeIds.Count > 0)
-                    await _repo.AddTestNodesAsync(testId, request.AddNodeIds);
+                if (request.UpdateQuestions.Count > 0)
+                    await _repo.UpdateQuestionsDataAsync(request.UpdateQuestions);
 
-                if (request.ToggleTestNodeIds.Count > 0)
-                    await _repo.ToggleTestNodesActiveAsync(request.ToggleTestNodeIds);
+                if (request.AddQuestions.Count > 0)
+                    await _repo.AddQuestionsAsync(testId, request.AddQuestions);
 
-                if (request.DeleteTestNodeIds.Count > 0)
-                    await _repo.DeleteTestNodesAsync(request.DeleteTestNodeIds);
+                if (request.ToggleQuestionIds.Count > 0)
+                    await _repo.ToggleQuestionsActiveAsync(request.ToggleQuestionIds);
+
+                if (request.DeleteQuestionIds.Count > 0)
+                    await _repo.DeleteQuestionsAsync(request.DeleteQuestionIds);
+
+                if (request.RestoreQuestionIds.Count > 0)
+                    await _repo.RestoreQuestionsAsync(request.RestoreQuestionIds);
 
                 return Ok(new { testId });
             }
-            catch (Exception ex) { _logger.LogError(ex, "UpdateTestNodes failed for {TestId}", testId); return Fail(500, "Failed to update test nodes"); }
+            catch (Exception ex) { _logger.LogError(ex, "UpdateQuestions failed for {TestId}", testId); return Fail(500, "Failed to update questions"); }
+        }
+
+        public async Task<ResultOptions> ReorderTestsAsync(int knowledgeId, int userId, List<int> orderedTestIds)
+        {
+            try
+            {
+                await _repo.ReorderTestsAsync(knowledgeId, orderedTestIds);
+                return Ok(new { orderedTestIds });
+            }
+            catch (Exception ex) { _logger.LogError(ex, "ReorderTests failed"); return Fail(500, "Failed to reorder tests"); }
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // SRS / Daily Review
+        // ══════════════════════════════════════════════════════════════════════
+
+        public async Task<ResultOptions> GetDailyQueueAsync(int knowledgeId, int userId)
+        {
+            try
+            {
+                var items = await _repo.GetDailyQueueAsync(knowledgeId, userId);
+                var response = items.Select(MapQueueItem).ToList();
+                return Ok(response);
+            }
+            catch (Exception ex) { _logger.LogError(ex, "GetDailyQueue failed"); return Fail(500, "Failed"); }
+        }
+
+        public async Task<ResultOptions> GetGlobalDailyQueueAsync(int userId)
+        {
+            try
+            {
+                var items = await _repo.GetGlobalDailyQueueAsync(userId);
+                var response = items.Select(MapQueueItem).ToList();
+                return Ok(response);
+            }
+            catch (Exception ex) { _logger.LogError(ex, "GetGlobalDailyQueue failed"); return Fail(500, "Failed"); }
+        }
+
+        private static KDailyQueueItemResponse MapQueueItem(KDailyQueueItem i) => new()
+        {
+            TestId        = i.TestId,
+            KnowledgeId   = i.KnowledgeId,
+            KnowledgeName = i.KnowledgeName,
+            Title         = i.Title,
+            Level         = i.Level,
+            Status        = i.Status,
+            DueCount      = i.DueCount,
+            NewCount      = i.NewCount,
+            ActiveCount   = i.ActiveCount,
+        };
+
+        public async Task<ResultOptions> GetDailySessionAsync(int testId, int knowledgeId, int userId, int dailyLimit)
+        {
+            try
+            {
+                var test = await _repo.GetTestByIdAsync(testId, knowledgeId);
+                if (test == null) return Fail(404, "Test not found");
+
+                var questions = await _repo.GetDailySessionQuestionsAsync(testId, dailyLimit, 0.4);
+                var response = questions.Select(q => new KDailySessionQuestionResponse
+                {
+                    Id       = q.Id,
+                    Question = q.Name,
+                    Answer   = q.Description,
+                }).ToList();
+                return Ok(response);
+            }
+            catch (Exception ex) { _logger.LogError(ex, "GetDailySession failed for test {TestId}", testId); return Fail(500, "Failed"); }
+        }
+
+        public async Task<ResultOptions> SubmitDailyAnswersAsync(int testId, int knowledgeId, int userId, KDailySubmitRequest request)
+        {
+            try
+            {
+                var test = await _repo.GetTestByIdAsync(testId, knowledgeId);
+                if (test == null) return Fail(404, "Test not found");
+
+                if (request.Answers == null || !request.Answers.Any())
+                    return Fail(400, "Answers are required");
+
+                var questionIds = request.Answers.Select(a => a.QuestionId).Distinct().ToList();
+                var questions   = await _repo.GetQuestionsByIdsAsync(questionIds);
+                var questionMap = questions.ToDictionary(q => q.Id);
+
+                // AI grading
+                var submissions = request.Answers.Select(a => (a.QuestionId, a.AnswerText)).ToList();
+                var grading     = await _grading.GradeSubmissionAsync(test.Title, submissions, questions);
+
+                // Save submission with response times
+                var results = grading.Answers.Select(g =>
+                {
+                    var answer = request.Answers.FirstOrDefault(a => a.QuestionId == g.QuestionId);
+                    return (g.QuestionId, answer?.AnswerText, g.Point, answer?.ResponseTimeMs);
+                }).ToList();
+                await _repo.SaveDailySubmissionAsync(testId, userId, results);
+
+                // Update SRS for each question
+                foreach (var g in grading.Answers)
+                {
+                    if (!questionMap.TryGetValue(g.QuestionId, out var q)) continue;
+                    var current = new SpacedRepetitionEngine.SrsState(
+                        q.SrsInterval, q.SrsEaseFactor, q.SrsRepetitions, q.SrsNextReviewAt);
+                    var next = SpacedRepetitionEngine.CalculateNext(g.Point, current);
+                    await _repo.UpdateQuestionSrsAsync(g.QuestionId, next.Interval, next.EaseFactor, next.Repetitions, next.NextReviewAt);
+                }
+
+                // Check mastered/regression
+                await CheckAndUpdateTestStatusAsync(testId, userId, test.Status);
+
+                var pct = grading.MaxPoints > 0
+                    ? (int)Math.Round((double)grading.TotalPoints / grading.MaxPoints * 100) : 0;
+
+                return Ok(new KSubmitAnswersResultResponse
+                {
+                    TotalPoints = grading.TotalPoints,
+                    MaxPoints   = grading.MaxPoints,
+                    Pct         = pct,
+                    Grades      = grading.Answers.Select(g =>
+                    {
+                        questionMap.TryGetValue(g.QuestionId, out var q);
+                        return new KQuestionGradeResponse
+                        {
+                            QuestionId     = g.QuestionId,
+                            Question       = q?.Name ?? "",
+                            AnswerText     = request.Answers.FirstOrDefault(a => a.QuestionId == g.QuestionId)?.AnswerText,
+                            ExpectedAnswer = q?.Description,
+                            Point          = g.Point,
+                            Comment        = g.Comment,
+                        };
+                    }).ToList(),
+                });
+            }
+            catch (Exception ex) { _logger.LogError(ex, "SubmitDailyAnswers failed for test {TestId}", testId); return Fail(500, "Failed"); }
+        }
+
+        public async Task<ResultOptions> UpdateTestStatusAsync(int testId, int knowledgeId, int userId, string status)
+        {
+            try
+            {
+                if (status != "inactive" && status != "learning")
+                    return Fail(400, "Status must be 'inactive' or 'learning'");
+
+                var test = await _repo.GetTestByIdAsync(testId, knowledgeId);
+                if (test == null) return Fail(404, "Test not found");
+
+                await _repo.UpdateTestStatusAsync(testId, status);
+                return Ok(new { testId, status });
+            }
+            catch (Exception ex) { _logger.LogError(ex, "UpdateTestStatus failed for {TestId}", testId); return Fail(500, "Failed"); }
+        }
+
+        /// <summary>Auto-promote learning→mastered or regress mastered→learning.</summary>
+        private async Task CheckAndUpdateTestStatusAsync(int testId, int userId, string? currentStatus)
+        {
+            try
+            {
+                var groups = await _repo.GetRecentSubmissionGroupsAsync(testId, userId, 5);
+                var sessions = groups.Select(g => (g.AvgPoint, g.AvgSpeedRatio)).ToList();
+
+                if (currentStatus == "learning" && SpacedRepetitionEngine.ShouldPromoteToMastered(sessions))
+                    await _repo.UpdateTestStatusAsync(testId, "mastered");
+                else if (currentStatus == "mastered" && SpacedRepetitionEngine.ShouldRegressToLearning(sessions))
+                    await _repo.UpdateTestStatusAsync(testId, "learning");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CheckAndUpdateTestStatus failed for test {TestId}", testId);
+            }
         }
 
         private static ResultOptions Ok(object data)                  => new() { Success = true,  Object = data, Status = 200 };

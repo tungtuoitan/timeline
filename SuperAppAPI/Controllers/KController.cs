@@ -260,6 +260,43 @@ namespace SuperAppAPI.Controllers
         }
 
         /// <summary>
+        /// Structured test markdown import (parsed on frontend).
+        /// Creates question nodes under parentNodeId, one KTestEntity per ## section,
+        /// links question nodes to their test via KTestNodeEntity.
+        /// Orphan questions (no ## parent) are created as nodes only.
+        /// </summary>
+        [HttpPost("{knowledgeId}/import-test-markdown")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        public async Task<IActionResult> ImportTestMarkdown(int knowledgeId, [FromBody] KImportTestMarkdownRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                    return BadRequest(ModelState);
+
+                var userId = GetAuthenticatedUserId();
+                if (userId == null) return Unauthorized("User ID not found in token");
+
+                if (request.Tests.Count == 0 && request.OrphanQuestions.Count == 0)
+                    return BadRequest(new ResultOptions { Success = false, Message = "No tests or questions provided.", Status = 400 });
+
+                var testsCreated = await _markdownImportService.ImportTestMarkdownAsync(knowledgeId, userId.Value, request);
+                return Ok(new ResultOptions
+                {
+                    Success = true,
+                    Message = $"Created {testsCreated} tests",
+                    Object  = testsCreated,
+                    Status  = 200,
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Test markdown import failed for knowledge {KnowledgeId}", knowledgeId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "Import failed. Please try again.", Status = 500 });
+            }
+        }
+
+        /// <summary>
         /// AI-powered markdown → nodes import.
         /// Parses free-form markdown, creates nodes under parentNodeId with statusCode = "draft".
         /// </summary>

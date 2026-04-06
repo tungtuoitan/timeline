@@ -10,5 +10,11 @@ namespace SuperAppServices.Interfaces
         /// all with statusCode = "draft".
         /// </summary>
         Task<List<KNodeResponse>> ImportAsync(int knowledgeId, int userId, KImportMarkdownRequest request);
+
+        /// <summary>
+        /// Create question nodes + tests from structured markdown already parsed on the frontend.
+        /// Returns the number of tests created.
+        /// </summary>
+        Task<int> ImportTestMarkdownAsync(int knowledgeId, int userId, KImportTestMarkdownRequest request);
     }
 }
