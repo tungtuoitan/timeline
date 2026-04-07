@@ -90,6 +90,9 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(t => t.CustomTabsJson)
                 .HasColumnName("custom_tabs_json");
 
+            builder.Property(t => t.FolderWorkspaceItemId)
+                .HasColumnName("FolderWorkspaceItemId");
+
             // Index for common queries
             builder.HasIndex(t => t.ProjectId);
             builder.HasIndex(t => t.ParentTaskId);

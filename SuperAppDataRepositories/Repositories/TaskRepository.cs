@@ -264,7 +264,8 @@ namespace SuperAppDataRepositories.Repositories
                             existingTask.EndDate = task.EndDate;
                             existingTask.OrderIndex = task.OrderIndex;
                             existingTask.DeletedAt = task.DeletedAt;
-                            existingTask.FolderWorkspaceItemId = task.FolderWorkspaceItemId;
+                            if (task.FolderWorkspaceItemId.HasValue)
+                                existingTask.FolderWorkspaceItemId = task.FolderWorkspaceItemId;
                             existingTask.UpdatedAt = DateTime.UtcNow;
 
                             upsertedTasks.Add(existingTask);
