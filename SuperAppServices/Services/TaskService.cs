@@ -132,6 +132,9 @@ namespace SuperAppServices.Services
                         CustomTabsJson = request.CustomTabsJson,
                     };
 
+                    _logger.LogInformation("TaskService.UpsertTasks - Request Id: {Id}, FolderWorkspaceItemId: {FWI}, HasValue: {HasValue}, Title: '{Title}'",
+                        request.Id, request.FolderWorkspaceItemId, request.FolderWorkspaceItemId.HasValue, request.Title);
+
                     tasks.Add(task);
                 }
 
@@ -154,6 +157,16 @@ namespace SuperAppServices.Services
 
                 _logger.LogInformation("Batch upsert completed successfully: {Count} tasks upserted",
                     tasks.Count);
+
+                // Log final FolderWorkspaceItemId values after upsert
+                if (result.Data != null)
+                {
+                    foreach (var dto in result.Data)
+                    {
+                        _logger.LogInformation("TaskService.UpsertTasks - Result Id: {Id}, FolderWorkspaceItemId: {FWI}, Title: '{Title}'",
+                            dto.Id, dto.FolderWorkspaceItemId, dto.Title);
+                    }
+                }
 
                 return result;
             }

@@ -324,6 +324,41 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
+        // ── Reset SRS state for questions ────────────────────────────────────
+
+        public async Task ResetQuestionsSrsAsync(List<int> questionIds)
+        {
+            try
+            {
+                if (!questionIds.Any()) return;
+                var questions = await _context.KQuestions
+                    .Where(q => questionIds.Contains(q.Id))
+                    .ToListAsync();
+
+                foreach (var q in questions)
+                {
+                    q.SrsInterval = 0;
+                    q.SrsEaseFactor = 2.5;
+                    q.SrsRepetitions = 0;
+                    q.SrsNextReviewAt = null;
+                }
+
+                // Delete point history for these questions
+                var history = await _context.KPointHistory
+                    .Where(p => p.QuestionId.HasValue && questionIds.Contains(p.QuestionId.Value))
+                    .ToListAsync();
+                _context.KPointHistory.RemoveRange(history);
+
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Reset SRS for {Count} questions, deleted {HistCount} point_history rows", questions.Count, history.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error resetting SRS for questions");
+                throw;
+            }
+        }
+
         // ── Get history for questions ─────────────────────────────────────────
 
         public async Task<List<KPointHistoryEntity>> GetHistoryForQuestionsAsync(int testId, int userId, List<int> questionIds)
@@ -438,6 +473,35 @@ namespace SuperAppDataRepositories.Repositories
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating test title for {TestId}", testId);
+                throw;
+            }
+        }
+
+        // ── Move test to a different node ────────────────────────────────────
+
+        public async Task<KTestEntity?> MoveTestToNodeAsync(int testId, int knowledgeId, int? nodeId)
+        {
+            try
+            {
+                var test = await _context.KTests
+                    .FirstOrDefaultAsync(t => t.Id == testId && t.KnowledgeId == knowledgeId && t.DeletedAt == null);
+                if (test == null) return null;
+
+                // Bump sort_order of existing tests in target node
+                var siblings = await _context.KTests
+                    .Where(t => t.KnowledgeId == knowledgeId && t.NodeId == nodeId && t.Id != testId && t.DeletedAt == null)
+                    .ToListAsync();
+                foreach (var s in siblings) s.SortOrder += 1;
+
+                test.NodeId    = nodeId;
+                test.SortOrder = 0;
+                test.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                return test;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error moving test {TestId} to node {NodeId}", testId, nodeId);
                 throw;
             }
         }

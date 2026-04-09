@@ -246,8 +246,8 @@ namespace SuperAppDataRepositories.Repositories
                             // UPDATE existing task
                             var existingTask = existingTasksDict[task.Id];
 
-                            _logger.LogInformation("Updating task ID: {TaskId}, Title: '{Title}'",
-                                task.Id, task.Title);
+                            _logger.LogInformation("Updating task ID: {TaskId}, Title: '{Title}', FolderWorkspaceItemId incoming: {IncomingFWI}, existing: {ExistingFWI}, HasValue: {HasValue}",
+                                task.Id, task.Title, task.FolderWorkspaceItemId, existingTask.FolderWorkspaceItemId, task.FolderWorkspaceItemId.HasValue);
 
                             existingTask.ProjectId = task.ProjectId;
                             existingTask.ParentTaskId = task.ParentTaskId;
@@ -273,7 +273,8 @@ namespace SuperAppDataRepositories.Repositories
                         else
                         {
                             // CREATE new task
-                            _logger.LogInformation("Creating task with Title: '{Title}'", task.Title);
+                            _logger.LogInformation("Creating task with Title: '{Title}', FolderWorkspaceItemId: {FWI}",
+                                task.Title, task.FolderWorkspaceItemId);
 
                             task.CreatedAt = DateTime.UtcNow;
                             task.UpdatedAt = DateTime.UtcNow;

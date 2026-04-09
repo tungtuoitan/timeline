@@ -17,6 +17,7 @@ namespace SuperAppDataRepositories.Ins
         Task ToggleQuestionsActiveAsync(List<int> questionIds);
         Task DeleteQuestionsAsync(List<int> questionIds);
         Task RestoreQuestionsAsync(List<int> questionIds);
+        Task ResetQuestionsSrsAsync(List<int> questionIds);
 
         // Point history
         Task SaveSubmissionAsync(int testId, int userId, List<(int QuestionId, string? AnswerText, int Point)> results);
@@ -26,6 +27,9 @@ namespace SuperAppDataRepositories.Ins
 
         /// <summary>Update test title</summary>
         Task<KTestEntity?> UpdateTestTitleAsync(int testId, int knowledgeId, string title);
+
+        /// <summary>Move test to a different node. Sets SortOrder=0 and bumps siblings.</summary>
+        Task<KTestEntity?> MoveTestToNodeAsync(int testId, int knowledgeId, int? nodeId);
 
         /// <summary>Set sort_order for tests in the given ordered list of IDs</summary>
         Task ReorderTestsAsync(int knowledgeId, List<int> orderedTestIds);
