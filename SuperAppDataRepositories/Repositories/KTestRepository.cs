@@ -747,5 +747,46 @@ namespace SuperAppDataRepositories.Repositories
                 throw;
             }
         }
+
+        public async Task<List<(KTestEntity Test, List<KQuestionEntity> Questions)>> GetTestsWithQuestionsAsync(int knowledgeId)
+        {
+            try
+            {
+                var tests = await _context.KTests
+                    .Where(t => t.KnowledgeId == knowledgeId && t.DeletedAt == null)
+                    .OrderBy(t => t.SortOrder)
+                    .ToListAsync();
+
+                if (!tests.Any()) return [];
+
+                var testIds = tests.Select(t => t.Id).ToList();
+                var questions = await _context.KQuestions
+                    .Where(q => testIds.Contains(q.TestId) && q.IsActive && q.DeletedAt == null)
+                    .ToListAsync();
+
+                return tests.Select(t => (t, questions.Where(q => q.TestId == t.Id).ToList())).ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting tests with questions for knowledge {KnowledgeId}", knowledgeId);
+                throw;
+            }
+        }
+
+        public async Task<List<KPointHistoryEntity>> GetAllHistoryForQuestionsAsync(List<int> questionIds)
+        {
+            try
+            {
+                return await _context.KPointHistory
+                    .Where(p => p.QuestionId != null && questionIds.Contains(p.QuestionId.Value))
+                    .OrderBy(p => p.CreatedAt)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting all history for questions");
+                throw;
+            }
+        }
     }
 }

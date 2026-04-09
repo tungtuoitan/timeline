@@ -21,6 +21,12 @@ namespace SuperAppServices.Interfaces
         /// <summary>Persist new column order for tests</summary>
         Task<ResultOptions> ReorderTestsAsync(int knowledgeId, int userId, List<int> orderedTestIds);
 
+        /// <summary>Get retention summary for all active questions in a knowledge.</summary>
+        Task<KRetentionSummaryResponse> GetRetentionSummaryAsync(int knowledgeId);
+
+        /// <summary>Get retention graph data: per-question retention at each day over the last N days.</summary>
+        Task<KRetentionGraphResponse> GetRetentionGraphAsync(int knowledgeId, int days);
+
         // ── SRS / Daily Review ──────────────────────────────────────────────
 
         /// <summary>Get the daily review queue: tests with due/new counts.</summary>

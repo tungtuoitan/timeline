@@ -58,13 +58,15 @@ namespace SuperAppServices.Services
                         .OrderBy(q => q.SortOrder)
                         .Select(q => new KTestQuestionResponse
                         {
-                            Id           = q.Id,
-                            Question     = q.Name,
-                            Answer       = q.Description,
-                            IsActive     = q.IsActive,
-                            SortOrder    = q.SortOrder,
-                            DeletedAt    = q.DeletedAt,
-                            ScoreHistory = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
+                            Id              = q.Id,
+                            Question        = q.Name,
+                            Answer          = q.Description,
+                            IsActive        = q.IsActive,
+                            SortOrder       = q.SortOrder,
+                            DeletedAt       = q.DeletedAt,
+                            ScoreHistory    = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
+                            SrsNextReviewAt = q.SrsNextReviewAt,
+                            Retention       = SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt),
                         }).ToList(),
                     CreatedAt   = test.CreatedAt,
                 });
@@ -125,6 +127,19 @@ namespace SuperAppServices.Services
                 )).ToList();
 
                 await _repo.SaveSubmissionAsync(testId, userId, results);
+
+                // Update SRS for each question (same as daily review)
+                foreach (var g in grading.Answers)
+                {
+                    if (!questionMap.TryGetValue(g.QuestionId, out var q)) continue;
+                    var current = new SpacedRepetitionEngine.SrsState(
+                        q.SrsInterval, q.SrsEaseFactor, q.SrsRepetitions, q.SrsNextReviewAt);
+                    var next = SpacedRepetitionEngine.CalculateNext(g.Point, current);
+                    await _repo.UpdateQuestionSrsAsync(g.QuestionId, next.Interval, next.EaseFactor, next.Repetitions, next.NextReviewAt);
+                }
+
+                // Check mastered/regression
+                await CheckAndUpdateTestStatusAsync(testId, userId, test.Status);
 
                 var pct = grading.MaxPoints > 0
                     ? (int)Math.Round((double)grading.TotalPoints / grading.MaxPoints * 100) : 0;
@@ -361,6 +376,149 @@ namespace SuperAppServices.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "CheckAndUpdateTestStatus failed for test {TestId}", testId);
+            }
+        }
+
+        public async Task<KRetentionSummaryResponse> GetRetentionSummaryAsync(int knowledgeId)
+        {
+            try
+            {
+                var testsWithQuestions = await _repo.GetTestsWithQuestionsAsync(knowledgeId);
+
+                var testItems = testsWithQuestions.Select(tw =>
+                {
+                    var retentions = tw.Questions
+                        .Select(q => SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt))
+                        .ToList();
+
+                    return new KRetentionTestItem
+                    {
+                        TestId        = tw.Test.Id,
+                        Title         = tw.Test.Title,
+                        Retention     = retentions.Count > 0 ? Math.Round(retentions.Average(), 1) : 0,
+                        QuestionCount = retentions.Count,
+                    };
+                }).ToList();
+
+                var totalQuestions = testItems.Sum(t => t.QuestionCount);
+                var avg = totalQuestions > 0
+                    ? Math.Round(testItems.Sum(t => t.Retention * t.QuestionCount) / totalQuestions, 1)
+                    : 0;
+
+                return new KRetentionSummaryResponse
+                {
+                    Average        = avg,
+                    TotalQuestions = totalQuestions,
+                    Tests          = testItems,
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetRetentionSummary failed for knowledge {KnowledgeId}", knowledgeId);
+                return new KRetentionSummaryResponse();
+            }
+        }
+
+        public async Task<KRetentionGraphResponse> GetRetentionGraphAsync(int knowledgeId, int days)
+        {
+            try
+            {
+                var testsWithQuestions = await _repo.GetTestsWithQuestionsAsync(knowledgeId);
+
+                var allQuestions = testsWithQuestions
+                    .SelectMany(tw => tw.Questions.Select(q => new { Question = q, tw.Test.Title }))
+                    .ToList();
+
+                if (allQuestions.Count == 0)
+                    return new KRetentionGraphResponse();
+
+                var questionIds = allQuestions.Select(x => x.Question.Id).ToList();
+                var questions = allQuestions.Select(x => new KRetentionGraphQuestion
+                {
+                    Id        = x.Question.Id,
+                    Name      = x.Question.Name,
+                    TestTitle = x.Title,
+                }).ToList();
+
+                // Fetch all point history and group by question
+                var allHistory = await _repo.GetAllHistoryForQuestionsAsync(questionIds);
+                var historyByQuestion = allHistory
+                    .Where(h => h.QuestionId.HasValue)
+                    .GroupBy(h => h.QuestionId!.Value)
+                    .ToDictionary(g => g.Key, g => g.OrderBy(h => h.CreatedAt).ToList());
+
+                // Replay SM-2 for each question → build list of (reviewDate, interval) segments
+                // A segment means: at reviewDate, retention = 100%, then decays with R = 0.9^(daysSince/interval)
+                var segmentsByQuestion = new Dictionary<int, List<(DateTime ReviewDate, int Interval)>>();
+
+                foreach (var q in allQuestions)
+                {
+                    var segments = new List<(DateTime, int)>();
+                    var srs = new SpacedRepetitionEngine.SrsState(0, 2.5, 0, null);
+
+                    if (historyByQuestion.TryGetValue(q.Question.Id, out var history))
+                    {
+                        foreach (var h in history)
+                        {
+                            srs = SpacedRepetitionEngine.CalculateNext(h.Point, srs);
+                            // reviewDate = the moment they answered
+                            segments.Add((h.CreatedAt, srs.Interval));
+                        }
+                    }
+
+                    segmentsByQuestion[q.Question.Id] = segments;
+                }
+
+                // Build daily retention values
+                var today    = DateTime.UtcNow.Date;
+                var daysList = new List<KRetentionGraphDay>();
+
+                for (var d = days - 1; d >= 0; d--)
+                {
+                    var date = d == 0 ? DateTime.UtcNow : today.AddDays(-d).AddHours(23).AddMinutes(59);
+
+                    var retentions = allQuestions.Select(x =>
+                    {
+                        var segments = segmentsByQuestion[x.Question.Id];
+                        if (segments.Count == 0) return 0.0;
+
+                        // Find the last review that happened before or at `date`
+                        (DateTime ReviewDate, int Interval)? activeSegment = null;
+                        for (var i = segments.Count - 1; i >= 0; i--)
+                        {
+                            if (segments[i].ReviewDate <= date)
+                            {
+                                activeSegment = segments[i];
+                                break;
+                            }
+                        }
+
+                        if (activeSegment == null) return 0.0; // not yet reviewed at this date
+
+                        var interval = activeSegment.Value.Interval;
+                        if (interval <= 0) interval = 1; // fail → treat as 1-day for decay
+                        var daysSince = (date - activeSegment.Value.ReviewDate).TotalDays;
+                        if (daysSince < 0) daysSince = 0;
+
+                        return Math.Round(Math.Pow(0.9, daysSince / interval) * 100, 1);
+                    }).ToList();
+
+                    var avg = retentions.Count > 0 ? Math.Round(retentions.Average(), 1) : 0;
+
+                    daysList.Add(new KRetentionGraphDay
+                    {
+                        Date       = today.AddDays(-d).ToString("yyyy-MM-dd"),
+                        Average    = avg,
+                        Retentions = retentions,
+                    });
+                }
+
+                return new KRetentionGraphResponse { Questions = questions, Days = daysList };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetRetentionGraph failed for knowledge {KnowledgeId}", knowledgeId);
+                return new KRetentionGraphResponse();
             }
         }
 
