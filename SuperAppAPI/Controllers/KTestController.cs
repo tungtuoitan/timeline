@@ -149,6 +149,43 @@ namespace SuperAppAPI.Controllers
             }
         }
 
+        // GET /api/k/{knowledgeId}/retention
+        [HttpGet("retention")]
+        public async Task<IActionResult> GetRetention(int knowledgeId)
+        {
+            try
+            {
+                var userId = UserId;
+                if (userId == null) return Unauthorized();
+                var result = await _service.GetRetentionSummaryAsync(knowledgeId);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting retention for knowledge {KnowledgeId}", knowledgeId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
+            }
+        }
+
+        // GET /api/k/{knowledgeId}/retention-graph?days=14
+        [HttpGet("retention-graph")]
+        public async Task<IActionResult> GetRetentionGraph(int knowledgeId, [FromQuery] int days = 14)
+        {
+            try
+            {
+                var userId = UserId;
+                if (userId == null) return Unauthorized();
+                if (days < 1 || days > 90) days = 14;
+                var result = await _service.GetRetentionGraphAsync(knowledgeId, days);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting retention graph for knowledge {KnowledgeId}", knowledgeId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
+            }
+        }
+
         // PUT /api/k/{knowledgeId}/tests/{testId}
         [HttpPut("tests/{testId:int}")]
         public async Task<IActionResult> UpdateTest(int knowledgeId, int testId, [FromBody] KUpdateTestRequest request)

@@ -52,6 +52,12 @@ namespace SuperAppDataRepositories.Ins
 
         /// <summary>Get last N submission groups for a test (for mastered check).</summary>
         Task<List<KSubmissionGroup>> GetRecentSubmissionGroupsAsync(int testId, int userId, int count);
+
+        /// <summary>Get all active questions grouped by test for a knowledge (for retention calculation).</summary>
+        Task<List<(KTestEntity Test, List<KQuestionEntity> Questions)>> GetTestsWithQuestionsAsync(int knowledgeId);
+
+        /// <summary>Get all point history for given question IDs, ordered by CreatedAt asc.</summary>
+        Task<List<KPointHistoryEntity>> GetAllHistoryForQuestionsAsync(List<int> questionIds);
     }
 
     /// <summary>Daily queue aggregation per test.</summary>

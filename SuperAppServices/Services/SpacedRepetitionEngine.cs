@@ -20,15 +20,21 @@ namespace SuperAppServices.Services
             var easeFactor  = current.EaseFactor;
             var repetitions = current.Repetitions;
 
-            if (score < 3)
+            if (score <= 2)
             {
-                // Failed — reset
+                // Heavy fail (0–2) — reset, requeue in 1 hour
                 repetitions = 0;
-                interval = score < 2 ? 0 : 1; // 0–1: requeue today, 2: tomorrow
+                interval = 0;
+            }
+            else if (score == 3)
+            {
+                // Medium fail — reset repetitions, review tomorrow
+                repetitions = 0;
+                interval = 1;
             }
             else
             {
-                // Passed
+                // Passed (4 = decent, 5 = good)
                 if (repetitions == 0)
                     interval = 1;
                 else if (repetitions == 1)
@@ -44,10 +50,41 @@ namespace SuperAppServices.Services
             easeFactor = Math.Max(1.3, easeFactor);
 
             var nextReview = interval == 0
-                ? DateTime.UtcNow.AddHours(1) // re-show in 1 hour for score 0–1
+                ? DateTime.UtcNow.AddHours(1) // re-show in 1 hour for score 0–2
                 : DateTime.UtcNow.AddDays(interval);
 
             return new SrsState(interval, easeFactor, repetitions, nextReview);
+        }
+
+        /// <summary>
+        /// Calculate current retention (0–100%) using forgetting curve.
+        /// R = 0.9 ^ (daysSinceLastReview / interval)
+        /// </summary>
+        public static double CalculateRetention(int interval, DateTime? nextReviewAt)
+        {
+            if (nextReviewAt == null || interval <= 0) return 0;
+
+            var lastReview = nextReviewAt.Value.AddDays(-interval);
+            var daysSince  = (DateTime.UtcNow - lastReview).TotalDays;
+            if (daysSince < 0) daysSince = 0;
+
+            return Math.Round(Math.Pow(0.9, daysSince / interval) * 100, 1);
+        }
+
+        /// <summary>
+        /// Calculate retention at a specific date (0–100%).
+        /// </summary>
+        public static double CalculateRetentionAtDate(int interval, DateTime? nextReviewAt, DateTime atDate)
+        {
+            if (nextReviewAt == null || interval <= 0) return 0;
+
+            var lastReview = nextReviewAt.Value.AddDays(-interval);
+            var daysSince  = (atDate - lastReview).TotalDays;
+
+            // Before last review: approximate as freshly reviewed (previous cycle)
+            if (daysSince < 0) return 100;
+
+            return Math.Round(Math.Pow(0.9, daysSince / interval) * 100, 1);
         }
 
         /// <summary>
