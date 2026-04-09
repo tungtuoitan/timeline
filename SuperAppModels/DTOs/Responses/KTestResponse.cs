@@ -46,6 +46,10 @@ namespace SuperAppModels.DTOs.Responses
         public int    SortOrder  { get; set; }
         /// <summary>Last ≤10 points (0–5) for this question, oldest→newest</summary>
         public List<int> ScoreHistory { get; set; } = [];
+        /// <summary>SRS next review date (null = never reviewed)</summary>
+        public DateTime? SrsNextReviewAt { get; set; }
+        /// <summary>Current retention 0–100% (forgetting curve)</summary>
+        public double Retention { get; set; }
         /// <summary>Non-null when question has been soft-deleted</summary>
         public DateTime? DeletedAt { get; set; }
     }
