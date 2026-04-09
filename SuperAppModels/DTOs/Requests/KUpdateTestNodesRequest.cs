@@ -29,6 +29,10 @@ namespace SuperAppModels.DTOs.Requests
         /// <summary>Existing questions to update name/description</summary>
         [JsonPropertyName("updateQuestions")]
         public List<KUpdateQuestionItem> UpdateQuestions { get; set; } = [];
+
+        /// <summary>k.question IDs to reset SRS state (interval=0, ease=2.5, rep=0, nextReview=null)</summary>
+        [JsonPropertyName("resetSrsQuestionIds")]
+        public List<int> ResetSrsQuestionIds { get; set; } = [];
     }
 
     public class KUpdateQuestionItem

@@ -177,9 +177,22 @@ namespace SuperAppServices.Services
         {
             try
             {
-                var updated = await _repo.UpdateTestTitleAsync(testId, knowledgeId, request.Title);
-                if (updated == null) return Fail(404, "Test not found");
-                return Ok(new { updated.Id, updated.Title });
+                // Move to different node if nodeId provided
+                if (request.NodeId.HasValue)
+                {
+                    var nodeId = request.NodeId.Value == -1 ? (int?)null : request.NodeId.Value;
+                    var moved = await _repo.MoveTestToNodeAsync(testId, knowledgeId, nodeId);
+                    if (moved == null) return Fail(404, "Test not found");
+                }
+
+                // Update title if provided
+                if (!string.IsNullOrWhiteSpace(request.Title))
+                {
+                    var updated = await _repo.UpdateTestTitleAsync(testId, knowledgeId, request.Title);
+                    if (updated == null) return Fail(404, "Test not found");
+                }
+
+                return Ok(new { testId });
             }
             catch (Exception ex) { _logger.LogError(ex, "UpdateTest failed for {TestId}", testId); return Fail(500, "Failed to update test"); }
         }
@@ -205,6 +218,9 @@ namespace SuperAppServices.Services
 
                 if (request.RestoreQuestionIds.Count > 0)
                     await _repo.RestoreQuestionsAsync(request.RestoreQuestionIds);
+
+                if (request.ResetSrsQuestionIds.Count > 0)
+                    await _repo.ResetQuestionsSrsAsync(request.ResetSrsQuestionIds);
 
                 return Ok(new { testId });
             }

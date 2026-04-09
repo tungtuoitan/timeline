@@ -22,19 +22,25 @@ namespace SuperAppServices.Services
 
             if (score <= 2)
             {
-                // Heavy fail (0–2) — reset, requeue in 1 hour
+                // Heavy fail (0–2) — reset, requeue in 30 minutes
                 repetitions = 0;
                 interval = 0;
             }
             else if (score == 3)
             {
-                // Medium fail — reset repetitions, review tomorrow
+                // Medium fail — reset, requeue in 2 hours
                 repetitions = 0;
-                interval = 1;
+                interval = 0;
+            }
+            else if (score == 4)
+            {
+                // Near-pass — shrink interval by 20%, minimum 1 day
+                interval = Math.Max(1, (int)Math.Round(interval * 0.8));
+                // repetitions unchanged — not reset, not incremented
             }
             else
             {
-                // Passed (4 = decent, 5 = good)
+                // Perfect (5) — interval grows per SM-2
                 if (repetitions == 0)
                     interval = 1;
                 else if (repetitions == 1)
@@ -49,9 +55,13 @@ namespace SuperAppServices.Services
             easeFactor += 0.1 - (5 - score) * (0.08 + (5 - score) * 0.02);
             easeFactor = Math.Max(1.3, easeFactor);
 
-            var nextReview = interval == 0
-                ? DateTime.UtcNow.AddHours(1) // re-show in 1 hour for score 0–2
-                : DateTime.UtcNow.AddDays(interval);
+            DateTime nextReview;
+            if (score <= 2)
+                nextReview = DateTime.UtcNow.AddMinutes(30);
+            else if (score == 3)
+                nextReview = DateTime.UtcNow.AddHours(2);
+            else
+                nextReview = DateTime.UtcNow.AddDays(interval);
 
             return new SrsState(interval, easeFactor, repetitions, nextReview);
         }
@@ -89,22 +99,22 @@ namespace SuperAppServices.Services
 
         /// <summary>
         /// Check if a test should be auto-promoted to mastered.
-        /// Criteria: last 5 sessions all have avgPoint > 4.5 AND avgSpeedRatio < 1.
+        /// Criteria: last 5 sessions all have avgPoint > 4.5.
         /// </summary>
         public static bool ShouldPromoteToMastered(List<(double AvgPoint, double AvgSpeedRatio)> recentSessions)
         {
             if (recentSessions.Count < 5) return false;
-            return recentSessions.All(s => s.AvgPoint > 4.5 && s.AvgSpeedRatio < 1.0);
+            return recentSessions.All(s => s.AvgPoint > 4.5);
         }
 
         /// <summary>
         /// Check if a mastered test should regress to learning.
-        /// Criteria: any session does NOT meet point > 4.5 AND speedRatio < 1.
+        /// Criteria: any session in last 5 has avgPoint <= 4.5.
         /// </summary>
         public static bool ShouldRegressToLearning(List<(double AvgPoint, double AvgSpeedRatio)> recentSessions)
         {
             if (recentSessions.Count < 5) return true; // not enough data → regress
-            return !recentSessions.All(s => s.AvgPoint > 4.5 && s.AvgSpeedRatio < 1.0);
+            return !recentSessions.All(s => s.AvgPoint > 4.5);
         }
     }
 }
