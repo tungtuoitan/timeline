@@ -18,6 +18,8 @@ namespace SuperAppDataRepositories.Ins
         Task DeleteQuestionsAsync(List<int> questionIds);
         Task RestoreQuestionsAsync(List<int> questionIds);
         Task ResetQuestionsSrsAsync(List<int> questionIds);
+        /// <summary>Move questions to a different test by updating their TestId (preserves SRS/history).</summary>
+        Task MoveQuestionsAsync(List<KMoveQuestionItem> items);
 
         // Point history
         Task SaveSubmissionAsync(int testId, int userId, List<(int QuestionId, string? AnswerText, int Point)> results);
@@ -53,6 +55,12 @@ namespace SuperAppDataRepositories.Ins
 
         /// <summary>Update test status (inactive/learning/mastered).</summary>
         Task UpdateTestStatusAsync(int testId, string status);
+
+        /// <summary>Soft-delete a test (sets DeletedAt).</summary>
+        Task SoftDeleteTestAsync(int testId, int knowledgeId);
+
+        /// <summary>Restore a soft-deleted test (clears DeletedAt).</summary>
+        Task RestoreTestAsync(int testId, int knowledgeId);
 
         /// <summary>Get last N submission groups for a test (for mastered check).</summary>
         Task<List<KSubmissionGroup>> GetRecentSubmissionGroupsAsync(int testId, int userId, int count);

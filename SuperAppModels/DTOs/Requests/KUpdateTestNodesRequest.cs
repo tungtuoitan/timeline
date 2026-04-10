@@ -33,6 +33,10 @@ namespace SuperAppModels.DTOs.Requests
         /// <summary>k.question IDs to reset SRS state (interval=0, ease=2.5, rep=0, nextReview=null)</summary>
         [JsonPropertyName("resetSrsQuestionIds")]
         public List<int> ResetSrsQuestionIds { get; set; } = [];
+
+        /// <summary>Move questions to a different test (updates test_id, preserves SRS/history)</summary>
+        [JsonPropertyName("moveQuestions")]
+        public List<KMoveQuestionItem> MoveQuestions { get; set; } = [];
     }
 
     public class KUpdateQuestionItem
@@ -54,5 +58,14 @@ namespace SuperAppModels.DTOs.Requests
 
         [JsonPropertyName("description")]
         public string? Description { get; set; }
+    }
+
+    public class KMoveQuestionItem
+    {
+        [JsonPropertyName("id")]
+        public int Id { get; set; }
+
+        [JsonPropertyName("targetTestId")]
+        public int TargetTestId { get; set; }
     }
 }

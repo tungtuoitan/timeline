@@ -43,5 +43,11 @@ namespace SuperAppServices.Interfaces
 
         /// <summary>Update test status (inactive ↔ learning, manually).</summary>
         Task<ResultOptions> UpdateTestStatusAsync(int testId, int knowledgeId, int userId, string status);
+
+        /// <summary>Soft-delete a test (sets deleted_at).</summary>
+        Task<ResultOptions> DeleteTestAsync(int testId, int knowledgeId, int userId);
+
+        /// <summary>Restore a soft-deleted test (clears deleted_at).</summary>
+        Task<ResultOptions> RestoreTestAsync(int testId, int knowledgeId, int userId);
     }
 }

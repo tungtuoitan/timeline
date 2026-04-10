@@ -222,6 +222,9 @@ namespace SuperAppServices.Services
                 if (request.ResetSrsQuestionIds.Count > 0)
                     await _repo.ResetQuestionsSrsAsync(request.ResetSrsQuestionIds);
 
+                if (request.MoveQuestions.Count > 0)
+                    await _repo.MoveQuestionsAsync(request.MoveQuestions);
+
                 return Ok(new { testId });
             }
             catch (Exception ex) { _logger.LogError(ex, "UpdateQuestions failed for {TestId}", testId); return Fail(500, "Failed to update questions"); }
@@ -374,6 +377,28 @@ namespace SuperAppServices.Services
                 return Ok(new { testId, status });
             }
             catch (Exception ex) { _logger.LogError(ex, "UpdateTestStatus failed for {TestId}", testId); return Fail(500, "Failed"); }
+        }
+
+        public async Task<ResultOptions> DeleteTestAsync(int testId, int knowledgeId, int userId)
+        {
+            try
+            {
+                var test = await _repo.GetTestByIdAsync(testId, knowledgeId);
+                if (test == null) return Fail(404, "Test not found");
+                await _repo.SoftDeleteTestAsync(testId, knowledgeId);
+                return Ok(new { testId });
+            }
+            catch (Exception ex) { _logger.LogError(ex, "DeleteTest failed for {TestId}", testId); return Fail(500, "Failed"); }
+        }
+
+        public async Task<ResultOptions> RestoreTestAsync(int testId, int knowledgeId, int userId)
+        {
+            try
+            {
+                await _repo.RestoreTestAsync(testId, knowledgeId);
+                return Ok(new { testId });
+            }
+            catch (Exception ex) { _logger.LogError(ex, "RestoreTest failed for {TestId}", testId); return Fail(500, "Failed"); }
         }
 
         /// <summary>Auto-promote learning→mastered or regress mastered→learning.</summary>

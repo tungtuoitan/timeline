@@ -26,7 +26,7 @@ namespace SuperAppDataRepositories.Repositories
             try
             {
                 var testQuery = _context.KTests
-                    .Where(t => t.KnowledgeId == knowledgeId && t.DeletedAt == null);
+                    .Where(t => t.KnowledgeId == knowledgeId);
 
                 if (nodeId.HasValue)
                     testQuery = testQuery.Where(t => t.NodeId == nodeId.Value);
@@ -111,6 +111,8 @@ namespace SuperAppDataRepositories.Repositories
                         LastSubmittedAt = rows.Any() ? rows.Max(r => r.CreatedAt) : null,
                         CreatedAt       = t.CreatedAt,
                         SortOrder       = t.SortOrder,
+                        DeletedAt       = t.DeletedAt,
+                        NodeId          = t.NodeId,
                         ScoreHistory    = scoreHistoryByTest.TryGetValue(t.Id, out var hist) ? hist : [],
                     };
                 }).ToList();
@@ -355,6 +357,33 @@ namespace SuperAppDataRepositories.Repositories
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error resetting SRS for questions");
+                throw;
+            }
+        }
+
+        // ── Move questions to a different test (preserves SRS/history) ────────
+
+        public async Task MoveQuestionsAsync(List<KMoveQuestionItem> items)
+        {
+            try
+            {
+                if (!items.Any()) return;
+                var questionIds = items.Select(i => i.Id).ToList();
+                var questions   = await _context.KQuestions
+                    .Where(q => questionIds.Contains(q.Id))
+                    .ToListAsync();
+
+                var lookup = items.ToDictionary(i => i.Id, i => i.TargetTestId);
+                foreach (var q in questions)
+                    if (lookup.TryGetValue(q.Id, out var targetId))
+                        q.TestId = targetId;
+
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Moved {Count} questions to new tests", questions.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error moving questions");
                 throw;
             }
         }
@@ -752,6 +781,40 @@ namespace SuperAppDataRepositories.Repositories
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating test status for {TestId}", testId);
+                throw;
+            }
+        }
+
+        public async Task SoftDeleteTestAsync(int testId, int knowledgeId)
+        {
+            try
+            {
+                var test = await _context.KTests.FirstOrDefaultAsync(t => t.Id == testId && t.KnowledgeId == knowledgeId);
+                if (test == null) return;
+                test.DeletedAt = DateTime.UtcNow;
+                test.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error soft-deleting test {TestId}", testId);
+                throw;
+            }
+        }
+
+        public async Task RestoreTestAsync(int testId, int knowledgeId)
+        {
+            try
+            {
+                var test = await _context.KTests.FirstOrDefaultAsync(t => t.Id == testId && t.KnowledgeId == knowledgeId);
+                if (test == null) return;
+                test.DeletedAt = null;
+                test.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error restoring test {TestId}", testId);
                 throw;
             }
         }
