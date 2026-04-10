@@ -299,5 +299,41 @@ namespace SuperAppAPI.Controllers
                 return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
             }
         }
+
+        // DELETE /api/k/{knowledgeId}/tests/{testId}
+        [HttpDelete("tests/{testId:int}")]
+        public async Task<IActionResult> DeleteTest(int knowledgeId, int testId)
+        {
+            try
+            {
+                var userId = UserId;
+                if (userId == null) return Unauthorized();
+                var result = await _service.DeleteTestAsync(testId, knowledgeId, userId.Value);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting test {TestId}", testId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
+            }
+        }
+
+        // PUT /api/k/{knowledgeId}/tests/{testId}/restore
+        [HttpPut("tests/{testId:int}/restore")]
+        public async Task<IActionResult> RestoreTest(int knowledgeId, int testId)
+        {
+            try
+            {
+                var userId = UserId;
+                if (userId == null) return Unauthorized();
+                var result = await _service.RestoreTestAsync(testId, knowledgeId, userId.Value);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error restoring test {TestId}", testId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
+            }
+        }
     }
 }

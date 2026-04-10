@@ -18,6 +18,8 @@ namespace SuperAppModels.DTOs.Responses
         public DateTime? LastSubmittedAt { get; set; }
         public DateTime? CreatedAt { get; set; }
         public int SortOrder { get; set; }
+        public DateTime? DeletedAt { get; set; }
+        public int? NodeId { get; set; }
         /// <summary>Last 10 submission percentages (oldest→newest) for sparkline chart</summary>
         public List<int> ScoreHistory { get; set; } = [];
     }
