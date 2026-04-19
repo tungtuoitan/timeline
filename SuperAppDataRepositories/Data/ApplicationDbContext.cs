@@ -55,6 +55,12 @@ namespace SuperAppDataRepositories.Data
         public DbSet<LifeLogTrack> LifeLogTracks { get; set; }
         public DbSet<LifeLogLog> LifeLogLogs { get; set; }
 
+        // Wiki Tables (wiki schema)
+        public DbSet<WikiKeyword> WikiKeywords { get; set; }
+        public DbSet<WikiKeywordSynonym> WikiKeywordSynonyms { get; set; }
+        public DbSet<WikiInfo> WikiInfos { get; set; }
+        public DbSet<WikiInfoKeyword> WikiInfoKeywords { get; set; }
+
         // ⚠️ REMOVED - Tables không tồn tại trong schema mới:
         // - Tag/EntityType/EntityTag → Sẽ tạo models mới cho dbo.hashtags, dbo.entities, dbo.entity_hashtags
         // - WorkspaceMember, WorkspaceRelationshipType → Dropped
