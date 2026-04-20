@@ -1,5 +1,8 @@
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using OpenAI;
+using OpenAI.Chat;
 using SuperAppModels.Models;
 using SuperAppServices.Interfaces;
 
@@ -7,7 +10,8 @@ namespace SuperAppServices.Services
 {
     public class KGradingService : IKGradingService
     {
-        private readonly IClaudibleService _ai;
+        private readonly IClaudibleService _primary;
+        private readonly ChatClient _fallback;
         private readonly ILogger<KGradingService> _logger;
 
         private const string SystemPrompt = @"Bạn là giáo viên chấm điểm. Nhiệm vụ: chấm điểm câu trả lời của học viên theo thang 0–5 và đưa ra nhận xét ngắn gọn.
@@ -25,10 +29,18 @@ Trả về JSON array (không có markdown):
 
 Lưu ý: comment phải ngắn gọn, tối đa 15 từ, bằng tiếng Việt hoặc tiếng Anh tùy ngôn ngữ câu hỏi.";
 
-        public KGradingService(IClaudibleService ai, ILogger<KGradingService> logger)
+        public KGradingService(IClaudibleService primary, IConfiguration config, ILogger<KGradingService> logger)
         {
-            _ai     = ai     ?? throw new ArgumentNullException(nameof(ai));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _primary = primary ?? throw new ArgumentNullException(nameof(primary));
+            _logger  = logger;
+
+            var apiKey        = config["OpenRouter:ApiKey"]       ?? throw new InvalidOperationException("OpenRouter:ApiKey is not configured.");
+            var baseUrl       = config["OpenRouter:BaseUrl"]       ?? "https://openrouter.ai/api/v1";
+            var fallbackModel = config["OpenRouter:FallbackModel"] ?? throw new InvalidOperationException("OpenRouter:FallbackModel is not configured.");
+
+            var options    = new OpenAIClientOptions { Endpoint = new Uri(baseUrl) };
+            var credential = new System.ClientModel.ApiKeyCredential(apiKey);
+            _fallback = new OpenAIClient(credential, options).GetChatClient(fallbackModel);
         }
 
         public async Task<KGradingResult> GradeSubmissionAsync(
@@ -40,29 +52,41 @@ Lưu ý: comment phải ngắn gọn, tối đa 15 từ, bằng tiếng Việt h
             var answered = submissions.Where(s => !string.IsNullOrWhiteSpace(s.AnswerText)).ToList();
 
             var results = new List<KGradedAnswer>();
-
             results.AddRange(skipped.Select(s => new KGradedAnswer(s.QuestionId, 0)));
 
             if (answered.Any())
             {
+                var questionMap = questions.ToDictionary(q => q.Id);
+                var prompt      = BuildGradingPrompt(testTitle, answered, questionMap);
+
+                _logger.LogDebug("[KGrading] Prompt:\n{Prompt}", prompt);
+
+                string response;
                 try
                 {
-                    var questionMap = questions.ToDictionary(q => q.Id);
-                    var prompt      = BuildGradingPrompt(testTitle, answered, questionMap);
-                    var response    = await _ai.ChatAsync(prompt, SystemPrompt);
-                    var graded      = ParseAiResponse(response);
-
-                    var gradedMap = graded.ToDictionary(g => g.QuestionId);
-                    results.AddRange(answered.Select(s =>
-                        gradedMap.TryGetValue(s.QuestionId, out var g)
-                            ? g
-                            : new KGradedAnswer(s.QuestionId, 0)));
+                    _logger.LogDebug("[KGrading] Calling primary (Claudible)");
+                    response = await _primary.ChatAsync(prompt, SystemPrompt);
+                    _logger.LogDebug("[KGrading] Primary response:\n{Response}", response);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "AI grading failed — defaulting all answered to 0");
-                    results.AddRange(answered.Select(s => new KGradedAnswer(s.QuestionId, 0)));
+                    _logger.LogWarning(ex, "[KGrading] Primary failed, trying fallback (OpenRouter Qwen)");
+                    var messages = new List<ChatMessage>
+                    {
+                        new SystemChatMessage(SystemPrompt),
+                        new UserChatMessage(prompt),
+                    };
+                    var res = await _fallback.CompleteChatAsync(messages);
+                    response = res.Value.Content[0].Text;
+                    _logger.LogDebug("[KGrading] Fallback response:\n{Response}", response);
                 }
+
+                var graded    = ParseAiResponse(response);
+                var gradedMap = graded.ToDictionary(g => g.QuestionId);
+                results.AddRange(answered.Select(s =>
+                    gradedMap.TryGetValue(s.QuestionId, out var g)
+                        ? g
+                        : new KGradedAnswer(s.QuestionId, 0)));
             }
 
             var total = results.Sum(r => r.Point);
