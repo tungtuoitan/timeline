@@ -21,5 +21,9 @@ namespace SuperAppModels.DTOs.Requests
         /// <summary>Time in milliseconds the user took to answer.</summary>
         [JsonPropertyName("responseTimeMs")]
         public int? ResponseTimeMs { get; set; }
+
+        /// <summary>Self-graded score (0=Quên, 3=Ổn, 5=Nhớ). When provided, AI grading is skipped.</summary>
+        [JsonPropertyName("selfScore")]
+        public int? SelfScore { get; set; }
     }
 }

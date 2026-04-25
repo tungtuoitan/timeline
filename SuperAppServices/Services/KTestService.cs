@@ -312,50 +312,62 @@ namespace SuperAppServices.Services
                 var questions   = await _repo.GetQuestionsByIdsAsync(questionIds);
                 var questionMap = questions.ToDictionary(q => q.Id);
 
-                // AI grading
-                var submissions = request.Answers.Select(a => (a.QuestionId, a.AnswerText)).ToList();
-                var grading     = await _grading.GradeSubmissionAsync(test.Title, submissions, questions);
+                // Use self-scores when provided (self-graded session), otherwise fall back to AI grading
+                List<(int QuestionId, string? AnswerText, int Point, int? ResponseTimeMs)> results;
+                bool isSelfGraded = request.Answers.All(a => a.SelfScore.HasValue);
 
-                // Save submission with response times
-                var results = grading.Answers.Select(g =>
+                if (isSelfGraded)
                 {
-                    var answer = request.Answers.FirstOrDefault(a => a.QuestionId == g.QuestionId);
-                    return (g.QuestionId, answer?.AnswerText, g.Point, answer?.ResponseTimeMs);
-                }).ToList();
+                    results = request.Answers
+                        .Select(a => (a.QuestionId, a.AnswerText, a.SelfScore!.Value, a.ResponseTimeMs))
+                        .ToList();
+                }
+                else
+                {
+                    var submissions = request.Answers.Select(a => (a.QuestionId, a.AnswerText)).ToList();
+                    var grading     = await _grading.GradeSubmissionAsync(test.Title, submissions, questions);
+                    results = grading.Answers.Select(g =>
+                    {
+                        var answer = request.Answers.FirstOrDefault(a => a.QuestionId == g.QuestionId);
+                        return (g.QuestionId, answer?.AnswerText, g.Point, answer?.ResponseTimeMs);
+                    }).ToList();
+                }
+
                 await _repo.SaveDailySubmissionAsync(testId, userId, results);
 
                 // Update SRS for each question
-                foreach (var g in grading.Answers)
+                foreach (var (questionId, _, point, _) in results)
                 {
-                    if (!questionMap.TryGetValue(g.QuestionId, out var q)) continue;
+                    if (!questionMap.TryGetValue(questionId, out var q)) continue;
                     var current = new SpacedRepetitionEngine.SrsState(
                         q.SrsInterval, q.SrsEaseFactor, q.SrsRepetitions, q.SrsNextReviewAt);
-                    var next = SpacedRepetitionEngine.CalculateNext(g.Point, current);
-                    await _repo.UpdateQuestionSrsAsync(g.QuestionId, next.Interval, next.EaseFactor, next.Repetitions, next.NextReviewAt);
+                    var next = SpacedRepetitionEngine.CalculateNext(point, current);
+                    await _repo.UpdateQuestionSrsAsync(questionId, next.Interval, next.EaseFactor, next.Repetitions, next.NextReviewAt);
                 }
 
                 // Check mastered/regression
                 await CheckAndUpdateTestStatusAsync(testId, userId, test.Status);
 
-                var pct = grading.MaxPoints > 0
-                    ? (int)Math.Round((double)grading.TotalPoints / grading.MaxPoints * 100) : 0;
+                int totalPoints = results.Sum(r => r.Point);
+                int maxPoints   = results.Count * 5;
+                int pct         = maxPoints > 0 ? (int)Math.Round((double)totalPoints / maxPoints * 100) : 0;
 
                 return Ok(new KSubmitAnswersResultResponse
                 {
-                    TotalPoints = grading.TotalPoints,
-                    MaxPoints   = grading.MaxPoints,
+                    TotalPoints = totalPoints,
+                    MaxPoints   = maxPoints,
                     Pct         = pct,
-                    Grades      = grading.Answers.Select(g =>
+                    Grades      = results.Select(r =>
                     {
-                        questionMap.TryGetValue(g.QuestionId, out var q);
+                        questionMap.TryGetValue(r.QuestionId, out var q);
                         return new KQuestionGradeResponse
                         {
-                            QuestionId     = g.QuestionId,
+                            QuestionId     = r.QuestionId,
                             Question       = q?.Name ?? "",
-                            AnswerText     = request.Answers.FirstOrDefault(a => a.QuestionId == g.QuestionId)?.AnswerText,
+                            AnswerText     = r.AnswerText,
                             ExpectedAnswer = q?.Description,
-                            Point          = g.Point,
-                            Comment        = g.Comment,
+                            Point          = r.Point,
+                            Comment        = null,
                         };
                     }).ToList(),
                 });
