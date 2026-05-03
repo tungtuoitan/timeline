@@ -23,6 +23,9 @@ namespace SuperAppServices.Interfaces
         /// <summary>Move a question to a different node (or make it orphan when targetNodeId is null).</summary>
         Task<ResultOptions> MoveQuestionAsync(int questionId, int? targetNodeId, int userId);
 
+        /// <summary>Mark a question as draft and clear all its review history (point_history + SRS reset).</summary>
+        Task<ResultOptions> MarkQuestionDraftAsync(int questionId);
+
         /// <summary>Submit answers with AI grading and SRS update.</summary>
         Task<ResultOptions> SubmitAnswersAsync(int knowledgeId, int userId, KSubmitAnswersRequest request);
 

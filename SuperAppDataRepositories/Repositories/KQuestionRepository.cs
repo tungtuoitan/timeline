@@ -242,6 +242,37 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
+        // ── Mark single question as draft + clear all review history ─────────
+
+        public async Task MarkQuestionDraftAsync(int questionId)
+        {
+            try
+            {
+                var question = await _context.KQuestions.FindAsync(questionId);
+                if (question == null) return;
+
+                question.IsDraft          = true;
+                question.SrsInterval      = 0;
+                question.SrsEaseFactor    = 2.5;
+                question.SrsRepetitions   = 0;
+                question.SrsNextReviewAt  = null;
+                question.UpdatedAt        = DateTime.UtcNow;
+
+                var history = await _context.KPointHistory
+                    .Where(p => p.QuestionId == questionId)
+                    .ToListAsync();
+                _context.KPointHistory.RemoveRange(history);
+
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Marked question {QuestionId} as draft, deleted {Count} history rows", questionId, history.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error marking question {QuestionId} as draft", questionId);
+                throw;
+            }
+        }
+
         // ── Toggle draft flag ─────────────────────────────────────────────────
 
         public async Task ToggleQuestionsDraftAsync(List<int> questionIds)

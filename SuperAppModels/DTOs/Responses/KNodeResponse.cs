@@ -23,5 +23,8 @@ namespace SuperAppModels.DTOs.Responses
         public DateTime? CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public DateTime? DeletedAt { get; set; }
+
+        /// <summary>Reviewable question count: due (srsNextReviewAt &lt;= now) + new (srsNextReviewAt = null). Mirrors qFlow canReview logic.</summary>
+        public int DueSrsCount { get; set; }
     }
 }

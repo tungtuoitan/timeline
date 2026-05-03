@@ -114,6 +114,24 @@ namespace SuperAppAPI.Controllers
             }
         }
 
+        // PATCH /api/k/{knowledgeId}/questions/{questionId}/mark-draft
+        [HttpPatch("questions/{questionId:int}/mark-draft")]
+        public async Task<IActionResult> MarkQuestionDraft(int knowledgeId, int questionId)
+        {
+            try
+            {
+                var userId = UserId;
+                if (userId == null) return Unauthorized();
+                var result = await _service.MarkQuestionDraftAsync(questionId);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error marking question {QuestionId} as draft", questionId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
+            }
+        }
+
         // GET /api/k/{knowledgeId}/daily-queue
         [HttpGet("daily-queue")]
         public async Task<IActionResult> GetDailyQueue(int knowledgeId)

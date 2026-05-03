@@ -12,5 +12,8 @@ namespace SuperAppModels.Models
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public List<KNodeEntity> Nodes { get; set; } = new();
+
+        /// <summary>nodeId → count of questions with srsNextReviewAt &lt;= now</summary>
+        public Dictionary<int, int> NodeDueCounts { get; set; } = new();
     }
 }

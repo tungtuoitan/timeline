@@ -46,6 +46,22 @@ namespace SuperAppDataRepositories.Repositories
 
                 _logger.LogInformation("Found {Count} nodes in knowledge {KnowledgeId}", nodes.Count, knowledgeId);
 
+                // Per-node reviewable count: dueCount + newCount (matches qFlow canReview logic)
+                // due  = srsNextReviewAt != null && srsNextReviewAt <= now
+                // new  = srsNextReviewAt == null (never reviewed)
+                var now = DateTime.Now;
+                var nodeIds = nodes.Select(n => n.Id).ToHashSet();
+                var dueCounts = await _context.KQuestions
+                    .Where(q => q.NodeId.HasValue
+                             && nodeIds.Contains(q.NodeId.Value)
+                             && q.IsActive
+                             && q.DeletedAt == null
+                             && !q.IsDraft
+                             && (q.SrsNextReviewAt == null || q.SrsNextReviewAt <= now))
+                    .GroupBy(q => q.NodeId!.Value)
+                    .Select(g => new { NodeId = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.NodeId, x => x.Count);
+
                 return new KKnowledgeWithTree
                 {
                     KnowledgeId = knowledge.Id,
@@ -54,7 +70,8 @@ namespace SuperAppDataRepositories.Repositories
                     UserId = knowledge.UserId,
                     CreatedAt = knowledge.CreatedAt ?? DateTime.UtcNow,
                     UpdatedAt = knowledge.UpdatedAt,
-                    Nodes = nodes
+                    Nodes = nodes,
+                    NodeDueCounts = dueCounts
                 };
             }
             catch (Exception ex)

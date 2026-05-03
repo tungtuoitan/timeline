@@ -162,6 +162,20 @@ namespace SuperAppServices.Services
             }
         }
 
+        public async Task<ResultOptions> MarkQuestionDraftAsync(int questionId)
+        {
+            try
+            {
+                await _repo.MarkQuestionDraftAsync(questionId);
+                return Ok(new { questionId });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "MarkQuestionDraft failed for question {QuestionId}", questionId);
+                return Fail(500, "Failed to mark question as draft");
+            }
+        }
+
         public async Task<ResultOptions> UpdateQuestionsAsync(int knowledgeId, int userId, KUpdateQuestionsRequest request)
         {
             try

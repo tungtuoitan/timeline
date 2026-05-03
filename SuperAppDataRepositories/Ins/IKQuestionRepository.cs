@@ -17,6 +17,7 @@ namespace SuperAppDataRepositories.Ins
         Task RestoreQuestionsAsync(List<int> questionIds);
         Task ResetQuestionsSrsAsync(List<int> questionIds);
         Task ToggleQuestionsDraftAsync(List<int> questionIds);
+        Task MarkQuestionDraftAsync(int questionId);
         Task MoveQuestionAsync(int questionId, int? targetNodeId);
 
         // ── Point history ──────────────────────────────────────────────────────
