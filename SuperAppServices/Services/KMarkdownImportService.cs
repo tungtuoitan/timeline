@@ -299,50 +299,37 @@ namespace SuperAppServices.Services
         }
 
         // ── ImportTestMarkdown ───────────────────────────────────────────────
+        // Tests no longer exist — questions are created directly under the knowledge.
 
         public async Task<int> ImportTestMarkdownAsync(
             int knowledgeId, int userId, KImportTestMarkdownRequest request)
         {
             _logger.LogInformation(
-                "ImportTestMarkdown — knowledgeId={KId}, parentNodeId={ParentId}, tests={Tests}, orphans={Orphans}",
-                knowledgeId, request.ParentNodeId, request.Tests.Count, request.OrphanQuestions.Count);
+                "ImportTestMarkdown — knowledgeId={KId}, tests={Tests}, orphans={Orphans}",
+                knowledgeId, request.Tests.Count, request.OrphanQuestions.Count);
 
             var strategy = _context.Database.CreateExecutionStrategy();
-            int testsCreated = 0;
+            int questionsCreated = 0;
 
             await strategy.ExecuteAsync(async () =>
             {
                 using var tx = await _context.Database.BeginTransactionAsync();
                 try
                 {
-                    // ── Tests ────────────────────────────────────────────────
+                    var nodeId = request.ParentNodeId;
+
+                    // Flatten all test groups into questions under the node
                     foreach (var testItem in request.Tests)
                     {
-                        var test = new KTestEntity
-                        {
-                            KnowledgeId = knowledgeId,
-                            UserId      = userId,
-                            NodeId      = request.ParentNodeId,
-                            Title       = testItem.Name,
-                            Level       = 1,
-                            Mode        = "standard",
-                            Status      = "active",
-                            CreatedAt   = DateTime.UtcNow,
-                        };
-                        _context.KTests.Add(test);
-                        await _context.SaveChangesAsync();
-
-                        await CreateQuestionsAsync(testItem.Questions, test.Id);
-                        testsCreated++;
+                        var ids = await CreateQuestionsForNodeAsync(testItem.Questions, nodeId);
+                        questionsCreated += ids.Count;
                     }
 
-                    // ── Orphan questions → no longer a concept; skip ──────────
-
-                    // ── Add questions into existing tests ────────────────────
-                    foreach (var addition in request.ExistingTestAdditions)
+                    // Orphan questions go directly under the node
+                    if (request.OrphanQuestions.Count > 0)
                     {
-                        if (addition.Questions.Count == 0) continue;
-                        await CreateQuestionsAsync(addition.Questions, addition.TestId);
+                        var ids = await CreateQuestionsForNodeAsync(request.OrphanQuestions, nodeId);
+                        questionsCreated += ids.Count;
                     }
 
                     await tx.CommitAsync();
@@ -355,25 +342,31 @@ namespace SuperAppServices.Services
             });
 
             _logger.LogInformation(
-                "ImportTestMarkdown complete — {Tests} tests created in knowledge {KId}", testsCreated, knowledgeId);
-            return testsCreated;
+                "ImportTestMarkdown complete — {Count} questions created in knowledge {KId}", questionsCreated, knowledgeId);
+            return questionsCreated;
         }
 
-        /// <summary>Creates k.question rows for a test and returns their IDs.</summary>
-        private async Task<List<int>> CreateQuestionsAsync(
-            List<KMdQuestionItem> questions, int testId)
+        /// <summary>Creates k.question rows directly under a node and returns their IDs.</summary>
+        private async Task<List<int>> CreateQuestionsForNodeAsync(
+            List<KMdQuestionItem> questions, int nodeId)
         {
             var ids = new List<int>();
+
+            var maxOrder = await _context.KQuestions
+                .Where(q => q.NodeId == nodeId)
+                .Select(q => (int?)q.SortOrder)
+                .MaxAsync() ?? -1;
+
             for (int i = 0; i < questions.Count; i++)
             {
-                var q = questions[i];
+                var q      = questions[i];
                 var entity = new KQuestionEntity
                 {
-                    TestId      = testId,
+                    NodeId      = nodeId,
                     Name        = q.Question,
                     Description = string.IsNullOrWhiteSpace(q.Answer) ? null : q.Answer.Trim(),
                     IsActive    = true,
-                    SortOrder   = i,
+                    SortOrder   = maxOrder + 1 + i,
                 };
                 _context.KQuestions.Add(entity);
                 await _context.SaveChangesAsync();

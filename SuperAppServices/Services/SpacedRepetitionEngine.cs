@@ -57,11 +57,11 @@ namespace SuperAppServices.Services
 
             DateTime nextReview;
             if (score <= 2)
-                nextReview = DateTime.UtcNow.AddMinutes(30);
+                nextReview = DateTime.Now.AddMinutes(30);
             else if (score == 3)
-                nextReview = DateTime.UtcNow.AddHours(2);
+                nextReview = DateTime.Now.AddHours(2);
             else
-                nextReview = DateTime.UtcNow.AddDays(interval);
+                nextReview = DateTime.Now.AddDays(interval);
 
             return new SrsState(interval, easeFactor, repetitions, nextReview);
         }
@@ -75,7 +75,7 @@ namespace SuperAppServices.Services
             if (nextReviewAt == null || interval <= 0) return 0;
 
             var lastReview = nextReviewAt.Value.AddDays(-interval);
-            var daysSince  = (DateTime.UtcNow - lastReview).TotalDays;
+            var daysSince  = (DateTime.Now - lastReview).TotalDays;
             if (daysSince < 0) daysSince = 0;
 
             return Math.Round(Math.Pow(0.9, daysSince / interval) * 100, 1);

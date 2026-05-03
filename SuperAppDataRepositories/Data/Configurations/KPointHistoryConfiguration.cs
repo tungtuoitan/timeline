@@ -12,7 +12,7 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.HasKey(p => p.Id);
             builder.Property(p => p.Id).HasColumnName("id").ValueGeneratedOnAdd();
 
-            builder.Property(p => p.TestId).HasColumnName("test_id").IsRequired();
+            builder.Property(p => p.KnowledgeId).HasColumnName("knowledge_id").IsRequired(false);
             builder.Property(p => p.UserId).HasColumnName("user_id").IsRequired();
             builder.Property(p => p.QuestionId).HasColumnName("question_id").IsRequired(false);
             builder.Property(p => p.AnswerText).HasColumnName("answer_text").HasColumnType("nvarchar(max)").IsRequired(false);
@@ -20,16 +20,11 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(p => p.ResponseTimeMs).HasColumnName("response_time_ms").IsRequired(false);
             builder.Property(p => p.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("GETUTCDATE()");
 
-            builder.HasIndex(p => new { p.TestId, p.UserId })
-                .HasDatabaseName("IX_k_point_history_test_user");
+            builder.HasIndex(p => new { p.KnowledgeId, p.UserId })
+                .HasDatabaseName("IX_k_point_history_knowledge_user");
 
             builder.HasIndex(p => new { p.UserId, p.QuestionId })
                 .HasDatabaseName("IX_k_point_history_user_question");
-
-            builder.HasOne(p => p.Test)
-                .WithMany(t => t.PointHistory)
-                .HasForeignKey(p => p.TestId)
-                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

@@ -6,16 +6,6 @@ namespace SuperAppModels.DTOs.Responses
         public double Average { get; set; }
         /// <summary>Total active questions considered</summary>
         public int TotalQuestions { get; set; }
-        /// <summary>Per-test breakdown</summary>
-        public List<KRetentionTestItem> Tests { get; set; } = [];
-    }
-
-    public class KRetentionTestItem
-    {
-        public int TestId { get; set; }
-        public string Title { get; set; } = string.Empty;
-        public double Retention { get; set; }
-        public int QuestionCount { get; set; }
     }
 
     // ── Retention Graph ──────────────────────────────────────────────────────
@@ -30,9 +20,8 @@ namespace SuperAppModels.DTOs.Responses
 
     public class KRetentionGraphQuestion
     {
-        public int    Id        { get; set; }
-        public string Name      { get; set; } = string.Empty;
-        public string TestTitle { get; set; } = string.Empty;
+        public int    Id   { get; set; }
+        public string Name { get; set; } = string.Empty;
     }
 
     public class KRetentionGraphDay

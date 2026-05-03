@@ -3,14 +3,17 @@ using System.Text.Json.Serialization;
 namespace SuperAppModels.DTOs.Requests
 {
     /// <summary>
-    /// Batch update questions for a test:
+    /// Batch update questions for a knowledge:
     ///   - AddQuestions: new questions to create in k.question
     ///   - ToggleQuestionIds: k.question.id list to flip is_active
-    ///   - DeleteQuestionIds: k.question.id list to permanently delete
+    ///   - DeleteQuestionIds: k.question.id list to soft-delete (set deleted_at)
+    ///   - RestoreQuestionIds: k.question.id list to restore (clear deleted_at)
+    ///   - UpdateQuestions: existing questions to update name/description
+    ///   - ResetSrsQuestionIds: k.question.id list to reset SRS state
     /// </summary>
     public class KUpdateQuestionsRequest
     {
-        /// <summary>New questions to add to this test</summary>
+        /// <summary>New questions to add to this knowledge</summary>
         [JsonPropertyName("addQuestions")]
         public List<KNewQuestionItem> AddQuestions { get; set; } = [];
 
@@ -34,9 +37,9 @@ namespace SuperAppModels.DTOs.Requests
         [JsonPropertyName("resetSrsQuestionIds")]
         public List<int> ResetSrsQuestionIds { get; set; } = [];
 
-        /// <summary>Move questions to a different test (updates test_id, preserves SRS/history)</summary>
-        [JsonPropertyName("moveQuestions")]
-        public List<KMoveQuestionItem> MoveQuestions { get; set; } = [];
+        /// <summary>k.question IDs to toggle is_draft flag</summary>
+        [JsonPropertyName("toggleDraftQuestionIds")]
+        public List<int> ToggleDraftQuestionIds { get; set; } = [];
     }
 
     public class KUpdateQuestionItem
@@ -60,12 +63,10 @@ namespace SuperAppModels.DTOs.Requests
         public string? Description { get; set; }
     }
 
-    public class KMoveQuestionItem
+    /// <summary>Move a question to a different node (nodeId = null → orphan).</summary>
+    public class KMoveQuestionRequest
     {
-        [JsonPropertyName("id")]
-        public int Id { get; set; }
-
-        [JsonPropertyName("targetTestId")]
-        public int TargetTestId { get; set; }
+        [JsonPropertyName("nodeId")]
+        public int? NodeId { get; set; }
     }
 }

@@ -17,17 +17,20 @@ namespace SuperAppAPI.Controllers
         private readonly IKKnowledgeService _knowledgeService;
         private readonly IKNodeService _nodeService;
         private readonly IKMarkdownImportService _markdownImportService;
+        private readonly IKQuestionService _questionService;
         private readonly ILogger<KController> _logger;
 
         public KController(
             IKKnowledgeService knowledgeService,
             IKNodeService nodeService,
             IKMarkdownImportService markdownImportService,
+            IKQuestionService questionService,
             ILogger<KController> logger)
         {
             _knowledgeService      = knowledgeService      ?? throw new ArgumentNullException(nameof(knowledgeService));
             _nodeService           = nodeService           ?? throw new ArgumentNullException(nameof(nodeService));
             _markdownImportService = markdownImportService ?? throw new ArgumentNullException(nameof(markdownImportService));
+            _questionService       = questionService       ?? throw new ArgumentNullException(nameof(questionService));
             _logger                = logger                ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -37,6 +40,61 @@ namespace SuperAppAPI.Controllers
             if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
                 return null;
             return userId;
+        }
+
+        // GET /api/k/orphan-questions
+        [HttpGet("orphan-questions")]
+        public async Task<IActionResult> GetOrphanQuestions()
+        {
+            try
+            {
+                var userId = GetAuthenticatedUserId();
+                if (userId == null) return Unauthorized("User ID not found in token");
+                var result = await _questionService.GetOrphanQuestionsAsync(userId.Value);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting orphan questions");
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
+            }
+        }
+
+        // PATCH /api/k/orphan-questions
+        [HttpPatch("orphan-questions")]
+        public async Task<IActionResult> UpdateOrphanQuestions([FromBody] KUpdateQuestionsRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid) return BadRequest(ModelState);
+                var userId = GetAuthenticatedUserId();
+                if (userId == null) return Unauthorized("User ID not found in token");
+                var result = await _questionService.UpdateOrphanQuestionsAsync(userId.Value, request);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating orphan questions");
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
+            }
+        }
+
+        // PATCH /api/k/questions/{id}/node  — move question to a different node (or make orphan)
+        [HttpPatch("questions/{id:int}/node")]
+        public async Task<IActionResult> MoveQuestion(int id, [FromBody] KMoveQuestionRequest request)
+        {
+            try
+            {
+                var userId = GetAuthenticatedUserId();
+                if (userId == null) return Unauthorized("User ID not found in token");
+                var result = await _questionService.MoveQuestionAsync(id, request.NodeId, userId.Value);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error moving question {Id}", id);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
+            }
         }
 
         /// <summary>Gets all knowledge bases for the current user</summary>

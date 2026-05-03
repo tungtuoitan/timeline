@@ -13,11 +13,13 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.HasKey(q => q.Id);
             builder.Property(q => q.Id).HasColumnName("id").ValueGeneratedOnAdd();
 
-            builder.Property(q => q.TestId).HasColumnName("test_id").IsRequired();
+            builder.Property(q => q.NodeId).HasColumnName("node_id").IsRequired(false);
             builder.Property(q => q.Name).HasColumnName("name").HasMaxLength(500).IsRequired();
             builder.Property(q => q.Description).HasColumnName("description").HasColumnType("nvarchar(max)").IsRequired(false);
             builder.Property(q => q.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+            builder.Property(q => q.IsDraft).HasColumnName("is_draft").HasDefaultValue(false);
             builder.Property(q => q.SortOrder).HasColumnName("sort_order").HasDefaultValue(0);
+
             // SRS columns
             builder.Property(q => q.SrsInterval).HasColumnName("srs_interval").HasDefaultValue(0);
             builder.Property(q => q.SrsEaseFactor).HasColumnName("srs_ease_factor").HasDefaultValue(2.5);
@@ -28,12 +30,13 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(q => q.UpdatedAt).HasColumnName("updated_at").IsRequired(false);
             builder.Property(q => q.DeletedAt).HasColumnName("deleted_at").IsRequired(false);
 
-            builder.HasIndex(q => q.TestId).HasDatabaseName("IX_k_question_test");
+            builder.HasIndex(q => q.NodeId).HasDatabaseName("IX_k_question_node");
 
-            builder.HasOne(q => q.Test)
-                .WithMany(t => t.Questions)
-                .HasForeignKey(q => q.TestId)
-                .OnDelete(DeleteBehavior.Cascade);
+            builder.HasOne(q => q.Node)
+                .WithMany()
+                .HasForeignKey(q => q.NodeId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }

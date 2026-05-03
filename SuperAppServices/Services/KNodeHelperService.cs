@@ -167,6 +167,7 @@ namespace SuperAppServices.Services
                     Description = data.Description,
                     Color       = data.Color ?? "#F59E0B",
                     Icon        = data.Icon  ?? "📁",
+                    StatusCode  = data.StatusCode,
                     CreatedAt   = DateTime.UtcNow,
                     DeletedAt   = null
                 };
