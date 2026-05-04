@@ -23,4 +23,14 @@
     <ProjectReference Include="..\SuperAppModels\SuperAppModels.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Services\Wiki\" />
+    <Folder Include="Services\LifeLog\" />
+    <Folder Include="Services\K\" />
+    <Folder Include="Services\Auth\" />
+    <Folder Include="Services\Project\" />
+    <Folder Include="Services\StandardRegistry\" />
+    <Folder Include="Services\Workspace\" />
+  </ItemGroup>
+
 </Project>

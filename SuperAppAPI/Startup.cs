@@ -1,140 +1,118 @@
-﻿using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.AspNetCore.HttpsPolicy;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Http;
-using System.Text;
 using Serilog;
 using SuperAppAPI.Middlewares;
+using SuperAppDataRepositories.Data;
+using SuperAppDataRepositories.Ins;
+using SuperAppDataRepositories.Repositories;
+using System.Text;
 
 namespace SuperAppAPI
 {
-    public class Startup // file startup là file quan trọng, chịu trách nhiệm cấu hình service và request.pipline
+    public class Startup
     {
-        public Startup(IConfiguration configuration)
+        private readonly IWebHostEnvironment _env;
+
+        public Startup(IConfiguration configuration, IWebHostEnvironment env)
         {
             Configuration = configuration;
+            _env = env;
         }
 
         public IConfiguration Configuration { get; }
 
-        // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            //services.AddAutoMapper(typeof(DocumentServiceAutoMapperConfiguration));
-
-            //services.AddDbContext<PLMDBContext>(
-            //options => options.UseSqlServer(ApplicationSettings.SuperAppConnectionString));
-
+            // Infrastructure
             services.AddMemoryCache();
+            services.AddDistributedMemoryCache();
+            services.AddSession(o =>
+            {
+                o.IdleTimeout = TimeSpan.FromMinutes(30);
+                o.Cookie.HttpOnly = true;
+                o.Cookie.IsEssential = true;
+            });
+            services.AddHttpContextAccessor();
+            services.AddHttpClient();
+            services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 
+            // JWT Authentication
+            var key = Encoding.UTF8.GetBytes(Configuration["Jwt:Key"] ?? "");
+            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuerSigningKey = true,
+                        IssuerSigningKey = new SymmetricSecurityKey(key),
+                        ValidateIssuer = false,
+                        ValidateAudience = false,
+                        ValidateLifetime = true,
+                        ClockSkew = TimeSpan.Zero
+                    };
+                });
+            services.AddAuthorization();
+
+            // Controllers & Swagger
             services.AddControllers()
                 .AddJsonOptions(options =>
                 {
-                    // Enable string enum serialization/deserialization
                     options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
                 });
-            services.AddHttpClient();
-            //services.AddCors(options =>
-            //{
-            //    options.AddPolicy("AllowReactApp", policy =>
-            //    {
-            //        policy.WithOrigins("http://localhost:3000")
-            //              .AllowAnyHeader()
-            //              .AllowAnyMethod();
-            //    });
-            //});
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "SuperApp", Version = "v1" });
                 c.CustomSchemaIds(type => type.FullName?.Replace("+", "."));
-                
-                // TEMPORARY: JWT Authentication to Swagger DISABLED for development
-                /*
-                // Add JWT Authentication to Swagger
-                c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-                {
-                    Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
-                    Name = "Authorization",
-                    In = ParameterLocation.Header,
-                    Type = SecuritySchemeType.ApiKey,
-                    Scheme = "Bearer"
-                });
-
-                c.AddSecurityRequirement(new OpenApiSecurityRequirement
-                {
-                    {
-                        new OpenApiSecurityScheme
-                        {
-                            Reference = new OpenApiReference
-                            {
-                                Type = ReferenceType.SecurityScheme,
-                                Id = "Bearer"
-                            }
-                        },
-                        Array.Empty<string>()
-                    }
-                });
-                */
             });
             services.AddLogging(config =>
             {
                 config.AddConsole();
                 config.AddDebug();
-                // Other logging providers
             });
 
-            // CORS Configuration - Environment-specific for security
+            // CORS
             services.AddCors(options =>
             {
-                // Development policy - more permissive for local development
                 options.AddPolicy("DevelopmentPolicy", builder =>
                 {
                     builder.WithOrigins(
                             "http://localhost:3000",
-                            "http://localhost:3001", 
+                            "http://localhost:3001",
                             "http://localhost:3003",
                             "http://localhost:5000",
                             "https://unparcelled-geralyn-deutoplasmic.ngrok-free.dev",
                             "https://aeronautically-undanceable-rebecka.ngrok-free.dev",
-                            "https://www.tungle.uk/"
+                            "https://www.tungle.uk"
                             )
                            .AllowAnyMethod()
                            .AllowAnyHeader()
                            .AllowCredentials();
                 });
 
-                // Production policy - TEMPORARY: Allow all origins for testing
                 options.AddPolicy("ProductionPolicy", builder =>
                 {
-                    builder.AllowAnyOrigin()
+                    builder.WithOrigins(
+                            "http://157.66.101.51",
+                            "https://157.66.101.51",
+                            "https://www.tungle.uk"
+                            )
                            .AllowAnyMethod()
-                           .AllowAnyHeader();
+                           .AllowAnyHeader()
+                           .AllowCredentials();
                 });
             });
 
-            // Configure form options with security limits
+            // Form options & Security
             services.Configure<FormOptions>(options =>
             {
-                options.MultipartBodyLengthLimit = 50 * 1024 * 1024; // 50MB limit (reduced from 100MB for security)
-                options.ValueLengthLimit = 1024 * 1024; // 1MB per form value
-                options.KeyLengthLimit = 1024; // 1KB per form key
-                options.MemoryBufferThreshold = 64 * 1024; // 64KB buffer threshold
+                options.MultipartBodyLengthLimit = 50 * 1024 * 1024;
+                options.ValueLengthLimit = 1024 * 1024;
+                options.KeyLengthLimit = 1024;
+                options.MemoryBufferThreshold = 64 * 1024;
             });
-
-            // Add security headers configuration
             services.AddHsts(options =>
             {
                 options.Preload = true;
@@ -142,24 +120,83 @@ namespace SuperAppAPI
                 options.MaxAge = TimeSpan.FromDays(365);
             });
 
-            services.AddHttpContextAccessor(); // cho phép dùng httpContext trong service
+            // Database
+            services.AddDbContext<ApplicationDbContext>(options =>
+            {
+                var connectionString = Configuration.GetConnectionString("SuperAppConnection");
 
-            //services.AddTransient<IBlobAppend, BlobAppend>();
-            //services.AddTransient<ILoggerService, LoggerService>();
+                if (string.IsNullOrEmpty(connectionString))
+                    throw new InvalidOperationException(
+                        "Connection string 'SuperAppConnection' is not configured. " +
+                        "Please ensure the .env file exists and contains ConnectionStrings__SuperAppConnection.");
+
+                Log.Information("Using connection string: {ConnectionString}",
+                    connectionString.Replace(connectionString.Split("Password=")[1].Split(";")[0], "***"));
+
+                options.UseSqlServer(connectionString, sqlOptions =>
+                {
+                    sqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
+                    sqlOptions.CommandTimeout(120);
+                });
+
+                if (_env.IsDevelopment())
+                {
+                    options.EnableSensitiveDataLogging();
+                    options.EnableDetailedErrors();
+                }
+            });
+
+            services.AddScoped<IConnectionFactory, ConnectionFactory>();
+
+            // Repositories
+            services.AddScoped<INoteRepository, NoteRepository>();
+            services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
+            services.AddScoped<IKKnowledgeRepository, KKnowledgeRepository>();
+            services.AddScoped<IKQuestionRepository, KQuestionRepository>();
+            services.AddScoped<IWsRepository, WsRepository>();
+            services.AddScoped<IStandardRegistryRepository, StandardRegistryRepository>();
+            services.AddScoped<IUserRepository, UserRepository>();
+            services.AddScoped<IUserProfileRepository, UserProfileRepository>();
+            services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+            services.AddScoped<IProjectRepository, ProjectRepository>();
+            services.AddScoped<ITaskRepository, TaskRepository>();
+            services.AddScoped<ITargetKeywordRepository, TargetKeywordRepository>();
+            services.AddScoped<ITaskCommentRepository, TaskCommentRepository>();
+            services.AddScoped<IFlowRepository, FlowRepository>();
+            services.AddScoped<ILifeLogRepository, LifeLogRepository>();
+            services.AddScoped<IWikiRepository, WikiRepository>();
+
+            // Services
+            services.AddScoped<SuperAppServices.Interfaces.IWorkspaceService, SuperAppServices.Services.WorkspaceService>();
+            services.AddScoped<SuperAppServices.Interfaces.IWorkspaceItemService, SuperAppServices.Services.WorkspaceItemService>();
+            services.AddScoped<SuperAppServices.Interfaces.IWorkspaceItemHelperService, SuperAppServices.Services.WorkspaceItemHelperService>();
+            services.AddScoped<SuperAppServices.Interfaces.IKKnowledgeService, SuperAppServices.Services.KKnowledgeService>();
+            services.AddScoped<SuperAppServices.Interfaces.IKNodeService, SuperAppServices.Services.KNodeService>();
+            services.AddScoped<SuperAppServices.Interfaces.IKNodeHelperService, SuperAppServices.Services.KNodeHelperService>();
+            services.AddScoped<SuperAppServices.Interfaces.IKQuestionService, SuperAppServices.Services.KQuestionService>();
+            services.AddScoped<SuperAppServices.Interfaces.IWsService, SuperAppServices.Services.WsService>();
+            services.AddScoped<SuperAppServices.Interfaces.INoteService, SuperAppServices.Services.NoteService>();
+            services.AddScoped<SuperAppServices.Interfaces.IAuthService, SuperAppServices.Services.AuthService>();
+            services.AddScoped<SuperAppServices.Interfaces.IStandardRegistryService, SuperAppServices.Services.StandardRegistryService>();
+            services.AddScoped<SuperAppServices.Interfaces.IUserProfileService, SuperAppServices.Services.UserProfileService>();
+            services.AddScoped<SuperAppServices.Services.KeywordServiceV2>();
+            services.AddScoped<SuperAppServices.Services.WorkspaceItemPathService>();
+            services.AddScoped<SuperAppServices.Interfaces.IProjectService, SuperAppServices.Services.ProjectService>();
+            services.AddScoped<SuperAppServices.Interfaces.ITaskService, SuperAppServices.Services.TaskService>();
+            services.AddScoped<SuperAppServices.Interfaces.ITaskCommentService, SuperAppServices.Services.TaskCommentService>();
+            services.AddScoped<SuperAppServices.Interfaces.IFlowService, SuperAppServices.Services.FlowService>();
+            services.AddScoped<SuperAppServices.Interfaces.ILifeLogService, SuperAppServices.Services.LifeLogService>();
+            services.AddScoped<SuperAppServices.Interfaces.IWikiService, SuperAppServices.Services.WikiService>();
+            services.AddScoped<SuperAppServices.Interfaces.IGoogleDriveService, SuperAppServices.Services.GoogleDriveService>();
+            services.AddScoped<SuperAppServices.Interfaces.IFileService, SuperAppServices.Services.FileService>();
+            services.AddSingleton<SuperAppServices.Interfaces.IClaudibleService, SuperAppServices.Services.ClaudibleService>();
+            services.AddScoped<SuperAppServices.Interfaces.IKGradingService, SuperAppServices.Services.KGradingService>();
+            services.AddScoped<SuperAppServices.Interfaces.IKMarkdownImportService, SuperAppServices.Services.KMarkdownImportService>();
         }
 
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env
-            //, ILoggerService loggerService
-            )
+        public void Configure(IApplicationBuilder app)
         {
-            //ILoggerService _loggerService = loggerService ?? throw new ArgumentNullException(nameof(loggerService));
-
-            // TEMPORARY: Security headers DISABLED for development debugging
-            // app.UseSecurityHeaders();
-
-            // Environment-specific CORS policy
-            if (env.IsDevelopment())
+            if (_env.IsDevelopment())
             {
                 app.UseCors("DevelopmentPolicy");
             }
@@ -168,34 +205,23 @@ namespace SuperAppAPI
                 app.UseCors("ProductionPolicy");
             }
 
-            // HTTPS Redirection and Security - production only
-            if (!env.IsDevelopment())
+            if (!_env.IsDevelopment())
             {
                 app.UseHttpsRedirection();
-                app.UseHsts(); // HTTP Strict Transport Security
+                app.UseHsts();
             }
 
-            if (env.IsDevelopment())
+            if (_env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
                 app.UseSwagger();
                 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "SuperApp v1"));
             }
 
-            //app.UseExceptionHandler(new ExceptionHandlerOptions
-            //{
-            //    ExceptionHandler = new JsonExceptionMiddleware().Invoke
-            //});
-
             app.UseRouting();
-
-            // Global Exception Handler - Must be early in the pipeline
             app.UseGlobalExceptionHandler();
-
-            app.UseSession(); // Session management middleware
-
-            // Authentication and Authorization - MUST be in this order and after routing
-            app.UseAuthentication();  // Must come before UseAuthorization
+            app.UseSession();
+            app.UseAuthentication();
             app.UseAuthorization();
 
             app.UseEndpoints(endpoints =>
@@ -206,7 +232,6 @@ namespace SuperAppAPI
                     await context.Response.WriteAsync("Welcome to SuperApp API");
                 });
             });
-            // CORS is already configured above - this line was duplicate and incorrect
         }
     }
 }
