@@ -8,6 +8,17 @@ using SuperAppAPI.Middlewares;
 using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
 using SuperAppDataRepositories.Repositories;
+using SuperAppServices.Services.Auth;
+using SuperAppServices.Services.Files;
+using SuperAppServices.Services.Flow;
+using SuperAppServices.Services.K;
+using SuperAppServices.Services.Keywords;
+using SuperAppServices.Services.LifeLog;
+using SuperAppServices.Services.Projects;
+using SuperAppServices.Services.Registry;
+using SuperAppServices.Services.Profile;
+using SuperAppServices.Services.Wiki;
+using SuperAppServices.Services.Workspaces;
 using System.Text;
 
 namespace SuperAppAPI
@@ -167,31 +178,31 @@ namespace SuperAppAPI
             services.AddScoped<IWikiRepository, WikiRepository>();
 
             // Services
-            services.AddScoped<SuperAppServices.Interfaces.IWorkspaceService, SuperAppServices.Services.WorkspaceService>();
-            services.AddScoped<SuperAppServices.Interfaces.IWorkspaceItemService, SuperAppServices.Services.WorkspaceItemService>();
-            services.AddScoped<SuperAppServices.Interfaces.IWorkspaceItemHelperService, SuperAppServices.Services.WorkspaceItemHelperService>();
-            services.AddScoped<SuperAppServices.Interfaces.IKKnowledgeService, SuperAppServices.Services.KKnowledgeService>();
-            services.AddScoped<SuperAppServices.Interfaces.IKNodeService, SuperAppServices.Services.KNodeService>();
-            services.AddScoped<SuperAppServices.Interfaces.IKNodeHelperService, SuperAppServices.Services.KNodeHelperService>();
-            services.AddScoped<SuperAppServices.Interfaces.IKQuestionService, SuperAppServices.Services.KQuestionService>();
-            services.AddScoped<SuperAppServices.Interfaces.IWsService, SuperAppServices.Services.WsService>();
-            services.AddScoped<SuperAppServices.Interfaces.INoteService, SuperAppServices.Services.NoteService>();
-            services.AddScoped<SuperAppServices.Interfaces.IAuthService, SuperAppServices.Services.AuthService>();
-            services.AddScoped<SuperAppServices.Interfaces.IStandardRegistryService, SuperAppServices.Services.StandardRegistryService>();
-            services.AddScoped<SuperAppServices.Interfaces.IUserProfileService, SuperAppServices.Services.UserProfileService>();
-            services.AddScoped<SuperAppServices.Services.KeywordServiceV2>();
-            services.AddScoped<SuperAppServices.Services.WorkspaceItemPathService>();
-            services.AddScoped<SuperAppServices.Interfaces.IProjectService, SuperAppServices.Services.ProjectService>();
-            services.AddScoped<SuperAppServices.Interfaces.ITaskService, SuperAppServices.Services.TaskService>();
-            services.AddScoped<SuperAppServices.Interfaces.ITaskCommentService, SuperAppServices.Services.TaskCommentService>();
-            services.AddScoped<SuperAppServices.Interfaces.IFlowService, SuperAppServices.Services.FlowService>();
-            services.AddScoped<SuperAppServices.Interfaces.ILifeLogService, SuperAppServices.Services.LifeLogService>();
-            services.AddScoped<SuperAppServices.Interfaces.IWikiService, SuperAppServices.Services.WikiService>();
-            services.AddScoped<SuperAppServices.Interfaces.IGoogleDriveService, SuperAppServices.Services.GoogleDriveService>();
-            services.AddScoped<SuperAppServices.Interfaces.IFileService, SuperAppServices.Services.FileService>();
-            services.AddSingleton<SuperAppServices.Interfaces.IClaudibleService, SuperAppServices.Services.ClaudibleService>();
-            services.AddScoped<SuperAppServices.Interfaces.IKGradingService, SuperAppServices.Services.KGradingService>();
-            services.AddScoped<SuperAppServices.Interfaces.IKMarkdownImportService, SuperAppServices.Services.KMarkdownImportService>();
+            services.AddScoped<SuperAppServices.Interfaces.IWorkspaceService, WorkspaceService>();
+            services.AddScoped<SuperAppServices.Interfaces.IWorkspaceItemService, WorkspaceItemService>();
+            services.AddScoped<SuperAppServices.Interfaces.IWorkspaceItemHelperService, WorkspaceItemHelperService>();
+            services.AddScoped<SuperAppServices.Interfaces.IKKnowledgeService, KKnowledgeService>();
+            services.AddScoped<SuperAppServices.Interfaces.IKNodeService, KNodeService>();
+            services.AddScoped<SuperAppServices.Interfaces.IKNodeHelperService, KNodeHelperService>();
+            services.AddScoped<SuperAppServices.Interfaces.IKQuestionService, KQuestionService>();
+            services.AddScoped<SuperAppServices.Interfaces.IWsService, WsService>();
+            services.AddScoped<SuperAppServices.Interfaces.INoteService, NoteService>();
+            services.AddScoped<SuperAppServices.Interfaces.IAuthService, AuthService>();
+            services.AddScoped<SuperAppServices.Interfaces.IStandardRegistryService, StandardRegistryService>();
+            services.AddScoped<SuperAppServices.Interfaces.IUserProfileService, UserProfileService>();
+            services.AddScoped<KeywordServiceV2>();
+            services.AddScoped<WorkspaceItemPathService>();
+            services.AddScoped<SuperAppServices.Interfaces.IProjectService, ProjectService>();
+            services.AddScoped<SuperAppServices.Interfaces.ITaskService, TaskService>();
+            services.AddScoped<SuperAppServices.Interfaces.ITaskCommentService, TaskCommentService>();
+            services.AddScoped<SuperAppServices.Interfaces.IFlowService, FlowService>();
+            services.AddScoped<SuperAppServices.Interfaces.ILifeLogService, LifeLogService>();
+            services.AddScoped<SuperAppServices.Interfaces.IWikiService, WikiService>();
+            services.AddScoped<SuperAppServices.Interfaces.IGoogleDriveService, GoogleDriveService>();
+            services.AddScoped<SuperAppServices.Interfaces.IFileService, FileService>();
+            services.AddSingleton<SuperAppServices.Interfaces.IClaudibleService, ClaudibleService>();
+            services.AddScoped<SuperAppServices.Interfaces.IKGradingService, KGradingService>();
+            services.AddScoped<SuperAppServices.Interfaces.IKMarkdownImportService, KMarkdownImportService>();
         }
 
         public void Configure(IApplicationBuilder app)
