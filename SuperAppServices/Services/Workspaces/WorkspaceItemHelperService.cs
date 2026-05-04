@@ -103,23 +103,7 @@ namespace SuperAppServices.Services.Workspaces
                     return null;
 
                 case WorkspaceItemAction.MoveCross:
-                    // Required: Id + WorkspaceId (target workspace)
-                    // Optional: ParentId (target parent in new workspace, null = root)
-                    if (!request.Id.HasValue || request.Id.Value <= 0)
-                        return "MoveCross action requires valid Id";
-
-                    if (!request.WorkspaceId.HasValue || request.WorkspaceId.Value <= 0)
-                        return "MoveCross action requires valid target WorkspaceId";
-
-                    if (!existingItemsDict.ContainsKey(request.Id.Value))
-                        return $"Workspace item ID {request.Id} not found";
-
-                    // Validate that target workspace is different from source workspace
-                    var sourceItem = existingItemsDict[request.Id.Value];
-                    if (sourceItem.WorkspaceId == request.WorkspaceId.Value)
-                        return "MoveCross requires target workspace to be different from source workspace";
-
-                    return null;
+                    return "MoveCross is not supported in batch operations. Use POST /api/workspace/{id}/items/move-cross instead.";
 
                 case WorkspaceItemAction.UpdateFolder:
                     // Required: Id, FolderData

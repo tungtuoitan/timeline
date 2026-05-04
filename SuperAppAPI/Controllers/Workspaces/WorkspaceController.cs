@@ -392,13 +392,7 @@ namespace SuperAppAPI.Controllers.Workspaces
             // 4. Set workspaceId, userId, and CreatedBy for all requests
             foreach (var request in requests)
             {
-                // IMPORTANT: For MoveCross action, keep workspaceId from request body (target workspace)
-                // For other actions, set workspaceId from route parameter (current workspace)
-                if (request.Action != WorkspaceItemAction.MoveCross)
-                {
-                    request.WorkspaceId = workspaceId;
-                }
-
+                request.WorkspaceId = workspaceId;
                 request.UserId = userId.Value;
                 request.CreatedBy = userEmail;
             }
@@ -421,6 +415,28 @@ namespace SuperAppAPI.Controllers.Workspaces
                 workspaceId, userId.Value, response.Success);
 
             return Ok(response);
+        }
+
+        [HttpPost("{workspaceId}/items/move-cross")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> MoveItemsCross(int workspaceId, [FromBody] MoveCrossRequest request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var userId = GetUserId();
+            if (userId == null)
+                return Unauthorized("User ID not found in token");
+
+            _logger.LogInformation(
+                "Moving {Count} item(s) from workspace {WorkspaceId} to workspace {TargetWorkspaceId}",
+                request.ItemIds.Count, workspaceId, request.TargetWorkspaceId);
+
+            var result = await _workspaceItemService.MoveCrossAsync(request, userId.Value);
+            return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
         }
     }
 }

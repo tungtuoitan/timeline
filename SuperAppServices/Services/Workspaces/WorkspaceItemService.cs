@@ -76,7 +76,6 @@ namespace SuperAppServices.Services.Workspaces
                     // Preload workspace items for UpdateFolder/Move/Delete/Restore actions
                     var itemIdsToUpdate = requests
                         .Where(r => r.Action == WorkspaceItemAction.Move ||
-                                   r.Action == WorkspaceItemAction.MoveCross ||
                                    r.Action == WorkspaceItemAction.UpdateFolder ||
                                    r.Action == WorkspaceItemAction.Delete ||
                                    r.Action == WorkspaceItemAction.Restore)
@@ -233,10 +232,6 @@ namespace SuperAppServices.Services.Workspaces
                                 _helperService.ProcessMoveAction(request, existingItemsDict, upsertedItems);
                                 break;
 
-                            case WorkspaceItemAction.MoveCross:
-                                await _helperService.ProcessMoveCrossActionAsync(request, existingItemsDict, upsertedItems);
-                                break;
-
                             case WorkspaceItemAction.UpdateFolder:
                                 await _helperService.ProcessUpdateFolderActionAsync(
                                     request,
@@ -280,75 +275,49 @@ namespace SuperAppServices.Services.Workspaces
 
 
 
-                    // ===== STEP 5.5: RESPONSE   =====
-                    var responseItems = new List<object>();
+                    // ===== STEP 5.5: RESPONSE — batch load entity data (3 queries instead of N) =====
+                    var folderEntityIds = upsertedItems.Where(i => i.EntityType == 2).Select(i => i.EntityId).Distinct().ToList();
+                    var noteEntityIds   = upsertedItems.Where(i => i.EntityType == 3).Select(i => i.EntityId).Distinct().ToList();
+                    var fileEntityIds   = upsertedItems.Where(i => i.EntityType == 4).Select(i => i.EntityId).Distinct().ToList();
 
+                    var foldersDict = folderEntityIds.Any()
+                        ? await _context.Folders.AsNoTracking()
+                            .Where(f => folderEntityIds.Contains(f.Id))
+                            .ToDictionaryAsync(f => f.Id)
+                        : new Dictionary<int, Folder>();
+
+                    var notesDict = noteEntityIds.Any()
+                        ? await _context.Notes.AsNoTracking()
+                            .Where(n => noteEntityIds.Contains(n.Id))
+                            .ToDictionaryAsync(n => n.Id)
+                        : new Dictionary<int, Note>();
+
+                    var filesDict = fileEntityIds.Any()
+                        ? await _context.Files.AsNoTracking()
+                            .Where(f => fileEntityIds.Contains(f.Id))
+                            .ToDictionaryAsync(f => f.Id)
+                        : new Dictionary<int, SuperAppModels.Models.File>();
+
+                    var responseItems = new List<object>();
                     foreach (var item in upsertedItems)
                     {
                         object? entityData = null;
-
                         switch (item.EntityType)
                         {
-                            case 2: // Folder
-                                entityData = await _context.Folders
-                                    .AsNoTracking()
-                                    .Where(f => f.Id == item.EntityId)
-                                    .Select(f => new
-                                    {
-                                        id = f.Id,
-                                        userId = f.UserId,
-                                        name = f.Name,
-                                        description = f.Description,
-                                        color = f.Color,
-                                        icon = f.Icon,
-                                        createdAt = f.CreatedAt,
-                                        updatedAt = f.UpdatedAt,
-                                        deletedAt = f.DeletedAt
-                                    })
-                                    .FirstOrDefaultAsync();
+                            case 2:
+                                if (foldersDict.TryGetValue(item.EntityId, out var f))
+                                    entityData = new { id = f.Id, userId = f.UserId, name = f.Name, description = f.Description, color = f.Color, icon = f.Icon, createdAt = f.CreatedAt, updatedAt = f.UpdatedAt, deletedAt = f.DeletedAt };
                                 break;
-
-                            case 3: // Note
-                                entityData = await _context.Notes
-                                    .AsNoTracking()
-                                    .Where(n => n.Id == item.EntityId)
-                                    .Select(n => new
-                                    {
-                                        id = n.Id,
-                                        userId = n.UserId,
-                                        name = n.Name,
-                                        description = n.Description,
-                                        statusCode = n.StatusCode,
-                                        createdAt = n.CreatedAt,
-                                        updatedAt = n.UpdatedAt,
-                                        deletedAt = n.DeletedAt
-                                    })
-                                    .FirstOrDefaultAsync();
+                            case 3:
+                                if (notesDict.TryGetValue(item.EntityId, out var n))
+                                    entityData = new { id = n.Id, userId = n.UserId, name = n.Name, description = n.Description, statusCode = n.StatusCode, createdAt = n.CreatedAt, updatedAt = n.UpdatedAt, deletedAt = n.DeletedAt };
                                 break;
-
-                            case 4: // File
-                                entityData = await _context.Files
-                                    .AsNoTracking()
-                                    .Where(f => f.Id == item.EntityId)
-                                    .Select(f => new
-                                    {
-                                        id = f.Id,
-                                        userId = f.UserId,
-                                        name = f.Name,
-                                        url = f.Url,
-                                        fileSize = f.FileSize,
-                                        mimeType = f.MimeType,
-                                        extension = f.Extension,
-                                        statusCode = f.StatusCode,
-                                        createdAt = f.CreatedAt,
-                                        updatedAt = f.UpdatedAt,
-                                        deletedAt = f.DeletedAt
-                                    })
-                                    .FirstOrDefaultAsync();
+                            case 4:
+                                if (filesDict.TryGetValue(item.EntityId, out var fi))
+                                    entityData = new { id = fi.Id, userId = fi.UserId, name = fi.Name, url = fi.Url, fileSize = fi.FileSize, mimeType = fi.MimeType, extension = fi.Extension, statusCode = fi.StatusCode, createdAt = fi.CreatedAt, updatedAt = fi.UpdatedAt, deletedAt = fi.DeletedAt };
                                 break;
                         }
 
-                        // Return WorkspaceItemV2-like structure with full entity data
                         responseItems.Add(new
                         {
                             id = item.Id,
@@ -359,7 +328,7 @@ namespace SuperAppServices.Services.Workspaces
                             createdAt = item.CreatedAt,
                             updatedAt = item.UpdatedAt,
                             deletedAt = item.DeletedAt,
-                            data = entityData // ← Full entity data (Folder/Note/File)
+                            data = entityData
                         });
                     }
 
@@ -418,6 +387,87 @@ namespace SuperAppServices.Services.Workspaces
                         Message = $"An error occurred - all changes rolled back. {ex.Message}",
                         Status = 500
                     };
+                }
+            });
+        }
+
+        public async Task<ResultOptions> MoveCrossAsync(MoveCrossRequest request, int userId)
+        {
+            var strategy = _context.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+                using var transaction = await _context.Database.BeginTransactionAsync();
+                try
+                {
+                    // Preload all root items to be moved
+                    var existingItemsDict = await _context.WorkspaceItems
+                        .IgnoreQueryFilters()
+                        .Where(wi => request.ItemIds.Contains(wi.Id))
+                        .ToDictionaryAsync(wi => wi.Id, wi => wi);
+
+                    // Validate
+                    var validationErrors = new List<string>();
+                    foreach (var itemId in request.ItemIds)
+                    {
+                        if (!existingItemsDict.ContainsKey(itemId))
+                        {
+                            validationErrors.Add($"Workspace item {itemId} not found");
+                            continue;
+                        }
+                        if (existingItemsDict[itemId].WorkspaceId == request.TargetWorkspaceId)
+                            validationErrors.Add($"Item {itemId} is already in target workspace {request.TargetWorkspaceId}");
+                    }
+
+                    if (validationErrors.Any())
+                    {
+                        await transaction.RollbackAsync();
+                        return new ResultOptions { Success = false, Message = string.Join("; ", validationErrors), Status = 400 };
+                    }
+
+                    // Process each root item (descendants follow automatically inside ProcessMoveCrossActionAsync)
+                    var upsertedItems = new List<WorkspaceItemEntity>();
+                    var syntheticRequests = new List<UpsertWorkspaceItemRequest>();
+                    foreach (var itemId in request.ItemIds)
+                    {
+                        var req = new UpsertWorkspaceItemRequest
+                        {
+                            Action = WorkspaceItemAction.MoveCross,
+                            Id = itemId,
+                            WorkspaceId = request.TargetWorkspaceId,
+                            ParentId = request.ParentId,
+                            UserId = userId,
+                        };
+                        syntheticRequests.Add(req);
+                        await _helperService.ProcessMoveCrossActionAsync(req, existingItemsDict, upsertedItems);
+                    }
+
+                    await _context.SaveChangesAsync();
+                    await _helperService.SyncPathIdsAndKeywordsAsync(syntheticRequests, upsertedItems, userId);
+
+                    await transaction.CommitAsync();
+
+                    _logger.LogInformation(
+                        "MoveCross: moved {Count} item(s) to workspace {TargetWorkspaceId}",
+                        request.ItemIds.Count, request.TargetWorkspaceId);
+
+                    return new ResultOptions
+                    {
+                        Success = true,
+                        Message = $"Successfully moved {request.ItemIds.Count} item(s) to workspace {request.TargetWorkspaceId}",
+                        Status = 200
+                    };
+                }
+                catch (DbUpdateException ex)
+                {
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Database error during MoveCross to workspace {TargetWorkspaceId}", request.TargetWorkspaceId);
+                    return new ResultOptions { Success = false, Message = $"Database error - all changes rolled back. {ex.InnerException?.Message}", Status = 500 };
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Error during MoveCross to workspace {TargetWorkspaceId}", request.TargetWorkspaceId);
+                    return new ResultOptions { Success = false, Message = "Move failed. All changes rolled back.", Status = 500 };
                 }
             });
         }

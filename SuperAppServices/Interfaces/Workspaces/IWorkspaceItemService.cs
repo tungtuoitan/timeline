@@ -21,5 +21,7 @@ namespace SuperAppServices.Interfaces
             List<UpsertWorkspaceItemRequest> requests,
             int userId,
             int workspaceId);
+
+        Task<ResultOptions> MoveCrossAsync(MoveCrossRequest request, int userId);
     }
 }
