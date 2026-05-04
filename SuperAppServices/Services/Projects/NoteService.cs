@@ -62,7 +62,7 @@ namespace SuperAppServices.Services.Projects
                 }
 
                 // Map Note entities to NoteDTO
-                var notes = result.Data?.Cast<Note>().ToList() ?? new List<Note>();
+                var notes = result.Data?.OfType<Note>().ToList() ?? new List<Note>();
                 var response = _mapper.Map<List<NoteDTO>>(notes);
 
                 // Populate workspace links for each note
@@ -231,7 +231,7 @@ namespace SuperAppServices.Services.Projects
                 }
 
                 // Map Note entities to NoteDTOs
-                var notes = result.Data?.Cast<Note>().ToList() ?? new List<Note>();
+                var notes = result.Data?.OfType<Note>().ToList() ?? new List<Note>();
                 var noteDTOs = _mapper.Map<List<NoteDTO>>(notes);
 
                 // Sync keywords for all workspace_items that reference these notes

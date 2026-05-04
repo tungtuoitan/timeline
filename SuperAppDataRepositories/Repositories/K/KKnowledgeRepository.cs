@@ -6,6 +6,7 @@ using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
+using SuperAppModels.Utils;
 using System.Data;
 using System.Text.Json;
 
@@ -49,7 +50,7 @@ namespace SuperAppDataRepositories.Repositories
                 // Per-node reviewable count: dueCount + newCount (matches qFlow canReview logic)
                 // due  = srsNextReviewAt != null && srsNextReviewAt <= now
                 // new  = srsNextReviewAt == null (never reviewed)
-                var now = DateTime.Now;
+                var now = VietnamDateTime.Now();
                 var nodeIds = nodes.Select(n => n.Id).ToHashSet();
                 var dueCounts = await _context.KQuestions
                     .Where(q => q.NodeId.HasValue
@@ -68,7 +69,7 @@ namespace SuperAppDataRepositories.Repositories
                     Name = knowledge.Name,
                     Description = knowledge.Description,
                     UserId = knowledge.UserId,
-                    CreatedAt = knowledge.CreatedAt ?? DateTime.UtcNow,
+                    CreatedAt = knowledge.CreatedAt ?? VietnamDateTime.Now(),
                     UpdatedAt = knowledge.UpdatedAt,
                     Nodes = nodes,
                     NodeDueCounts = dueCounts

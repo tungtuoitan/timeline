@@ -9,6 +9,8 @@ namespace SuperAppServices.Services.K
     {
         public record SrsState(int Interval, double EaseFactor, int Repetitions, DateTime? NextReviewAt);
 
+        // Use VietnamDateTime.Now() — see SuperAppModels/Utils/VietnamDateTime.cs for rationale.
+
         /// <summary>
         /// Calculate the next SRS state after a review with the given score.
         /// </summary>
@@ -57,11 +59,11 @@ namespace SuperAppServices.Services.K
 
             DateTime nextReview;
             if (score <= 2)
-                nextReview = DateTime.Now.AddMinutes(30);
+                nextReview = VietnamDateTime.Now().AddMinutes(30);
             else if (score == 3)
-                nextReview = DateTime.Now.AddHours(2);
+                nextReview = VietnamDateTime.Now().AddHours(2);
             else
-                nextReview = DateTime.Now.AddDays(interval);
+                nextReview = VietnamDateTime.Now().AddDays(interval);
 
             return new SrsState(interval, easeFactor, repetitions, nextReview);
         }
@@ -75,7 +77,7 @@ namespace SuperAppServices.Services.K
             if (nextReviewAt == null || interval <= 0) return 0;
 
             var lastReview = nextReviewAt.Value.AddDays(-interval);
-            var daysSince  = (DateTime.Now - lastReview).TotalDays;
+            var daysSince  = (VietnamDateTime.Now() - lastReview).TotalDays;
             if (daysSince < 0) daysSince = 0;
 
             return Math.Round(Math.Pow(0.9, daysSince / interval) * 100, 1);

@@ -5,6 +5,7 @@ using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
+using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Repositories
 {
@@ -68,7 +69,7 @@ namespace SuperAppDataRepositories.Repositories
                         existing.Note = req.Note;
                         existing.ArrowDirection = req.ArrowDirection;
                         existing.DeletedAt = parsedDeletedAt;
-                        existing.UpdatedAt = DateTime.UtcNow;
+                        existing.UpdatedAt = VietnamDateTime.Now();
                         results.Add(existing);
                     }
                     else
@@ -85,8 +86,8 @@ namespace SuperAppDataRepositories.Repositories
                             Note = req.Note,
                             ArrowDirection = req.ArrowDirection,
                             DeletedAt = parsedDeletedAt,
-                            CreatedAt = DateTime.UtcNow,
-                            UpdatedAt = DateTime.UtcNow,
+                            CreatedAt = VietnamDateTime.Now(),
+                            UpdatedAt = VietnamDateTime.Now(),
                         };
                         _context.FlowEdges.Add(edge);
                         results.Add(edge);
@@ -140,7 +141,7 @@ namespace SuperAppDataRepositories.Repositories
                     {
                         existing.X = req.X;
                         existing.Y = req.Y;
-                        existing.UpdatedAt = DateTime.UtcNow;
+                        existing.UpdatedAt = VietnamDateTime.Now();
                     }
                     else
                     {
@@ -151,8 +152,8 @@ namespace SuperAppDataRepositories.Repositories
                             NodeType = req.NodeType,
                             X = req.X,
                             Y = req.Y,
-                            CreatedAt = DateTime.UtcNow,
-                            UpdatedAt = DateTime.UtcNow,
+                            CreatedAt = VietnamDateTime.Now(),
+                            UpdatedAt = VietnamDateTime.Now(),
                         });
                     }
                 }

@@ -4,6 +4,7 @@ using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.Models;
+using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Repositories
 {
@@ -97,8 +98,8 @@ namespace SuperAppDataRepositories.Repositories
                     {
                         // CREATE
                         _logger.LogInformation("Creating comment for taskId: {TaskId}", comment.TaskId);
-                        comment.CreatedAt = DateTime.Now;
-                        comment.UpdatedAt = DateTime.Now;
+                        comment.CreatedAt = VietnamDateTime.Now();
+                        comment.UpdatedAt = VietnamDateTime.Now();
                         _context.TaskComments.Add(comment);
                     }
                     else
@@ -119,7 +120,7 @@ namespace SuperAppDataRepositories.Repositories
                         }
 
                         existing.Content = comment.Content;
-                        existing.UpdatedAt = DateTime.Now;
+                        existing.UpdatedAt = VietnamDateTime.Now();
                     }
 
                     await _context.SaveChangesAsync();
@@ -189,7 +190,7 @@ namespace SuperAppDataRepositories.Repositories
                         };
                     }
 
-                    var now = DateTime.Now;
+                    var now = VietnamDateTime.Now();
 
                     // Soft delete the comment
                     comment.DeletedAt = now;

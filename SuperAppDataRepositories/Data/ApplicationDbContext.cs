@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SuperAppModels.Models;
+using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Data
 {
@@ -95,9 +96,9 @@ namespace SuperAppDataRepositories.Data
                 {
                     if (entry.State == EntityState.Added)
                     {
-                        timestampEntity.CreatedAt = DateTime.UtcNow;
+                        timestampEntity.CreatedAt = VietnamDateTime.Now();
                     }
-                    timestampEntity.UpdatedAt = DateTime.UtcNow;
+                    timestampEntity.UpdatedAt = VietnamDateTime.Now();
                 }
             }
         }

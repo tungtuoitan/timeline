@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
 using SuperAppModels.Models;
+using SuperAppModels.Utils;
 
 namespace SuperAppServices.Services.Workspaces
 {
@@ -26,76 +27,58 @@ namespace SuperAppServices.Services.Workspaces
         /// <summary>
         /// Create workspace item with PathIds
         /// </summary>
-        public async Task<WorkspaceItemEntity> CreateItemAsync(
-            int workspaceId,
-            int? parentId,
-            byte entityType,
-            int entityId,
-            string name)
-        {
-            var item = new WorkspaceItemEntity
-            {
-                WorkspaceId = workspaceId,
-                ParentId = parentId,
-                EntityType = entityType,
-                EntityId = entityId,
-                //Slug = GenerateSlug(name)
-            };
+        //public async Task<WorkspaceItemEntity> CreateItemAsync(
+        //    int workspaceId,
+        //    int? parentId,
+        //    byte entityType,
+        //    int entityId,
+        //    string name)
+        //{
+        //    var item = new WorkspaceItemEntity
+        //    {
+        //        WorkspaceId = workspaceId,
+        //        ParentId = parentId,
+        //        EntityType = entityType,
+        //        EntityId = entityId,
+        //        //Slug = GenerateSlug(name)
+        //    };
 
-            // Build PathIds
-            // NOTE: PathIds does NOT contain workspaceId (workspace is not in workspace_items)
-            // Workspace is considered depth=0 (root), folders start at depth=1
-            if (parentId.HasValue)
-            {
-                var parent = await _context.Set<WorkspaceItemEntity>().FindAsync(parentId.Value);
-                if (parent == null)
-                    throw new ArgumentException($"Parent item {parentId} not found");
+        //    // Fetch parent once and cache — reused after the first SaveChanges to build PathIds.
+        //    // PathIds must include the auto-generated item.Id, so two saves are unavoidable,
+        //    // but we only need one FindAsync for the parent.
+        //    WorkspaceItemEntity? parentEntity = null;
+        //    if (parentId.HasValue)
+        //    {
+        //        parentEntity = await _context.Set<WorkspaceItemEntity>().FindAsync(parentId.Value);
+        //        if (parentEntity == null)
+        //            throw new ArgumentException($"Parent item {parentId} not found");
 
-                // Child item: append to parent's path
-                // Example: parent=/175/ (depth=1) → child=/175/{newId}/ (depth=2)
-                item.PathIds = $"{parent.PathIds}{item.Id}/";
-                item.PathDepth = parent.PathDepth + 1;
+        //        item.PathDepth = parentEntity.PathDepth + 1;
+        //        if (item.PathDepth > 11)
+        //            throw new InvalidOperationException("Maximum nesting depth (11) exceeded");
+        //    }
+        //    else
+        //    {
+        //        item.PathDepth = 1;
+        //    }
 
-                if (item.PathDepth > 11)
-                    throw new InvalidOperationException("Maximum nesting depth (11) exceeded");
-            }
-            else
-            {
-                // Root folder in workspace (ParentId=NULL): depth = 1
-                // Workspace is considered depth=0 (not in workspace_items)
-                // Example: /{itemId}/ where itemId is a root folder (first level child of workspace)
-                item.PathIds = "/";
-                item.PathDepth = 1;
-            }
+        //    // PathIds placeholder — updated below once item.Id is generated
+        //    item.PathIds = "/";
 
-            _context.Set<WorkspaceItemEntity>().Add(item);
-            await _context.SaveChangesAsync();
+        //    _context.Set<WorkspaceItemEntity>().Add(item);
+        //    await _context.SaveChangesAsync(); // First save — generates item.Id
 
-            // Update PathIds with actual ID (after insert - ID is auto-generated)
-            // Before SaveChanges: item.Id = 0, PathIds = "/"
-            // After SaveChanges:  item.Id = 175 (generated)
-            // Now update:         PathIds = "/175/"
-            if (!parentId.HasValue)
-            {
-                // Root folder: PathIds = /{itemId}/, PathDepth = 1
-                // Workspace is considered depth=0 (not in workspace_items)
-                // Example: /175/ (root folder - first level child of workspace)
-                item.PathIds = $"/{item.Id}/";
-            }
-            else
-            {
-                // Child item: PathIds = {parent.PathIds}{itemId}/, PathDepth = parent.PathDepth + 1
-                // Example: parent=/175/ (depth=1) → child=/175/174/ (depth=2)
-                var parent = await _context.Set<WorkspaceItemEntity>().FindAsync(parentId.Value);
-                item.PathIds = $"{parent!.PathIds}{item.Id}/";
-            }
+        //    // Update PathIds with actual ID
+        //    item.PathIds = parentEntity != null
+        //        ? $"{parentEntity.PathIds}{item.Id}/"
+        //        : $"/{item.Id}/";
 
-            await _context.SaveChangesAsync();
+        //    await _context.SaveChangesAsync(); // Second save — persist PathIds
 
-            _logger.LogInformation("Created workspace item {Id} with PathIds {PathIds}", item.Id, item.PathIds);
+        //    _logger.LogInformation("Created workspace item {Id} with PathIds {PathIds}", item.Id, item.PathIds);
 
-            return item;
-        }
+        //    return item;
+        //}
 
         #endregion
 
@@ -111,7 +94,7 @@ namespace SuperAppServices.Services.Workspaces
                 throw new ArgumentException($"Item {itemId} not found");
 
             //item.Slug = GenerateSlug(newName);
-            item.UpdatedAt = DateTime.UtcNow;
+            item.UpdatedAt = VietnamDateTime.Now();
 
             await _context.SaveChangesAsync();
 
@@ -165,7 +148,7 @@ namespace SuperAppServices.Services.Workspaces
             item.ParentId = newParentId;
             item.PathIds = newPathIds;
             item.PathDepth = newDepth;
-            item.UpdatedAt = DateTime.UtcNow;
+            item.UpdatedAt = VietnamDateTime.Now();
 
             // Update all descendants (CASCADE UPDATE)
             var descendants = await _context.Set<WorkspaceItemEntity>()
@@ -190,7 +173,7 @@ namespace SuperAppServices.Services.Workspaces
                 //   /a/b/c/d/e/    → 6 slashes → 6 - 1 = 5 (depth 5 - deeply nested)
                 descendant.PathDepth = descendant.PathIds.Count(c => c == '/') - 1;
 
-                descendant.UpdatedAt = DateTime.UtcNow;
+                descendant.UpdatedAt = VietnamDateTime.Now();
             }
 
             await _context.SaveChangesAsync();

@@ -6,6 +6,7 @@ using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
+using SuperAppModels.Utils;
 using System.Data;
 using System.Text.Json;
 
@@ -155,7 +156,7 @@ namespace SuperAppDataRepositories.Repositories
                     Name = workspace.Name,
                     Description = workspace.Description,
                     UserId = workspace.UserId,
-                    CreatedAt = workspace.CreatedAt ?? DateTime.UtcNow,
+                    CreatedAt = workspace.CreatedAt ?? VietnamDateTime.Now(),
                     UpdatedAt = workspace.UpdatedAt,
                     Items = treeItems
                 };
@@ -308,7 +309,7 @@ namespace SuperAppDataRepositories.Repositories
                             existingFolder.Description = request.Description;
                             existingFolder.Color = request.Color ?? existingFolder.Color;
                             existingFolder.Icon = request.Icon ?? existingFolder.Icon;
-                            existingFolder.UpdatedAt = DateTime.UtcNow;
+                            existingFolder.UpdatedAt = VietnamDateTime.Now();
 
                             await _context.SaveChangesAsync();
                             _logger.LogInformation("Folder updated with ID: {FolderId}", existingFolder.Id);
@@ -320,7 +321,7 @@ namespace SuperAppDataRepositories.Repositories
                             if (workspaceItem != null && workspaceItem.ParentId != request.ParentId)
                             {
                                 workspaceItem.ParentId = request.ParentId;
-                                workspaceItem.UpdatedAt = DateTime.UtcNow;
+                                workspaceItem.UpdatedAt = VietnamDateTime.Now();
                                 await _context.SaveChangesAsync();
                                 _logger.LogInformation("WorkspaceItem parent updated for folder {FolderId}", request.Id.Value);
                             }
@@ -747,7 +748,7 @@ namespace SuperAppDataRepositories.Repositories
                                         existingFolder.Color = folderData.Color;
                                         existingFolder.Icon = folderData.Icon;
                                         existingFolder.DeletedAt = folderData.DeletedAt;
-                                        existingFolder.UpdatedAt = DateTime.UtcNow;
+                                        existingFolder.UpdatedAt = VietnamDateTime.Now();
                                         entityId = existingFolder.Id;
                                     }
                                 }
@@ -761,7 +762,7 @@ namespace SuperAppDataRepositories.Repositories
                                         Description = folderData.Description,
                                         Color = folderData.Color,
                                         Icon = folderData.Icon,
-                                        CreatedAt = DateTime.UtcNow,
+                                        CreatedAt = VietnamDateTime.Now(),
                                         DeletedAt = null
                                     };
                                     _context.Folders.Add(newFolder);
@@ -782,7 +783,7 @@ namespace SuperAppDataRepositories.Repositories
                                         existingNote.Description = noteData.Description;
                                         existingNote.StatusCode = noteData.StatusCode;
                                         existingNote.DeletedAt = noteData.DeletedAt;
-                                        existingNote.UpdatedAt = DateTime.UtcNow;
+                                        existingNote.UpdatedAt = VietnamDateTime.Now();
                                         entityId = existingNote.Id;
                                     }
                                 }
@@ -795,7 +796,7 @@ namespace SuperAppDataRepositories.Repositories
                                         Name = noteData.Name,
                                         Description = noteData.Description,
                                         StatusCode = noteData.StatusCode,
-                                        CreatedAt = DateTime.UtcNow,
+                                        CreatedAt = VietnamDateTime.Now(),
                                         DeletedAt = null
                                     };
                                     _context.Notes.Add(newNote);
@@ -819,7 +820,7 @@ namespace SuperAppDataRepositories.Repositories
                                         existingFile.Extension = fileData.Extension;
                                         existingFile.StatusCode = fileData.StatusCode;
                                         existingFile.DeletedAt = fileData.DeletedAt;
-                                        existingFile.UpdatedAt = DateTime.UtcNow;
+                                        existingFile.UpdatedAt = VietnamDateTime.Now();
                                         entityId = existingFile.Id;
                                     }
                                 }
@@ -835,7 +836,7 @@ namespace SuperAppDataRepositories.Repositories
                                         MimeType = fileData.MimeType,
                                         Extension = fileData.Extension,
                                         StatusCode = fileData.StatusCode,
-                                        CreatedAt = DateTime.UtcNow,
+                                        CreatedAt = VietnamDateTime.Now(),
                                         DeletedAt = null
                                     };
                                     _context.Files.Add(newFile);
@@ -866,7 +867,7 @@ namespace SuperAppDataRepositories.Repositories
                             existingItem.EntityType = request.EntityType;
                             existingItem.EntityId = entityId; // Use entity ID from step 3A
                             existingItem.DeletedAt = request.DeletedAt;  // Soft delete/restore
-                            existingItem.UpdatedAt = DateTime.UtcNow;
+                            existingItem.UpdatedAt = VietnamDateTime.Now();
 
                             upsertedItems.Add(existingItem);
                         }
@@ -879,7 +880,7 @@ namespace SuperAppDataRepositories.Repositories
                                 ParentId = request.ParentId,
                                 EntityType = request.EntityType,
                                 EntityId = entityId, // Use entity ID from step 3A
-                                CreatedAt = DateTime.UtcNow,
+                                CreatedAt = VietnamDateTime.Now(),
                                 UpdatedAt = null,
                                 DeletedAt = null
                             };
@@ -978,7 +979,7 @@ namespace SuperAppDataRepositories.Repositories
                     .Where(f => f.Id == item.EntityId)
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(f => f.Name, name)
-                        .SetProperty(f => f.UpdatedAt, DateTime.UtcNow));
+                        .SetProperty(f => f.UpdatedAt, VietnamDateTime.Now()));
 
                 if (affectedRows == 0)
                 {

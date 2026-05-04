@@ -5,6 +5,7 @@ using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
+using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Repositories
 {
@@ -101,14 +102,14 @@ namespace SuperAppDataRepositories.Repositories
                             existing.IsSensitive = track.IsSensitive;
                             existing.Color = track.Color;
                             existing.DeletedAt = track.DeletedAt;
-                            existing.UpdatedAt = DateTime.Now;
+                            existing.UpdatedAt = VietnamDateTime.Now();
                             upserted.Add(existing);
                         }
                         else
                         {
                             _logger.LogInformation("Repo.UpsertTracksAsync: CREATE name={Name} userId={UserId}", track.Name, track.UserId);
-                            track.CreatedAt = DateTime.Now;
-                            track.UpdatedAt = DateTime.Now;
+                            track.CreatedAt = VietnamDateTime.Now();
+                            track.UpdatedAt = VietnamDateTime.Now();
                             track.DeletedAt = null;
                             _context.LifeLogTracks.Add(track);
                             upserted.Add(track);
@@ -229,7 +230,7 @@ namespace SuperAppDataRepositories.Repositories
                             existing.IsSensitive = log.IsSensitive;
                             existing.Location = log.Location;
                             existing.DeletedAt = log.DeletedAt;
-                            existing.UpdatedAt = DateTime.Now;
+                            existing.UpdatedAt = VietnamDateTime.Now();
                             existing.OccurAt = log.OccurAt;
                             upserted.Add(existing);
                         }
@@ -237,9 +238,9 @@ namespace SuperAppDataRepositories.Repositories
                         {
                             _logger.LogInformation("Repo.UpsertLogsAsync: CREATE type={Type} trackId={TrackId} title={Title} userId={UserId} occurAt={OccurAt}",
                                 log.Type, log.TrackId, log.Title, log.UserId, log.OccurAt);
-                            log.CreatedAt = DateTime.Now;
-                            log.UpdatedAt = DateTime.Now;
-                            log.OccurAt = log.OccurAt ?? DateTime.Now;
+                            log.CreatedAt = VietnamDateTime.Now();
+                            log.UpdatedAt = VietnamDateTime.Now();
+                            log.OccurAt = log.OccurAt ?? VietnamDateTime.Now();
                             log.DeletedAt = null;
                             _context.LifeLogLogs.Add(log);
                             upserted.Add(log);

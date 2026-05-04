@@ -4,6 +4,7 @@ using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.Models;
+using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Repositories
 {
@@ -95,7 +96,7 @@ namespace SuperAppDataRepositories.Repositories
                     if (profile.Language != null) existingProfile.Language = profile.Language;
                     if (profile.Filters != null) existingProfile.Filters = profile.Filters;
 
-                    existingProfile.UpdatedAt = DateTime.UtcNow;
+                    existingProfile.UpdatedAt = VietnamDateTime.Now();
 
                     _context.UserProfiles.Update(existingProfile);
                     await _context.SaveChangesAsync();
@@ -112,8 +113,8 @@ namespace SuperAppDataRepositories.Repositories
                     // Create new profile
                     _logger.LogInformation("Creating new user profile for userId: {UserId}", profile.UserId);
 
-                    profile.CreatedAt = DateTime.UtcNow;
-                    profile.UpdatedAt = DateTime.UtcNow;
+                    profile.CreatedAt = VietnamDateTime.Now();
+                    profile.UpdatedAt = VietnamDateTime.Now();
 
                     _context.UserProfiles.Add(profile);
                     await _context.SaveChangesAsync();

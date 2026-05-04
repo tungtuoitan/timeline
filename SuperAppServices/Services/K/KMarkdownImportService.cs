@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
+using SuperAppModels.Utils;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
 using SuperAppModels.Models;
@@ -272,7 +273,7 @@ namespace SuperAppServices.Services.K
                     StatusCode  = "draft",
                     Color       = null,
                     Icon        = null,
-                    CreatedAt   = DateTime.UtcNow,
+                    CreatedAt   = VietnamDateTime.Now(),
                 };
 
                 _context.KNodes.Add(entity);
@@ -350,29 +351,24 @@ namespace SuperAppServices.Services.K
         private async Task<List<int>> CreateQuestionsForNodeAsync(
             List<KMdQuestionItem> questions, int nodeId)
         {
-            var ids = new List<int>();
-
             var maxOrder = await _context.KQuestions
                 .Where(q => q.NodeId == nodeId)
                 .Select(q => (int?)q.SortOrder)
                 .MaxAsync() ?? -1;
 
-            for (int i = 0; i < questions.Count; i++)
+            var entities = questions.Select((q, i) => new KQuestionEntity
             {
-                var q      = questions[i];
-                var entity = new KQuestionEntity
-                {
-                    NodeId      = nodeId,
-                    Name        = q.Question,
-                    Description = string.IsNullOrWhiteSpace(q.Answer) ? null : q.Answer.Trim(),
-                    IsActive    = true,
-                    SortOrder   = maxOrder + 1 + i,
-                };
-                _context.KQuestions.Add(entity);
-                await _context.SaveChangesAsync();
-                ids.Add(entity.Id);
-            }
-            return ids;
+                NodeId      = nodeId,
+                Name        = q.Question,
+                Description = string.IsNullOrWhiteSpace(q.Answer) ? null : q.Answer.Trim(),
+                IsActive    = true,
+                SortOrder   = maxOrder + 1 + i,
+            }).ToList();
+
+            _context.KQuestions.AddRange(entities);
+            await _context.SaveChangesAsync();
+
+            return entities.Select(e => e.Id).ToList();
         }
 
         // ── Shared internal DTO ──────────────────────────────────────────────

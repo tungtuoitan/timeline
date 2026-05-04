@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
+using SuperAppModels.Utils;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
 using SuperAppServices.Interfaces;
@@ -168,7 +169,7 @@ namespace SuperAppServices.Services.K
                     Color       = data.Color ?? "#F59E0B",
                     Icon        = data.Icon  ?? "📁",
                     StatusCode  = data.StatusCode,
-                    CreatedAt   = DateTime.UtcNow,
+                    CreatedAt   = VietnamDateTime.Now(),
                     DeletedAt   = null
                 };
 
@@ -200,7 +201,7 @@ namespace SuperAppServices.Services.K
                 if (data.Color != null) node.Color = data.Color;
                 if (data.Icon  != null) node.Icon  = data.Icon;
                 if (data.StatusCode  != null) node.StatusCode = data.StatusCode;
-                node.UpdatedAt = DateTime.UtcNow;
+                node.UpdatedAt = VietnamDateTime.Now();
 
                 upserted.Add(node);
                 _logger.LogInformation("Updated node ID {Id} (Name={Name})", node.Id, node.Name);
@@ -221,7 +222,7 @@ namespace SuperAppServices.Services.K
             {
                 var node = existingNodes[request.Id!.Value];
                 node.ParentId  = request.ParentId;
-                node.UpdatedAt = DateTime.UtcNow;
+                node.UpdatedAt = VietnamDateTime.Now();
 
                 upserted.Add(node);
                 _logger.LogInformation("Moved node ID {Id} → ParentId={ParentId}", node.Id, node.ParentId);
@@ -245,14 +246,14 @@ namespace SuperAppServices.Services.K
 
                 root.KnowledgeId = targetKnowledgeId;
                 root.ParentId    = request.ParentId > 0 ? request.ParentId : null;
-                root.UpdatedAt   = DateTime.UtcNow;
+                root.UpdatedAt   = VietnamDateTime.Now();
                 upserted.Add(root);
 
                 var descendants = await GetAllDescendantsAsync(root.Id);
                 foreach (var d in descendants)
                 {
                     d.KnowledgeId = targetKnowledgeId;
-                    d.UpdatedAt   = DateTime.UtcNow;
+                    d.UpdatedAt   = VietnamDateTime.Now();
                     upserted.Add(d);
                 }
 
@@ -274,8 +275,8 @@ namespace SuperAppServices.Services.K
             try
             {
                 var node = existingNodes[request.Id!.Value];
-                node.DeletedAt = DateTime.UtcNow;
-                node.UpdatedAt = DateTime.UtcNow;
+                node.DeletedAt = VietnamDateTime.Now();
+                node.UpdatedAt = VietnamDateTime.Now();
                 upserted.Add(node);
                 _logger.LogInformation("Soft-deleted node ID {Id}", node.Id);
             }
@@ -295,7 +296,7 @@ namespace SuperAppServices.Services.K
             {
                 var node = existingNodes[request.Id!.Value];
                 node.DeletedAt = null;
-                node.UpdatedAt = DateTime.UtcNow;
+                node.UpdatedAt = VietnamDateTime.Now();
                 upserted.Add(node);
                 _logger.LogInformation("Restored node ID {Id}", node.Id);
             }

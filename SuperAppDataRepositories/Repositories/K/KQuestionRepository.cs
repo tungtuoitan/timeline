@@ -4,6 +4,7 @@ using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
+using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Repositories
 {
@@ -125,7 +126,7 @@ namespace SuperAppDataRepositories.Repositories
                     if (upd == null) continue;
                     q.Name        = upd.Name;
                     q.Description = string.IsNullOrWhiteSpace(upd.Description) ? null : upd.Description;
-                    q.UpdatedAt   = DateTime.UtcNow;
+                    q.UpdatedAt   = VietnamDateTime.Now();
                 }
 
                 await _context.SaveChangesAsync();
@@ -172,7 +173,7 @@ namespace SuperAppDataRepositories.Repositories
                     .ToListAsync();
 
                 foreach (var q in questions)
-                    q.DeletedAt = DateTime.UtcNow;
+                    q.DeletedAt = VietnamDateTime.Now();
 
                 await _context.SaveChangesAsync();
                 _logger.LogInformation("Soft-deleted {Count} questions", questions.Count);
@@ -256,7 +257,7 @@ namespace SuperAppDataRepositories.Repositories
                 question.SrsEaseFactor    = 2.5;
                 question.SrsRepetitions   = 0;
                 question.SrsNextReviewAt  = null;
-                question.UpdatedAt        = DateTime.UtcNow;
+                question.UpdatedAt        = VietnamDateTime.Now();
 
                 var history = await _context.KPointHistory
                     .Where(p => p.QuestionId == questionId)
@@ -305,7 +306,7 @@ namespace SuperAppDataRepositories.Repositories
                 var q = await _context.KQuestions.FindAsync(questionId);
                 if (q == null) return;
                 q.NodeId    = targetNodeId;
-                q.UpdatedAt = DateTime.UtcNow;
+                q.UpdatedAt = VietnamDateTime.Now();
                 await _context.SaveChangesAsync();
             }
             catch (Exception ex)
@@ -331,7 +332,7 @@ namespace SuperAppDataRepositories.Repositories
                     QuestionId  = r.QuestionId,
                     AnswerText  = r.AnswerText,
                     Point       = r.Point,
-                    CreatedAt   = DateTime.UtcNow,
+                    CreatedAt   = VietnamDateTime.Now(),
                 }).ToList();
 
                 _context.KPointHistory.AddRange(rows);
@@ -362,7 +363,7 @@ namespace SuperAppDataRepositories.Repositories
                     AnswerText     = r.AnswerText,
                     Point          = r.Point,
                     ResponseTimeMs = r.ResponseTimeMs,
-                    CreatedAt      = DateTime.UtcNow,
+                    CreatedAt      = VietnamDateTime.Now(),
                 }).ToList();
 
                 _context.KPointHistory.AddRange(rows);
@@ -455,7 +456,7 @@ namespace SuperAppDataRepositories.Repositories
                 question.SrsEaseFactor   = easeFactor;
                 question.SrsRepetitions  = repetitions;
                 question.SrsNextReviewAt = nextReviewAt;
-                question.UpdatedAt       = DateTime.UtcNow;
+                question.UpdatedAt       = VietnamDateTime.Now();
 
                 await _context.SaveChangesAsync();
             }
@@ -526,7 +527,7 @@ namespace SuperAppDataRepositories.Repositories
         {
             try
             {
-                var now = DateTime.Now;
+                var now = VietnamDateTime.Now();
 
                 var node = await _context.KNodes.FindAsync(nodeId);
                 if (node == null) return [];
@@ -562,7 +563,7 @@ namespace SuperAppDataRepositories.Repositories
         {
             try
             {
-                var now = DateTime.Now;
+                var now = VietnamDateTime.Now();
 
                 var knowledges = await _context.KKnowledges
                     .Where(k => k.UserId == userId && k.DeletedAt == null)
@@ -608,7 +609,7 @@ namespace SuperAppDataRepositories.Repositories
         {
             try
             {
-                var now      = DateTime.Now;
+                var now      = VietnamDateTime.Now();
                 var dueLimit = (int)Math.Ceiling(dailyLimit * (1 - newRatio));
                 var newLimit = dailyLimit - dueLimit;
 

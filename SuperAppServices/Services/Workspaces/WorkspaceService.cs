@@ -5,6 +5,7 @@ using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
+using SuperAppModels.Utils;
 using SuperAppServices.Interfaces;
 using SuperAppDataRepositories.Data;
 
@@ -113,7 +114,7 @@ namespace SuperAppServices.Services.Workspaces
                     FolderCount = 0,
                     MemberCount = 1,
                     Settings = null,
-                    CreatedAt = workspace.CreatedAt ?? DateTime.UtcNow,
+                    CreatedAt = workspace.CreatedAt ?? VietnamDateTime.Now(),
                     UpdatedAt = workspace.UpdatedAt,
                     Items = flatResponse // ✅ FLAT list with parentId - Frontend builds hierarchy
                 };
@@ -204,7 +205,7 @@ namespace SuperAppServices.Services.Workspaces
                     FileCount = fileCount,
                     MemberCount = 1,
                     Settings = null,
-                    CreatedAt = workspace.CreatedAt ?? DateTime.UtcNow,
+                    CreatedAt = workspace.CreatedAt ?? VietnamDateTime.Now(),
                     UpdatedAt = workspace.UpdatedAt,
                     DeletedAt = workspace.DeletedAt,
                     FlatData = itemsV2 // ✅ FLAT list with ALL items (unfiltered - frontend will apply filters)
@@ -336,16 +337,18 @@ namespace SuperAppServices.Services.Workspaces
             var fileIds = items.Where(i => i.Type.ToLowerInvariant() == "file").Select(i => (int)i.ItemId).Distinct().ToList();
 
             // Query full entity data (Description, Type, StatusCode, etc.)
+            // IgnoreQueryFilters: include soft-deleted entities so workspace_items that reference
+            // them still render instead of throwing when the entity is missing from the dict.
             var foldersDict = folderIds.Any()
-                ? await _context.Folders.AsNoTracking().Where(f => folderIds.Contains(f.Id)).ToDictionaryAsync(f => f.Id)
+                ? await _context.Folders.AsNoTracking().IgnoreQueryFilters().Where(f => folderIds.Contains(f.Id)).ToDictionaryAsync(f => f.Id)
                 : new Dictionary<int, SuperAppModels.Models.Folder>();
 
             var notesDict = noteIds.Any()
-                ? await _context.Notes.AsNoTracking().Where(n => noteIds.Contains(n.Id)).ToDictionaryAsync(n => n.Id)
+                ? await _context.Notes.AsNoTracking().IgnoreQueryFilters().Where(n => noteIds.Contains(n.Id)).ToDictionaryAsync(n => n.Id)
                 : new Dictionary<int, SuperAppModels.Models.Note>();
 
             var filesDict = fileIds.Any()
-                ? await _context.Files.AsNoTracking().Where(f => fileIds.Contains(f.Id)).ToDictionaryAsync(f => f.Id)
+                ? await _context.Files.AsNoTracking().IgnoreQueryFilters().Where(f => fileIds.Contains(f.Id)).ToDictionaryAsync(f => f.Id)
                 : new Dictionary<int, SuperAppModels.Models.File>();
 
             // ===== STEP 2: Transform items with full entity data =====
@@ -361,6 +364,9 @@ namespace SuperAppServices.Services.Workspaces
                 };
 
                 // Create entity data object based on type WITH FULL DATA FROM DB
+                // Fallback arms (2/3/4 without `when`) handle hard-deleted entities whose rows
+                // no longer exist even with IgnoreQueryFilters — return a minimal placeholder
+                // so the tree renders instead of crashing.
                 object entityData = entityType switch
                 {
                     2 when foldersDict.TryGetValue((int)item.ItemId, out var folder) => new FolderData
@@ -368,10 +374,10 @@ namespace SuperAppServices.Services.Workspaces
                         Id = folder.Id,
                         UserId = folder.UserId,
                         Name = folder.Name,
-                        Description = folder.Description, // ✅ FROM DB
+                        Description = folder.Description,
                         Color = folder.Color,
                         Icon = folder.Icon,
-                        CreatedAt = folder.CreatedAt ?? DateTime.UtcNow,
+                        CreatedAt = folder.CreatedAt ?? VietnamDateTime.Now(),
                         UpdatedAt = folder.UpdatedAt,
                         DeletedAt = folder.DeletedAt
                     },
@@ -380,11 +386,11 @@ namespace SuperAppServices.Services.Workspaces
                         Id = note.Id,
                         UserId = note.UserId,
                         Name = note.Name,
-                        Description = note.Description, // ✅ FROM DB
-                        StatusCode = note.StatusCode,   // ✅ FROM DB
-                        Icon = note.Icon,               // ✅ FROM DB
-                        Color = note.Color,             // ✅ FROM DB
-                        CreatedAt = note.CreatedAt ?? DateTime.UtcNow,
+                        Description = note.Description,
+                        StatusCode = note.StatusCode,
+                        Icon = note.Icon,
+                        Color = note.Color,
+                        CreatedAt = note.CreatedAt ?? VietnamDateTime.Now(),
                         UpdatedAt = note.UpdatedAt,
                         DeletedAt = note.DeletedAt
                     },
@@ -393,16 +399,19 @@ namespace SuperAppServices.Services.Workspaces
                         Id = file.Id,
                         UserId = file.UserId,
                         Name = file.Name,
-                        Url = file.Url,             // ✅ FROM DB
-                        FileSize = file.FileSize,   // ✅ FROM DB
-                        MimeType = file.MimeType,   // ✅ FROM DB
-                        Extension = file.Extension, // ✅ FROM DB
-                        StatusCode = file.StatusCode, // ✅ FROM DB
-                        CreatedAt = file.CreatedAt ?? DateTime.UtcNow,
+                        Url = file.Url,
+                        FileSize = file.FileSize,
+                        MimeType = file.MimeType,
+                        Extension = file.Extension,
+                        StatusCode = file.StatusCode,
+                        CreatedAt = file.CreatedAt ?? VietnamDateTime.Now(),
                         UpdatedAt = file.UpdatedAt,
                         DeletedAt = file.DeletedAt
                     },
-                    _ => throw new InvalidOperationException($"Unsupported or missing entity data for type: {entityType}")
+                    2 => (object)new FolderData { Id = (int)item.ItemId, Name = "[Deleted]", DeletedAt = item.DeletedAt },
+                    3 => (object)new NoteData   { Id = (int)item.ItemId, Name = "[Deleted]", DeletedAt = item.DeletedAt },
+                    4 => (object)new FileData   { Id = (int)item.ItemId, Name = "[Deleted]", DeletedAt = item.DeletedAt },
+                    _ => throw new InvalidOperationException($"Unknown entity type: {entityType}")
                 };
 
                 // Build WorkspaceItemResponseV2 with clear separation

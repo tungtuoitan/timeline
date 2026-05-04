@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
+using SuperAppModels.Utils;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
@@ -789,7 +790,7 @@ namespace SuperAppServices.Services.Keywords
                     if (!keyword.TargetItemId.HasValue) continue;
                     var (workspaceId, pathIds) = itemInfoMap[keyword.TargetItemId.Value];
                     keyword.Link = await BuildItemLinkAsync(pathIds, workspaceId, keyword.TargetItemId.Value);
-                    keyword.UpdatedAt = DateTime.UtcNow;
+                    keyword.UpdatedAt = VietnamDateTime.Now();
                 }
 
                 await _context.SaveChangesAsync();
@@ -814,8 +815,8 @@ namespace SuperAppServices.Services.Keywords
 
                 if (keyword != null && keyword.HardDeletedAt == null)
                 {
-                    keyword.HardDeletedAt = DateTime.UtcNow;
-                    keyword.UpdatedAt = DateTime.UtcNow;
+                    keyword.HardDeletedAt = VietnamDateTime.Now();
+                    keyword.UpdatedAt = VietnamDateTime.Now();
                     await _context.SaveChangesAsync();
                     _logger.LogInformation("Soft deleted workspace keyword for WorkspaceId: {WorkspaceId}", workspaceId);
                 }
@@ -883,7 +884,7 @@ namespace SuperAppServices.Services.Keywords
                     return;
                 }
 
-                var now = DateTime.UtcNow;
+                var now = VietnamDateTime.Now();
                 foreach (var keyword in keywords)
                 {
                     keyword.HardDeletedAt = now;
@@ -1172,7 +1173,7 @@ namespace SuperAppServices.Services.Keywords
                     existingLinks.Add(expectedLink);
                     kw.Link = expectedLink;
                 }
-                kw.UpdatedAt = DateTime.UtcNow;
+                kw.UpdatedAt = VietnamDateTime.Now();
             }
             else
             {

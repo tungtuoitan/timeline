@@ -6,6 +6,7 @@ using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
+using SuperAppModels.Utils;
 using System.Data;
 
 namespace SuperAppDataRepositories.Repositories
@@ -276,7 +277,7 @@ namespace SuperAppDataRepositories.Repositories
                     existingWorkspace.Description = workspace.Description;
                     existingWorkspace.UserId = workspace.UserId;
                     existingWorkspace.DeletedAt = workspace.DeletedAt;  // Handle soft delete/restore
-                    existingWorkspace.UpdatedAt = DateTime.UtcNow;
+                    existingWorkspace.UpdatedAt = VietnamDateTime.Now();
 
                     await _context.SaveChangesAsync();
 
@@ -309,7 +310,7 @@ namespace SuperAppDataRepositories.Repositories
                     }
 
                     // Ensure timestamps
-                    workspace.CreatedAt = DateTime.UtcNow;
+                    workspace.CreatedAt = VietnamDateTime.Now();
                     workspace.UpdatedAt = null;
                     workspace.DeletedAt = null;
 
@@ -373,7 +374,7 @@ namespace SuperAppDataRepositories.Repositories
                     .Where(w => w.Id == workspaceId)
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(w => w.Name, name)
-                        .SetProperty(w => w.UpdatedAt, DateTime.UtcNow));
+                        .SetProperty(w => w.UpdatedAt, VietnamDateTime.Now()));
 
                 if (affectedRows == 0)
                 {
@@ -495,7 +496,7 @@ namespace SuperAppDataRepositories.Repositories
                     .Where(w => workspaceIds.Contains(w.Id) && w.DeletedAt != null)
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(w => w.DeletedAt, (DateTime?)null)
-                        .SetProperty(w => w.UpdatedAt, DateTime.UtcNow));
+                        .SetProperty(w => w.UpdatedAt, VietnamDateTime.Now()));
 
                 if (affectedRows == 0)
                 {

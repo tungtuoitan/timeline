@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using SuperAppModels.Utils;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
@@ -464,12 +465,12 @@ namespace SuperAppServices.Services.K
                     segmentsByQuestion[q.Id] = segments;
                 }
 
-                var today    = DateTime.UtcNow.Date;
+                var today    = VietnamDateTime.Now().Date;
                 var daysList = new List<KRetentionGraphDay>();
 
                 for (var d = days - 1; d >= 0; d--)
                 {
-                    var date = d == 0 ? DateTime.UtcNow : today.AddDays(-d).AddHours(23).AddMinutes(59);
+                    var date = d == 0 ? VietnamDateTime.Now() : today.AddDays(-d).AddHours(23).AddMinutes(59);
 
                     var retentions = questions.Select(q =>
                     {

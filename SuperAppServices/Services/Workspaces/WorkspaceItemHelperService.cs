@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using SuperAppModels.Models;
+using SuperAppModels.Utils;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
@@ -260,7 +261,7 @@ namespace SuperAppServices.Services.Workspaces
                         Description = folderData.Description,
                         Color = folderData.Color,
                         Icon = folderData.Icon,
-                        CreatedAt = DateTime.UtcNow,
+                        CreatedAt = VietnamDateTime.Now(),
                         DeletedAt = null
                     };
                     _context.Folders.Add(newFolder);
@@ -280,7 +281,7 @@ namespace SuperAppServices.Services.Workspaces
                         StatusCode = noteData.StatusCode,
                         Icon = noteData.Icon,
                         Color = noteData.Color,
-                        CreatedAt = DateTime.UtcNow,
+                        CreatedAt = VietnamDateTime.Now(),
                         DeletedAt = null
                     };
 
@@ -318,7 +319,7 @@ namespace SuperAppServices.Services.Workspaces
                                 newNote.Id);
                             
                             newNote.Description = updatedDescription;
-                            newNote.UpdatedAt = DateTime.UtcNow;
+                            newNote.UpdatedAt = VietnamDateTime.Now();
                             await _context.SaveChangesAsync();
                         }
                     }
@@ -335,7 +336,7 @@ namespace SuperAppServices.Services.Workspaces
                         MimeType = fileData.MimeType,
                         Extension = fileData.Extension,
                         StatusCode = fileData.StatusCode,
-                        CreatedAt = DateTime.UtcNow,
+                        CreatedAt = VietnamDateTime.Now(),
                         DeletedAt = null
                     };
                     _context.Files.Add(newFile);
@@ -351,7 +352,7 @@ namespace SuperAppServices.Services.Workspaces
                 ParentId = request.ParentId,
                 EntityType = request.EntityType.Value,
                 EntityId = entityId,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = VietnamDateTime.Now(),
                 UpdatedAt = null,
                 DeletedAt = null
             };
@@ -403,7 +404,7 @@ namespace SuperAppServices.Services.Workspaces
                 ParentId = request.ParentId,
                 EntityType = request.EntityType!.Value,
                 EntityId = request.EntityId!.Value,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = VietnamDateTime.Now(),
                 UpdatedAt = null,
                 DeletedAt = null
             };
@@ -436,7 +437,7 @@ namespace SuperAppServices.Services.Workspaces
             if (request.WorkspaceId.HasValue)
                 existingItem.WorkspaceId = request.WorkspaceId.Value;
 
-            existingItem.UpdatedAt = DateTime.UtcNow;
+            existingItem.UpdatedAt = VietnamDateTime.Now();
             upsertedItems.Add(existingItem);
 
             _logger.LogInformation(
@@ -463,7 +464,7 @@ namespace SuperAppServices.Services.Workspaces
             // ===== STEP 1: Update root item =====
             rootItem.WorkspaceId = targetWorkspaceId;
             rootItem.ParentId = targetParentId;
-            rootItem.UpdatedAt = DateTime.UtcNow;
+            rootItem.UpdatedAt = VietnamDateTime.Now();
             upsertedItems.Add(rootItem);
 
             _logger.LogInformation(
@@ -480,7 +481,7 @@ namespace SuperAppServices.Services.Workspaces
             foreach (var descendant in allDescendants)
             {
                 descendant.WorkspaceId = targetWorkspaceId;
-                descendant.UpdatedAt = DateTime.UtcNow;
+                descendant.UpdatedAt = VietnamDateTime.Now();
                 upsertedItems.Add(descendant);
 
                 _logger.LogDebug(
@@ -544,7 +545,7 @@ namespace SuperAppServices.Services.Workspaces
             folder.Description = folderData.Description;
             folder.Color = folderData.Color;
             folder.Icon = folderData.Icon;
-            folder.UpdatedAt = DateTime.UtcNow;
+            folder.UpdatedAt = VietnamDateTime.Now();
 
             if (folderData.DeletedAt.HasValue)
                 folder.DeletedAt = folderData.DeletedAt;
@@ -583,8 +584,8 @@ namespace SuperAppServices.Services.Workspaces
                 request.Id);
 
             var existingItem = existingItemsDict[request.Id!.Value];
-            existingItem.DeletedAt = DateTime.UtcNow;
-            existingItem.UpdatedAt = DateTime.UtcNow;
+            existingItem.DeletedAt = VietnamDateTime.Now();
+            existingItem.UpdatedAt = VietnamDateTime.Now();
             upsertedItems.Add(existingItem);
 
             _logger.LogInformation(
@@ -606,7 +607,7 @@ namespace SuperAppServices.Services.Workspaces
 
             var existingItem = existingItemsDict[request.Id!.Value];
             existingItem.DeletedAt = null;
-            existingItem.UpdatedAt = DateTime.UtcNow;
+            existingItem.UpdatedAt = VietnamDateTime.Now();
             upsertedItems.Add(existingItem);
 
             _logger.LogInformation(

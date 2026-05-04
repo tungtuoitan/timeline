@@ -5,6 +5,7 @@ using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
+using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Repositories
 {
@@ -266,7 +267,7 @@ namespace SuperAppDataRepositories.Repositories
                             existingTask.DeletedAt = task.DeletedAt;
                             if (task.FolderWorkspaceItemId.HasValue)
                                 existingTask.FolderWorkspaceItemId = task.FolderWorkspaceItemId;
-                            existingTask.UpdatedAt = DateTime.UtcNow;
+                            existingTask.UpdatedAt = VietnamDateTime.Now();
 
                             upsertedTasks.Add(existingTask);
                         }
@@ -276,8 +277,8 @@ namespace SuperAppDataRepositories.Repositories
                             _logger.LogInformation("Creating task with Title: '{Title}', FolderWorkspaceItemId: {FWI}",
                                 task.Title, task.FolderWorkspaceItemId);
 
-                            task.CreatedAt = DateTime.UtcNow;
-                            task.UpdatedAt = DateTime.UtcNow;
+                            task.CreatedAt = VietnamDateTime.Now();
+                            task.UpdatedAt = VietnamDateTime.Now();
 
                             _context.ProTasks.Add(task);
                             upsertedTasks.Add(task);
@@ -353,7 +354,7 @@ namespace SuperAppDataRepositories.Repositories
                 if (request.ProcessJson != null) existing.ProcessJson = request.ProcessJson;
                 if (request.CustomTabsJson != null) existing.CustomTabsJson = request.CustomTabsJson;
                 if (request.Status != null) existing.Status = request.Status;
-                existing.UpdatedAt = DateTime.UtcNow;
+                existing.UpdatedAt = VietnamDateTime.Now();
 
                 await _context.SaveChangesAsync();
 
