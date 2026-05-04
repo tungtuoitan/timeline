@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs;
@@ -15,7 +15,7 @@ namespace SuperAppAPI.Controllers.Keyword
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class KeywordController : ControllerBase
+    public class KeywordController : BaseAuthController
     {
         private readonly KeywordServiceV2 _keywordService;
         private readonly ILogger<KeywordController> _logger;
@@ -26,19 +26,6 @@ namespace SuperAppAPI.Controllers.Keyword
         {
             _keywordService = keywordService ?? throw new ArgumentNullException(nameof(keywordService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        }
-
-        /// <summary>
-        /// Get authenticated user ID from JWT claims
-        /// </summary>
-        private int? GetAuthenticatedUserId()
-        {
-            var userIdClaim = User.GetUserId();
-            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
-            {
-                return null;
-            }
-            return userId;
         }
 
         /// <summary>
@@ -53,7 +40,7 @@ namespace SuperAppAPI.Controllers.Keyword
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetAllKeywords()
         {
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
@@ -96,7 +83,7 @@ namespace SuperAppAPI.Controllers.Keyword
                 return BadRequest("At least one keyword is required");
             }
 
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
@@ -126,7 +113,7 @@ namespace SuperAppAPI.Controllers.Keyword
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetKeywordTargets([FromQuery] int keywordId)
         {
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
                 return Unauthorized("User ID not found in token");
 
@@ -142,7 +129,7 @@ namespace SuperAppAPI.Controllers.Keyword
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetTargetKeywords([FromQuery] int targetId, [FromQuery] string targetType)
         {
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
                 return Unauthorized("User ID not found in token");
 
@@ -161,7 +148,7 @@ namespace SuperAppAPI.Controllers.Keyword
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> LinkTargetKeyword([FromBody] LinkTargetKeywordRequest request)
         {
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
                 return Unauthorized("User ID not found in token");
 
@@ -183,7 +170,7 @@ namespace SuperAppAPI.Controllers.Keyword
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> UnlinkTargetKeyword(int id)
         {
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
                 return Unauthorized("User ID not found in token");
 
@@ -203,7 +190,7 @@ namespace SuperAppAPI.Controllers.Keyword
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> SyncKeywords()
         {
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
                 return Unauthorized("User ID not found in token");
 

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs;
@@ -13,7 +13,7 @@ namespace SuperAppAPI.Controllers.Projects
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class TaskCommentController : ControllerBase
+    public class TaskCommentController : BaseAuthController
     {
         private readonly ITaskCommentService _service;
         private readonly ILogger<TaskCommentController> _logger;
@@ -26,14 +26,6 @@ namespace SuperAppAPI.Controllers.Projects
             _logger = logger;
         }
 
-        private int? GetAuthenticatedUserId()
-        {
-            var userIdClaim = User.GetUserId();
-            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
-                return null;
-            return userId;
-        }
-
         /// <summary>
         /// Get all comments for a task
         /// </summary>
@@ -42,7 +34,7 @@ namespace SuperAppAPI.Controllers.Projects
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetComments([FromQuery] int taskId)
         {
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
 
             _logger.LogInformation("Getting comments for taskId: {TaskId}, userId: {UserId}", taskId, userId.Value);
@@ -62,7 +54,7 @@ namespace SuperAppAPI.Controllers.Projects
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
 
             _logger.LogInformation("Upserting comment for taskId: {TaskId}, userId: {UserId}",
@@ -80,7 +72,7 @@ namespace SuperAppAPI.Controllers.Projects
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> DeleteComment(int id)
         {
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
 
             _logger.LogInformation("Deleting comment ID: {Id}, userId: {UserId}", id, userId.Value);

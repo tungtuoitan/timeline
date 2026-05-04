@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Exceptions;
 using SuperAppAPI.Extensions;
@@ -15,7 +15,7 @@ namespace SuperAppAPI.Controllers.Projects
      [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class NotesController : ControllerBase
+    public class NotesController : BaseAuthController
     {
         private readonly INoteService _noteService;
         private readonly ILogger<NotesController> _logger;
@@ -24,27 +24,6 @@ namespace SuperAppAPI.Controllers.Projects
         {
             _noteService = noteService;
             _logger = logger;
-        }
-
-        /// <summary>
-        /// Get authenticated user ID from JWT claims
-        /// </summary>
-        private int? GetAuthenticatedUserId()
-        {
-            var userIdClaim = User.GetUserId();
-            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
-            {
-                return null;
-            }
-            return userId;
-        }
-
-        /// <summary>
-        /// Get authenticated user email from JWT claims
-        /// </summary>
-        private string? GetAuthenticatedUserEmail()
-        {
-            return User.GetUserEmail();
         }
 
         /// <summary>
@@ -76,13 +55,13 @@ namespace SuperAppAPI.Controllers.Projects
             [FromQuery] string? workspaceItemIds = null)
         {
             // Get userId from JWT token claims
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
             }
 
-            var userEmail = GetAuthenticatedUserEmail();
+            var userEmail = GetUserEmail();
 
             // Build filter options
             var filterOptions = new NoteFilterOptions
@@ -154,13 +133,13 @@ namespace SuperAppAPI.Controllers.Projects
             }
 
             // Get userId from JWT token claims
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
             }
 
-            var userEmail = GetAuthenticatedUserEmail();
+            var userEmail = GetUserEmail();
 
             // Set userId and CreatedBy for all requests
             foreach (var request in requests)
@@ -212,7 +191,7 @@ namespace SuperAppAPI.Controllers.Projects
                 throw new BadRequestException("Note ID must be a positive integer");
             }
 
-            var userEmail = GetAuthenticatedUserEmail();
+            var userEmail = GetUserEmail();
 
             _logger.LogInformation("Retrieving note {NoteId} for user: {UserEmail}", id, userEmail);
 
@@ -248,7 +227,7 @@ namespace SuperAppAPI.Controllers.Projects
                 throw new BadRequestException("Note ID(s) must be provided");
             }
 
-            var userEmail = GetAuthenticatedUserEmail();
+            var userEmail = GetUserEmail();
 
             _logger.LogInformation("Hard deleting note(s) {NoteIds} for user: {UserEmail}",
                 id, userEmail);

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Exceptions;
 using SuperAppAPI.Extensions;
@@ -12,7 +12,7 @@ namespace SuperAppAPI.Controllers.K
     [ApiController]
     [Route("api/k")]
     [Authorize]
-    public class KController : ControllerBase
+    public class KController : BaseAuthController
     {
         private readonly IKKnowledgeService _knowledgeService;
         private readonly IKNodeService _nodeService;
@@ -34,21 +34,13 @@ namespace SuperAppAPI.Controllers.K
             _logger                = logger                ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        private int? GetAuthenticatedUserId()
-        {
-            var claim = User.GetUserId();
-            if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
-                return null;
-            return userId;
-        }
-
         // GET /api/k/orphan-questions
         [HttpGet("orphan-questions")]
         public async Task<IActionResult> GetOrphanQuestions()
         {
             try
             {
-                var userId = GetAuthenticatedUserId();
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized("User ID not found in token");
                 var result = await _questionService.GetOrphanQuestionsAsync(userId.Value);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
@@ -67,7 +59,7 @@ namespace SuperAppAPI.Controllers.K
             try
             {
                 if (!ModelState.IsValid) return BadRequest(ModelState);
-                var userId = GetAuthenticatedUserId();
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized("User ID not found in token");
                 var result = await _questionService.UpdateOrphanQuestionsAsync(userId.Value, request);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
@@ -85,7 +77,7 @@ namespace SuperAppAPI.Controllers.K
         {
             try
             {
-                var userId = GetAuthenticatedUserId();
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized("User ID not found in token");
                 var result = await _questionService.MoveQuestionAsync(id, request.NodeId, userId.Value);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
@@ -108,7 +100,7 @@ namespace SuperAppAPI.Controllers.K
         {
             try
             {
-                var userId = GetAuthenticatedUserId();
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized("User ID not found in token");
 
                 var filter = new FilterOptions
@@ -141,7 +133,7 @@ namespace SuperAppAPI.Controllers.K
                 if (!ModelState.IsValid)
                     return BadRequest(ModelState);
 
-                var userId = GetAuthenticatedUserId();
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized("User ID not found in token");
 
                 request.UserId = userId.Value;
@@ -165,7 +157,7 @@ namespace SuperAppAPI.Controllers.K
                 if (!ModelState.IsValid)
                     return BadRequest(ModelState);
 
-                var userId = GetAuthenticatedUserId();
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized("User ID not found in token");
 
                 request.UserId = userId.Value;
@@ -186,7 +178,7 @@ namespace SuperAppAPI.Controllers.K
         {
             try
             {
-                var userId = GetAuthenticatedUserId();
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized("User ID not found in token");
 
                 var result = await _knowledgeService.SoftDeleteKnowledgeAsync(id, userId.Value);
@@ -212,7 +204,7 @@ namespace SuperAppAPI.Controllers.K
                 if (knowledgeId <= 0)
                     return BadRequest(new ResultOptions { Success = false, Message = "Knowledge ID must be a positive integer", Status = 400 });
 
-                var userId = GetAuthenticatedUserId();
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized("User ID not found in token");
 
                 _logger.LogInformation("Retrieving knowledge tree for knowledgeId: {KnowledgeId}, userId: {UserId}",
@@ -255,7 +247,7 @@ namespace SuperAppAPI.Controllers.K
                 if (!ModelState.IsValid)
                     return BadRequest(new ResultOptions { Success = false, Message = "Invalid request data", Object = ModelState, Status = 400 });
 
-                var userId = GetAuthenticatedUserId();
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized("User ID not found in token");
 
                 _logger.LogInformation("Deleting {Count} nodes in knowledge {KnowledgeId}", request.NodeIds.Count, knowledgeId);
@@ -288,10 +280,10 @@ namespace SuperAppAPI.Controllers.K
                 if (requests == null || !requests.Any())
                     return BadRequest("At least one node request is required");
 
-                var userId = GetAuthenticatedUserId();
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized("User ID not found in token");
 
-                var userEmail = User.GetUserEmail();
+                var userEmail = GetUserEmail();
 
                 foreach (var req in requests)
                 {
@@ -332,7 +324,7 @@ namespace SuperAppAPI.Controllers.K
                 if (!ModelState.IsValid)
                     return BadRequest(ModelState);
 
-                var userId = GetAuthenticatedUserId();
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized("User ID not found in token");
 
                 if (request.Tests.Count == 0 && request.OrphanQuestions.Count == 0)
@@ -370,7 +362,7 @@ namespace SuperAppAPI.Controllers.K
                 if (string.IsNullOrWhiteSpace(request.Markdown))
                     return BadRequest(new ResultOptions { Success = false, Message = "Markdown content is required", Status = 400 });
 
-                var userId = GetAuthenticatedUserId();
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized("User ID not found in token");
 
                 var nodes = await _markdownImportService.ImportAsync(knowledgeId, userId.Value, request);

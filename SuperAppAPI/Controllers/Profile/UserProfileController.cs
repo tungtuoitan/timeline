@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using AutoMapper;
 using SuperAppAPI.Extensions;
@@ -12,7 +12,7 @@ namespace SuperAppAPI.Controllers.Profile
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class UserProfileController : ControllerBase
+    public class UserProfileController : BaseAuthController
     {
         private readonly IUserProfileService _userProfileService;
         private readonly ILogger<UserProfileController> _logger;
@@ -28,19 +28,6 @@ namespace SuperAppAPI.Controllers.Profile
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         }
 
-        /// <summary>
-        /// Get authenticated user ID from JWT claims
-        /// </summary>
-        private int? GetAuthenticatedUserId()
-        {
-            var userIdClaim = User.GetUserId();
-            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
-            {
-                return null;
-            }
-            return userId;
-        }
-
         [HttpGet]
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -48,7 +35,7 @@ namespace SuperAppAPI.Controllers.Profile
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetUserProfile([FromQuery] string? appC = null)
         {
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (!userId.HasValue)
             {
                 return Unauthorized("User ID not found in token");
@@ -79,7 +66,7 @@ namespace SuperAppAPI.Controllers.Profile
                 return BadRequest(new { Message = "UserId must be greater than 0" });
             }
 
-            var currentUserId = GetAuthenticatedUserId();
+            var currentUserId = GetUserId();
             if (!currentUserId.HasValue)
             {
                 return Unauthorized("User ID not found in token");
@@ -114,7 +101,7 @@ namespace SuperAppAPI.Controllers.Profile
                 return BadRequest(ModelState);
             }
 
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (!userId.HasValue)
             {
                 _logger.LogWarning("User ID not found or invalid in claims");

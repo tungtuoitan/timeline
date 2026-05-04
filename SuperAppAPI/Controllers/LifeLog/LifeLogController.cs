@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs;
@@ -13,7 +13,7 @@ namespace SuperAppAPI.Controllers.LifeLog
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class LifeLogController : ControllerBase
+    public class LifeLogController : BaseAuthController
     {
         private readonly ILifeLogService _service;
         private readonly ILogger<LifeLogController> _logger;
@@ -22,13 +22,6 @@ namespace SuperAppAPI.Controllers.LifeLog
         {
             _service = service;
             _logger = logger;
-        }
-
-        private int? GetAuthenticatedUserId()
-        {
-            var claim = User.GetUserId();
-            if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId)) return null;
-            return userId;
         }
 
         // ─── TRACKS ────────────────────────────────────────────────────────────
@@ -43,7 +36,7 @@ namespace SuperAppAPI.Controllers.LifeLog
             [FromQuery] string? deletedAt = null,
             [FromQuery] string? ids = null)
         {
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
 
             var filter = new LifeLogTrackFilterOptions
@@ -63,14 +56,11 @@ namespace SuperAppAPI.Controllers.LifeLog
             return Ok(response);
         }
 
-        /// <summary>
-        /// POST /api/lifelog/tracks/batch - create or update tracks
-        /// </summary>
         [HttpGet("tracks/{id}")]
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetTrackById(int id)
         {
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
             var response = await _service.GetTrackByIdAsync(id, userId.Value);
             return Ok(response);
@@ -92,7 +82,7 @@ namespace SuperAppAPI.Controllers.LifeLog
                 return BadRequest("At least one track is required");
             }
 
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
 
             foreach (var r in requests) r.UserId = userId.Value;
@@ -125,7 +115,7 @@ namespace SuperAppAPI.Controllers.LifeLog
             [FromQuery] string? deletedAt = null,
             [FromQuery] string? ids = null)
         {
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
 
             var filter = new LifeLogLogFilterOptions
@@ -151,14 +141,11 @@ namespace SuperAppAPI.Controllers.LifeLog
             return Ok(response);
         }
 
-        /// <summary>
-        /// POST /api/lifelog/logs/batch - create or update log entries
-        /// </summary>
         [HttpGet("logs/{id}")]
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetLogById(int id)
         {
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
             var response = await _service.GetLogByIdAsync(id, userId.Value);
             return Ok(response);
@@ -180,7 +167,7 @@ namespace SuperAppAPI.Controllers.LifeLog
                 return BadRequest("At least one log is required");
             }
 
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
 
             foreach (var r in requests) r.UserId = userId.Value;

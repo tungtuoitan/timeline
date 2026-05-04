@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs;
@@ -13,7 +13,7 @@ namespace SuperAppAPI.Controllers.Projects
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class TaskController : ControllerBase
+    public class TaskController : BaseAuthController
     {
         private readonly ITaskService _taskService;
         private readonly ILogger<TaskController> _logger;
@@ -24,27 +24,6 @@ namespace SuperAppAPI.Controllers.Projects
         {
             _taskService = taskService;
             _logger = logger;
-        }
-
-        /// <summary>
-        /// Get authenticated user ID from JWT claims
-        /// </summary>
-        private int? GetAuthenticatedUserId()
-        {
-            var userIdClaim = User.GetUserId();
-            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
-            {
-                return null;
-            }
-            return userId;
-        }
-
-        /// <summary>
-        /// Get authenticated user email from JWT claims
-        /// </summary>
-        private string? GetAuthenticatedUserEmail()
-        {
-            return User.GetUserEmail();
         }
 
         /// <summary>
@@ -75,13 +54,13 @@ namespace SuperAppAPI.Controllers.Projects
             [FromQuery] string? ids = null)
         {
             // Get userId from JWT token claims
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
             }
 
-            var userEmail = GetAuthenticatedUserEmail();
+            var userEmail = GetUserEmail();
 
             // Build filter options
             var filterOptions = new TaskFilterOptions
@@ -135,7 +114,7 @@ namespace SuperAppAPI.Controllers.Projects
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetTaskById(int id)
         {
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
             _logger.LogInformation("Getting task by ID: {Id} for userId: {UserId}", id, userId.Value);
             var response = await _taskService.GetTaskByIdAsync(id, userId.Value);
@@ -163,13 +142,13 @@ namespace SuperAppAPI.Controllers.Projects
             }
 
             // Get userId from JWT token claims
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
             }
 
-            var userEmail = GetAuthenticatedUserEmail();
+            var userEmail = GetUserEmail();
 
             _logger.LogInformation("Batch upserting {Count} tasks for user: {UserEmail}",
                 requests.Count, userEmail);
@@ -198,7 +177,7 @@ namespace SuperAppAPI.Controllers.Projects
                 return BadRequest("Invalid task ID");
             }
 
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
             {
                 return Unauthorized("User ID not found in token");

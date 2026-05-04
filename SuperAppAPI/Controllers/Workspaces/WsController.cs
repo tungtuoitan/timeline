@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Exceptions;
 using SuperAppAPI.Extensions;
@@ -14,7 +14,7 @@ namespace SuperAppAPI.Controllers.Workspaces
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class WsController : ControllerBase
+    public class WsController : BaseAuthController
     {
         private readonly IWsService _wsService;
         private readonly ILogger<WsController> _logger;
@@ -23,27 +23,6 @@ namespace SuperAppAPI.Controllers.Workspaces
         {
             _wsService = wsService;
             _logger = logger;
-        }
-
-        /// <summary>
-        /// Get authenticated user ID from JWT claims
-        /// </summary>
-        private int? GetAuthenticatedUserId()
-        {
-            var userIdClaim = User.GetUserId();
-            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
-            {
-                return null;
-            }
-            return userId;
-        }
-
-        /// <summary>
-        /// Get authenticated user email from JWT claims
-        /// </summary>
-        private string? GetAuthenticatedUserEmail()
-        {
-            return User.GetUserEmail();
         }
 
         /// <summary>
@@ -77,13 +56,13 @@ namespace SuperAppAPI.Controllers.Workspaces
             [FromQuery] int? pageSize = null)
         {
             // Get userId from JWT token claims
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
             }
 
-            var userEmail = GetAuthenticatedUserEmail();
+            var userEmail = GetUserEmail();
 
             // Build filter options
             var filterOptions = new WsFilterOptions
@@ -102,7 +81,9 @@ namespace SuperAppAPI.Controllers.Workspaces
                     ? parsedTo
                     : null,
                 Ids = !string.IsNullOrEmpty(ids)
-                    ? ids.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList()
+                    ? ids.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(s => int.TryParse(s.Trim(), out var id) ? id : 0)
+                        .Where(id => id > 0).ToList()
                     : null,
                 PageNumber = page,
                 PageSize = pageSize
@@ -155,13 +136,13 @@ namespace SuperAppAPI.Controllers.Workspaces
             }
 
             // Get userId from JWT token claims
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
             }
 
-            var userEmail = GetAuthenticatedUserEmail();
+            var userEmail = GetUserEmail();
 
             // Set userId for all requests
             foreach (var request in requests)
@@ -212,7 +193,7 @@ namespace SuperAppAPI.Controllers.Workspaces
                 throw new BadRequestException("Workspace ID must be a positive integer");
             }
 
-            var userEmail = GetAuthenticatedUserEmail();
+            var userEmail = GetUserEmail();
 
             _logger.LogInformation("Retrieving workspace {WorkspaceId} for user: {UserEmail}", id, userEmail);
 
@@ -248,7 +229,7 @@ namespace SuperAppAPI.Controllers.Workspaces
                 throw new BadRequestException("Workspace ID(s) must be provided");
             }
 
-            var userEmail = GetAuthenticatedUserEmail();
+            var userEmail = GetUserEmail();
 
             _logger.LogInformation("Hard deleting workspace(s) {WorkspaceIds} for user: {UserEmail} with CASCADE",
                 id, userEmail);

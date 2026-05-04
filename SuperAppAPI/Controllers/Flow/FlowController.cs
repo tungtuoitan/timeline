@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs.Requests;
@@ -12,7 +12,7 @@ namespace SuperAppAPI.Controllers.Flow
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class FlowController : ControllerBase
+    public class FlowController : BaseAuthController
     {
         private readonly IFlowService _flowService;
         private readonly ILogger<FlowController> _logger;
@@ -21,12 +21,6 @@ namespace SuperAppAPI.Controllers.Flow
         {
             _flowService = flowService;
             _logger = logger;
-        }
-
-        private int? GetUserId()
-        {
-            var claim = User.GetUserId();
-            return string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var id) ? null : id;
         }
 
         // ── Edges ─────────────────────────────────────────────────────────────

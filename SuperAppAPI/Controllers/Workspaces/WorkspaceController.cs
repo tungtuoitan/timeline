@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Exceptions;
 using SuperAppAPI.Extensions;
@@ -15,7 +15,7 @@ namespace SuperAppAPI.Controllers.Workspaces
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class WorkspaceController : ControllerBase
+    public class WorkspaceController : BaseAuthController
     {
         private readonly IWorkspaceService _workspaceService;
         private readonly IWorkspaceItemService _workspaceItemService;
@@ -29,19 +29,6 @@ namespace SuperAppAPI.Controllers.Workspaces
             _workspaceService = workspaceService ?? throw new ArgumentNullException(nameof(workspaceService));
             _workspaceItemService = workspaceItemService ?? throw new ArgumentNullException(nameof(workspaceItemService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        }
-
-        /// <summary>
-        /// Get authenticated user ID from JWT claims
-        /// </summary>
-        private int? GetAuthenticatedUserId()
-        {
-            var userIdClaim = User.GetUserId();
-            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
-            {
-                return null;
-            }
-            return userId;
         }
 
         /// <summary>
@@ -64,7 +51,7 @@ namespace SuperAppAPI.Controllers.Workspaces
             [FromQuery] string? createdAtFrom = null,
             [FromQuery] string? createdAtTo = null)
         {
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
@@ -142,7 +129,7 @@ namespace SuperAppAPI.Controllers.Workspaces
                 throw new BadRequestException("Workspace ID must be a positive integer");
             }
 
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
@@ -205,7 +192,7 @@ namespace SuperAppAPI.Controllers.Workspaces
         //        });
         //    }
 
-        //    var userId = GetAuthenticatedUserId();
+        //    var userId = GetUserId();
         //    if (userId == null)
         //    {
         //        return Unauthorized("User ID not found in token");
@@ -265,7 +252,7 @@ namespace SuperAppAPI.Controllers.Workspaces
                 });
             }
 
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
@@ -324,7 +311,7 @@ namespace SuperAppAPI.Controllers.Workspaces
                 });
             }
 
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
@@ -383,7 +370,7 @@ namespace SuperAppAPI.Controllers.Workspaces
                 });
             }
 
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
@@ -453,13 +440,13 @@ namespace SuperAppAPI.Controllers.Workspaces
             }
 
             // 3. Get userId from JWT token claims
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
             }
 
-            var userEmail = User.GetUserEmail();
+            var userEmail = GetUserEmail();
 
             // 4. Set workspaceId, userId, and CreatedBy for all requests
             foreach (var request in requests)

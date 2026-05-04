@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs;
@@ -14,7 +14,7 @@ namespace SuperAppAPI.Controllers.File
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class FileController : ControllerBase
+    public class FileController : BaseAuthController
     {
         private readonly ILogger<FileController> _logger;
         private readonly IFileService _fileService;

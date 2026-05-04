@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs;
@@ -10,7 +10,7 @@ namespace SuperAppAPI.Controllers.Wiki
     [ApiController]
     [Route("api/wiki")]
     [Authorize]
-    public class WikiController : ControllerBase
+    public class WikiController : BaseAuthController
     {
         private readonly IWikiService _wikiService;
         private readonly ILogger<WikiController> _logger;
@@ -19,12 +19,6 @@ namespace SuperAppAPI.Controllers.Wiki
         {
             _wikiService = wikiService ?? throw new ArgumentNullException(nameof(wikiService));
             _logger      = logger      ?? throw new ArgumentNullException(nameof(logger));
-        }
-
-        private int? GetUserId()
-        {
-            var claim = User.GetUserId();
-            return string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var id) ? null : id;
         }
 
         /// <summary>Returns all keywords + infos for the current user</summary>

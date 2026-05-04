@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs;
@@ -13,7 +13,7 @@ namespace SuperAppAPI.Controllers.Projects
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class ProjectController : ControllerBase
+    public class ProjectController : BaseAuthController
     {
         private readonly IProjectService _projectService;
         private readonly ILogger<ProjectController> _logger;
@@ -22,27 +22,6 @@ namespace SuperAppAPI.Controllers.Projects
         {
             _projectService = projectService;
             _logger = logger;
-        }
-
-        /// <summary>
-        /// Get authenticated user ID from JWT claims
-        /// </summary>
-        private int? GetAuthenticatedUserId()
-        {
-            var userIdClaim = User.GetUserId();
-            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
-            {
-                return null;
-            }
-            return userId;
-        }
-
-        /// <summary>
-        /// Get authenticated user email from JWT claims
-        /// </summary>
-        private string? GetAuthenticatedUserEmail()
-        {
-            return User.GetUserEmail();
         }
 
         /// <summary>
@@ -66,13 +45,13 @@ namespace SuperAppAPI.Controllers.Projects
             [FromQuery] string? ids = null)
         {
             // Get userId from JWT token claims
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
             }
 
-            var userEmail = GetAuthenticatedUserEmail();
+            var userEmail = GetUserEmail();
 
             // Build filter options
             var filterOptions = new ProjectFilterOptions
@@ -105,24 +84,12 @@ namespace SuperAppAPI.Controllers.Projects
             return Ok(response);
         }
 
-        /// <summary>
-        /// Batch upsert multiple projects (create or update) in a single request
-        /// Use this for single project operations by passing an array with 1 element
-        /// Soft delete: pass deletedAt with a timestamp
-        /// Restore: pass deletedAt as null for an existing project
-        /// </summary>
-        /// <param name="requests">List of project upsert data</param>
-        /// <returns>Batch operation results</returns>
-        /// <response code="200">Projects upserted successfully</response>
-        /// <response code="400">Invalid input data</response>
-        /// <response code="401">Unauthorized - invalid or missing token</response>
-        /// <response code="500">Internal server error</response>
         [HttpGet("{id}")]
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetProjectById(int id)
         {
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
             _logger.LogInformation("Getting project by ID: {Id} for userId: {UserId}", id, userId.Value);
             var response = await _projectService.GetProjectByIdAsync(id, userId.Value);
@@ -150,13 +117,13 @@ namespace SuperAppAPI.Controllers.Projects
             }
 
             // Get userId from JWT token claims
-            var userId = GetAuthenticatedUserId();
+            var userId = GetUserId();
             if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
             }
 
-            var userEmail = GetAuthenticatedUserEmail();
+            var userEmail = GetUserEmail();
 
             // Set userId for all requests
             foreach (var request in requests)

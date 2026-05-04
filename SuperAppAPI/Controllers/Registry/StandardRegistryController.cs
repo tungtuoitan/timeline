@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs.Requests;
@@ -13,7 +13,7 @@ namespace SuperAppAPI.Controllers.Registry
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class StandardRegistryController : ControllerBase
+    public class StandardRegistryController : BaseAuthController
     {
         private readonly IStandardRegistryService _service;
         private readonly ILogger<StandardRegistryController> _logger;
@@ -24,14 +24,6 @@ namespace SuperAppAPI.Controllers.Registry
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        }
-
-        /// <summary>
-        /// Get authenticated user email from JWT claims
-        /// </summary>
-        private string? GetAuthenticatedUserEmail()
-        {
-            return User.GetUserEmail();
         }
 
         /// <summary>
@@ -52,7 +44,7 @@ namespace SuperAppAPI.Controllers.Registry
         {
             try
             {
-                var userEmail = GetAuthenticatedUserEmail();
+                var userEmail = GetUserEmail();
                 if (string.IsNullOrEmpty(userEmail))
                 {
                     _logger.LogWarning("Failed to extract user email from token");
@@ -102,7 +94,7 @@ namespace SuperAppAPI.Controllers.Registry
             {
                 if (!ModelState.IsValid) return BadRequest(ModelState);
 
-                var userEmail = GetAuthenticatedUserEmail();
+                var userEmail = GetUserEmail();
                 if (string.IsNullOrEmpty(userEmail)) return Unauthorized(new { Message = "Invalid token claims" });
 
                 _logger.LogInformation("Setting checklist template for taskType: {TaskTypeCode}, User: {UserEmail}",

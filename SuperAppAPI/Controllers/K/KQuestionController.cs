@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs;
@@ -10,7 +10,7 @@ namespace SuperAppAPI.Controllers.K
     [ApiController]
     [Route("api/k/{knowledgeId:int}")]
     [Authorize]
-    public class KQuestionController : ControllerBase
+    public class KQuestionController : BaseAuthController
     {
         private readonly IKQuestionService _service;
         private readonly ILogger<KQuestionController> _logger;
@@ -21,15 +21,13 @@ namespace SuperAppAPI.Controllers.K
             _logger  = logger;
         }
 
-        private int? UserId => int.TryParse(User.GetUserId(), out var id) ? id : null;
-
         // GET /api/k/global-daily-queue
         [HttpGet("/api/k/global-daily-queue")]
         public async Task<IActionResult> GetGlobalDailyQueue()
         {
             try
             {
-                var userId = UserId;
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized();
                 var result = await _service.GetGlobalDailyQueueAsync(userId.Value);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
@@ -47,7 +45,7 @@ namespace SuperAppAPI.Controllers.K
         {
             try
             {
-                var userId = UserId;
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized();
                 var result = await _service.GetQuestionsAsync(knowledgeId, userId.Value);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
@@ -66,7 +64,7 @@ namespace SuperAppAPI.Controllers.K
             try
             {
                 if (!ModelState.IsValid) return BadRequest(ModelState);
-                var userId = UserId;
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized();
                 var result = await _service.UpdateQuestionsAsync(knowledgeId, userId.Value, request);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
@@ -85,7 +83,7 @@ namespace SuperAppAPI.Controllers.K
             try
             {
                 if (!ModelState.IsValid) return BadRequest(ModelState);
-                var userId = UserId;
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized();
                 var result = await _service.SubmitAnswersAsync(knowledgeId, userId.Value, request);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
@@ -103,7 +101,7 @@ namespace SuperAppAPI.Controllers.K
         {
             try
             {
-                var userId = UserId;
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized();
                 return Ok(await _service.GetQuestionScoresAsync(knowledgeId, userId.Value));
             }
@@ -120,7 +118,7 @@ namespace SuperAppAPI.Controllers.K
         {
             try
             {
-                var userId = UserId;
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized();
                 var result = await _service.MarkQuestionDraftAsync(questionId);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
@@ -138,7 +136,7 @@ namespace SuperAppAPI.Controllers.K
         {
             try
             {
-                var userId = UserId;
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized();
                 var result = await _service.GetDailyQueueAsync(knowledgeId, userId.Value);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
@@ -156,7 +154,7 @@ namespace SuperAppAPI.Controllers.K
         {
             try
             {
-                var userId = UserId;
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized();
                 var result = await _service.GetDailySessionAsync(knowledgeId, userId.Value, limit);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
@@ -175,7 +173,7 @@ namespace SuperAppAPI.Controllers.K
             try
             {
                 if (!ModelState.IsValid) return BadRequest(ModelState);
-                var userId = UserId;
+                var userId = GetUserId();
                 if (userId == null) return Unauthorized();
                 var result = await _service.SubmitDailyAnswersAsync(knowledgeId, userId.Value, request);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
