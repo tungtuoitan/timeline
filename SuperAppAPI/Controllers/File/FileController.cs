@@ -209,68 +209,6 @@ namespace SuperAppAPI.Controllers.File
         }
 
         /// <summary>
-        /// Delete a file
-        /// DELETE /api/file/{id}
-        /// </summary>
-        [HttpDelete("{id}")]
-        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> DeleteFile(int id)
-        {
-            try
-            {
-                var userIdStr = User.GetUserId();
-                if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var userId) || userId == 0)
-                {
-                    return Unauthorized(new ResultOptions { Success = false, Message = "Invalid user token" });
-                }
-
-                var result = await _fileService.DeleteFileAsync(id, userId);
-
-                if (!result.Success)
-                {
-                    return StatusCode(result.Status ?? 500, result);
-                }
-
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error deleting file: {FileId}", id);
-                return StatusCode(500, new ResultOptions { Success = false, Message = "Failed to delete file" });
-            }
-        }
-
-        /// <summary>
-        /// Get file by ID
-        /// GET /api/file/{id}
-        /// </summary>
-        [HttpGet("{id}")]
-        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetFile(int id)
-        {
-            try
-            {
-                var result = await _fileService.GetFileByIdAsync(id);
-
-                if (!result.Success)
-                {
-                    return StatusCode(result.Status ?? 500, result);
-                }
-
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting file: {FileId}", id);
-                return StatusCode(500, new ResultOptions { Success = false, Message = "Failed to get file" });
-            }
-        }
-
-        /// <summary>
         /// Proxy endpoint to serve file content from Google Drive
         /// GET /api/file/{id}/content
         /// Returns the actual file content (image, PDF, etc.)

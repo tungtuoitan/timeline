@@ -51,40 +51,6 @@ namespace SuperAppAPI.Controllers.Profile
             return Ok(result);
         }
 
-        [HttpGet("admin")]
-        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetUserProfileByUserId([FromQuery] int targetUserId, [FromQuery] string? appC = null)
-        {
-            if (targetUserId <= 0)
-            {
-                _logger.LogWarning("Invalid userId provided for admin user profile lookup");
-                return BadRequest(new { Message = "UserId must be greater than 0" });
-            }
-
-            var currentUserId = GetUserId();
-            if (!currentUserId.HasValue)
-            {
-                return Unauthorized("User ID not found in token");
-            }
-
-            _logger.LogInformation("Admin access: User {CurrentUserId} requesting profile for {TargetUserId}, AppC: {AppC}",
-                currentUserId.Value, targetUserId, appC);
-
-            var result = await _userProfileService.GetUserProfileByUserIdAsync(targetUserId);
-
-            _logger.LogInformation("Retrieved user profile for userId: {UserId}, Success: {Success}",
-                targetUserId, result.Success);
-
-            return Ok(result);
-        }
-
-     
-
         /// <summary>
         /// Upsert user profile (insert if not exists, update if exists)
         /// </summary>

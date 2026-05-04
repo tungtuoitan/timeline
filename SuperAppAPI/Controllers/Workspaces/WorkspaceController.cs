@@ -216,65 +216,6 @@ namespace SuperAppAPI.Controllers.Workspaces
         //}
 
         /// <summary>
-        /// Moves multiple workspace items (folders/notes/files) with cascade support
-        /// </summary>
-        /// <response code="200">Items moved successfully</response>
-        /// <response code="400">Invalid request data</response>
-        /// <response code="404">Workspace or items not found</response>
-        /// <response code="500">Internal server error</response>
-        [HttpPatch("{workspaceId}/items/move")]
-        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> MoveItems(int workspaceId, [FromBody] MoveItemsRequest request)
-        {
-            if (workspaceId <= 0)
-            {
-                _logger.LogWarning("Invalid workspace ID provided: {WorkspaceId}", workspaceId);
-                return BadRequest(new ResultOptions
-                {
-                    Success = false,
-                    Message = "Workspace ID must be a positive integer",
-                    Status = 400
-                });
-            }
-
-            if (!ModelState.IsValid)
-            {
-                _logger.LogWarning("Invalid model state for move items request");
-                return BadRequest(new ResultOptions
-                {
-                    Success = false,
-                    Message = "Invalid request data",
-                    Object = ModelState,
-                    Status = 400
-                });
-            }
-
-            var userId = GetUserId();
-            if (userId == null)
-            {
-                return Unauthorized("User ID not found in token");
-            }
-
-            _logger.LogInformation("Moving {Count} items in workspace {WorkspaceId} for user {UserId}",
-                request.Items.Count, workspaceId, userId.Value);
-
-            var result = await _workspaceService.MoveItemsAsync(workspaceId, userId.Value, request);
-
-            // Return appropriate status code based on result
-            if (result.Success)
-            {
-                return Ok(result);
-            }
-            else
-            {
-                return StatusCode(result.Status ?? 500, result);
-            }
-        }
-
-        /// <summary>
         /// Deletes multiple workspace items (folders/notes/files) with cascade support
         /// </summary>
         /// <response code="200">Items deleted successfully</response>
