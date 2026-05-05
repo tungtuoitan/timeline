@@ -51,8 +51,7 @@ namespace SuperAppServices.Services.K
                             Id              = q.Id,
                             Question        = q.Name,
                             Answer          = q.Description,
-                            IsActive        = q.IsActive,
-                            IsDraft         = q.IsDraft,
+                            StatusCode      = q.StatusCode,
                             SortOrder       = q.SortOrder,
                             DeletedAt       = q.DeletedAt,
                             ScoreHistory    = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
@@ -96,8 +95,7 @@ namespace SuperAppServices.Services.K
                             Id              = q.Id,
                             Question        = q.Name,
                             Answer          = q.Description,
-                            IsActive        = q.IsActive,
-                            IsDraft         = q.IsDraft,
+                            StatusCode      = q.StatusCode,
                             SortOrder       = q.SortOrder,
                             DeletedAt       = q.DeletedAt,
                             ScoreHistory    = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
@@ -124,9 +122,6 @@ namespace SuperAppServices.Services.K
 
                 if (request.AddQuestions.Count > 0)
                     await _repo.AddQuestionsAsync(null, request.AddQuestions);   // null nodeId = orphan
-
-                if (request.ToggleQuestionIds.Count > 0)
-                    await _repo.ToggleQuestionsActiveAsync(request.ToggleQuestionIds);
 
                 if (request.DeleteQuestionIds.Count > 0)
                     await _repo.DeleteQuestionsAsync(request.DeleteQuestionIds);
@@ -186,9 +181,6 @@ namespace SuperAppServices.Services.K
 
                 if (request.AddQuestions.Count > 0)
                     await _repo.AddQuestionsAsync(knowledgeId, request.AddQuestions);   // knowledgeId is nodeId here
-
-                if (request.ToggleQuestionIds.Count > 0)
-                    await _repo.ToggleQuestionsActiveAsync(request.ToggleQuestionIds);
 
                 if (request.DeleteQuestionIds.Count > 0)
                     await _repo.DeleteQuestionsAsync(request.DeleteQuestionIds);

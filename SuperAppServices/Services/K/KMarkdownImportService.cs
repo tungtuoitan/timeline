@@ -361,7 +361,7 @@ namespace SuperAppServices.Services.K
                 NodeId      = nodeId,
                 Name        = q.Question,
                 Description = string.IsNullOrWhiteSpace(q.Answer) ? null : q.Answer.Trim(),
-                IsActive    = true,
+                StatusCode  = "learning",
                 SortOrder   = maxOrder + 1 + i,
             }).ToList();
 

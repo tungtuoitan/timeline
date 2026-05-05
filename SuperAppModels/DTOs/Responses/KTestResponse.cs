@@ -14,10 +14,8 @@ namespace SuperAppModels.DTOs.Responses
         public string Question   { get; set; } = string.Empty;
         /// <summary>k.question.description — the expected answer</summary>
         public string? Answer    { get; set; }
-        /// <summary>Whether this question is active (false = disabled)</summary>
-        public bool   IsActive   { get; set; } = true;
-        /// <summary>True when the question is in draft state and excluded from review sessions</summary>
-        public bool   IsDraft    { get; set; } = false;
+        /// <summary>"learning" = active in review; "draft" = excluded from review sessions</summary>
+        public string StatusCode { get; set; } = "learning";
         public int    SortOrder  { get; set; }
         /// <summary>Last ≤10 points (0–5) for this question, oldest→newest</summary>
         public List<int> ScoreHistory { get; set; } = [];

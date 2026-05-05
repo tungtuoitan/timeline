@@ -12,7 +12,6 @@ namespace SuperAppDataRepositories.Ins
         Task<List<KQuestionEntity>> GetQuestionsByIdsAsync(List<int> questionIds);
         Task AddQuestionsAsync(int? nodeId, List<KNewQuestionItem> questions);
         Task UpdateQuestionsDataAsync(List<KUpdateQuestionItem> updates);
-        Task ToggleQuestionsActiveAsync(List<int> questionIds);
         Task DeleteQuestionsAsync(List<int> questionIds);
         Task RestoreQuestionsAsync(List<int> questionIds);
         Task ResetQuestionsSrsAsync(List<int> questionIds);

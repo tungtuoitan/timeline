@@ -93,7 +93,7 @@ namespace SuperAppDataRepositories.Repositories
                     NodeId      = nodeId,
                     Name        = q.Name,
                     Description = q.Description,
-                    IsActive    = true,
+                    StatusCode  = "learning",
                     SortOrder   = maxOrder + 1 + i,
                 }).ToList();
 
@@ -135,29 +135,6 @@ namespace SuperAppDataRepositories.Repositories
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating questions data");
-                throw;
-            }
-        }
-
-        // ── Toggle IsActive ───────────────────────────────────────────────────
-
-        public async Task ToggleQuestionsActiveAsync(List<int> questionIds)
-        {
-            try
-            {
-                var questions = await _context.KQuestions
-                    .Where(q => questionIds.Contains(q.Id))
-                    .ToListAsync();
-
-                foreach (var q in questions)
-                    q.IsActive = !q.IsActive;
-
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("Toggled IsActive for {Count} questions", questions.Count);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error toggling questions active state");
                 throw;
             }
         }
@@ -252,7 +229,7 @@ namespace SuperAppDataRepositories.Repositories
                 var question = await _context.KQuestions.FindAsync(questionId);
                 if (question == null) return;
 
-                question.IsDraft          = true;
+                question.StatusCode        = "draft";
                 question.SrsInterval      = 0;
                 question.SrsEaseFactor    = 2.5;
                 question.SrsRepetitions   = 0;
@@ -286,7 +263,7 @@ namespace SuperAppDataRepositories.Repositories
                     .ToListAsync();
 
                 foreach (var q in questions)
-                    q.IsDraft = !q.IsDraft;
+                    q.StatusCode = q.StatusCode == "draft" ? "learning" : "draft";
 
                 await _context.SaveChangesAsync();
             }
@@ -533,12 +510,12 @@ namespace SuperAppDataRepositories.Repositories
                 if (node == null) return [];
 
                 var questions = await _context.KQuestions
-                    .Where(q => q.NodeId == nodeId && q.IsActive && q.DeletedAt == null)
+                    .Where(q => q.NodeId == nodeId && q.DeletedAt == null)
                     .ToListAsync();
 
                 if (!questions.Any()) return [];
 
-                var reviewable = questions.Where(q => !q.IsDraft).ToList();
+                var reviewable = questions.Where(q => q.StatusCode == "learning").ToList();
                 var item = new KDailyQueueItem
                 {
                     KnowledgeId   = nodeId,
@@ -577,14 +554,14 @@ namespace SuperAppDataRepositories.Repositories
                     .Include(q => q.Node)
                     .Where(q => q.NodeId.HasValue && knowledgeIds.Contains(q.Node!.KnowledgeId)
                              && q.Node!.StatusCode == "learning" && q.Node!.DeletedAt == null
-                             && q.IsActive && q.DeletedAt == null)
+                             && q.DeletedAt == null)
                     .ToListAsync();
 
                 return knowledges
                     .Select(k =>
                     {
                         var qs         = questions.Where(q => q.Node?.KnowledgeId == k.Id).ToList();
-                        var reviewable = qs.Where(q => !q.IsDraft).ToList();
+                        var reviewable = qs.Where(q => q.StatusCode == "learning").ToList();
                         return new KDailyQueueItem
                         {
                             KnowledgeId   = k.Id,
@@ -615,14 +592,14 @@ namespace SuperAppDataRepositories.Repositories
                 var newLimit = dailyLimit - dueLimit;
 
                 var dueQuestions = await _context.KQuestions
-                    .Where(q => q.NodeId == nodeId && q.IsActive && q.DeletedAt == null && !q.IsDraft
+                    .Where(q => q.NodeId == nodeId && q.StatusCode == "learning" && q.DeletedAt == null
                              && q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now)
                     .OrderBy(q => q.SrsNextReviewAt)
                     .Take(dueLimit)
                     .ToListAsync();
 
                 var newQuestions = await _context.KQuestions
-                    .Where(q => q.NodeId == nodeId && q.IsActive && q.DeletedAt == null && !q.IsDraft
+                    .Where(q => q.NodeId == nodeId && q.StatusCode == "learning" && q.DeletedAt == null
                              && q.SrsNextReviewAt == null)
                     .OrderBy(q => q.SortOrder)
                     .Take(newLimit)
@@ -634,7 +611,7 @@ namespace SuperAppDataRepositories.Repositories
                 {
                     var existingIds = dueQuestions.Select(q => q.Id).Concat(newQuestions.Select(q => q.Id)).ToHashSet();
                     var extra = await _context.KQuestions
-                        .Where(q => q.NodeId == nodeId && q.IsActive && q.DeletedAt == null && !q.IsDraft
+                        .Where(q => q.NodeId == nodeId && q.StatusCode == "learning" && q.DeletedAt == null
                                  && q.SrsNextReviewAt == null && !existingIds.Contains(q.Id))
                         .OrderBy(q => q.SortOrder)
                         .Take(remaining)
@@ -645,7 +622,7 @@ namespace SuperAppDataRepositories.Repositories
                 {
                     var existingIds = dueQuestions.Select(q => q.Id).Concat(newQuestions.Select(q => q.Id)).ToHashSet();
                     var extra = await _context.KQuestions
-                        .Where(q => q.NodeId == nodeId && q.IsActive && q.DeletedAt == null && !q.IsDraft
+                        .Where(q => q.NodeId == nodeId && q.StatusCode == "learning" && q.DeletedAt == null
                                  && q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now
                                  && !existingIds.Contains(q.Id))
                         .OrderBy(q => q.SrsNextReviewAt)
@@ -673,7 +650,7 @@ namespace SuperAppDataRepositories.Repositories
             try
             {
                 return await _context.KQuestions
-                    .Where(q => q.Node!.KnowledgeId == knowledgeId && q.IsActive && q.DeletedAt == null)
+                    .Where(q => q.Node!.KnowledgeId == knowledgeId && q.DeletedAt == null)
                     .OrderBy(q => q.SortOrder)
                     .ToListAsync();
             }

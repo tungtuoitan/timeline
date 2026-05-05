@@ -10,8 +10,7 @@ namespace SuperAppModels.Models
         public int?   NodeId { get; set; }   // nullable = orphan
         public string Name        { get; set; } = string.Empty;
         public string? Description { get; set; }
-        public bool   IsActive    { get; set; } = true;
-        public bool   IsDraft     { get; set; } = false;
+        public string StatusCode  { get; set; } = "learning";
         public int    SortOrder   { get; set; } = 0;
 
         // SRS (Spaced Repetition) state

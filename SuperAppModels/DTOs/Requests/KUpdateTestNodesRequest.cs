@@ -17,10 +17,6 @@ namespace SuperAppModels.DTOs.Requests
         [JsonPropertyName("addQuestions")]
         public List<KNewQuestionItem> AddQuestions { get; set; } = [];
 
-        /// <summary>k.question IDs whose is_active to toggle</summary>
-        [JsonPropertyName("toggleQuestionIds")]
-        public List<int> ToggleQuestionIds { get; set; } = [];
-
         /// <summary>k.question IDs to soft-delete (set deleted_at)</summary>
         [JsonPropertyName("deleteQuestionIds")]
         public List<int> DeleteQuestionIds { get; set; } = [];

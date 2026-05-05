@@ -16,8 +16,7 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(q => q.NodeId).HasColumnName("node_id").IsRequired(false);
             builder.Property(q => q.Name).HasColumnName("name").HasMaxLength(500).IsRequired();
             builder.Property(q => q.Description).HasColumnName("description").HasColumnType("nvarchar(max)").IsRequired(false);
-            builder.Property(q => q.IsActive).HasColumnName("is_active").HasDefaultValue(true);
-            builder.Property(q => q.IsDraft).HasColumnName("is_draft").HasDefaultValue(false);
+            builder.Property(q => q.StatusCode).HasColumnName("status_code").HasMaxLength(50).HasDefaultValue("learning");
             builder.Property(q => q.SortOrder).HasColumnName("sort_order").HasDefaultValue(0);
 
             // SRS columns

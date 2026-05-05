@@ -55,9 +55,8 @@ namespace SuperAppDataRepositories.Repositories
                 var dueCounts = await _context.KQuestions
                     .Where(q => q.NodeId.HasValue
                              && nodeIds.Contains(q.NodeId.Value)
-                             && q.IsActive
+                             && q.StatusCode == "learning"
                              && q.DeletedAt == null
-                             && !q.IsDraft
                              && (q.SrsNextReviewAt == null || q.SrsNextReviewAt <= now))
                     .GroupBy(q => q.NodeId!.Value)
                     .Select(g => new { NodeId = g.Key, Count = g.Count() })
