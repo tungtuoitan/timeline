@@ -82,6 +82,11 @@ namespace SuperAppModels.Models
         public DateTime? UpdatedAt { get; set; }
 
         /// <summary>
+        /// Soft delete timestamp
+        /// </summary>
+        public DateTime? DeletedAt { get; set; }
+
+        /// <summary>
         /// Navigation property to User
         /// </summary>
         public User User { get; set; } = null!;

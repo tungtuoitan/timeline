@@ -48,7 +48,7 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("note");
 
             builder.Property(t => t.Status)
-                .HasColumnName("status")
+                .HasColumnName("status_code")
                 .HasMaxLength(20)
                 .HasDefaultValue("open")
                 .IsRequired();
@@ -91,7 +91,7 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("custom_tabs_json");
 
             builder.Property(t => t.FolderWorkspaceItemId)
-                .HasColumnName("FolderWorkspaceItemId");
+                .HasColumnName("folder_workspace_item_id");
 
             // Index for common queries
             builder.HasIndex(t => t.ProjectId);

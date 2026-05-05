@@ -12,24 +12,24 @@ namespace SuperAppDataRepositories.Data.Configurations
     {
         public void Configure(EntityTypeBuilder<TaskWorkspaceItem> builder)
         {
-            builder.ToTable("TaskWorkspaceItem", "pro");
+            builder.ToTable("task_workspace_item", "pro");
 
             builder.HasKey(t => t.Id);
 
             builder.Property(t => t.Id)
-                .HasColumnName("Id")
+                .HasColumnName("id")
                 .ValueGeneratedOnAdd();
 
             builder.Property(t => t.TaskId)
-                .HasColumnName("TaskId")
+                .HasColumnName("task_id")
                 .IsRequired();
 
             builder.Property(t => t.WorkspaceItemId)
-                .HasColumnName("WorkspaceItemId")
+                .HasColumnName("workspace_item_id")
                 .IsRequired();
 
             builder.Property(t => t.ItemType)
-                .HasColumnName("ItemType")
+                .HasColumnName("item_type")
                 .IsRequired();
 
             builder.HasIndex(t => t.TaskId);

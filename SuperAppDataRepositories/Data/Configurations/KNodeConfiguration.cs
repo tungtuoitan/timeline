@@ -62,12 +62,12 @@ namespace SuperAppDataRepositories.Data.Configurations
 
             // Materialized path
             builder.Property(n => n.PathIds)
-                .HasColumnName("PathIds")
+                .HasColumnName("path_ids")
                 .HasMaxLength(1000)
                 .HasDefaultValue("/");
 
             builder.Property(n => n.PathDepth)
-                .HasColumnName("PathDepth")
+                .HasColumnName("path_depth")
                 .HasDefaultValue(0);
 
             // Timestamps

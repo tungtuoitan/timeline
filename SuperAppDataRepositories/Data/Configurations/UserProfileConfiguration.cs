@@ -74,6 +74,9 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(up => up.UpdatedAt)
                 .HasColumnName("updated_at");
 
+            builder.Property(up => up.DeletedAt)
+                .HasColumnName("deleted_at");
+
             // Unique constraint on user_id
             builder.HasIndex(up => up.UserId)
                 .HasDatabaseName("UQ_user_profiles_user_id")

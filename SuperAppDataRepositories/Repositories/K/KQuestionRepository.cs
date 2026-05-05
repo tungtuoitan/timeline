@@ -566,7 +566,7 @@ namespace SuperAppDataRepositories.Repositories
                 var now = VietnamDateTime.Now();
 
                 var knowledges = await _context.KKnowledges
-                    .Where(k => k.UserId == userId && k.DeletedAt == null)
+                    .Where(k => k.UserId == userId && k.DeletedAt == null && k.StatusCode == "active")
                     .OrderBy(k => k.Name)
                     .ToListAsync();
 
@@ -576,6 +576,7 @@ namespace SuperAppDataRepositories.Repositories
                 var questions = await _context.KQuestions
                     .Include(q => q.Node)
                     .Where(q => q.NodeId.HasValue && knowledgeIds.Contains(q.Node!.KnowledgeId)
+                             && q.Node!.StatusCode == "learning" && q.Node!.DeletedAt == null
                              && q.IsActive && q.DeletedAt == null)
                     .ToListAsync();
 

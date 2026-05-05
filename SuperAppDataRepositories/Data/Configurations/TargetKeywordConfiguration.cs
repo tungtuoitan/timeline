@@ -12,25 +12,25 @@ namespace SuperAppDataRepositories.Data.Configurations
     {
         public void Configure(EntityTypeBuilder<TargetKeyword> builder)
         {
-            builder.ToTable("TargetKeywords", "pro");
+            builder.ToTable("target_keywords", "pro");
 
             builder.HasKey(t => t.Id);
 
             builder.Property(t => t.Id)
-                .HasColumnName("Id")
+                .HasColumnName("id")
                 .ValueGeneratedOnAdd();
 
             builder.Property(t => t.TargetId)
-                .HasColumnName("TargetId")
+                .HasColumnName("target_id")
                 .IsRequired();
 
             builder.Property(t => t.TargetType)
-                .HasColumnName("TargetType")
+                .HasColumnName("target_type")
                 .HasMaxLength(50)
                 .IsRequired();
 
             builder.Property(t => t.KeywordId)
-                .HasColumnName("KeywordId")
+                .HasColumnName("keyword_id")
                 .IsRequired();
 
             builder.HasIndex(t => new { t.TargetId, t.TargetType });

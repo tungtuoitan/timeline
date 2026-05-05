@@ -33,7 +33,7 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("description");
 
             builder.Property(p => p.Status)
-                .HasColumnName("status")
+                .HasColumnName("status_code")
                 .HasMaxLength(50)
                 .HasDefaultValue("open")
                 .IsRequired();
