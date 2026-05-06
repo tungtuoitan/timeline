@@ -492,60 +492,6 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
-        // ── Recent submission groups (for mastered check) ─────────────────────
-
-        public async Task<List<KSubmissionGroup>> GetRecentSubmissionGroupsAsync(int knowledgeId, int userId, int count)
-        {
-            try
-            {
-                var rows = await _context.KPointHistory
-                    .Where(p => p.KnowledgeId == knowledgeId && p.UserId == userId)
-                    .OrderByDescending(p => p.CreatedAt)
-                    .ToListAsync();
-
-                var groups = rows
-                    .GroupBy(p => new DateTime(
-                        p.CreatedAt.Year, p.CreatedAt.Month, p.CreatedAt.Day,
-                        p.CreatedAt.Hour, p.CreatedAt.Minute, p.CreatedAt.Second))
-                    .OrderByDescending(g => g.Key)
-                    .Take(count)
-                    .Select(g =>
-                    {
-                        var items    = g.ToList();
-                        var avgPoint = items.Average(p => p.Point);
-
-                        var speedRatios = new List<double>();
-                        foreach (var p in items)
-                        {
-                            if (p.ResponseTimeMs == null || p.ResponseTimeMs <= 0) continue;
-                            var question = _context.KQuestions.Local
-                                .FirstOrDefault(q => q.Id == p.QuestionId)
-                                ?? _context.KQuestions.Find(p.QuestionId);
-                            if (question?.Description == null) continue;
-                            var wordCount = question.Description.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
-                            if (wordCount == 0) continue;
-                            var readingTimeMs = wordCount / (200.0 / 60.0) * 1000.0;
-                            speedRatios.Add(p.ResponseTimeMs.Value / readingTimeMs);
-                        }
-
-                        return new KSubmissionGroup
-                        {
-                            SessionTime   = g.Key,
-                            AvgPoint      = avgPoint,
-                            AvgSpeedRatio = speedRatios.Count > 0 ? speedRatios.Average() : double.MaxValue,
-                        };
-                    })
-                    .ToList();
-
-                return groups;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting recent submission groups for knowledge {KnowledgeId}", knowledgeId);
-                throw;
-            }
-        }
-
         // ── Daily queue ───────────────────────────────────────────────────────
 
         public async Task<List<KDailyQueueItem>> GetDailyQueueAsync(int knowledgeId, int userId)
@@ -559,7 +505,11 @@ namespace SuperAppDataRepositories.Repositories
 
                 var questions = await _context.KQuestions
                     .Include(q => q.Node)
-                    .Where(q => (q.Node == null || q.Node.KnowledgeId == knowledgeId) && q.DeletedAt == null)
+                    .Where(q => q.Node != null
+                             && q.Node.KnowledgeId == knowledgeId
+                             && q.Node.StatusCode == "learning"
+                             && q.Node.DeletedAt == null
+                             && q.DeletedAt == null)
                     .ToListAsync();
 
                 if (!questions.Any()) return [];
@@ -569,9 +519,7 @@ namespace SuperAppDataRepositories.Repositories
                 {
                     KnowledgeId   = knowledgeId,
                     KnowledgeName = knowledge.Name,
-                    DueCount      = reviewable.Count(q => q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now)
-                                  + questions.Count(q => q.StatusCode == "mastered" && q.DeletedAt == null
-                                                      && q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now),
+                    DueCount      = reviewable.Count(q => q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now),
                     NewCount      = reviewable.Count(q => q.SrsNextReviewAt == null),
                     ActiveCount   = reviewable.Count,
                 };
@@ -643,7 +591,7 @@ namespace SuperAppDataRepositories.Repositories
                 var newLimit = dailyLimit - dueLimit;
 
                 var dueQuestions = await _context.KQuestions
-                    .Where(q => q.NodeId == nodeId && (q.StatusCode == "learning" || q.StatusCode == "mastered")
+                    .Where(q => q.NodeId == nodeId && q.StatusCode == "learning"
                              && q.DeletedAt == null && q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now)
                     .OrderBy(q => q.SrsNextReviewAt)
                     .Take(dueLimit)
@@ -707,7 +655,7 @@ namespace SuperAppDataRepositories.Repositories
                 var dueQuestions = await _context.KQuestions
                     .Include(q => q.Node)
                     .Where(q => q.Node != null && q.Node.KnowledgeId == knowledgeId && q.Node.DeletedAt == null
-                             && (q.StatusCode == "learning" || q.StatusCode == "mastered")
+                             && q.StatusCode == "learning"
                              && q.DeletedAt == null && q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now)
                     .OrderBy(q => q.SrsNextReviewAt)
                     .Take(dueLimit)
@@ -741,7 +689,7 @@ namespace SuperAppDataRepositories.Repositories
                     var extra = await _context.KQuestions
                         .Include(q => q.Node)
                         .Where(q => q.Node != null && q.Node.KnowledgeId == knowledgeId && q.Node.DeletedAt == null
-                                 && (q.StatusCode == "learning" || q.StatusCode == "mastered")
+                                 && q.StatusCode == "learning"
                                  && q.DeletedAt == null && q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now
                                  && !existingIds.Contains(q.Id))
                         .OrderBy(q => q.SrsNextReviewAt)

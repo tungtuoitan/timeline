@@ -75,7 +75,8 @@ namespace SuperAppServices.Services.K
                     CreatedAt   = n.CreatedAt,
                     UpdatedAt   = n.UpdatedAt,
                     DeletedAt   = n.DeletedAt,
-                    DueSrsCount = tree.NodeDueCounts.GetValueOrDefault(n.Id, 0)
+                    DueSrsCount        = tree.NodeDueCounts.GetValueOrDefault(n.Id, 0),
+                    DraftQuestionCount = tree.NodeDraftCounts.GetValueOrDefault(n.Id, 0)
                 }).ToList();
 
                 _logger.LogInformation("Retrieved {Count} nodes for knowledge {KnowledgeId}", flatData.Count, knowledgeId);

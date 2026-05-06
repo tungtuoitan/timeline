@@ -113,24 +113,5 @@ namespace SuperAppServices.Services.K
             return Math.Round(Math.Pow(0.9, daysSince / interval) * 100, 1);
         }
 
-        /// <summary>
-        /// Check if a test should be auto-promoted to mastered.
-        /// Criteria: last 5 sessions all have avgPoint > 4.5.
-        /// </summary>
-        public static bool ShouldPromoteToMastered(List<(double AvgPoint, double AvgSpeedRatio)> recentSessions)
-        {
-            if (recentSessions.Count < 5) return false;
-            return recentSessions.All(s => s.AvgPoint > 4.5);
-        }
-
-        /// <summary>
-        /// Check if a mastered test should regress to learning.
-        /// Criteria: any session in last 5 has avgPoint <= 4.5.
-        /// </summary>
-        public static bool ShouldRegressToLearning(List<(double AvgPoint, double AvgSpeedRatio)> recentSessions)
-        {
-            if (recentSessions.Count < 5) return true; // not enough data → regress
-            return !recentSessions.All(s => s.AvgPoint > 4.5);
-        }
     }
 }

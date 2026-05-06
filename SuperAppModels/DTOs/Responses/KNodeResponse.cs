@@ -26,5 +26,8 @@ namespace SuperAppModels.DTOs.Responses
 
         /// <summary>Reviewable question count: due (srsNextReviewAt &lt;= now) + new (srsNextReviewAt = null). Mirrors qFlow canReview logic.</summary>
         public int DueSrsCount { get; set; }
+
+        /// <summary>Count of draft questions (statusCode = "draft") in this node.</summary>
+        public int DraftQuestionCount { get; set; }
     }
 }

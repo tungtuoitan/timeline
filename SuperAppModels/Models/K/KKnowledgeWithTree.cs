@@ -15,5 +15,8 @@ namespace SuperAppModels.Models
 
         /// <summary>nodeId → count of questions with srsNextReviewAt &lt;= now</summary>
         public Dictionary<int, int> NodeDueCounts { get; set; } = new();
+
+        /// <summary>nodeId → count of questions with statusCode = "draft"</summary>
+        public Dictionary<int, int> NodeDraftCounts { get; set; } = new();
     }
 }

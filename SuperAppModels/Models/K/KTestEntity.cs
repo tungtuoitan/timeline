@@ -10,7 +10,7 @@ namespace SuperAppModels.Models
         public string  Title       { get; set; } = string.Empty;
         public int     Level       { get; set; } = 1;
         public string? Mode        { get; set; } = "standard";
-        /// <summary>inactive | learning | mastered</summary>
+        /// <summary>inactive | learning</summary>
         public string? Status      { get; set; } = "inactive";
         public int     SortOrder   { get; set; } = 0;
 

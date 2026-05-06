@@ -32,7 +32,6 @@ namespace SuperAppDataRepositories.Ins
 
         Task UpdateQuestionsStatusAsync(List<int> questionIds, string statusCode);
         Task UpdateQuestionSrsAsync(int questionId, int interval, double easeFactor, int repetitions, DateTime? nextReviewAt);
-        Task<List<KSubmissionGroup>> GetRecentSubmissionGroupsAsync(int knowledgeId, int userId, int count);
 
         // ── Daily review ───────────────────────────────────────────────────────
 
@@ -57,11 +56,4 @@ namespace SuperAppDataRepositories.Ins
         public int    ActiveCount   { get; set; }
     }
 
-    /// <summary>A submission group (all answers from a single session).</summary>
-    public class KSubmissionGroup
-    {
-        public DateTime SessionTime     { get; set; }
-        public double   AvgPoint        { get; set; }
-        public double   AvgSpeedRatio   { get; set; }
-    }
 }

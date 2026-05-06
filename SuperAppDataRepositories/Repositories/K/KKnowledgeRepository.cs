@@ -62,16 +62,26 @@ namespace SuperAppDataRepositories.Repositories
                     .Select(g => new { NodeId = g.Key, Count = g.Count() })
                     .ToDictionaryAsync(x => x.NodeId, x => x.Count);
 
+                var draftCounts = await _context.KQuestions
+                    .Where(q => q.NodeId.HasValue
+                             && nodeIds.Contains(q.NodeId.Value)
+                             && q.StatusCode == "draft"
+                             && q.DeletedAt == null)
+                    .GroupBy(q => q.NodeId!.Value)
+                    .Select(g => new { NodeId = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.NodeId, x => x.Count);
+
                 return new KKnowledgeWithTree
                 {
-                    KnowledgeId = knowledge.Id,
-                    Name = knowledge.Name,
-                    Description = knowledge.Description,
-                    UserId = knowledge.UserId,
-                    CreatedAt = knowledge.CreatedAt ?? VietnamDateTime.Now(),
-                    UpdatedAt = knowledge.UpdatedAt,
-                    Nodes = nodes,
-                    NodeDueCounts = dueCounts
+                    KnowledgeId   = knowledge.Id,
+                    Name          = knowledge.Name,
+                    Description   = knowledge.Description,
+                    UserId        = knowledge.UserId,
+                    CreatedAt     = knowledge.CreatedAt ?? VietnamDateTime.Now(),
+                    UpdatedAt     = knowledge.UpdatedAt,
+                    Nodes         = nodes,
+                    NodeDueCounts  = dueCounts,
+                    NodeDraftCounts = draftCounts,
                 };
             }
             catch (Exception ex)
