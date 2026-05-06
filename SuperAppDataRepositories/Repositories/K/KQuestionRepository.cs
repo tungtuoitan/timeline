@@ -551,15 +551,17 @@ namespace SuperAppDataRepositories.Repositories
                 var knowledgeIds = knowledges.Select(k => k.Id).ToList();
                 var questions = await _context.KQuestions
                     .Include(q => q.Node)
-                    .Where(q => (q.Node == null || (knowledgeIds.Contains(q.Node.KnowledgeId)
-                             && q.Node.StatusCode == "learning" && q.Node.DeletedAt == null))
+                    .Where(q => q.Node != null
+                             && knowledgeIds.Contains(q.Node.KnowledgeId)
+                             && q.Node.StatusCode == "learning"
+                             && q.Node.DeletedAt == null
                              && q.DeletedAt == null)
                     .ToListAsync();
 
                 return knowledges
                     .Select(k =>
                     {
-                        var qs         = questions.Where(q => q.Node == null || q.Node.KnowledgeId == k.Id).ToList();
+                        var qs         = questions.Where(q => q.Node!.KnowledgeId == k.Id).ToList();
                         var reviewable = qs.Where(q => q.StatusCode == "learning").ToList();
                         return new KDailyQueueItem
                         {
