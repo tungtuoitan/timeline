@@ -26,6 +26,52 @@ namespace SuperAppServices.Services.K
         // CRUD
         // ══════════════════════════════════════════════════════════════════════
 
+        public async Task<ResultOptions> GetNodeQuestionsAsync(int nodeId, int userId)
+        {
+            try
+            {
+                var questions   = await _repo.GetQuestionsByNodeAsync(nodeId);
+                var questionIds = questions.Select(q => q.Id).ToList();
+
+                var allHistory = await _repo.GetHistoryForQuestionsAsync(userId, questionIds);
+                var historyByQuestion = allHistory
+                    .GroupBy(h => h.QuestionId)
+                    .ToDictionary(
+                        g => g.Key!.Value,
+                        g => g.OrderBy(h => h.CreatedAt)
+                              .TakeLast(10)
+                              .Select(h => h.Point)
+                              .ToList());
+
+                var response = new KQuestionsListResponse
+                {
+                    KnowledgeId = nodeId,
+                    Questions   = questions
+                        .Select(q => new KQuestionResponse
+                        {
+                            Id              = q.Id,
+                            NodeId          = q.NodeId,
+                            NodeName        = q.Node?.Name ?? string.Empty,
+                            Question        = q.Name,
+                            Answer          = q.Description,
+                            StatusCode      = q.StatusCode,
+                            SortOrder       = q.SortOrder,
+                            DeletedAt       = q.DeletedAt,
+                            ScoreHistory    = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
+                            SrsNextReviewAt = q.SrsNextReviewAt,
+                            Retention       = SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt),
+                        }).ToList(),
+                };
+
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetNodeQuestions failed for node {NodeId}", nodeId);
+                return Fail(500, "Failed to load questions");
+            }
+        }
+
         public async Task<ResultOptions> GetQuestionsAsync(int knowledgeId, int userId)
         {
             try
@@ -239,9 +285,6 @@ namespace SuperAppServices.Services.K
                     await _repo.UpdateQuestionSrsAsync(g.QuestionId, next.Interval, next.EaseFactor, next.Repetitions, next.NextReviewAt);
                 }
 
-                // Auto promote / regress: learning ↔ mastered
-                await ApplyStatusTransitionsAsync(userId, questionMap, questionIds);
-
                 var pct = grading.MaxPoints > 0
                     ? (int)Math.Round((double)grading.TotalPoints / grading.MaxPoints * 100) : 0;
 
@@ -342,6 +385,35 @@ namespace SuperAppServices.Services.K
             catch (Exception ex) { _logger.LogError(ex, "GetDailySession failed for knowledge {KnowledgeId}", knowledgeId); return Fail(500, "Failed"); }
         }
 
+        public async Task<ResultOptions> GetKnowledgeDailySessionAsync(int knowledgeId, int userId, int dailyLimit)
+        {
+            try
+            {
+                var questions = await _repo.GetKnowledgeDailySessionQuestionsAsync(knowledgeId, dailyLimit, 0.4);
+                var now = VietnamDateTime.Now();
+                var response = questions.Select(q =>
+                {
+                    var state = new SpacedRepetitionEngine.SrsState(
+                        q.SrsInterval, q.SrsEaseFactor, q.SrsRepetitions, q.SrsNextReviewAt);
+                    var previews = new Dictionary<int, long>();
+                    for (var score = 1; score <= 5; score++)
+                    {
+                        var next = SpacedRepetitionEngine.CalculateNext(score, state);
+                        previews[score] = (long)(next.NextReviewAt!.Value - now).TotalSeconds;
+                    }
+                    return new KDailySessionQuestionResponse
+                    {
+                        Id                     = q.Id,
+                        Question               = q.Name,
+                        Answer                 = q.Description,
+                        PreviewIntervalSeconds = previews,
+                    };
+                }).ToList();
+                return Ok(response);
+            }
+            catch (Exception ex) { _logger.LogError(ex, "GetKnowledgeDailySession failed for knowledge {KnowledgeId}", knowledgeId); return Fail(500, "Failed"); }
+        }
+
         public async Task<ResultOptions> SubmitDailyAnswersAsync(int knowledgeId, int userId, KDailySubmitRequest request)
         {
             try
@@ -386,9 +458,6 @@ namespace SuperAppServices.Services.K
                     var next = SpacedRepetitionEngine.CalculateNext(point, current);
                     await _repo.UpdateQuestionSrsAsync(questionId, next.Interval, next.EaseFactor, next.Repetitions, next.NextReviewAt);
                 }
-
-                // Auto promote / regress: learning ↔ mastered
-                await ApplyStatusTransitionsAsync(userId, questionMap, questionIds);
 
                 int totalPoints = results.Sum(r => r.Point);
                 int maxPoints   = results.Count * 5;
@@ -529,61 +598,6 @@ namespace SuperAppServices.Services.K
             {
                 _logger.LogError(ex, "GetRetentionGraph failed for knowledge {KnowledgeId}", knowledgeId);
                 return new KRetentionGraphResponse();
-            }
-        }
-
-        // ══════════════════════════════════════════════════════════════════════
-        // Helpers
-        // ══════════════════════════════════════════════════════════════════════
-
-        /// <summary>
-        /// After a submission is saved, checks each answered question's last 5
-        /// scores and promotes learning→mastered or regresses mastered→learning.
-        ///
-        /// Promote condition : last 5 scores ALL ≥ 5  (avgPoint > 4.5)
-        /// Regress condition : last 5 scores ANY ≤ 4  (avgPoint ≤ 4.5 for that session)
-        /// </summary>
-        private async Task ApplyStatusTransitionsAsync(
-            int userId,
-            Dictionary<int, KQuestionEntity> questionMap,
-            List<int> questionIds)
-        {
-            // Fetch the latest ≤10 history rows per question (we only need last 5)
-            var allHistory = await _repo.GetHistoryForQuestionsAsync(userId, questionIds);
-
-            var last5ByQ = allHistory
-                .Where(h => h.QuestionId.HasValue)
-                .GroupBy(h => h.QuestionId!.Value)
-                .ToDictionary(
-                    g => g.Key,
-                    g => g.OrderBy(h => h.CreatedAt).TakeLast(5).Select(h => h.Point).ToList());
-
-            var toPromote = new List<int>();
-            var toRegress = new List<int>();
-
-            foreach (var qId in questionIds)
-            {
-                if (!questionMap.TryGetValue(qId, out var q)) continue;
-                if (!last5ByQ.TryGetValue(qId, out var scores) || scores.Count < 5) continue;
-
-                if (q.StatusCode == "learning" && scores.All(p => p >= 5))
-                    toPromote.Add(qId);
-                else if (q.StatusCode == "mastered" && scores.Any(p => p <= 4))
-                    toRegress.Add(qId);
-            }
-
-            if (toPromote.Count > 0)
-            {
-                await _repo.UpdateQuestionsStatusAsync(toPromote, "mastered");
-                _logger.LogInformation("Promoted {Count} questions to mastered: [{Ids}]",
-                    toPromote.Count, string.Join(',', toPromote));
-            }
-
-            if (toRegress.Count > 0)
-            {
-                await _repo.UpdateQuestionsStatusAsync(toRegress, "learning");
-                _logger.LogInformation("Regressed {Count} questions to learning: [{Ids}]",
-                    toRegress.Count, string.Join(',', toRegress));
             }
         }
 

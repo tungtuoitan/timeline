@@ -694,6 +694,74 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
+        // ── Knowledge-level daily session (all nodes in a knowledge) ─────────
+
+        public async Task<List<KQuestionEntity>> GetKnowledgeDailySessionQuestionsAsync(int knowledgeId, int dailyLimit, double newRatio)
+        {
+            try
+            {
+                var now      = VietnamDateTime.Now();
+                var dueLimit = (int)Math.Ceiling(dailyLimit * (1 - newRatio));
+                var newLimit = dailyLimit - dueLimit;
+
+                var dueQuestions = await _context.KQuestions
+                    .Include(q => q.Node)
+                    .Where(q => q.Node != null && q.Node.KnowledgeId == knowledgeId && q.Node.DeletedAt == null
+                             && (q.StatusCode == "learning" || q.StatusCode == "mastered")
+                             && q.DeletedAt == null && q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now)
+                    .OrderBy(q => q.SrsNextReviewAt)
+                    .Take(dueLimit)
+                    .ToListAsync();
+
+                var newQuestions = await _context.KQuestions
+                    .Include(q => q.Node)
+                    .Where(q => q.Node != null && q.Node.KnowledgeId == knowledgeId && q.Node.DeletedAt == null
+                             && q.StatusCode == "learning" && q.DeletedAt == null && q.SrsNextReviewAt == null)
+                    .OrderBy(q => q.SortOrder)
+                    .Take(newLimit)
+                    .ToListAsync();
+
+                var remaining = dailyLimit - dueQuestions.Count - newQuestions.Count;
+                if (remaining > 0 && dueQuestions.Count < dueLimit)
+                {
+                    var existingIds = dueQuestions.Select(q => q.Id).Concat(newQuestions.Select(q => q.Id)).ToHashSet();
+                    var extra = await _context.KQuestions
+                        .Include(q => q.Node)
+                        .Where(q => q.Node != null && q.Node.KnowledgeId == knowledgeId && q.Node.DeletedAt == null
+                                 && q.StatusCode == "learning" && q.DeletedAt == null && q.SrsNextReviewAt == null
+                                 && !existingIds.Contains(q.Id))
+                        .OrderBy(q => q.SortOrder)
+                        .Take(remaining)
+                        .ToListAsync();
+                    newQuestions.AddRange(extra);
+                }
+                else if (remaining > 0 && newQuestions.Count < newLimit)
+                {
+                    var existingIds = dueQuestions.Select(q => q.Id).Concat(newQuestions.Select(q => q.Id)).ToHashSet();
+                    var extra = await _context.KQuestions
+                        .Include(q => q.Node)
+                        .Where(q => q.Node != null && q.Node.KnowledgeId == knowledgeId && q.Node.DeletedAt == null
+                                 && (q.StatusCode == "learning" || q.StatusCode == "mastered")
+                                 && q.DeletedAt == null && q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now
+                                 && !existingIds.Contains(q.Id))
+                        .OrderBy(q => q.SrsNextReviewAt)
+                        .Take(remaining)
+                        .ToListAsync();
+                    dueQuestions.AddRange(extra);
+                }
+
+                var result = new List<KQuestionEntity>();
+                result.AddRange(dueQuestions);
+                result.AddRange(newQuestions);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting knowledge daily session for knowledge {KnowledgeId}", knowledgeId);
+                throw;
+            }
+        }
+
         // ── Active questions for retention ────────────────────────────────────
 
         public async Task<List<KQuestionEntity>> GetActiveQuestionsAsync(int knowledgeId)

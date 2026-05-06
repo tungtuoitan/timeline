@@ -8,7 +8,10 @@ namespace SuperAppServices.Interfaces
     {
         // ── CRUD ───────────────────────────────────────────────────────────────
 
-        /// <summary>Get all questions for a node.</summary>
+        /// <summary>Get all questions for a specific node (WHERE NodeId == nodeId).</summary>
+        Task<ResultOptions> GetNodeQuestionsAsync(int nodeId, int userId);
+
+        /// <summary>Get all questions for a knowledge (WHERE Node.KnowledgeId == knowledgeId).</summary>
         Task<ResultOptions> GetQuestionsAsync(int knowledgeId, int userId);
 
         /// <summary>Get all orphan questions (node_id IS NULL).</summary>
@@ -42,6 +45,9 @@ namespace SuperAppServices.Interfaces
 
         /// <summary>Get questions for a daily review session.</summary>
         Task<ResultOptions> GetDailySessionAsync(int knowledgeId, int userId, int dailyLimit);
+
+        /// <summary>Get questions for a knowledge-scoped daily review session.</summary>
+        Task<ResultOptions> GetKnowledgeDailySessionAsync(int knowledgeId, int userId, int dailyLimit);
 
         /// <summary>Submit daily review answers, update SRS.</summary>
         Task<ResultOptions> SubmitDailyAnswersAsync(int knowledgeId, int userId, KDailySubmitRequest request);

@@ -38,7 +38,8 @@ namespace SuperAppDataRepositories.Ins
 
         Task<List<KDailyQueueItem>> GetDailyQueueAsync(int knowledgeId, int userId);
         Task<List<KDailyQueueItem>> GetGlobalDailyQueueAsync(int userId);
-        Task<List<KQuestionEntity>> GetDailySessionQuestionsAsync(int knowledgeId, int dailyLimit, double newRatio);
+        Task<List<KQuestionEntity>> GetDailySessionQuestionsAsync(int nodeId, int dailyLimit, double newRatio);
+        Task<List<KQuestionEntity>> GetKnowledgeDailySessionQuestionsAsync(int knowledgeId, int dailyLimit, double newRatio);
 
         // ── Retention ──────────────────────────────────────────────────────────
 

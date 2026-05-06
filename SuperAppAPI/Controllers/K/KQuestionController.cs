@@ -39,7 +39,25 @@ namespace SuperAppAPI.Controllers.K
             }
         }
 
-        // GET /api/k/{knowledgeId}/questions
+        // GET /api/k/{knowledgeId}/node-questions  (per-node: WHERE NodeId == knowledgeId)
+        [HttpGet("node-questions")]
+        public async Task<IActionResult> GetNodeQuestions(int knowledgeId)
+        {
+            try
+            {
+                var userId = GetUserId();
+                if (userId == null) return Unauthorized();
+                var result = await _service.GetNodeQuestionsAsync(knowledgeId, userId.Value);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting node questions for node {NodeId}", knowledgeId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
+            }
+        }
+
+        // GET /api/k/{knowledgeId}/questions  (knowledge-level: WHERE Node.KnowledgeId == knowledgeId)
         [HttpGet("questions")]
         public async Task<IActionResult> GetQuestions(int knowledgeId)
         {
@@ -162,6 +180,24 @@ namespace SuperAppAPI.Controllers.K
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting daily session for knowledge {KnowledgeId}", knowledgeId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
+            }
+        }
+
+        // GET /api/k/{knowledgeId}/knowledge-daily-session?limit=30
+        [HttpGet("knowledge-daily-session")]
+        public async Task<IActionResult> GetKnowledgeDailySession(int knowledgeId, [FromQuery] int limit = 30)
+        {
+            try
+            {
+                var userId = GetUserId();
+                if (userId == null) return Unauthorized();
+                var result = await _service.GetKnowledgeDailySessionAsync(knowledgeId, userId.Value, limit);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting knowledge daily session for knowledge {KnowledgeId}", knowledgeId);
                 return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
             }
         }
