@@ -10,6 +10,10 @@ namespace SuperAppModels.DTOs.Responses
     {
         /// <summary>k.question.id</summary>
         public int    Id         { get; set; }
+        /// <summary>k.node.id — null if orphan</summary>
+        public int?   NodeId     { get; set; }
+        /// <summary>k.node.name — empty string if orphan</summary>
+        public string NodeName   { get; set; } = string.Empty;
         /// <summary>k.question.name — the question text</summary>
         public string Question   { get; set; } = string.Empty;
         /// <summary>k.question.description — the expected answer</summary>

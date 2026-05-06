@@ -19,5 +19,7 @@ namespace SuperAppModels.DTOs.Responses
         public int     Id       { get; set; }
         public string  Question { get; set; } = string.Empty;
         public string? Answer   { get; set; }
+        /// <summary>Seconds from now until next review for each score 1–5.</summary>
+        public Dictionary<int, long> PreviewIntervalSeconds { get; set; } = new();
     }
 }

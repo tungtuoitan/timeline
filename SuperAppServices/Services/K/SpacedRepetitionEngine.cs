@@ -12,9 +12,11 @@ namespace SuperAppServices.Services.K
         // Use VietnamDateTime.Now() — see SuperAppModels/Utils/VietnamDateTime.cs for rationale.
 
         /// <summary>
-        /// Calculate the next SRS state after a review with the given score.
+        /// Calculate the next SRS state after a review with the given score (1–5).
+        /// Score 1-3: reset to 0 interval, with different review delays.
+        /// Score 4-5: advance per SM-2, incrementing repetitions.
         /// </summary>
-        /// <param name="score">AI-assigned score 0–5</param>
+        /// <param name="score">Self-assigned score 1–5 (1=very forgot, 5=remembered perfectly)</param>
         /// <param name="current">Current SRS state of the question</param>
         public static SrsState CalculateNext(int score, SrsState current)
         {
@@ -22,27 +24,32 @@ namespace SuperAppServices.Services.K
             var easeFactor  = current.EaseFactor;
             var repetitions = current.Repetitions;
 
-            if (score <= 2)
+            DateTime nextReview;
+
+            if (score == 1)
             {
-                // Heavy fail (0–2) — reset, requeue in 30 minutes
+                // Very forgot — reset, requeue in 30 minutes
                 repetitions = 0;
                 interval = 0;
+                nextReview = VietnamDateTime.Now().AddMinutes(30);
+            }
+            else if (score == 2)
+            {
+                // Forgot — reset, requeue in 2 hours
+                repetitions = 0;
+                interval = 0;
+                nextReview = VietnamDateTime.Now().AddHours(2);
             }
             else if (score == 3)
             {
-                // Medium fail — reset, requeue in 2 hours
+                // Okay — reset, requeue in 4 hours
                 repetitions = 0;
                 interval = 0;
+                nextReview = VietnamDateTime.Now().AddHours(4);
             }
             else if (score == 4)
             {
-                // Near-pass — shrink interval by 20%, minimum 1 day
-                interval = Math.Max(1, (int)Math.Round(interval * 0.8));
-                // repetitions unchanged — not reset, not incremented
-            }
-            else
-            {
-                // Perfect (5) — interval grows per SM-2
+                // Good — advance interval per SM-2
                 if (repetitions == 0)
                     interval = 1;
                 else if (repetitions == 1)
@@ -51,19 +58,26 @@ namespace SuperAppServices.Services.K
                     interval = (int)Math.Round(interval * easeFactor);
 
                 repetitions++;
+                nextReview = VietnamDateTime.Now().AddDays(interval);
+            }
+            else
+            {
+                // Perfect (5) — advance interval per SM-2
+                if (repetitions == 0)
+                    interval = 1;
+                else if (repetitions == 1)
+                    interval = 6;
+                else
+                    interval = (int)Math.Round(interval * easeFactor);
+
+                repetitions++;
+                nextReview = VietnamDateTime.Now().AddDays(interval);
             }
 
-            // Update ease factor based on score
+            // Update ease factor based on score (1-5)
+            // SM-2 formula: EF' = EF + 0.1 - (5 - q) × (0.08 + (5 - q) × 0.02)
             easeFactor += 0.1 - (5 - score) * (0.08 + (5 - score) * 0.02);
             easeFactor = Math.Max(1.3, easeFactor);
-
-            DateTime nextReview;
-            if (score <= 2)
-                nextReview = VietnamDateTime.Now().AddMinutes(30);
-            else if (score == 3)
-                nextReview = VietnamDateTime.Now().AddHours(2);
-            else
-                nextReview = VietnamDateTime.Now().AddDays(interval);
 
             return new SrsState(interval, easeFactor, repetitions, nextReview);
         }

@@ -8,6 +8,7 @@ namespace SuperAppDataRepositories.Ins
         // ── Questions CRUD ─────────────────────────────────────────────────────
 
         Task<List<KQuestionEntity>> GetQuestionsByNodeAsync(int nodeId);
+        Task<List<KQuestionEntity>> GetAllQuestionsByKnowledgeAsync(int knowledgeId);
         Task<List<KQuestionEntity>> GetOrphanQuestionsAsync();
         Task<List<KQuestionEntity>> GetQuestionsByIdsAsync(List<int> questionIds);
         Task AddQuestionsAsync(int? nodeId, List<KNewQuestionItem> questions);
@@ -29,6 +30,7 @@ namespace SuperAppDataRepositories.Ins
 
         // ── SRS ────────────────────────────────────────────────────────────────
 
+        Task UpdateQuestionsStatusAsync(List<int> questionIds, string statusCode);
         Task UpdateQuestionSrsAsync(int questionId, int interval, double easeFactor, int repetitions, DateTime? nextReviewAt);
         Task<List<KSubmissionGroup>> GetRecentSubmissionGroupsAsync(int knowledgeId, int userId, int count);
 

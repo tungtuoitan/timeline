@@ -40,6 +40,24 @@ namespace SuperAppDataRepositories.Repositories
 
         // ── Get orphan questions (node_id IS NULL) ────────────────────────────
 
+        public async Task<List<KQuestionEntity>> GetAllQuestionsByKnowledgeAsync(int knowledgeId)
+        {
+            try
+            {
+                return await _context.KQuestions
+                    .Include(q => q.Node)
+                    .Where(q => q.Node == null || q.Node.KnowledgeId == knowledgeId)
+                    .OrderBy(q => q.SortOrder)
+                    .ThenBy(q => q.CreatedAt)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting all questions for knowledge {KnowledgeId}", knowledgeId);
+                throw;
+            }
+        }
+
         public async Task<List<KQuestionEntity>> GetOrphanQuestionsAsync()
         {
             try
@@ -444,6 +462,36 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
+        // ── Bulk-update status_code ───────────────────────────────────────────────
+
+        public async Task UpdateQuestionsStatusAsync(List<int> questionIds, string statusCode)
+        {
+            try
+            {
+                if (!questionIds.Any()) return;
+                var questions = await _context.KQuestions
+                    .Where(q => questionIds.Contains(q.Id))
+                    .ToListAsync();
+
+                foreach (var q in questions)
+                {
+                    q.StatusCode = statusCode;
+                    q.UpdatedAt  = VietnamDateTime.Now();
+                }
+
+                await _context.SaveChangesAsync();
+                _logger.LogInformation(
+                    "Status → {Status} for {Count} questions: [{Ids}]",
+                    statusCode, questions.Count, string.Join(',', questionIds));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating status to {Status} for questions {Ids}",
+                    statusCode, string.Join(',', questionIds));
+                throw;
+            }
+        }
+
         // ── Recent submission groups (for mastered check) ─────────────────────
 
         public async Task<List<KSubmissionGroup>> GetRecentSubmissionGroupsAsync(int knowledgeId, int userId, int count)
@@ -500,17 +548,18 @@ namespace SuperAppDataRepositories.Repositories
 
         // ── Daily queue ───────────────────────────────────────────────────────
 
-        public async Task<List<KDailyQueueItem>> GetDailyQueueAsync(int nodeId, int userId)
+        public async Task<List<KDailyQueueItem>> GetDailyQueueAsync(int knowledgeId, int userId)
         {
             try
             {
                 var now = VietnamDateTime.Now();
 
-                var node = await _context.KNodes.FindAsync(nodeId);
-                if (node == null) return [];
+                var knowledge = await _context.KKnowledges.FindAsync(knowledgeId);
+                if (knowledge == null) return [];
 
                 var questions = await _context.KQuestions
-                    .Where(q => q.NodeId == nodeId && q.DeletedAt == null)
+                    .Include(q => q.Node)
+                    .Where(q => (q.Node == null || q.Node.KnowledgeId == knowledgeId) && q.DeletedAt == null)
                     .ToListAsync();
 
                 if (!questions.Any()) return [];
@@ -518,18 +567,20 @@ namespace SuperAppDataRepositories.Repositories
                 var reviewable = questions.Where(q => q.StatusCode == "learning").ToList();
                 var item = new KDailyQueueItem
                 {
-                    KnowledgeId   = nodeId,
-                    KnowledgeName = node.Name,
-                    DueCount      = reviewable.Count(q => q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now),
+                    KnowledgeId   = knowledgeId,
+                    KnowledgeName = knowledge.Name,
+                    DueCount      = reviewable.Count(q => q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now)
+                                  + questions.Count(q => q.StatusCode == "mastered" && q.DeletedAt == null
+                                                      && q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now),
                     NewCount      = reviewable.Count(q => q.SrsNextReviewAt == null),
-                    ActiveCount   = questions.Count,
+                    ActiveCount   = reviewable.Count,
                 };
 
                 return [item];
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting daily queue for node {NodeId}", nodeId);
+                _logger.LogError(ex, "Error getting daily queue for knowledge {KnowledgeId}", knowledgeId);
                 throw;
             }
         }
@@ -552,15 +603,15 @@ namespace SuperAppDataRepositories.Repositories
                 var knowledgeIds = knowledges.Select(k => k.Id).ToList();
                 var questions = await _context.KQuestions
                     .Include(q => q.Node)
-                    .Where(q => q.NodeId.HasValue && knowledgeIds.Contains(q.Node!.KnowledgeId)
-                             && q.Node!.StatusCode == "learning" && q.Node!.DeletedAt == null
+                    .Where(q => (q.Node == null || (knowledgeIds.Contains(q.Node.KnowledgeId)
+                             && q.Node.StatusCode == "learning" && q.Node.DeletedAt == null))
                              && q.DeletedAt == null)
                     .ToListAsync();
 
                 return knowledges
                     .Select(k =>
                     {
-                        var qs         = questions.Where(q => q.Node?.KnowledgeId == k.Id).ToList();
+                        var qs         = questions.Where(q => q.Node == null || q.Node.KnowledgeId == k.Id).ToList();
                         var reviewable = qs.Where(q => q.StatusCode == "learning").ToList();
                         return new KDailyQueueItem
                         {
@@ -592,8 +643,8 @@ namespace SuperAppDataRepositories.Repositories
                 var newLimit = dailyLimit - dueLimit;
 
                 var dueQuestions = await _context.KQuestions
-                    .Where(q => q.NodeId == nodeId && q.StatusCode == "learning" && q.DeletedAt == null
-                             && q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now)
+                    .Where(q => q.NodeId == nodeId && (q.StatusCode == "learning" || q.StatusCode == "mastered")
+                             && q.DeletedAt == null && q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now)
                     .OrderBy(q => q.SrsNextReviewAt)
                     .Take(dueLimit)
                     .ToListAsync();
@@ -650,7 +701,8 @@ namespace SuperAppDataRepositories.Repositories
             try
             {
                 return await _context.KQuestions
-                    .Where(q => q.Node!.KnowledgeId == knowledgeId && q.DeletedAt == null)
+                    .Include(q => q.Node)
+                    .Where(q => (q.Node == null || q.Node.KnowledgeId == knowledgeId) && q.DeletedAt == null)
                     .OrderBy(q => q.SortOrder)
                     .ToListAsync();
             }
