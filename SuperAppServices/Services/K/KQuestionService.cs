@@ -30,7 +30,7 @@ namespace SuperAppServices.Services.K
         {
             try
             {
-                var questions   = await _repo.GetQuestionsByNodeAsync(nodeId);
+                var questions = await _repo.GetQuestionsByNodeAsync(nodeId);
                 var questionIds = questions.Select(q => q.Id).ToList();
 
                 var allHistory = await _repo.GetHistoryForQuestionsAsync(userId, questionIds);
@@ -72,7 +72,7 @@ namespace SuperAppServices.Services.K
             }
         }
 
-        public async Task<ResultOptions> GetQuestionsAsync(int knowledgeId, int userId)
+        public async Task<ResultOptions> GetKnowledgeQuestionsAsync(int knowledgeId, int userId)
         {
             try
             {
@@ -113,7 +113,7 @@ namespace SuperAppServices.Services.K
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "GetQuestions failed for knowledge {KnowledgeId}", knowledgeId);
+                _logger.LogError(ex, "GetKnowledgeQuestions failed for knowledge {KnowledgeId}", knowledgeId);
                 return Fail(500, "Failed to load questions");
             }
         }
@@ -221,7 +221,7 @@ namespace SuperAppServices.Services.K
             }
         }
 
-        public async Task<ResultOptions> UpdateQuestionsAsync(int knowledgeId, int userId, KUpdateQuestionsRequest request)
+        public async Task<ResultOptions> UpdateQuestionsAsync(int nodeId, int userId, KUpdateQuestionsRequest request)
         {
             try
             {
@@ -229,7 +229,7 @@ namespace SuperAppServices.Services.K
                     await _repo.UpdateQuestionsDataAsync(request.UpdateQuestions);
 
                 if (request.AddQuestions.Count > 0)
-                    await _repo.AddQuestionsAsync(knowledgeId, request.AddQuestions);   // knowledgeId is nodeId here
+                    await _repo.AddQuestionsAsync(nodeId, request.AddQuestions);
 
                 if (request.DeleteQuestionIds.Count > 0)
                     await _repo.DeleteQuestionsAsync(request.DeleteQuestionIds);
@@ -243,16 +243,16 @@ namespace SuperAppServices.Services.K
                 if (request.ToggleDraftQuestionIds.Count > 0)
                     await _repo.ToggleQuestionsDraftAsync(request.ToggleDraftQuestionIds);
 
-                return Ok(new { knowledgeId });
+                return Ok(new { nodeId });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "UpdateQuestions failed for knowledge {KnowledgeId}", knowledgeId);
+                _logger.LogError(ex, "UpdateQuestions failed for node {NodeId}", nodeId);
                 return Fail(500, "Failed to update questions");
             }
         }
 
-        public async Task<ResultOptions> SubmitAnswersAsync(int knowledgeId, int userId, KSubmitAnswersRequest request)
+        public async Task<ResultOptions> SubmitAnswersAsync(int nodeId, int userId, KSubmitAnswersRequest request)
         {
             try
             {
@@ -263,9 +263,9 @@ namespace SuperAppServices.Services.K
                 var questions   = await _repo.GetQuestionsByIdsAsync(questionIds);
                 var questionMap = questions.ToDictionary(q => q.Id);
 
-                var knowledgeName = await _repo.GetNodeNameAsync(knowledgeId) ?? "";
-                var submissions   = request.Answers.Select(a => (a.QuestionId, a.AnswerText)).ToList();
-                var grading       = await _grading.GradeSubmissionAsync(knowledgeName, submissions, questions);
+                var nodeName    = await _repo.GetNodeNameAsync(nodeId) ?? "";
+                var submissions = request.Answers.Select(a => (a.QuestionId, a.AnswerText)).ToList();
+                var grading     = await _grading.GradeSubmissionAsync(nodeName, submissions, questions);
 
                 var results = grading.Answers.Select(g => (
                     g.QuestionId,
@@ -273,7 +273,7 @@ namespace SuperAppServices.Services.K
                     g.Point
                 )).ToList();
 
-                await _repo.SaveSubmissionAsync(knowledgeId, userId, results);
+                await _repo.SaveSubmissionAsync(nodeId, userId, results);
 
                 // Update SRS for each answered question
                 foreach (var g in grading.Answers)
@@ -310,14 +310,14 @@ namespace SuperAppServices.Services.K
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "SubmitAnswers failed for knowledge {KnowledgeId}", knowledgeId);
+                _logger.LogError(ex, "SubmitAnswers failed for node {NodeId}", nodeId);
                 return Fail(500, "Failed to submit answers");
             }
         }
 
-        public async Task<Dictionary<int, int>> GetQuestionScoresAsync(int knowledgeId, int userId)
+        public async Task<Dictionary<int, int>> GetQuestionScoresAsync(int nodeId, int userId)
         {
-            try   { return await _repo.GetQuestionScoresAsync(knowledgeId, userId); }
+            try   { return await _repo.GetQuestionScoresAsync(nodeId, userId); }
             catch (Exception ex) { _logger.LogError(ex, "GetQuestionScores failed"); return []; }
         }
 
@@ -325,11 +325,11 @@ namespace SuperAppServices.Services.K
         // SRS / Daily Review
         // ══════════════════════════════════════════════════════════════════════
 
-        public async Task<ResultOptions> GetDailyQueueAsync(int knowledgeId, int userId)
+        public async Task<ResultOptions> GetDailyQueueAsync(int nodeId, int userId)
         {
             try
             {
-                var items    = await _repo.GetDailyQueueAsync(knowledgeId, userId);
+                var items    = await _repo.GetDailyQueueAsync(nodeId, userId);
                 var response = items.Select(MapQueueItem).ToList();
                 return Ok(response);
             }
@@ -356,11 +356,11 @@ namespace SuperAppServices.Services.K
             ActiveCount   = i.ActiveCount,
         };
 
-        public async Task<ResultOptions> GetDailySessionAsync(int knowledgeId, int userId, int dailyLimit)
+        public async Task<ResultOptions> GetDailySessionAsync(int nodeId, int userId, int dailyLimit)
         {
             try
             {
-                var questions = await _repo.GetDailySessionQuestionsAsync(knowledgeId, dailyLimit, 0.4);
+                var questions = await _repo.GetDailySessionQuestionsAsync(nodeId, dailyLimit, 0.4);
                 var now = VietnamDateTime.Now();
                 var response  = questions.Select(q =>
                 {
@@ -382,14 +382,14 @@ namespace SuperAppServices.Services.K
                 }).ToList();
                 return Ok(response);
             }
-            catch (Exception ex) { _logger.LogError(ex, "GetDailySession failed for knowledge {KnowledgeId}", knowledgeId); return Fail(500, "Failed"); }
+            catch (Exception ex) { _logger.LogError(ex, "GetDailySession failed for node {NodeId}", nodeId); return Fail(500, "Failed"); }
         }
 
-        public async Task<ResultOptions> GetKnowledgeDailySessionAsync(int knowledgeId, int userId, int dailyLimit)
+        public async Task<ResultOptions> GetKnowledgeDailySessionAsync(int nodeId, int userId, int dailyLimit)
         {
             try
             {
-                var questions = await _repo.GetKnowledgeDailySessionQuestionsAsync(knowledgeId, dailyLimit, 0.4);
+                var questions = await _repo.GetKnowledgeDailySessionQuestionsAsync(nodeId, dailyLimit, 0.4);
                 var now = VietnamDateTime.Now();
                 var response = questions.Select(q =>
                 {
@@ -411,10 +411,10 @@ namespace SuperAppServices.Services.K
                 }).ToList();
                 return Ok(response);
             }
-            catch (Exception ex) { _logger.LogError(ex, "GetKnowledgeDailySession failed for knowledge {KnowledgeId}", knowledgeId); return Fail(500, "Failed"); }
+            catch (Exception ex) { _logger.LogError(ex, "GetKnowledgeDailySession failed for node {NodeId}", nodeId); return Fail(500, "Failed"); }
         }
 
-        public async Task<ResultOptions> SubmitDailyAnswersAsync(int knowledgeId, int userId, KDailySubmitRequest request)
+        public async Task<ResultOptions> SubmitDailyAnswersAsync(int nodeId, int userId, KDailySubmitRequest request)
         {
             try
             {
@@ -437,9 +437,9 @@ namespace SuperAppServices.Services.K
                 }
                 else
                 {
-                    var knowledgeName = await _repo.GetNodeNameAsync(knowledgeId) ?? "";
-                    var submissions   = request.Answers.Select(a => (a.QuestionId, a.AnswerText)).ToList();
-                    var grading       = await _grading.GradeSubmissionAsync(knowledgeName, submissions, questions);
+                    var nodeName    = await _repo.GetNodeNameAsync(nodeId) ?? "";
+                    var submissions = request.Answers.Select(a => (a.QuestionId, a.AnswerText)).ToList();
+                    var grading     = await _grading.GradeSubmissionAsync(nodeName, submissions, questions);
                     results = grading.Answers.Select(g =>
                     {
                         var answer = request.Answers.FirstOrDefault(a => a.QuestionId == g.QuestionId);
@@ -447,7 +447,7 @@ namespace SuperAppServices.Services.K
                     }).ToList();
                 }
 
-                await _repo.SaveDailySubmissionAsync(knowledgeId, userId, results);
+                await _repo.SaveDailySubmissionAsync(nodeId, userId, results);
 
                 // Update SRS for each question
                 foreach (var (questionId, _, point, _) in results)
@@ -483,18 +483,18 @@ namespace SuperAppServices.Services.K
                     }).ToList(),
                 });
             }
-            catch (Exception ex) { _logger.LogError(ex, "SubmitDailyAnswers failed for knowledge {KnowledgeId}", knowledgeId); return Fail(500, "Failed"); }
+            catch (Exception ex) { _logger.LogError(ex, "SubmitDailyAnswers failed for node {NodeId}", nodeId); return Fail(500, "Failed"); }
         }
 
         // ══════════════════════════════════════════════════════════════════════
         // Retention
         // ══════════════════════════════════════════════════════════════════════
 
-        public async Task<KRetentionSummaryResponse> GetRetentionSummaryAsync(int knowledgeId)
+        public async Task<KRetentionSummaryResponse> GetRetentionSummaryAsync(int nodeId)
         {
             try
             {
-                var questions = await _repo.GetActiveQuestionsAsync(knowledgeId);
+                var questions = await _repo.GetActiveQuestionsAsync(nodeId);
                 if (!questions.Any()) return new KRetentionSummaryResponse();
 
                 var retentions = questions
@@ -509,16 +509,16 @@ namespace SuperAppServices.Services.K
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "GetRetentionSummary failed for knowledge {KnowledgeId}", knowledgeId);
+                _logger.LogError(ex, "GetRetentionSummary failed for node {NodeId}", nodeId);
                 return new KRetentionSummaryResponse();
             }
         }
 
-        public async Task<KRetentionGraphResponse> GetRetentionGraphAsync(int knowledgeId, int days)
+        public async Task<KRetentionGraphResponse> GetRetentionGraphAsync(int nodeId, int days)
         {
             try
             {
-                var questions = await _repo.GetActiveQuestionsAsync(knowledgeId);
+                var questions = await _repo.GetActiveQuestionsAsync(nodeId);
                 if (!questions.Any()) return new KRetentionGraphResponse();
 
                 var questionIds = questions.Select(q => q.Id).ToList();
@@ -596,7 +596,7 @@ namespace SuperAppServices.Services.K
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "GetRetentionGraph failed for knowledge {KnowledgeId}", knowledgeId);
+                _logger.LogError(ex, "GetRetentionGraph failed for node {NodeId}", nodeId);
                 return new KRetentionGraphResponse();
             }
         }

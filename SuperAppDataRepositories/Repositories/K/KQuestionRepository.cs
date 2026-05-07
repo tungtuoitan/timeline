@@ -720,7 +720,10 @@ namespace SuperAppDataRepositories.Repositories
             {
                 return await _context.KQuestions
                     .Include(q => q.Node)
-                    .Where(q => (q.Node == null || q.Node.KnowledgeId == knowledgeId) && q.DeletedAt == null)
+                    .Where(q => q.Node != null && q.Node.KnowledgeId == knowledgeId
+                             && q.Node.DeletedAt == null
+                             && q.DeletedAt == null
+                             && q.StatusCode != "draft")
                     .OrderBy(q => q.SortOrder)
                     .ToListAsync();
             }

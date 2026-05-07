@@ -8,7 +8,7 @@ using SuperAppServices.Interfaces;
 namespace SuperAppAPI.Controllers.K
 {
     [ApiController]
-    [Route("api/k/{knowledgeId:int}")]
+    [Route("api/k/{nodeId:int}")]
     [Authorize]
     public class KQuestionController : BaseAuthController
     {
@@ -39,100 +39,100 @@ namespace SuperAppAPI.Controllers.K
             }
         }
 
-        // GET /api/k/{knowledgeId}/node-questions  (per-node: WHERE NodeId == knowledgeId)
+        // GET /api/k/{nodeId}/node-questions
         [HttpGet("node-questions")]
-        public async Task<IActionResult> GetNodeQuestions(int knowledgeId)
+        public async Task<IActionResult> GetNodeQuestions(int nodeId)
         {
             try
             {
                 var userId = GetUserId();
                 if (userId == null) return Unauthorized();
-                var result = await _service.GetNodeQuestionsAsync(knowledgeId, userId.Value);
+                var result = await _service.GetNodeQuestionsAsync(nodeId, userId.Value);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting node questions for node {NodeId}", knowledgeId);
+                _logger.LogError(ex, "Error getting node questions for node {NodeId}", nodeId);
                 return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
             }
         }
 
-        // GET /api/k/{knowledgeId}/questions  (knowledge-level: WHERE Node.KnowledgeId == knowledgeId)
+        // GET /api/k/{knowledgeId}/questions  (knowledge-level: all questions across all nodes in a knowledge)
         [HttpGet("questions")]
-        public async Task<IActionResult> GetQuestions(int knowledgeId)
+        public async Task<IActionResult> GetKnowledgeQuestions(int nodeId)
         {
             try
             {
                 var userId = GetUserId();
                 if (userId == null) return Unauthorized();
-                var result = await _service.GetQuestionsAsync(knowledgeId, userId.Value);
+                var result = await _service.GetKnowledgeQuestionsAsync(nodeId, userId.Value);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting questions for knowledge {KnowledgeId}", knowledgeId);
+                _logger.LogError(ex, "Error getting knowledge questions for node {NodeId}", nodeId);
                 return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
             }
         }
 
-        // PATCH /api/k/{knowledgeId}/questions
+        // PATCH /api/k/{nodeId}/questions
         [HttpPatch("questions")]
-        public async Task<IActionResult> UpdateQuestions(int knowledgeId, [FromBody] KUpdateQuestionsRequest request)
+        public async Task<IActionResult> UpdateQuestions(int nodeId, [FromBody] KUpdateQuestionsRequest request)
         {
             try
             {
                 if (!ModelState.IsValid) return BadRequest(ModelState);
                 var userId = GetUserId();
                 if (userId == null) return Unauthorized();
-                var result = await _service.UpdateQuestionsAsync(knowledgeId, userId.Value, request);
+                var result = await _service.UpdateQuestionsAsync(nodeId, userId.Value, request);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating questions for knowledge {KnowledgeId}", knowledgeId);
+                _logger.LogError(ex, "Error updating questions for node {NodeId}", nodeId);
                 return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
             }
         }
 
-        // POST /api/k/{knowledgeId}/questions/submit
+        // POST /api/k/{nodeId}/questions/submit
         [HttpPost("questions/submit")]
-        public async Task<IActionResult> SubmitAnswers(int knowledgeId, [FromBody] KSubmitAnswersRequest request)
+        public async Task<IActionResult> SubmitAnswers(int nodeId, [FromBody] KSubmitAnswersRequest request)
         {
             try
             {
                 if (!ModelState.IsValid) return BadRequest(ModelState);
                 var userId = GetUserId();
                 if (userId == null) return Unauthorized();
-                var result = await _service.SubmitAnswersAsync(knowledgeId, userId.Value, request);
+                var result = await _service.SubmitAnswersAsync(nodeId, userId.Value, request);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error submitting answers for knowledge {KnowledgeId}", knowledgeId);
+                _logger.LogError(ex, "Error submitting answers for node {NodeId}", nodeId);
                 return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
             }
         }
 
-        // GET /api/k/{knowledgeId}/question-scores
+        // GET /api/k/{nodeId}/question-scores
         [HttpGet("question-scores")]
-        public async Task<IActionResult> GetQuestionScores(int knowledgeId)
+        public async Task<IActionResult> GetQuestionScores(int nodeId)
         {
             try
             {
                 var userId = GetUserId();
                 if (userId == null) return Unauthorized();
-                return Ok(await _service.GetQuestionScoresAsync(knowledgeId, userId.Value));
+                return Ok(await _service.GetQuestionScoresAsync(nodeId, userId.Value));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting question scores for knowledge {KnowledgeId}", knowledgeId);
+                _logger.LogError(ex, "Error getting question scores for node {NodeId}", nodeId);
                 return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
             }
         }
 
-        // PATCH /api/k/{knowledgeId}/questions/{questionId}/mark-draft
+        // PATCH /api/k/{nodeId}/questions/{questionId}/mark-draft
         [HttpPatch("questions/{questionId:int}/mark-draft")]
-        public async Task<IActionResult> MarkQuestionDraft(int knowledgeId, int questionId)
+        public async Task<IActionResult> MarkQuestionDraft(int nodeId, int questionId)
         {
             try
             {
@@ -148,108 +148,108 @@ namespace SuperAppAPI.Controllers.K
             }
         }
 
-        // GET /api/k/{knowledgeId}/daily-queue
+        // GET /api/k/{nodeId}/daily-queue
         [HttpGet("daily-queue")]
-        public async Task<IActionResult> GetDailyQueue(int knowledgeId)
+        public async Task<IActionResult> GetDailyQueue(int nodeId)
         {
             try
             {
                 var userId = GetUserId();
                 if (userId == null) return Unauthorized();
-                var result = await _service.GetDailyQueueAsync(knowledgeId, userId.Value);
+                var result = await _service.GetDailyQueueAsync(nodeId, userId.Value);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting daily queue for knowledge {KnowledgeId}", knowledgeId);
+                _logger.LogError(ex, "Error getting daily queue for node {NodeId}", nodeId);
                 return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
             }
         }
 
-        // GET /api/k/{knowledgeId}/daily-session?limit=30
+        // GET /api/k/{nodeId}/daily-session?limit=30
         [HttpGet("daily-session")]
-        public async Task<IActionResult> GetDailySession(int knowledgeId, [FromQuery] int limit = 30)
+        public async Task<IActionResult> GetDailySession(int nodeId, [FromQuery] int limit = 30)
         {
             try
             {
                 var userId = GetUserId();
                 if (userId == null) return Unauthorized();
-                var result = await _service.GetDailySessionAsync(knowledgeId, userId.Value, limit);
+                var result = await _service.GetDailySessionAsync(nodeId, userId.Value, limit);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting daily session for knowledge {KnowledgeId}", knowledgeId);
+                _logger.LogError(ex, "Error getting daily session for node {NodeId}", nodeId);
                 return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
             }
         }
 
-        // GET /api/k/{knowledgeId}/knowledge-daily-session?limit=30
+        // GET /api/k/{nodeId}/knowledge-daily-session?limit=30
         [HttpGet("knowledge-daily-session")]
-        public async Task<IActionResult> GetKnowledgeDailySession(int knowledgeId, [FromQuery] int limit = 30)
+        public async Task<IActionResult> GetKnowledgeDailySession(int nodeId, [FromQuery] int limit = 30)
         {
             try
             {
                 var userId = GetUserId();
                 if (userId == null) return Unauthorized();
-                var result = await _service.GetKnowledgeDailySessionAsync(knowledgeId, userId.Value, limit);
+                var result = await _service.GetKnowledgeDailySessionAsync(nodeId, userId.Value, limit);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting knowledge daily session for knowledge {KnowledgeId}", knowledgeId);
+                _logger.LogError(ex, "Error getting knowledge daily session for node {NodeId}", nodeId);
                 return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
             }
         }
 
-        // POST /api/k/{knowledgeId}/daily-submit
+        // POST /api/k/{nodeId}/daily-submit
         [HttpPost("daily-submit")]
-        public async Task<IActionResult> SubmitDailyAnswers(int knowledgeId, [FromBody] KDailySubmitRequest request)
+        public async Task<IActionResult> SubmitDailyAnswers(int nodeId, [FromBody] KDailySubmitRequest request)
         {
             try
             {
                 if (!ModelState.IsValid) return BadRequest(ModelState);
                 var userId = GetUserId();
                 if (userId == null) return Unauthorized();
-                var result = await _service.SubmitDailyAnswersAsync(knowledgeId, userId.Value, request);
+                var result = await _service.SubmitDailyAnswersAsync(nodeId, userId.Value, request);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error submitting daily answers for knowledge {KnowledgeId}", knowledgeId);
+                _logger.LogError(ex, "Error submitting daily answers for node {NodeId}", nodeId);
                 return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
             }
         }
 
-        // GET /api/k/{knowledgeId}/retention
+        // GET /api/k/{nodeId}/retention
         [HttpGet("retention")]
-        public async Task<IActionResult> GetRetention(int knowledgeId)
+        public async Task<IActionResult> GetRetention(int nodeId)
         {
             try
             {
-                var result = await _service.GetRetentionSummaryAsync(knowledgeId);
+                var result = await _service.GetRetentionSummaryAsync(nodeId);
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting retention for knowledge {KnowledgeId}", knowledgeId);
+                _logger.LogError(ex, "Error getting retention for node {NodeId}", nodeId);
                 return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
             }
         }
 
-        // GET /api/k/{knowledgeId}/retention-graph?days=14
+        // GET /api/k/{nodeId}/retention-graph?days=14
         [HttpGet("retention-graph")]
-        public async Task<IActionResult> GetRetentionGraph(int knowledgeId, [FromQuery] int days = 14)
+        public async Task<IActionResult> GetRetentionGraph(int nodeId, [FromQuery] int days = 14)
         {
             try
             {
                 if (days < 1 || days > 90) days = 14;
-                var result = await _service.GetRetentionGraphAsync(knowledgeId, days);
+                var result = await _service.GetRetentionGraphAsync(nodeId, days);
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting retention graph for knowledge {KnowledgeId}", knowledgeId);
+                _logger.LogError(ex, "Error getting retention graph for node {NodeId}", nodeId);
                 return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
             }
         }
