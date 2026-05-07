@@ -95,11 +95,11 @@ namespace SuperAppDataRepositories.Repositories
 
         // ── Add questions ─────────────────────────────────────────────────────
 
-        public async Task AddQuestionsAsync(int? nodeId, List<KNewQuestionItem> questions)
+        public async Task<List<int>> AddQuestionsAsync(int? nodeId, List<KNewQuestionItem> questions)
         {
             try
             {
-                if (!questions.Any()) return;
+                if (!questions.Any()) return [];
 
                 var maxOrder = await _context.KQuestions
                     .Where(q => q.NodeId == nodeId)
@@ -118,6 +118,7 @@ namespace SuperAppDataRepositories.Repositories
                 _context.KQuestions.AddRange(rows);
                 await _context.SaveChangesAsync();
                 _logger.LogInformation("Added {Count} questions to node {NodeId}", rows.Count, nodeId);
+                return rows.Select(r => r.Id).ToList();
             }
             catch (Exception ex)
             {

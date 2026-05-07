@@ -29,6 +29,7 @@ namespace SuperAppModels.DTOs.Responses
         public double Retention { get; set; }
         /// <summary>Non-null when question has been soft-deleted</summary>
         public DateTime? DeletedAt { get; set; }
+        public DateTime? CreatedAt { get; set; }
     }
 
     public class KSubmitAnswersResultResponse

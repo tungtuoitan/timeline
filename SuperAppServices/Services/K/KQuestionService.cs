@@ -57,6 +57,7 @@ namespace SuperAppServices.Services.K
                             StatusCode      = q.StatusCode,
                             SortOrder       = q.SortOrder,
                             DeletedAt       = q.DeletedAt,
+                            CreatedAt       = q.CreatedAt,
                             ScoreHistory    = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
                             SrsNextReviewAt = q.SrsNextReviewAt,
                             Retention       = SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt),
@@ -103,6 +104,7 @@ namespace SuperAppServices.Services.K
                             StatusCode      = q.StatusCode,
                             SortOrder       = q.SortOrder,
                             DeletedAt       = q.DeletedAt,
+                            CreatedAt       = q.CreatedAt,
                             ScoreHistory    = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
                             SrsNextReviewAt = q.SrsNextReviewAt,
                             Retention       = SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt),
@@ -147,6 +149,7 @@ namespace SuperAppServices.Services.K
                             StatusCode      = q.StatusCode,
                             SortOrder       = q.SortOrder,
                             DeletedAt       = q.DeletedAt,
+                            CreatedAt       = q.CreatedAt,
                             ScoreHistory    = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
                             SrsNextReviewAt = q.SrsNextReviewAt,
                             Retention       = SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt),
@@ -169,8 +172,9 @@ namespace SuperAppServices.Services.K
                 if (request.UpdateQuestions.Count > 0)
                     await _repo.UpdateQuestionsDataAsync(request.UpdateQuestions);
 
+                var addedIds = new List<int>();
                 if (request.AddQuestions.Count > 0)
-                    await _repo.AddQuestionsAsync(null, request.AddQuestions);   // null nodeId = orphan
+                    addedIds = await _repo.AddQuestionsAsync(null, request.AddQuestions);   // null nodeId = orphan
 
                 if (request.DeleteQuestionIds.Count > 0)
                     await _repo.DeleteQuestionsAsync(request.DeleteQuestionIds);
@@ -184,7 +188,7 @@ namespace SuperAppServices.Services.K
                 if (request.ToggleDraftQuestionIds.Count > 0)
                     await _repo.ToggleQuestionsDraftAsync(request.ToggleDraftQuestionIds);
 
-                return Ok(new { knowledgeId = (int?)null });
+                return Ok(new { addedQuestionIds = addedIds });
             }
             catch (Exception ex)
             {
@@ -228,8 +232,9 @@ namespace SuperAppServices.Services.K
                 if (request.UpdateQuestions.Count > 0)
                     await _repo.UpdateQuestionsDataAsync(request.UpdateQuestions);
 
+                var addedIds = new List<int>();
                 if (request.AddQuestions.Count > 0)
-                    await _repo.AddQuestionsAsync(nodeId, request.AddQuestions);
+                    addedIds = await _repo.AddQuestionsAsync(nodeId, request.AddQuestions);
 
                 if (request.DeleteQuestionIds.Count > 0)
                     await _repo.DeleteQuestionsAsync(request.DeleteQuestionIds);
@@ -243,7 +248,7 @@ namespace SuperAppServices.Services.K
                 if (request.ToggleDraftQuestionIds.Count > 0)
                     await _repo.ToggleQuestionsDraftAsync(request.ToggleDraftQuestionIds);
 
-                return Ok(new { nodeId });
+                return Ok(new { nodeId, addedQuestionIds = addedIds });
             }
             catch (Exception ex)
             {
