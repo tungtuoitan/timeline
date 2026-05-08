@@ -12,11 +12,16 @@ namespace SuperAppDataRepositories.Repositories
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<KQuestionRepository> _logger;
+        private readonly IKStatusHistoryRepository _statusHistory;
 
-        public KQuestionRepository(ApplicationDbContext context, ILogger<KQuestionRepository> logger)
+        public KQuestionRepository(
+            ApplicationDbContext context,
+            ILogger<KQuestionRepository> logger,
+            IKStatusHistoryRepository statusHistory)
         {
-            _context = context;
-            _logger  = logger;
+            _context       = context;
+            _logger        = logger;
+            _statusHistory = statusHistory;
         }
 
         // ── Get questions by node ─────────────────────────────────────────────
@@ -117,6 +122,11 @@ namespace SuperAppDataRepositories.Repositories
 
                 _context.KQuestions.AddRange(rows);
                 await _context.SaveChangesAsync();
+
+                await _statusHistory.AddQuestionStatusBulkAsync(
+                    rows.Select(r => (r.Id, r.StatusCode)),
+                    userId: null);
+
                 _logger.LogInformation("Added {Count} questions to node {NodeId}", rows.Count, nodeId);
                 return rows.Select(r => r.Id).ToList();
             }
@@ -248,6 +258,7 @@ namespace SuperAppDataRepositories.Repositories
                 var question = await _context.KQuestions.FindAsync(questionId);
                 if (question == null) return;
 
+                var wasDraftAlready       = question.StatusCode == "draft";
                 question.StatusCode        = "draft";
                 question.SrsInterval      = 0;
                 question.SrsEaseFactor    = 2.5;
@@ -261,6 +272,10 @@ namespace SuperAppDataRepositories.Repositories
                 _context.KPointHistory.RemoveRange(history);
 
                 await _context.SaveChangesAsync();
+
+                if (!wasDraftAlready)
+                    await _statusHistory.AddQuestionStatusAsync(questionId, "draft", userId: null);
+
                 _logger.LogInformation("Marked question {QuestionId} as draft, deleted {Count} history rows", questionId, history.Count);
             }
             catch (Exception ex)
@@ -285,6 +300,10 @@ namespace SuperAppDataRepositories.Repositories
                     q.StatusCode = q.StatusCode == "draft" ? "learning" : "draft";
 
                 await _context.SaveChangesAsync();
+
+                await _statusHistory.AddQuestionStatusBulkAsync(
+                    questions.Select(q => (q.Id, q.StatusCode)),
+                    userId: null);
             }
             catch (Exception ex)
             {
@@ -481,6 +500,11 @@ namespace SuperAppDataRepositories.Repositories
                 }
 
                 await _context.SaveChangesAsync();
+
+                await _statusHistory.AddQuestionStatusBulkAsync(
+                    questions.Select(q => (q.Id, statusCode)),
+                    userId: null);
+
                 _logger.LogInformation(
                     "Status → {Status} for {Count} questions: [{Ids}]",
                     statusCode, questions.Count, string.Join(',', questionIds));

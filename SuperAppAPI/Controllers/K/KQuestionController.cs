@@ -253,5 +253,23 @@ namespace SuperAppAPI.Controllers.K
                 return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
             }
         }
+
+        // GET /api/k/{knowledgeId}/question-status-timeline
+        [HttpGet("question-status-timeline")]
+        public async Task<IActionResult> GetQuestionStatusTimeline(int nodeId)
+        {
+            try
+            {
+                var userId = GetUserId();
+                if (userId == null) return Unauthorized();
+                var result = await _service.GetQuestionStatusTimelineAsync(nodeId, userId.Value);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting question status timeline for knowledge {KnowledgeId}", nodeId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
+            }
+        }
     }
 }

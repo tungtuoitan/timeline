@@ -279,6 +279,15 @@ namespace SuperAppServices.Services.K
                 _context.KNodes.Add(entity);
                 await _context.SaveChangesAsync();
 
+                _context.KNodeStatusHistory.Add(new KNodeStatusHistoryEntity
+                {
+                    NodeId     = entity.Id,
+                    StatusCode = entity.StatusCode ?? "learning",
+                    ChangedAt  = entity.CreatedAt ?? VietnamDateTime.Now(),
+                    UserId     = null,
+                });
+                await _context.SaveChangesAsync();
+
                 nodeId = entity.Id;
 
                 created.Add(new KNodeResponse
@@ -366,6 +375,16 @@ namespace SuperAppServices.Services.K
             }).ToList();
 
             _context.KQuestions.AddRange(entities);
+            await _context.SaveChangesAsync();
+
+            var now = VietnamDateTime.Now();
+            _context.KQuestionStatusHistory.AddRange(entities.Select(e => new KQuestionStatusHistoryEntity
+            {
+                QuestionId = e.Id,
+                StatusCode = e.StatusCode,
+                ChangedAt  = now,
+                UserId     = null,
+            }));
             await _context.SaveChangesAsync();
 
             return entities.Select(e => e.Id).ToList();

@@ -176,6 +176,15 @@ namespace SuperAppServices.Services.K
                 _context.KNodes.Add(newNode);
                 await _context.SaveChangesAsync();
 
+                _context.KNodeStatusHistory.Add(new KNodeStatusHistoryEntity
+                {
+                    NodeId     = newNode.Id,
+                    StatusCode = newNode.StatusCode ?? "learning",
+                    ChangedAt  = newNode.CreatedAt ?? VietnamDateTime.Now(),
+                    UserId     = userId,
+                });
+                await _context.SaveChangesAsync();
+
                 upserted.Add(newNode);
                 _logger.LogInformation("Created node ID {Id} (Name={Name})", newNode.Id, newNode.Name);
             }
@@ -196,12 +205,24 @@ namespace SuperAppServices.Services.K
                 var node = existingNodes[request.Id!.Value];
                 var data = request.NodeData!;
 
+                var oldStatus = node.StatusCode;
                 node.Name        = data.Name;
                 node.Description = data.Description;
                 if (data.Color != null) node.Color = data.Color;
                 if (data.Icon  != null) node.Icon  = data.Icon;
                 if (data.StatusCode  != null) node.StatusCode = data.StatusCode;
                 node.UpdatedAt = VietnamDateTime.Now();
+
+                if (data.StatusCode != null && oldStatus != node.StatusCode)
+                {
+                    _context.KNodeStatusHistory.Add(new KNodeStatusHistoryEntity
+                    {
+                        NodeId     = node.Id,
+                        StatusCode = node.StatusCode ?? "learning",
+                        ChangedAt  = VietnamDateTime.Now(),
+                        UserId     = null,
+                    });
+                }
 
                 upserted.Add(node);
                 _logger.LogInformation("Updated node ID {Id} (Name={Name})", node.Id, node.Name);

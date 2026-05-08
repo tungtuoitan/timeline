@@ -164,6 +164,7 @@ namespace SuperAppAPI
             services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
             services.AddScoped<IKKnowledgeRepository, KKnowledgeRepository>();
             services.AddScoped<IKQuestionRepository, KQuestionRepository>();
+            services.AddScoped<IKStatusHistoryRepository, KStatusHistoryRepository>();
             services.AddScoped<IWsRepository, WsRepository>();
             services.AddScoped<IStandardRegistryRepository, StandardRegistryRepository>();
             services.AddScoped<IUserRepository, UserRepository>();

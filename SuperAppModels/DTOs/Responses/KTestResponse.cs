@@ -29,7 +29,23 @@ namespace SuperAppModels.DTOs.Responses
         public double Retention { get; set; }
         /// <summary>Non-null when question has been soft-deleted</summary>
         public DateTime? DeletedAt { get; set; }
-        public DateTime? CreatedAt { get; set; }
+    }
+
+    public class KQuestionStatusTimelineResponse
+    {
+        public List<KQuestionStatusTimelinePoint> Days { get; set; } = [];
+    }
+
+    public class KQuestionStatusTimelinePoint
+    {
+        /// <summary>"yyyy-MM-dd"</summary>
+        public string Date     { get; set; } = string.Empty;
+        public int    Master   { get; set; }
+        public int    Learning { get; set; }
+        public int    Draft    { get; set; }
+        public int    Deleted  { get; set; }
+        /// <summary>Independent count from DB — questions with CreatedAt ≤ Date. Should equal Master + Learning + Draft + Deleted; mismatch means a classification bug.</summary>
+        public int    Total    { get; set; }
     }
 
     public class KSubmitAnswersResultResponse

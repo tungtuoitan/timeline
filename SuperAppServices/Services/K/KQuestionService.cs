@@ -12,14 +12,23 @@ namespace SuperAppServices.Services.K
     public class KQuestionService : IKQuestionService
     {
         private readonly IKQuestionRepository _repo;
+        private readonly IKKnowledgeRepository _knowledgeRepo;
+        private readonly IKStatusHistoryRepository _statusHistory;
         private readonly IKGradingService _grading;
         private readonly ILogger<KQuestionService> _logger;
 
-        public KQuestionService(IKQuestionRepository repo, IKGradingService grading, ILogger<KQuestionService> logger)
+        public KQuestionService(
+            IKQuestionRepository repo,
+            IKKnowledgeRepository knowledgeRepo,
+            IKStatusHistoryRepository statusHistory,
+            IKGradingService grading,
+            ILogger<KQuestionService> logger)
         {
-            _repo    = repo    ?? throw new ArgumentNullException(nameof(repo));
-            _grading = grading ?? throw new ArgumentNullException(nameof(grading));
-            _logger  = logger  ?? throw new ArgumentNullException(nameof(logger));
+            _repo          = repo           ?? throw new ArgumentNullException(nameof(repo));
+            _knowledgeRepo = knowledgeRepo  ?? throw new ArgumentNullException(nameof(knowledgeRepo));
+            _statusHistory = statusHistory  ?? throw new ArgumentNullException(nameof(statusHistory));
+            _grading       = grading        ?? throw new ArgumentNullException(nameof(grading));
+            _logger        = logger         ?? throw new ArgumentNullException(nameof(logger));
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -57,7 +66,6 @@ namespace SuperAppServices.Services.K
                             StatusCode      = q.StatusCode,
                             SortOrder       = q.SortOrder,
                             DeletedAt       = q.DeletedAt,
-                            CreatedAt       = q.CreatedAt,
                             ScoreHistory    = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
                             SrsNextReviewAt = q.SrsNextReviewAt,
                             Retention       = SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt),
@@ -104,7 +112,6 @@ namespace SuperAppServices.Services.K
                             StatusCode      = q.StatusCode,
                             SortOrder       = q.SortOrder,
                             DeletedAt       = q.DeletedAt,
-                            CreatedAt       = q.CreatedAt,
                             ScoreHistory    = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
                             SrsNextReviewAt = q.SrsNextReviewAt,
                             Retention       = SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt),
@@ -149,7 +156,6 @@ namespace SuperAppServices.Services.K
                             StatusCode      = q.StatusCode,
                             SortOrder       = q.SortOrder,
                             DeletedAt       = q.DeletedAt,
-                            CreatedAt       = q.CreatedAt,
                             ScoreHistory    = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
                             SrsNextReviewAt = q.SrsNextReviewAt,
                             Retention       = SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt),
@@ -604,6 +610,204 @@ namespace SuperAppServices.Services.K
                 _logger.LogError(ex, "GetRetentionGraph failed for node {NodeId}", nodeId);
                 return new KRetentionGraphResponse();
             }
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // QUESTION STATE TIMELINE
+        // ══════════════════════════════════════════════════════════════════════
+        //
+        // For each day D between min(q.CreatedAt) and today, classify every
+        // question into exactly one of {master, learning, draft, deleted} based
+        // on:
+        //   - effective deletion (q.DeletedAt | node.DeletedAt | knowledge.DeletedAt)
+        //   - status_code at D (from question_status_history / node_status_history)
+        //   - master = 10 most recent answers ≤ D, all point ≥ 5
+        // ══════════════════════════════════════════════════════════════════════
+
+        public async Task<ResultOptions> GetQuestionStatusTimelineAsync(int knowledgeId, int userId)
+        {
+            try
+            {
+                var knowledge = await _knowledgeRepo.GetKnowledgeByIdAsync(knowledgeId, userId);
+                if (knowledge == null) return Fail(404, "Knowledge not found");
+
+                var questions = await _repo.GetAllQuestionsByKnowledgeAsync(knowledgeId);
+                if (questions.Count == 0)
+                {
+                    return Ok(new KQuestionStatusTimelineResponse());
+                }
+
+                var questionIds = questions.Select(q => q.Id).ToList();
+                var qHistory    = await _statusHistory.GetQuestionStatusHistoryByKnowledgeAsync(knowledgeId);
+                var nHistory    = await _statusHistory.GetNodeStatusHistoryByKnowledgeAsync(knowledgeId);
+                var pointHist   = await _repo.GetHistoryForQuestionsAsync(userId, questionIds);
+
+                // Build per-entity ordered timelines
+                var qStatusByQid = qHistory
+                    .GroupBy(h => h.QuestionId)
+                    .ToDictionary(g => g.Key, g => g.OrderBy(x => x.ChangedAt).ToList());
+                var nStatusByNid = nHistory
+                    .GroupBy(h => h.NodeId)
+                    .ToDictionary(g => g.Key, g => g.OrderBy(x => x.ChangedAt).ToList());
+                var pointsByQid = pointHist
+                    .Where(p => p.QuestionId.HasValue)
+                    .GroupBy(p => p.QuestionId!.Value)
+                    .ToDictionary(g => g.Key, g => g.OrderBy(x => x.CreatedAt).ToList());
+
+                // Date range
+                var earliest = questions
+                    .Where(q => q.CreatedAt.HasValue)
+                    .Min(q => q.CreatedAt!.Value)
+                    .Date;
+                var today = VietnamDateTime.Now().Date;
+                if (earliest > today) earliest = today;
+
+                var totalDays = (int)(today - earliest).TotalDays + 1;
+                var step      = totalDays > 60 ? (int)Math.Ceiling(totalDays / 60.0) : 1;
+
+                var dates = new List<DateTime>();
+                for (var d = earliest; d <= today; d = d.AddDays(step)) dates.Add(d);
+                if (dates.Count == 0 || dates[^1] != today) dates.Add(today);
+
+                // Independent total: sorted CreatedAt list, count via upper-bound search per day.
+                // Not derived from the classification loop, so a sum(4) ≠ Total mismatch surfaces a bug.
+                var createdAtSorted = questions
+                    .Where(q => q.CreatedAt.HasValue)
+                    .Select(q => q.CreatedAt!.Value.Date)
+                    .OrderBy(x => x)
+                    .ToList();
+
+                // Knowledge-level shortcut
+                var knowledgeKilledAt = knowledge.DeletedAt?.Date;
+                var knowledgeInactive = string.Equals(knowledge.StatusCode, "inactive", StringComparison.OrdinalIgnoreCase);
+
+                var result = new List<KQuestionStatusTimelinePoint>(dates.Count);
+                foreach (var d in dates)
+                {
+                    int master = 0, learning = 0, draft = 0, deleted = 0;
+
+                    // Whole knowledge gone on/before D → all questions deleted
+                    var killByKnowledge = (knowledgeKilledAt.HasValue && knowledgeKilledAt.Value <= d)
+                        || (knowledgeInactive && d >= today);
+
+                    foreach (var q in questions)
+                    {
+                        if (!q.CreatedAt.HasValue || q.CreatedAt.Value.Date > d) continue; // not yet created
+
+                        var qDeleted = q.DeletedAt?.Date;
+
+                        // Orphan: deleted if q.DeletedAt ≤ D, otherwise treat as draft regardless of status_code.
+                        if (q.NodeId == null || q.Node == null)
+                        {
+                            if (qDeleted.HasValue && qDeleted.Value <= d) deleted++;
+                            else                                          draft++;
+                            continue;
+                        }
+
+                        var nDeleted = q.Node.DeletedAt?.Date;
+                        var effectiveDeletedAt = MinNullable(MinNullable(qDeleted, nDeleted), knowledgeKilledAt);
+                        if (killByKnowledge || (effectiveDeletedAt.HasValue && effectiveDeletedAt.Value <= d))
+                        {
+                            deleted++;
+                            continue;
+                        }
+
+                        var qStatus = StatusAt(qStatusByQid, q.Id, d) ?? q.StatusCode ?? "learning";
+                        var nStatus = StatusAt(nStatusByNid, q.Node.Id, d) ?? q.Node.StatusCode ?? "learning";
+
+                        if (qStatus == "draft" || nStatus == "draft")
+                        {
+                            draft++;
+                            continue;
+                        }
+
+                        if (IsMasterAt(pointsByQid, q.Id, d))
+                            master++;
+                        else
+                            learning++;
+                    }
+
+                    var total = CountUpperBound(createdAtSorted, d);
+
+                    if (total != master + learning + draft + deleted)
+                    {
+                        _logger.LogWarning(
+                            "Question status timeline mismatch on {Date} (knowledge {KnowledgeId}): total={Total} but master+learning+draft+deleted={Sum}",
+                            d.ToString("yyyy-MM-dd"), knowledgeId, total, master + learning + draft + deleted);
+                    }
+
+                    result.Add(new KQuestionStatusTimelinePoint
+                    {
+                        Date     = d.ToString("yyyy-MM-dd"),
+                        Master   = master,
+                        Learning = learning,
+                        Draft    = draft,
+                        Deleted  = deleted,
+                        Total    = total,
+                    });
+                }
+
+                return Ok(new KQuestionStatusTimelineResponse { Days = result });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetQuestionStatusTimeline failed for knowledge {KnowledgeId}", knowledgeId);
+                return Fail(500, "Failed to load question status timeline");
+            }
+        }
+
+        private static string? StatusAt<T>(Dictionary<int, List<T>> byId, int id, DateTime d)
+            where T : class
+        {
+            if (!byId.TryGetValue(id, out var list)) return null;
+            string? last = null;
+            foreach (var row in list)
+            {
+                var changedAt = row switch
+                {
+                    KQuestionStatusHistoryEntity q => q.ChangedAt,
+                    KNodeStatusHistoryEntity n     => n.ChangedAt,
+                    _ => DateTime.MinValue,
+                };
+                if (changedAt.Date > d) break;
+                last = row switch
+                {
+                    KQuestionStatusHistoryEntity q => q.StatusCode,
+                    KNodeStatusHistoryEntity n     => n.StatusCode,
+                    _ => last,
+                };
+            }
+            return last;
+        }
+
+        private static bool IsMasterAt(Dictionary<int, List<KPointHistoryEntity>> byQid, int questionId, DateTime d)
+        {
+            if (!byQid.TryGetValue(questionId, out var list)) return false;
+            // Take answers ≤ end of day D
+            var cutoff = d.Date.AddDays(1);
+            var inRange = list.Where(p => p.CreatedAt < cutoff).ToList();
+            if (inRange.Count < 10) return false;
+            return inRange.TakeLast(10).All(p => p.Point >= 5);
+        }
+
+        /// <summary>Count of items in the sorted list with value ≤ d (binary search upper bound).</summary>
+        private static int CountUpperBound(List<DateTime> sorted, DateTime d)
+        {
+            int lo = 0, hi = sorted.Count;
+            while (lo < hi)
+            {
+                int mid = (lo + hi) / 2;
+                if (sorted[mid] <= d) lo = mid + 1;
+                else                  hi = mid;
+            }
+            return lo;
+        }
+
+        private static DateTime? MinNullable(DateTime? a, DateTime? b)
+        {
+            if (!a.HasValue) return b;
+            if (!b.HasValue) return a;
+            return a.Value < b.Value ? a : b;
         }
 
         private static ResultOptions Ok(object data)                  => new() { Success = true,  Object = data, Status = 200 };

@@ -59,5 +59,10 @@ namespace SuperAppServices.Interfaces
 
         /// <summary>Get per-question retention graph over the last N days.</summary>
         Task<KRetentionGraphResponse> GetRetentionGraphAsync(int nodeId, int days);
+
+        // ── Question status timeline (Progress dashboard) ──────────────────────
+
+        /// <summary>Get classification timeline of every question of a knowledge into master / learning / draft / deleted, day by day.</summary>
+        Task<ResultOptions> GetQuestionStatusTimelineAsync(int knowledgeId, int userId);
     }
 }
