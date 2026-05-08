@@ -44,6 +44,7 @@ namespace SuperAppDataRepositories.Ins
 
         Task<List<KQuestionEntity>> GetActiveQuestionsAsync(int knowledgeId);
         Task<string?> GetNodeNameAsync(int nodeId);
+        Task<int> CountAllByKnowledgeAsync(int knowledgeId);
     }
 
     /// <summary>Daily queue summary per knowledge.</summary>

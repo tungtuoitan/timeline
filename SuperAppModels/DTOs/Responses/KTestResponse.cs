@@ -34,6 +34,8 @@ namespace SuperAppModels.DTOs.Responses
     public class KQuestionStatusTimelineResponse
     {
         public List<KQuestionStatusTimelinePoint> Days { get; set; } = [];
+        /// <summary>Direct COUNT(*) from k.question for today. Compare with today's Master+Learning+Draft+Deleted to detect classification bugs.</summary>
+        public int DbTotalToday { get; set; }
     }
 
     public class KQuestionStatusTimelinePoint
@@ -44,8 +46,6 @@ namespace SuperAppModels.DTOs.Responses
         public int    Learning { get; set; }
         public int    Draft    { get; set; }
         public int    Deleted  { get; set; }
-        /// <summary>Independent count from DB — questions with CreatedAt ≤ Date. Should equal Master + Learning + Draft + Deleted; mismatch means a classification bug.</summary>
-        public int    Total    { get; set; }
     }
 
     public class KSubmitAnswersResultResponse

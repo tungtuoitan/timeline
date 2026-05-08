@@ -669,13 +669,8 @@ namespace SuperAppServices.Services.K
                 for (var d = earliest; d <= today; d = d.AddDays(step)) dates.Add(d);
                 if (dates.Count == 0 || dates[^1] != today) dates.Add(today);
 
-                // Independent total: sorted CreatedAt list, count via upper-bound search per day.
-                // Not derived from the classification loop, so a sum(4) ≠ Total mismatch surfaces a bug.
-                var createdAtSorted = questions
-                    .Where(q => q.CreatedAt.HasValue)
-                    .Select(q => q.CreatedAt!.Value.Date)
-                    .OrderBy(x => x)
-                    .ToList();
+                // Direct DB COUNT for today — independent of the classification loop; mismatch surfaces a bug.
+                var dbTotalToday = await _repo.CountAllByKnowledgeAsync(knowledgeId);
 
                 // Knowledge-level shortcut
                 var knowledgeKilledAt = knowledge.DeletedAt?.Date;
@@ -727,15 +722,6 @@ namespace SuperAppServices.Services.K
                             learning++;
                     }
 
-                    var total = CountUpperBound(createdAtSorted, d);
-
-                    if (total != master + learning + draft + deleted)
-                    {
-                        _logger.LogWarning(
-                            "Question status timeline mismatch on {Date} (knowledge {KnowledgeId}): total={Total} but master+learning+draft+deleted={Sum}",
-                            d.ToString("yyyy-MM-dd"), knowledgeId, total, master + learning + draft + deleted);
-                    }
-
                     result.Add(new KQuestionStatusTimelinePoint
                     {
                         Date     = d.ToString("yyyy-MM-dd"),
@@ -743,11 +729,30 @@ namespace SuperAppServices.Services.K
                         Learning = learning,
                         Draft    = draft,
                         Deleted  = deleted,
-                        Total    = total,
                     });
                 }
 
-                return Ok(new KQuestionStatusTimelineResponse { Days = result });
+                var todayPoint = result.LastOrDefault();
+                if (todayPoint != null)
+                {
+                    var todaySum = todayPoint.Master + todayPoint.Learning + todayPoint.Draft + todayPoint.Deleted;
+                    if (todaySum != dbTotalToday)
+                    {
+                        var nullCreatedAt = questions.Where(q => !q.CreatedAt.HasValue).ToList();
+                        var futureCreatedAt = questions.Where(q => q.CreatedAt.HasValue && q.CreatedAt.Value.Date > today).ToList();
+                        _logger.LogWarning(
+                            "QuestionStatusTimeline mismatch (knowledge {KnowledgeId}): DB={DbTotal} classified={Sum} delta={Delta} | " +
+                            "loaded={Loaded} nullCreatedAt={NullCount}({NullIds}) futureCreatedAt={FutureCount}({FutureIds}) | " +
+                            "master={Master} learning={Learning} draft={Draft} deleted={Deleted}",
+                            knowledgeId, dbTotalToday, todaySum, dbTotalToday - todaySum,
+                            questions.Count,
+                            nullCreatedAt.Count, nullCreatedAt.Count > 0 ? string.Join(",", nullCreatedAt.Select(q => q.Id)) : "-",
+                            futureCreatedAt.Count, futureCreatedAt.Count > 0 ? string.Join(",", futureCreatedAt.Select(q => q.Id)) : "-",
+                            todayPoint.Master, todayPoint.Learning, todayPoint.Draft, todayPoint.Deleted);
+                    }
+                }
+
+                return Ok(new KQuestionStatusTimelineResponse { Days = result, DbTotalToday = dbTotalToday });
             }
             catch (Exception ex)
             {
@@ -788,19 +793,6 @@ namespace SuperAppServices.Services.K
             var inRange = list.Where(p => p.CreatedAt < cutoff).ToList();
             if (inRange.Count < 10) return false;
             return inRange.TakeLast(10).All(p => p.Point >= 5);
-        }
-
-        /// <summary>Count of items in the sorted list with value ≤ d (binary search upper bound).</summary>
-        private static int CountUpperBound(List<DateTime> sorted, DateTime d)
-        {
-            int lo = 0, hi = sorted.Count;
-            while (lo < hi)
-            {
-                int mid = (lo + hi) / 2;
-                if (sorted[mid] <= d) lo = mid + 1;
-                else                  hi = mid;
-            }
-            return lo;
         }
 
         private static DateTime? MinNullable(DateTime? a, DateTime? b)

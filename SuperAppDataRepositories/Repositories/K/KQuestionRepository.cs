@@ -63,6 +63,21 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
+        public async Task<int> CountAllByKnowledgeAsync(int knowledgeId)
+        {
+            try
+            {
+                return await _context.KQuestions
+                    .Where(q => q.Node == null || q.Node.KnowledgeId == knowledgeId)
+                    .CountAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error counting questions for knowledge {KnowledgeId}", knowledgeId);
+                throw;
+            }
+        }
+
         public async Task<List<KQuestionEntity>> GetOrphanQuestionsAsync()
         {
             try
