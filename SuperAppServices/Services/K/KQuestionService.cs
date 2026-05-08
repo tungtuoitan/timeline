@@ -792,7 +792,7 @@ namespace SuperAppServices.Services.K
             var cutoff = d.Date.AddDays(1);
             var inRange = list.Where(p => p.CreatedAt < cutoff).ToList();
             if (inRange.Count < 10) return false;
-            return inRange.TakeLast(10).All(p => p.Point >= 5);
+            return inRange.TakeLast(5).All(p => p.Point >= 4);
         }
 
         private static DateTime? MinNullable(DateTime? a, DateTime? b)
