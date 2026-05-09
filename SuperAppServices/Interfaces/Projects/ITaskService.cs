@@ -28,5 +28,12 @@ namespace SuperAppServices.Interfaces
         /// Partial update a single task — only non-null fields in request are updated.
         /// </summary>
         Task<ResultOptions> PatchTaskAsync(int taskId, PatchTaskRequest request, int userId);
+
+        /// <summary>
+        /// Permanently delete tasks and all associated data:
+        /// comments, checklist history, flow edges, node positions,
+        /// workspace folder + notes, and keywords.
+        /// </summary>
+        Task<ResultOptions> HardDeleteTasksAsync(List<int> taskIds, int userId);
     }
 }

@@ -162,6 +162,30 @@ namespace SuperAppAPI.Controllers.Projects
         }
 
         /// <summary>
+        /// Permanently delete tasks and all associated data (comments, flow edges,
+        /// node positions, workspace folder + notes, keywords).
+        /// </summary>
+        [HttpDelete]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> HardDeleteTasks([FromBody] HardDeleteTasksRequest request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var userId = GetUserId();
+            if (userId == null)
+                return Unauthorized("User ID not found in token");
+
+            _logger.LogInformation("Hard-deleting {Count} tasks for userId: {UserId}", request.Ids.Count, userId.Value);
+
+            var response = await _taskService.HardDeleteTasksAsync(request.Ids, userId.Value);
+
+            return Ok(response);
+        }
+
+        /// <summary>
         /// Partial update a single task — only non-null fields in request body are updated.
         /// Use for section saves (process, checklist, description, custom tabs) to avoid overwriting other fields.
         /// </summary>

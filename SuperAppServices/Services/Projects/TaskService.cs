@@ -1,8 +1,11 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
+using SuperAppModels.Utils;
 using SuperAppServices.Interfaces;
 using SuperAppServices.Services.Keywords;
 
@@ -17,17 +20,20 @@ namespace SuperAppServices.Services.Projects
         private readonly IWorkspaceRepository _workspaceRepository;
         private readonly ILogger<TaskService> _logger;
         private readonly KeywordServiceV2 _keywordService;
+        private readonly ApplicationDbContext _context;
 
         public TaskService(
             ITaskRepository taskRepository,
             IWorkspaceRepository workspaceRepository,
             ILogger<TaskService> logger,
-            KeywordServiceV2 keywordService)
+            KeywordServiceV2 keywordService,
+            ApplicationDbContext context)
         {
             _taskRepository = taskRepository ?? throw new ArgumentNullException(nameof(taskRepository));
             _workspaceRepository = workspaceRepository ?? throw new ArgumentNullException(nameof(workspaceRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _keywordService = keywordService ?? throw new ArgumentNullException(nameof(keywordService));
+            _context = context ?? throw new ArgumentNullException(nameof(context));
         }
 
         /// <summary>
@@ -210,6 +216,144 @@ namespace SuperAppServices.Services.Projects
                     Message = ex.Message,
                     Status = 500
                 };
+            }
+        }
+
+        /// <summary>
+        /// Permanently delete tasks and all associated data in one transaction:
+        /// comments, checklist history, flow edges, node positions,
+        /// workspace folder + notes (soft-deleted), and keywords (HardDeletedAt).
+        /// </summary>
+        public async Task<ResultOptions> HardDeleteTasksAsync(List<int> taskIds, int userId)
+        {
+            try
+            {
+                if (taskIds == null || !taskIds.Any())
+                    return new ResultOptions { Success = false, Message = "No task IDs provided", Status = 400 };
+
+                var now = VietnamDateTime.Now();
+
+                // 1. Load tasks (need FolderWorkspaceItemId)
+                var tasks = await _context.ProTasks
+                    .Where(t => taskIds.Contains(t.Id))
+                    .ToListAsync();
+
+                if (!tasks.Any())
+                    return new ResultOptions { Success = false, Message = "Tasks not found", Status = 404 };
+
+                var folderItemIds = tasks
+                    .Where(t => t.FolderWorkspaceItemId.HasValue)
+                    .Select(t => t.FolderWorkspaceItemId!.Value)
+                    .Distinct().ToList();
+
+                // 2. Collect workspace items: folder + direct children (notes)
+                var folderWsItems = folderItemIds.Any()
+                    ? await _context.WorkspaceItems.Where(i => folderItemIds.Contains(i.Id)).ToListAsync()
+                    : new List<WorkspaceItemEntity>();
+
+                var childWsItems = folderItemIds.Any()
+                    ? await _context.WorkspaceItems
+                        .Where(i => i.ParentId.HasValue && folderItemIds.Contains(i.ParentId.Value))
+                        .ToListAsync()
+                    : new List<WorkspaceItemEntity>();
+
+                var allWsItems = folderWsItems.Concat(childWsItems).ToList();
+                var allWsItemIds = allWsItems.Select(i => i.Id).ToList();
+                var noteEntityIds = allWsItems.Where(i => i.EntityType == 3).Select(i => i.EntityId).Distinct().ToList();
+                var folderEntityIds = allWsItems.Where(i => i.EntityType == 2).Select(i => i.EntityId).Distinct().ToList();
+
+                // 3. Hard-delete keywords (task + folder/note workspace items)
+                var keywordsToMark = await _context.Keywords
+                    .Where(k => k.HardDeletedAt == null &&
+                        ((k.Type == "task" && taskIds.Contains(k.TargetItemId ?? 0)) ||
+                         (allWsItemIds.Any() && allWsItemIds.Contains(k.TargetItemId ?? 0))))
+                    .ToListAsync();
+
+                foreach (var kw in keywordsToMark)
+                {
+                    kw.HardDeletedAt = now;
+                    kw.UpdatedAt = now;
+                }
+
+                // 4. Delete task comments (null out self-ref parent before removal)
+                var comments = await _context.TaskComments
+                    .Where(c => taskIds.Contains(c.TaskId))
+                    .ToListAsync();
+                foreach (var c in comments) c.ParentCommentId = null;
+                _context.TaskComments.RemoveRange(comments);
+
+                // 5. Delete task checklist history
+                var checklistHistory = await _context.TaskChecklistHistories
+                    .Where(h => taskIds.Contains(h.TaskId))
+                    .ToListAsync();
+                _context.TaskChecklistHistories.RemoveRange(checklistHistory);
+
+                // 6. Delete flow edges (source or target is one of the tasks)
+                var flowEdges = await _context.FlowEdges
+                    .Where(e => (e.SourceType == "task" && taskIds.Contains(e.SourceId)) ||
+                                (e.TargetType == "task" && taskIds.Contains(e.TargetId)))
+                    .ToListAsync();
+                _context.FlowEdges.RemoveRange(flowEdges);
+
+                // 7. Delete flow node positions
+                var positions = await _context.FlowNodePositions
+                    .Where(p => p.NodeType == "task" && taskIds.Contains(p.NodeId))
+                    .ToListAsync();
+                _context.FlowNodePositions.RemoveRange(positions);
+
+                // 8. Null out task.FolderWorkspaceItemId before deleting workspace items
+                //    (fk_task_folder_workspace_item would block Save #1 otherwise)
+                foreach (var t in tasks) t.FolderWorkspaceItemId = null;
+
+                // 8b. Hard-delete workspace items — children first, then folders (FK_workspace_items_parent)
+                if (childWsItems.Any())
+                    _context.WorkspaceItems.RemoveRange(childWsItems);
+                if (folderWsItems.Any())
+                    _context.WorkspaceItems.RemoveRange(folderWsItems);
+
+                // 9. Hard-delete folder entities
+                if (folderEntityIds.Any())
+                {
+                    var folders = await _context.Folders
+                        .Where(f => folderEntityIds.Contains(f.Id))
+                        .ToListAsync();
+                    _context.Folders.RemoveRange(folders);
+                }
+
+                // 10. Hard-delete note entities
+                if (noteEntityIds.Any())
+                {
+                    var notes = await _context.Notes
+                        .Where(n => noteEntityIds.Contains(n.Id))
+                        .ToListAsync();
+                    _context.Notes.RemoveRange(notes);
+                }
+
+
+                // 11. Detach child tasks that reference any of the tasks being deleted
+                var childTasks = await _context.ProTasks
+                    .Where(t => t.ParentTaskId.HasValue && taskIds.Contains(t.ParentTaskId.Value))
+                    .ToListAsync();
+                foreach (var child in childTasks)
+                    child.ParentTaskId = null;
+
+                // Save child records first (comments, edges, positions, ws items, nulled parents),
+                // then delete the tasks — two saves to satisfy all FK constraints in correct order.
+                await _context.SaveChangesAsync();
+
+                _context.ProTasks.RemoveRange(tasks);
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation(
+                    "Hard-deleted {Count} tasks and related data (comments: {C}, edges: {E}, positions: {P}, wsItems: {W}) for userId: {UserId}",
+                    tasks.Count, comments.Count, flowEdges.Count, positions.Count, allWsItems.Count, userId);
+
+                return new ResultOptions { Success = true, Message = $"Permanently deleted {tasks.Count} task(s)" };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error hard-deleting tasks [{TaskIds}]", string.Join(",", taskIds));
+                return new ResultOptions { Success = false, Message = ex.Message, Status = 500 };
             }
         }
     }

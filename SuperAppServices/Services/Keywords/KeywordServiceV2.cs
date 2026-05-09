@@ -1100,11 +1100,62 @@ namespace SuperAppServices.Services.Keywords
                 ProcessKeyword(kwIndex, existingLinks, updates, created, newKws, kwType, item.Id, userId, entityName, expectedLink);
             }
 
+            // 3b. Hard-delete orphaned keywords (entities deleted or no longer active)
+            var trackedTypes = new HashSet<string> { "workspace", "project", "task", "log", "track", "folder", "note", "file" };
+            var activeSet = new HashSet<(string, int)>();
+            foreach (var ws in workspaces) activeSet.Add(("workspace", ws.Id));
+            foreach (var p  in projects)   activeSet.Add(("project",   p.Id));
+            foreach (var t  in tasks)      activeSet.Add(("task",      t.Id));
+            foreach (var l  in logs)       activeSet.Add(("log",       l.Id));
+            foreach (var tr in tracks)     activeSet.Add(("track",     tr.Id));
+            foreach (var i  in wsItems)
+            {
+                string kwType = i.EntityType == 2 ? "folder" : i.EntityType == 3 ? "note" : "file";
+                activeSet.Add((kwType, i.Id));
+            }
+
+            var nowTs = VietnamDateTime.Now();
+            var hardDeletedNow = new List<KeywordSyncItemDto>();
+            foreach (var kw in existingKeywords)
+            {
+                if (kw.HardDeletedAt != null || !kw.TargetItemId.HasValue) continue;
+                if (!trackedTypes.Contains(kw.Type)) continue;
+                if (!activeSet.Contains((kw.Type, kw.TargetItemId.Value)))
+                {
+                    kw.HardDeletedAt = nowTs;
+                    kw.UpdatedAt     = nowTs;
+                    hardDeletedNow.Add(new KeywordSyncItemDto { Id = kw.Id, Type = kw.Type });
+                }
+            }
+
+            // 3c. Delete TargetKeyword rows whose TargetId no longer exists
+            var trackedTargetTypes = new HashSet<string> { "task", "note", "project", "workspace", "folder", "file", "log", "track" };
+            var userKeywordIds = existingKeywords.Select(k => k.Id).ToHashSet();
+            var orphanTargetKws = new List<TargetKeyword>();
+
+            if (userKeywordIds.Any())
+            {
+                var allTargetKeywords = await _context.TargetKeywords
+                    .Where(tk => userKeywordIds.Contains(tk.KeywordId))
+                    .ToListAsync();
+
+                orphanTargetKws = allTargetKeywords
+                    .Where(tk =>
+                    {
+                        var type = tk.TargetType.ToLower();
+                        return trackedTargetTypes.Contains(type) && !activeSet.Contains((type, tk.TargetId));
+                    })
+                    .ToList();
+
+                if (orphanTargetKws.Any())
+                    _context.TargetKeywords.RemoveRange(orphanTargetKws);
+            }
+
             // 4. Persist
             if (newKws.Any())
                 _context.Keywords.AddRange(newKws);
 
-            if (updates.Any() || newKws.Any())
+            if (updates.Any() || newKws.Any() || hardDeletedNow.Any() || orphanTargetKws.Any())
                 await _context.SaveChangesAsync();
 
             for (int i = 0; i < newKws.Count; i++)
