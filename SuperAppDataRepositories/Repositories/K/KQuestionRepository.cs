@@ -610,9 +610,10 @@ namespace SuperAppDataRepositories.Repositories
                             DueCount      = reviewable.Count(q => q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now),
                             NewCount      = reviewable.Count(q => q.SrsNextReviewAt == null),
                             ActiveCount   = qs.Count,
+                            DraftCount    = qs.Count(q => q.StatusCode == "draft"),
                         };
                     })
-                    .Where(item => item.DueCount + item.NewCount > 0)
+                    .Where(item => item.DueCount + item.NewCount + item.DraftCount > 0)
                     .ToList();
             }
             catch (Exception ex)

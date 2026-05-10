@@ -365,6 +365,7 @@ namespace SuperAppServices.Services.K
             DueCount      = i.DueCount,
             NewCount      = i.NewCount,
             ActiveCount   = i.ActiveCount,
+            DraftCount    = i.DraftCount,
         };
 
         public async Task<ResultOptions> GetDailySessionAsync(int nodeId, int userId, int dailyLimit)

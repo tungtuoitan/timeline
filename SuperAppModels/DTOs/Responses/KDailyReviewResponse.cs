@@ -11,6 +11,8 @@ namespace SuperAppModels.DTOs.Responses
         public int NewCount    { get; set; }
         /// <summary>Total active questions</summary>
         public int ActiveCount { get; set; }
+        /// <summary>Questions with statusCode = 'draft'</summary>
+        public int DraftCount  { get; set; }
     }
 
     /// <summary>A question in a daily review session.</summary>

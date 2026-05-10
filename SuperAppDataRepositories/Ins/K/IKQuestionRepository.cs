@@ -55,6 +55,7 @@ namespace SuperAppDataRepositories.Ins
         public int    DueCount      { get; set; }
         public int    NewCount      { get; set; }
         public int    ActiveCount   { get; set; }
+        public int    DraftCount    { get; set; }
     }
 
 }
