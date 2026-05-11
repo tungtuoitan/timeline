@@ -41,7 +41,7 @@ namespace SuperAppServices.Interfaces
         Task<ResultOptions> GetDailyQueueAsync(int nodeId, int userId);
 
         /// <summary>Get global daily queue across all user's knowledges.</summary>
-        Task<ResultOptions> GetGlobalDailyQueueAsync(int userId);
+        //Task<ResultOptions> GetGlobalDailyQueueAsync(int userId);
 
         /// <summary>Get questions for a daily review session of a node.</summary>
         Task<ResultOptions> GetDailySessionAsync(int nodeId, int userId, int dailyLimit);

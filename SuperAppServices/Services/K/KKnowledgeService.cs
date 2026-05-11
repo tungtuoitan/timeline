@@ -25,18 +25,27 @@ namespace SuperAppServices.Services.K
         {
             try
             {
-                var list = await _repo.GetAllKnowledgesByUserIdAsync(userId, filterOptions);
-                return list.Select(k => new KKnowledgeSummary
+                var list         = await _repo.GetAllKnowledgesByUserIdAsync(userId, filterOptions);
+                var knowledgeIds = list.Select(k => k.Id).ToList();
+                var counts       = await _repo.GetKnowledgeQuestionCountsAsync(knowledgeIds);
+
+                return list.Select(k =>
                 {
-                    Id          = k.Id,
-                    UserId      = k.UserId,
-                    Name        = k.Name,
-                    Description = k.Description,
-                    StatusCode  = k.StatusCode,
-                    ImageBase64 = k.ImageBase64,
-                    CreatedAt   = k.CreatedAt,
-                    UpdatedAt   = k.UpdatedAt,
-                    DeletedAt   = k.DeletedAt
+                    var cnt = counts.GetValueOrDefault(k.Id);
+                    return new KKnowledgeSummary
+                    {
+                        Id          = k.Id,
+                        UserId      = k.UserId,
+                        Name        = k.Name,
+                        Description = k.Description,
+                        StatusCode  = k.StatusCode,
+                        ImageBase64 = k.ImageBase64,
+                        CreatedAt   = k.CreatedAt,
+                        UpdatedAt   = k.UpdatedAt,
+                        DeletedAt   = k.DeletedAt,
+                        ReviewCount = cnt.ReviewCount,
+                        DraftCount  = cnt.DraftCount,
+                    };
                 }).ToList();
             }
             catch (Exception ex)

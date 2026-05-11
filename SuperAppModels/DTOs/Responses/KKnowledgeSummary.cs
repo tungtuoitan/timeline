@@ -14,5 +14,9 @@ namespace SuperAppModels.DTOs.Responses
         public DateTime? CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public DateTime? DeletedAt { get; set; }
+        /// <summary>Due + new questions (for ActivityBar badge and dropdown)</summary>
+        public int ReviewCount { get; set; }
+        /// <summary>Questions with statusCode = 'draft'</summary>
+        public int DraftCount  { get; set; }
     }
 }

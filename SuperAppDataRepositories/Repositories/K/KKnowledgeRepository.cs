@@ -145,6 +145,33 @@ namespace SuperAppDataRepositories.Repositories
             }
         }
 
+        public async Task<Dictionary<int, (int ReviewCount, int DraftCount)>> GetKnowledgeQuestionCountsAsync(List<int> knowledgeIds)
+        {
+            if (!knowledgeIds.Any()) return new Dictionary<int, (int, int)>();
+
+            var now = VietnamDateTime.Now();
+
+            var questions = await _context.KQuestions
+                .Include(q => q.Node)
+                .Where(q => q.Node != null
+                         && knowledgeIds.Contains(q.Node.KnowledgeId)
+                         && q.Node.StatusCode == "learning"
+                         && q.Node.DeletedAt == null
+                         && q.DeletedAt == null)
+                .Select(q => new { q.Node!.KnowledgeId, q.StatusCode, q.SrsNextReviewAt })
+                .ToListAsync();
+
+            return knowledgeIds.ToDictionary(
+                id => id,
+                id =>
+                {
+                    var qs          = questions.Where(q => q.KnowledgeId == id).ToList();
+                    var reviewCount = qs.Count(q => q.StatusCode == "learning" && (q.SrsNextReviewAt == null || q.SrsNextReviewAt <= now));
+                    var draftCount  = qs.Count(q => q.StatusCode == "draft");
+                    return (reviewCount, draftCount);
+                });
+        }
+
         public async Task<KKnowledge> CreateAsync(KUpsertKnowledgeRequest request)
         {
             var entity = new KKnowledge(request.Name, request.UserId)

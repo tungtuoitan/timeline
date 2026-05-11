@@ -9,6 +9,7 @@ namespace SuperAppDataRepositories.Ins
         Task<KKnowledgeWithTree?> GetKnowledgeTreeAsync(int knowledgeId, int userId);
         Task<KKnowledge?> GetKnowledgeByIdAsync(int knowledgeId, int userId);
         Task<List<KKnowledge>> GetAllKnowledgesByUserIdAsync(int userId, FilterOptions? filterOptions = null);
+        Task<Dictionary<int, (int ReviewCount, int DraftCount)>> GetKnowledgeQuestionCountsAsync(List<int> knowledgeIds);
 
         Task<KKnowledge> CreateAsync(KUpsertKnowledgeRequest request);
         Task<KKnowledge?> UpdateAsync(int id, KUpsertKnowledgeRequest request);

@@ -575,53 +575,53 @@ namespace SuperAppDataRepositories.Repositories
 
         // ── Global daily queue ────────────────────────────────────────────────
 
-        public async Task<List<KDailyQueueItem>> GetGlobalDailyQueueAsync(int userId)
-        {
-            try
-            {
-                var now = VietnamDateTime.Now();
+        //public async Task<List<KDailyQueueItem>> GetGlobalDailyQueueAsync(int userId)
+        //{
+        //    try
+        //    {
+        //        var now = VietnamDateTime.Now();
 
-                var knowledges = await _context.KKnowledges
-                    .Where(k => k.UserId == userId && k.DeletedAt == null && k.StatusCode == "active")
-                    .OrderBy(k => k.Name)
-                    .ToListAsync();
+        //        var knowledges = await _context.KKnowledges
+        //            .Where(k => k.UserId == userId && k.DeletedAt == null && k.StatusCode == "active")
+        //            .OrderBy(k => k.Name)
+        //            .ToListAsync();
 
-                if (!knowledges.Any()) return [];
+        //        if (!knowledges.Any()) return [];
 
-                var knowledgeIds = knowledges.Select(k => k.Id).ToList();
-                var questions = await _context.KQuestions
-                    .Include(q => q.Node)
-                    .Where(q => q.Node != null
-                             && knowledgeIds.Contains(q.Node.KnowledgeId)
-                             && q.Node.StatusCode == "learning"
-                             && q.Node.DeletedAt == null
-                             && q.DeletedAt == null)
-                    .ToListAsync();
+        //        var knowledgeIds = knowledges.Select(k => k.Id).ToList();
+        //        var questions = await _context.KQuestions
+        //            .Include(q => q.Node)
+        //            .Where(q => q.Node != null
+        //                     && knowledgeIds.Contains(q.Node.KnowledgeId)
+        //                     && q.Node.StatusCode == "learning"
+        //                     && q.Node.DeletedAt == null
+        //                     && q.DeletedAt == null)
+        //            .ToListAsync();
 
-                return knowledges
-                    .Select(k =>
-                    {
-                        var qs         = questions.Where(q => q.Node!.KnowledgeId == k.Id).ToList();
-                        var reviewable = qs.Where(q => q.StatusCode == "learning").ToList();
-                        return new KDailyQueueItem
-                        {
-                            KnowledgeId   = k.Id,
-                            KnowledgeName = k.Name,
-                            DueCount      = reviewable.Count(q => q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now),
-                            NewCount      = reviewable.Count(q => q.SrsNextReviewAt == null),
-                            ActiveCount   = qs.Count,
-                            DraftCount    = qs.Count(q => q.StatusCode == "draft"),
-                        };
-                    })
-                    .Where(item => item.DueCount + item.NewCount + item.DraftCount > 0)
-                    .ToList();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting global daily queue for user {UserId}", userId);
-                throw;
-            }
-        }
+        //        return knowledges
+        //            .Select(k =>
+        //            {
+        //                var qs         = questions.Where(q => q.Node!.KnowledgeId == k.Id).ToList();
+        //                var reviewable = qs.Where(q => q.StatusCode == "learning").ToList();
+        //                return new KDailyQueueItem
+        //                {
+        //                    KnowledgeId   = k.Id,
+        //                    KnowledgeName = k.Name,
+        //                    DueCount      = reviewable.Count(q => q.SrsNextReviewAt != null && q.SrsNextReviewAt <= now),
+        //                    NewCount      = reviewable.Count(q => q.SrsNextReviewAt == null),
+        //                    ActiveCount   = qs.Count,
+        //                    DraftCount    = qs.Count(q => q.StatusCode == "draft"),
+        //                };
+        //            })
+        //            .Where(item => item.DueCount + item.NewCount + item.DraftCount > 0)
+        //            .ToList();
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex, "Error getting global daily queue for user {UserId}", userId);
+        //        throw;
+        //    }
+        //}
 
         // ── Daily session questions ───────────────────────────────────────────
 

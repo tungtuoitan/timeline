@@ -347,16 +347,16 @@ namespace SuperAppServices.Services.K
             catch (Exception ex) { _logger.LogError(ex, "GetDailyQueue failed"); return Fail(500, "Failed"); }
         }
 
-        public async Task<ResultOptions> GetGlobalDailyQueueAsync(int userId)
-        {
-            try
-            {
-                var items    = await _repo.GetGlobalDailyQueueAsync(userId);
-                var response = items.Select(MapQueueItem).ToList();
-                return Ok(response);
-            }
-            catch (Exception ex) { _logger.LogError(ex, "GetGlobalDailyQueue failed"); return Fail(500, "Failed"); }
-        }
+        //public async Task<ResultOptions> GetGlobalDailyQueueAsync(int userId)
+        //{
+        //    try
+        //    {
+        //        var items    = await _repo.GetGlobalDailyQueueAsync(userId);
+        //        var response = items.Select(MapQueueItem).ToList();
+        //        return Ok(response);
+        //    }
+        //    catch (Exception ex) { _logger.LogError(ex, "GetGlobalDailyQueue failed"); return Fail(500, "Failed"); }
+        //}
 
         private static KDailyQueueItemResponse MapQueueItem(KDailyQueueItem i) => new()
         {

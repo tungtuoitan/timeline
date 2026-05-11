@@ -22,22 +22,22 @@ namespace SuperAppAPI.Controllers.K
         }
 
         // GET /api/k/global-daily-queue
-        [HttpGet("/api/k/global-daily-queue")]
-        public async Task<IActionResult> GetGlobalDailyQueue()
-        {
-            try
-            {
-                var userId = GetUserId();
-                if (userId == null) return Unauthorized();
-                var result = await _service.GetGlobalDailyQueueAsync(userId.Value);
-                return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting global daily queue");
-                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
-            }
-        }
+        //[HttpGet("/api/k/global-daily-queue")]
+        //public async Task<IActionResult> GetGlobalDailyQueue()
+        //{
+        //    try
+        //    {
+        //        var userId = GetUserId();
+        //        if (userId == null) return Unauthorized();
+        //        var result = await _service.GetGlobalDailyQueueAsync(userId.Value);
+        //        return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex, "Error getting global daily queue");
+        //        return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
+        //    }
+        //}
 
         // GET /api/k/{nodeId}/node-questions
         [HttpGet("node-questions")]
