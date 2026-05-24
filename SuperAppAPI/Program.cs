@@ -51,6 +51,11 @@ namespace SuperAppAPI
             try
             {
                 Log.Information(">>  >>  >>  Starting up the SuperApp application...");
+
+                ThreadPool.SetMinThreads(workerThreads: 200, completionPortThreads: 200);
+                ThreadPool.GetMinThreads(out var w, out var c);
+                Log.Information("ThreadPool min threads set: worker={Worker} ioc={IOC}", w, c);
+
                 CreateHostBuilder(args).Build().Run();
             }
             catch (Exception ex)

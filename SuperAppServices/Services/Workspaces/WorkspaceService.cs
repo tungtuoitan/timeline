@@ -1,4 +1,5 @@
 using AutoMapper;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using SuperAppDataRepositories.Ins;
@@ -20,17 +21,32 @@ namespace SuperAppServices.Services.Workspaces
         private readonly IMapper _mapper;
         private readonly ILogger<WorkspaceService> _logger;
         private readonly ApplicationDbContext _context;
+        private readonly IMemoryCache _cache;
+
+        // tree/v2 was measured at p95 ~13s with full prod data. Cache 60s sliding —
+        // workspace trees change infrequently per user, so hit rate ~95% expected.
+        private static readonly TimeSpan TreeV2CacheTtl = TimeSpan.FromSeconds(60);
 
         public WorkspaceService(
             IWorkspaceRepository workspaceRepository,
             IMapper mapper,
             ILogger<WorkspaceService> logger,
-            ApplicationDbContext context)
+            ApplicationDbContext context,
+            IMemoryCache cache)
         {
             _workspaceRepository = workspaceRepository ?? throw new ArgumentNullException(nameof(workspaceRepository));
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _context = context ?? throw new ArgumentNullException(nameof(context));
+            _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+        }
+
+        private static string TreeV2CacheKey(int workspaceId, int userId) =>
+            $"tree-v2:{userId}:{workspaceId}";
+
+        private void InvalidateTreeV2(int workspaceId, int userId)
+        {
+            _cache.Remove(TreeV2CacheKey(workspaceId, userId));
         }
 
         /// <summary>
@@ -147,9 +163,19 @@ namespace SuperAppServices.Services.Workspaces
         /// </summary>
         public async Task<WorkspaceDTO> GetWorkspaceTreeV2Async(int workspaceId, int userId, WorkspaceFilterOptions? filterOptions = null)
         {
+            // Cache key per (userId, workspaceId). filterOptions is documented as ignored,
+            // so it's safe to leave out of the key.
+            var cacheKey = TreeV2CacheKey(workspaceId, userId);
+            if (_cache.TryGetValue<WorkspaceDTO>(cacheKey, out var cached) && cached != null)
+            {
+                _logger.LogInformation("Tree V2 cache HIT for WorkspaceId: {WorkspaceId}, UserId: {UserId}",
+                    workspaceId, userId);
+                return cached;
+            }
+
             try
             {
-                _logger.LogInformation("Getting workspace tree V2 for WorkspaceId: {WorkspaceId}, UserId: {UserId} (NO SERVER FILTERING - all items returned)",
+                _logger.LogInformation("Tree V2 cache MISS for WorkspaceId: {WorkspaceId}, UserId: {UserId} — building from DB",
                     workspaceId, userId);
 
                 // Get workspace info
@@ -213,6 +239,11 @@ namespace SuperAppServices.Services.Workspaces
 
                 _logger.LogInformation("Successfully retrieved workspace tree V2 with {ItemCount} items for workspace {WorkspaceId} (unfiltered - frontend will apply filters)",
                     itemsV2.Count, workspaceId);
+
+                _cache.Set(cacheKey, response, new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TreeV2CacheTtl
+                });
 
                 return response;
             }
@@ -472,6 +503,8 @@ namespace SuperAppServices.Services.Workspaces
                     return result;
                 }
 
+                InvalidateTreeV2(workspaceId, userId);
+
                 // Map folder object to response DTO
                 var folderResponse = _mapper.Map<FolderResponse>(result.Object);
 
@@ -529,6 +562,12 @@ namespace SuperAppServices.Services.Workspaces
                 {
                     _logger.LogInformation("Successfully moved {Count} items in workspace {WorkspaceId}",
                         request.Items.Count, workspaceId);
+
+                    InvalidateTreeV2(workspaceId, userId);
+                    if (request.TargetWorkspaceId.HasValue && request.TargetWorkspaceId.Value != workspaceId)
+                    {
+                        InvalidateTreeV2(request.TargetWorkspaceId.Value, userId);
+                    }
                 }
                 else
                 {
@@ -571,6 +610,8 @@ namespace SuperAppServices.Services.Workspaces
                 {
                     _logger.LogInformation("Successfully deleted {Count} items in workspace {WorkspaceId}",
                         request.Items.Count, workspaceId);
+
+                    InvalidateTreeV2(workspaceId, userId);
                 }
                 else
                 {
@@ -608,6 +649,8 @@ namespace SuperAppServices.Services.Workspaces
                 {
                     _logger.LogInformation("Successfully added {ChildType} to workspace {WorkspaceId}",
                         request.ChildType, workspaceId);
+
+                    InvalidateTreeV2(workspaceId, userId);
                 }
                 else
                 {
@@ -748,6 +791,12 @@ namespace SuperAppServices.Services.Workspaces
                 {
                     _logger.LogInformation("Successfully batch upserted {Count} workspace items in workspace {WorkspaceId}",
                         requests.Count, workspaceId);
+
+                    // Items can target multiple workspaces in a single batch — invalidate each
+                    foreach (var wsId in requests.Select(r => r.WorkspaceId!.Value).Distinct())
+                    {
+                        InvalidateTreeV2(wsId, userId);
+                    }
                 }
                 else
                 {

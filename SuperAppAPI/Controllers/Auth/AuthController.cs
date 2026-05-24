@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Hosting;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
@@ -57,6 +58,7 @@ namespace SuperAppAPI.Controllers.Auth
         // ── Endpoints ─────────────────────────────────────────────────────────
 
         [HttpPost("google/login")]
+        [EnableRateLimiting("login")]
         public async Task<ActionResult<AuthResponse>> GoogleLogin([FromBody] GoogleCodeRequest request)
         {
             var traceId = HttpContext.TraceIdentifier;
@@ -108,6 +110,7 @@ namespace SuperAppAPI.Controllers.Auth
         }
 
         [HttpPost("login")]
+        [EnableRateLimiting("login")]
         public async Task<ActionResult<AuthResponse>> Login([FromForm] string username, [FromForm] string password)
         {
             var traceId = HttpContext.TraceIdentifier;

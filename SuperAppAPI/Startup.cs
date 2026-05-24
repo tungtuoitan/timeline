@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -20,6 +21,7 @@ using SuperAppServices.Services.Profile;
 using SuperAppServices.Services.Wiki;
 using SuperAppServices.Services.Workspaces;
 using System.Text;
+using System.Threading.RateLimiting;
 
 namespace SuperAppAPI
 {
@@ -113,6 +115,22 @@ namespace SuperAppAPI
                            .AllowAnyMethod()
                            .AllowAnyHeader()
                            .AllowCredentials();
+                });
+            });
+
+            // Rate limiting — protects bcrypt-heavy login from thrashing
+            services.AddRateLimiter(options =>
+            {
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+                options.AddPolicy("login", httpContext =>
+                {
+                    var key = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                    return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 10,
+                        Window = TimeSpan.FromSeconds(1),
+                        QueueLimit = 0,
+                    });
                 });
             });
 
@@ -233,6 +251,7 @@ namespace SuperAppAPI
             app.UseRouting();
             app.UseGlobalExceptionHandler();
             app.UseSession();
+            app.UseRateLimiter();
             app.UseAuthentication();
             app.UseAuthorization();
 
