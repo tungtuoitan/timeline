@@ -163,8 +163,7 @@ namespace SuperAppServices.Services.Workspaces
         /// </summary>
         public async Task<WorkspaceDTO> GetWorkspaceTreeV2Async(int workspaceId, int userId, WorkspaceFilterOptions? filterOptions = null)
         {
-            // Cache key per (userId, workspaceId). filterOptions is documented as ignored,
-            // so it's safe to leave out of the key.
+            // filterOptions documented as ignored — safe to leave out of the cache key.
             var cacheKey = TreeV2CacheKey(workspaceId, userId);
             if (_cache.TryGetValue<WorkspaceDTO>(cacheKey, out var cached) && cached != null)
             {
@@ -178,8 +177,12 @@ namespace SuperAppServices.Services.Workspaces
                 _logger.LogInformation("Tree V2 cache MISS for WorkspaceId: {WorkspaceId}, UserId: {UserId} — building from DB",
                     workspaceId, userId);
 
-                // Get workspace info
-                var workspace = await _workspaceRepository.GetWorkspaceByIdAsync(workspaceId, userId);
+                // ── Phase 1: workspace + items ──────────────────────────────
+                // Filter by userId so callers can't read other users' workspaces.
+                var workspace = await _context.Workspaces
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(w => w.Id == workspaceId && w.UserId == userId);
+
                 if (workspace == null)
                 {
                     _logger.LogWarning("Workspace {WorkspaceId} not found for user {UserId}",
@@ -187,38 +190,111 @@ namespace SuperAppServices.Services.Workspaces
                     throw new KeyNotFoundException($"Workspace with ID {workspaceId} not found");
                 }
 
-                // ⚠️ CHANGED: Get ALL workspace items (no server-side filtering)
-                // Frontend will filter by deletedAt, statusCode, and search text
-                // filterOptions parameter kept for backward compatibility but not used
-                var workspaceWithTree = await _workspaceRepository.GetWorkspaceTreeAsync(workspaceId, userId, null);
-                if (workspaceWithTree == null)
+                var items = await _context.WorkspaceItems
+                    .AsNoTracking()
+                    .Where(i => i.WorkspaceId == workspaceId)
+                    .ToListAsync();
+
+                // ── Phase 2: folders/notes/files (sequential) ───────────────
+                // Sequential because ApplicationDbContext is scoped and EF Core
+                // forbids concurrent ops. Parallelizing would require IDbContextFactory.
+                var folderIds = items.Where(i => i.EntityType == 2).Select(i => i.EntityId).Distinct().ToList();
+                var noteIds   = items.Where(i => i.EntityType == 3).Select(i => i.EntityId).Distinct().ToList();
+                var fileIds   = items.Where(i => i.EntityType == 4).Select(i => i.EntityId).Distinct().ToList();
+
+                var foldersDict = folderIds.Count > 0
+                    ? await LoadFoldersAsync(folderIds)
+                    : new Dictionary<int, SuperAppModels.Models.Folder>();
+                var notesDict = noteIds.Count > 0
+                    ? await LoadNotesAsync(noteIds)
+                    : new Dictionary<int, SuperAppModels.Models.Note>();
+                var filesDict = fileIds.Count > 0
+                    ? await LoadFilesAsync(fileIds)
+                    : new Dictionary<int, SuperAppModels.Models.File>();
+
+                // ── Phase 3: build response items in a single pass ──────────
+                var itemsV2 = new List<WorkspaceItemResponseV2>(items.Count);
+                foreach (var item in items)
                 {
-                    _logger.LogWarning("Workspace tree data not found for workspace {WorkspaceId}", workspaceId);
-                    throw new InvalidOperationException($"Failed to retrieve workspace tree for workspace {workspaceId}");
+                    object entityData = item.EntityType switch
+                    {
+                        2 when foldersDict.TryGetValue(item.EntityId, out var f) => new FolderData
+                        {
+                            Id = f.Id,
+                            UserId = f.UserId,
+                            Name = f.Name,
+                            Description = f.Description,
+                            Color = f.Color,
+                            Icon = f.Icon,
+                            CreatedAt = f.CreatedAt ?? VietnamDateTime.Now(),
+                            UpdatedAt = f.UpdatedAt,
+                            DeletedAt = f.DeletedAt
+                        },
+                        3 when notesDict.TryGetValue(item.EntityId, out var n) => new NoteData
+                        {
+                            Id = n.Id,
+                            UserId = n.UserId,
+                            Name = n.Name,
+                            Description = n.Description,
+                            StatusCode = n.StatusCode,
+                            Icon = n.Icon,
+                            Color = n.Color,
+                            CreatedAt = n.CreatedAt ?? VietnamDateTime.Now(),
+                            UpdatedAt = n.UpdatedAt,
+                            DeletedAt = n.DeletedAt
+                        },
+                        4 when filesDict.TryGetValue(item.EntityId, out var fl) => new FileData
+                        {
+                            Id = fl.Id,
+                            UserId = fl.UserId,
+                            Name = fl.Name,
+                            Url = fl.Url,
+                            FileSize = fl.FileSize,
+                            MimeType = fl.MimeType,
+                            Extension = fl.Extension,
+                            StatusCode = fl.StatusCode,
+                            CreatedAt = fl.CreatedAt ?? VietnamDateTime.Now(),
+                            UpdatedAt = fl.UpdatedAt,
+                            DeletedAt = fl.DeletedAt
+                        },
+                        // Fallback: entity hard-deleted but workspace_item row still references it.
+                        2 => (object)new FolderData { Id = item.EntityId, Name = "[Deleted]", DeletedAt = item.DeletedAt },
+                        3 => (object)new NoteData   { Id = item.EntityId, Name = "[Deleted]", DeletedAt = item.DeletedAt },
+                        4 => (object)new FileData   { Id = item.EntityId, Name = "[Deleted]", DeletedAt = item.DeletedAt },
+                        _ => throw new InvalidOperationException($"Unknown entity type: {item.EntityType}")
+                    };
+
+                    itemsV2.Add(new WorkspaceItemResponseV2
+                    {
+                        Id = item.Id,
+                        WorkspaceId = item.WorkspaceId,
+                        ParentId = item.ParentId,
+                        EntityType = item.EntityType,
+                        EntityId = item.EntityId,
+                        CreatedAt = item.CreatedAt ?? VietnamDateTime.Now(),
+                        UpdatedAt = item.UpdatedAt,
+                        DeletedAt = item.DeletedAt,
+                        Level = 0,
+                        Position = 0,
+                        AccessType = "owner",
+                        IsOriginal = true,
+                        Data = entityData,
+                        IsExpanded = false,
+                        IsSelected = false,
+                    });
                 }
 
-                // Transform to V2 structure (workspace_items properties + Data property with entity data)
-                // ⚠️ CHANGED: No filters applied - returns all items
-                // ✅ NEW: Queries full entity data from DB (Description, StatusCode, Type, etc.)
-                var itemsV2 = await TransformToV2StructureAsync(workspaceWithTree.Items);
-
-                // Populate workspace links for notes in the tree
-                await PopulateWorkspaceLinksForTreeAsync(itemsV2);
-
-                // Count ALL items by type (including deleted)
                 int folderCount = itemsV2.Count(i => i.EntityType == 2);
-                int noteCount = itemsV2.Count(i => i.EntityType == 3);
-                int fileCount = itemsV2.Count(i => i.EntityType == 4);
+                int noteCount   = itemsV2.Count(i => i.EntityType == 3);
+                int fileCount   = itemsV2.Count(i => i.EntityType == 4);
 
-                // Create unified WorkspaceDTO response
                 var response = new WorkspaceDTO
                 {
                     Id = workspace.Id,
                     UserId = workspace.UserId,
                     Name = workspace.Name,
                     Description = workspace.Description,
-                    // Default values for properties not in DB schema
-                    Color = "#3B82F6", // Default blue
+                    Color = "#3B82F6",
                     Icon = "📁",
                     Type = "hierarchy",
                     MaxDepth = 10,
@@ -234,19 +310,20 @@ namespace SuperAppServices.Services.Workspaces
                     CreatedAt = workspace.CreatedAt ?? VietnamDateTime.Now(),
                     UpdatedAt = workspace.UpdatedAt,
                     DeletedAt = workspace.DeletedAt,
-                    FlatData = itemsV2 // ✅ FLAT list with ALL items (unfiltered - frontend will apply filters)
+                    FlatData = itemsV2
                 };
-
-                _logger.LogInformation("Successfully retrieved workspace tree V2 with {ItemCount} items for workspace {WorkspaceId} (unfiltered - frontend will apply filters)",
-                    itemsV2.Count, workspaceId);
 
                 _cache.Set(cacheKey, response, new MemoryCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = TreeV2CacheTtl
                 });
 
+                _logger.LogInformation("Tree V2 built {ItemCount} items for workspace {WorkspaceId}",
+                    itemsV2.Count, workspaceId);
+
                 return response;
             }
+            catch (KeyNotFoundException) { throw; }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while getting workspace tree V2 for WorkspaceId: {WorkspaceId}, UserId: {UserId}",
@@ -255,226 +332,20 @@ namespace SuperAppServices.Services.Workspaces
             }
         }
 
-        /// <summary>
-        /// Remove folders that have no children after filtering
-        /// Recursive algorithm: iterate until no more empty folders
-        /// </summary>
-        //private List<WorkspaceItemResponseV2> RemoveEmptyFolders(List<WorkspaceItemResponseV2> items)
-        //{
-        //    bool removedAny;
-        //    do
-        //    {
-        //        removedAny = false;
-        //        var folderIds = items.Where(i => i.EntityType == 2).Select(i => i.Id).ToHashSet();
-        //        var emptyFolderIds = new HashSet<int>();
+        private Task<Dictionary<int, SuperAppModels.Models.Folder>> LoadFoldersAsync(List<int> ids) =>
+            _context.Folders.AsNoTracking().IgnoreQueryFilters()
+                .Where(f => ids.Contains(f.Id))
+                .ToDictionaryAsync(f => f.Id);
 
-        //        foreach (var folderId in folderIds)
-        //        {
-        //            // Check if folder has any children
-        //            var hasChildren = items.Any(i => i.ParentId == folderId);
-        //            if (!hasChildren)
-        //            {
-        //                emptyFolderIds.Add(folderId);
-        //            }
-        //        }
+        private Task<Dictionary<int, SuperAppModels.Models.Note>> LoadNotesAsync(List<int> ids) =>
+            _context.Notes.AsNoTracking().IgnoreQueryFilters()
+                .Where(n => ids.Contains(n.Id))
+                .ToDictionaryAsync(n => n.Id);
 
-        //        if (emptyFolderIds.Any())
-        //        {
-        //            items = items.Where(i => !emptyFolderIds.Contains(i.Id)).ToList();
-        //            removedAny = true;
-        //        }
-        //    } while (removedAny);
-
-        //    return items;
-        //}
-
-        /// <summary>
-        /// Populates workspace links for notes in the tree
-        /// Similar to NoteService.PopulateWorkspaceLinksAsync
-        /// </summary>
-        private async Task PopulateWorkspaceLinksForTreeAsync(List<WorkspaceItemResponseV2> items)
-        {
-            try
-            {
-                // Extract all note entity IDs from the tree
-                var noteEntityIds = items
-                    .Where(i => i.EntityType == 3) // Notes only
-                    .Select(i => i.EntityId)
-                    .Distinct()
-                    .ToList();
-
-                if (!noteEntityIds.Any())
-                {
-                    return; // No notes in tree
-                }
-
-                // Query workspace_items to find all workspaces that link to these notes
-                var workspaceLinks = await _context.WorkspaceItems
-                    .Where(wi => wi.EntityType == 3 && noteEntityIds.Contains(wi.EntityId))
-                    .Join(_context.Workspaces,
-                        wi => wi.WorkspaceId,
-                        w => w.Id,
-                        (wi, w) => new
-                        {
-                            NoteEntityId = wi.EntityId,
-                            WorkspaceId = w.Id,
-                            WorkspaceName = w.Name,
-                            WorkspaceItemId = wi.Id
-                        })
-                    .ToListAsync();
-
-                // Group by note entity ID
-                var linksByNoteId = workspaceLinks
-                    .GroupBy(x => x.NoteEntityId)
-                    .ToDictionary(
-                        g => g.Key,
-                        g => g.Select(x => new WorkspaceLinkDTO
-                        {
-                            WorkspaceId = x.WorkspaceId,
-                            WorkspaceName = x.WorkspaceName,
-                            WorkspaceItemId = x.WorkspaceItemId
-                        }).ToList()
-                    );
-
-                // Populate workspace links into each note's Data
-                foreach (var item in items.Where(i => i.EntityType == 3))
-                {
-                    if (item.Data is NoteData noteData && linksByNoteId.TryGetValue(item.EntityId, out var links))
-                    {
-                        noteData.WorkspaceLinks = links;
-                    }
-                }
-
-                _logger.LogInformation("Populated workspace links for {NoteCount} notes", noteEntityIds.Count);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error populating workspace links for tree notes");
-                // Don't throw - this is a non-critical feature
-            }
-        }
-
-        /// <summary>
-        /// Transforms WorkspaceItem (mixed structure) to WorkspaceItemResponseV2 (clear separation)
-        /// Reorganizes data: workspace_items properties at root + entity data in 'Data' property
-        /// Queries full entity data from DB to populate Description, Type, StatusCode, etc.
-        /// </summary>
-        private async Task<List<WorkspaceItemResponseV2>> TransformToV2StructureAsync(List<SuperAppModels.Models.WorkspaceItem> items)
-        {
-            // ===== STEP 1: Preload full entity data from DB =====
-            // Extract entity IDs by type
-            var folderIds = items.Where(i => i.Type.ToLowerInvariant() == "folder").Select(i => (int)i.ItemId).Distinct().ToList();
-            var noteIds = items.Where(i => i.Type.ToLowerInvariant() == "note").Select(i => (int)i.ItemId).Distinct().ToList();
-            var fileIds = items.Where(i => i.Type.ToLowerInvariant() == "file").Select(i => (int)i.ItemId).Distinct().ToList();
-
-            // Query full entity data (Description, Type, StatusCode, etc.)
-            // IgnoreQueryFilters: include soft-deleted entities so workspace_items that reference
-            // them still render instead of throwing when the entity is missing from the dict.
-            var foldersDict = folderIds.Any()
-                ? await _context.Folders.AsNoTracking().IgnoreQueryFilters().Where(f => folderIds.Contains(f.Id)).ToDictionaryAsync(f => f.Id)
-                : new Dictionary<int, SuperAppModels.Models.Folder>();
-
-            var notesDict = noteIds.Any()
-                ? await _context.Notes.AsNoTracking().IgnoreQueryFilters().Where(n => noteIds.Contains(n.Id)).ToDictionaryAsync(n => n.Id)
-                : new Dictionary<int, SuperAppModels.Models.Note>();
-
-            var filesDict = fileIds.Any()
-                ? await _context.Files.AsNoTracking().IgnoreQueryFilters().Where(f => fileIds.Contains(f.Id)).ToDictionaryAsync(f => f.Id)
-                : new Dictionary<int, SuperAppModels.Models.File>();
-
-            // ===== STEP 2: Transform items with full entity data =====
-            return items.Select(item =>
-            {
-                // Determine EntityType byte value
-                byte entityType = item.Type.ToLowerInvariant() switch
-                {
-                    "folder" => 2,
-                    "note" => 3,
-                    "file" => 4,
-                    _ => throw new InvalidOperationException($"Unknown item type: {item.Type}")
-                };
-
-                // Create entity data object based on type WITH FULL DATA FROM DB
-                // Fallback arms (2/3/4 without `when`) handle hard-deleted entities whose rows
-                // no longer exist even with IgnoreQueryFilters — return a minimal placeholder
-                // so the tree renders instead of crashing.
-                object entityData = entityType switch
-                {
-                    2 when foldersDict.TryGetValue((int)item.ItemId, out var folder) => new FolderData
-                    {
-                        Id = folder.Id,
-                        UserId = folder.UserId,
-                        Name = folder.Name,
-                        Description = folder.Description,
-                        Color = folder.Color,
-                        Icon = folder.Icon,
-                        CreatedAt = folder.CreatedAt ?? VietnamDateTime.Now(),
-                        UpdatedAt = folder.UpdatedAt,
-                        DeletedAt = folder.DeletedAt
-                    },
-                    3 when notesDict.TryGetValue((int)item.ItemId, out var note) => new NoteData
-                    {
-                        Id = note.Id,
-                        UserId = note.UserId,
-                        Name = note.Name,
-                        Description = note.Description,
-                        StatusCode = note.StatusCode,
-                        Icon = note.Icon,
-                        Color = note.Color,
-                        CreatedAt = note.CreatedAt ?? VietnamDateTime.Now(),
-                        UpdatedAt = note.UpdatedAt,
-                        DeletedAt = note.DeletedAt
-                    },
-                    4 when filesDict.TryGetValue((int)item.ItemId, out var file) => new FileData
-                    {
-                        Id = file.Id,
-                        UserId = file.UserId,
-                        Name = file.Name,
-                        Url = file.Url,
-                        FileSize = file.FileSize,
-                        MimeType = file.MimeType,
-                        Extension = file.Extension,
-                        StatusCode = file.StatusCode,
-                        CreatedAt = file.CreatedAt ?? VietnamDateTime.Now(),
-                        UpdatedAt = file.UpdatedAt,
-                        DeletedAt = file.DeletedAt
-                    },
-                    2 => (object)new FolderData { Id = (int)item.ItemId, Name = "[Deleted]", DeletedAt = item.DeletedAt },
-                    3 => (object)new NoteData   { Id = (int)item.ItemId, Name = "[Deleted]", DeletedAt = item.DeletedAt },
-                    4 => (object)new FileData   { Id = (int)item.ItemId, Name = "[Deleted]", DeletedAt = item.DeletedAt },
-                    _ => throw new InvalidOperationException($"Unknown entity type: {entityType}")
-                };
-
-                // Build WorkspaceItemResponseV2 with clear separation
-                return new WorkspaceItemResponseV2
-                {
-                    // ============ FROM workspace_items TABLE ============
-                    Id = item.RelationshipId ?? 0,
-                    WorkspaceId = 0, // Will be set from workspace context
-                    ParentId = item.ParentId,
-                    EntityType = entityType,
-                    EntityId = (int)item.ItemId,
-                    CreatedAt = item.CreatedAt,
-                    UpdatedAt = item.UpdatedAt,
-                    DeletedAt = item.DeletedAt,
-
-                    // ============ COMPUTED PROPERTIES ============
-                    Level = item.Level,
-                    Position = item.Position,
-                    AccessType = item.AccessType,
-                    IsOriginal = item.IsOriginal,
-
-                    // ============ ENTITY DATA ============
-                    Data = entityData,
-
-                    // ============ UI STATE ============
-                    IsExpanded = false,
-                    IsSelected = false
-                };
-            }).ToList();
-        }
-
-       
+        private Task<Dictionary<int, SuperAppModels.Models.File>> LoadFilesAsync(List<int> ids) =>
+            _context.Files.AsNoTracking().IgnoreQueryFilters()
+                .Where(f => ids.Contains(f.Id))
+                .ToDictionaryAsync(f => f.Id);
 
         /// <summary>
         /// Creates a new folder in a workspace
