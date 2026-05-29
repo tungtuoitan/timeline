@@ -138,6 +138,7 @@ namespace SuperAppDataRepositories.Repositories
                             ChecklistJson = x.Task.ChecklistJson,
                             ProcessJson = x.Task.ProcessJson,
                             CustomTabsJson = x.Task.CustomTabsJson,
+                            IsMilestone = x.Task.IsMilestone,
                             // Limit dates from project
                             ProjectStartDate = x.Project.StartDate,
                             ProjectEndDate = x.Project.EndDate,
@@ -267,6 +268,7 @@ namespace SuperAppDataRepositories.Repositories
                             existingTask.DeletedAt = task.DeletedAt;
                             if (task.FolderWorkspaceItemId.HasValue)
                                 existingTask.FolderWorkspaceItemId = task.FolderWorkspaceItemId;
+                            existingTask.IsMilestone = task.IsMilestone;
                             existingTask.UpdatedAt = VietnamDateTime.Now();
 
                             upsertedTasks.Add(existingTask);

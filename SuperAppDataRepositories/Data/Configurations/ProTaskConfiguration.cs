@@ -93,6 +93,11 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(t => t.FolderWorkspaceItemId)
                 .HasColumnName("folder_workspace_item_id");
 
+            builder.Property(t => t.IsMilestone)
+                .HasColumnName("is_milestone")
+                .HasDefaultValue(false)
+                .IsRequired();
+
             // Index for common queries
             builder.HasIndex(t => t.ProjectId);
             builder.HasIndex(t => t.ParentTaskId);

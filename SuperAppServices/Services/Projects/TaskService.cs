@@ -137,6 +137,7 @@ namespace SuperAppServices.Services.Projects
                         ChecklistJson = request.ChecklistJson,
                         ProcessJson = request.ProcessJson,
                         CustomTabsJson = request.CustomTabsJson,
+                        IsMilestone = request.IsMilestone,
                     };
 
                     _logger.LogInformation("TaskService.UpsertTasks - Request Id: {Id}, FolderWorkspaceItemId: {FWI}, HasValue: {HasValue}, Title: '{Title}'",

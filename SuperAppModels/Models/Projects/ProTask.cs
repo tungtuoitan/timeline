@@ -72,6 +72,14 @@ namespace SuperAppModels.Models
         public DateTime? DeletedAt { get; set; }
 
         /// <summary>
+        /// Marks this task as a milestone (e.g. shown with diamond icon, treated as a key date).
+        /// Default false.
+        /// </summary>
+        [JsonPropertyName("isMilestone")]
+        [Column("is_milestone")]
+        public bool IsMilestone { get; set; }
+
+        /// <summary>
         /// Workspace item ID of the folder linked to this task (ws.workspace_items.id)
         /// Set when the first note is created for this task
         /// </summary>

@@ -79,5 +79,11 @@ namespace SuperAppModels.DTOs.Requests
         /// <summary>JSON custom tabs: user-created tabs with name/version/content.</summary>
         [JsonPropertyName("customTabsJson")]
         public string? CustomTabsJson { get; set; }
+
+        /// <summary>
+        /// Marks this task as a milestone. Default false.
+        /// </summary>
+        [JsonPropertyName("isMilestone")]
+        public bool IsMilestone { get; set; }
     }
 }
