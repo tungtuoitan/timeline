@@ -96,6 +96,7 @@ namespace SuperAppAPI
                             "http://localhost:3001",
                             "http://localhost:3003",
                             "http://localhost:5000",
+                            "http://192.168.2.26:3000",
                             "https://unparcelled-geralyn-deutoplasmic.ngrok-free.dev",
                             "https://aeronautically-undanceable-rebecka.ngrok-free.dev",
                             "https://www.tungle.uk"
