@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Hosting;
@@ -107,6 +108,43 @@ namespace SuperAppAPI.Controllers.Auth
                     traceId, ip);
                 return StatusCode(500, new AuthResponse { Success = false, Message = "An error occurred during Google login", Error = "Internal server error" });
             }
+        }
+
+        [HttpPost("signup")]
+        [EnableRateLimiting("login")]
+        public async Task<ActionResult<AuthResponse>> Signup([FromForm] string email, [FromForm] string password)
+        {
+            var traceId = HttpContext.TraceIdentifier;
+            var ip = ClientIp();
+            var ua = UserAgent();
+
+            _logger.LogInformation(
+                "[AUTH] signup-start | TraceId={TraceId} | IP={IP} | UA={UA} | Email={Email}",
+                traceId, ip, ua, email);
+
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+            {
+                return BadRequest(new AuthResponse { Success = false, Message = "Email and password are required", Error = "Invalid request" });
+            }
+
+            var result = await _authService.SignupAsync(email, password);
+
+            if (!result.Success)
+            {
+                _logger.LogWarning(
+                    "[AUTH] signup-failed | TraceId={TraceId} | IP={IP} | Email={Email} | Error={Error}",
+                    traceId, ip, email, result.Error);
+                return BadRequest(result);
+            }
+
+            if (result.RefreshTokenPlaintext != null)
+                SetRefreshTokenCookie(result.RefreshTokenPlaintext);
+
+            _logger.LogInformation(
+                "[AUTH] signup-success | TraceId={TraceId} | IP={IP} | UserId={UserId} | Email={Email}",
+                traceId, ip, result.User?.Id, email);
+
+            return Ok(result);
         }
 
         [HttpPost("login")]

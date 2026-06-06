@@ -26,6 +26,11 @@ namespace SuperAppServices.Interfaces
         Task<AuthResponse> LocalLoginAsync(string username, string password);
 
         /// <summary>
+        /// Create a new local user (email + password). Used for test/dev signup.
+        /// </summary>
+        Task<AuthResponse> SignupAsync(string email, string password);
+
+        /// <summary>
         /// Generate JWT token for authenticated user
         /// </summary>
         /// <param name="user">User entity</param>

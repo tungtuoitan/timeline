@@ -239,6 +239,70 @@ namespace SuperAppServices.Services.Auth
         }
 
         /// <summary>
+        /// Create a new local user (email + password). Hashes password with BCrypt.
+        /// </summary>
+        public async Task<AuthResponse> SignupAsync(string email, string password)
+        {
+            _logger.LogInformation("[AUTH] signup-start | Email={Email}", email);
+            try
+            {
+                if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+                {
+                    return new AuthResponse { Success = false, Message = "Email and password are required", Error = "Invalid request" };
+                }
+
+                if (password.Length < 6)
+                {
+                    return new AuthResponse { Success = false, Message = "Password must be at least 6 characters", Error = "Invalid password" };
+                }
+
+                var existing = await _userRepository.GetByEmailAsync(email);
+                if (existing != null)
+                {
+                    _logger.LogWarning("[AUTH] signup-failed | Email={Email} | Reason=AlreadyExists", email);
+                    return new AuthResponse { Success = false, Message = "Email already registered", Error = "Duplicate email" };
+                }
+
+                var passwordHash = BCrypt.Net.BCrypt.HashPassword(password);
+                var newUser = new User
+                {
+                    Email = email,
+                    Password = passwordHash,
+                    AuthType = "local",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                };
+
+                var created = await _userRepository.CreateAsync(newUser);
+                _logger.LogInformation("[AUTH] signup-success | UserId={UserId} | Email={Email}", created.Id, email);
+
+                var jwtToken = GenerateJwtToken(created);
+                var (plaintext, tokenEntity) = await GenerateAndStoreRefreshTokenAsync(created.Id);
+
+                return new AuthResponse
+                {
+                    Success = true,
+                    Message = "Signup successful",
+                    User = new UserData
+                    {
+                        Id = created.Id,
+                        Email = created.Email,
+                        AuthType = "local",
+                        Token = jwtToken,
+                        TokenType = "Bearer"
+                    },
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(_jwtExpirationMinutes),
+                    RefreshTokenPlaintext = plaintext
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[AUTH] signup-exception | Email={Email}", email);
+                return new AuthResponse { Success = false, Message = "Signup failed", Error = ex.Message };
+            }
+        }
+
+        /// <summary>
         /// Exchange authorization code for Google tokens
         /// Supports PKCE (RFC 7636) when code_verifier is provided
         /// </summary>
