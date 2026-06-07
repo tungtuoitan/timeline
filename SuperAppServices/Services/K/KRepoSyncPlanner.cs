@@ -146,6 +146,25 @@ namespace SuperAppServices.Services.K
             return plan;
         }
 
+        /// <summary>
+        /// Maps a ".md" file path to its logical entity path segments. A "self" file
+        /// (entity = its containing folder) is either "_.md" (used by a knowledge) or a
+        /// file whose base name equals its containing folder (a non-leaf node's "Name.md");
+        /// any other ".md" is a leaf node. Returns null for too-shallow paths.
+        /// Examples: "Knowledge/IT/_.md"→[Knowledge,IT]; "Knowledge/IT/Mạng.md"→
+        /// [Knowledge,IT,Mạng]; "Knowledge/IT/TCP/TCP.md"→[Knowledge,IT,TCP].
+        /// </summary>
+        public static string[]? LogicalPath(string mdFilePath)
+        {
+            var segs = Segments(mdFilePath);
+            if (segs.Length < 2 || !segs[^1].EndsWith(".md", StringComparison.OrdinalIgnoreCase)) return null;
+            var baseName  = segs[^1][..^3];
+            var container = segs[^2];
+            var isSelf    = baseName == "_"
+                         || (segs.Length >= 3 && string.Equals(baseName, container, StringComparison.Ordinal));
+            return isSelf ? segs[..^1] : segs[..^1].Append(baseName).ToArray();
+        }
+
         private static string[] Segments(string path) =>
             path.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
     }

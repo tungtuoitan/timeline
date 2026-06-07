@@ -27,9 +27,6 @@ namespace SuperAppServices.Services.K
         private readonly ILogger<KRepoSyncService> _logger;
         private readonly string _reposBasePath;
 
-        // Single questions/placeholder file inside every knowledge & node folder.
-        private const string DetailFile = "_.md";
-
         public KRepoSyncService(
             IUserProfileRepository profileRepo,
             IKKnowledgeRepository knowledgeRepo,
@@ -327,40 +324,65 @@ namespace SuperAppServices.Services.K
                 .Where(k => k.DeletedAt == null).ToList();
             var fileMap    = new Dictionary<string, string>(); // repo-relative path → content
 
-            // Folder names are clean (no "[id]"); the id lives in the _.md front-matter.
-            // Give sibling folders unique names so two entities sharing a name never
-            // collide on disk: "Misc", "Misc (2)", "Misc (3)", …
-            var knowledgeFolder = AssignUniqueNames(knowledges.Select(k => (k.Id, k.Name)));
+            // Folder/file names are clean (no "[id]"); the id lives in the .md front-matter.
+            // Sibling names are made unique so two entities sharing a name never collide.
+            var knowledgeName = AssignUniqueNames(knowledges.Select(k => (k.Id, k.Name)));
 
             foreach (var k in knowledges)
             {
-                var kDir = $"Knowledge/{knowledgeFolder[k.Id]}";
-                // Placeholder _.md keeps the knowledge folder tracked even when empty.
-                fileMap[$"{kDir}/{DetailFile}"] = BuildFrontMatter(k.Id, k.Name);
+                var kUniq = knowledgeName[k.Id];
+                var kDir  = $"Knowledge/{kUniq}";
+                // A knowledge is always a folder; its own file is "<K>/_.md".
+                fileMap[$"{kDir}/_.md"] = BuildFrontMatter(k.Id, k.Name);
 
                 var tree = await _knowledgeRepo.GetKnowledgeTreeAsync(k.Id, userId);
                 if (tree == null) continue;
 
                 var activeNodes = tree.Nodes.Where(n => n.DeletedAt == null).ToList();
-                var nodeIndex   = activeNodes.ToDictionary(n => n.Id);
+                // Key by ParentId, using 0 for roots (Dictionary<int?,> rejects a null key).
+                var childrenByParent = activeNodes.GroupBy(n => n.ParentId ?? 0)
+                    .ToDictionary(g => g.Key, g => g.OrderBy(n => n.Id).ToList());
+                // A node is non-leaf iff its id is some other node's ParentId.
+                var hasChildren = childrenByParent.Keys.Where(id => id != 0).ToHashSet();
 
-                // Unique folder names per sibling group (same parent within this knowledge).
-                var nodeFolder = new Dictionary<int, string>();
-                foreach (var group in activeNodes.GroupBy(n => n.ParentId))
+                var uniqueName   = new Dictionary<int, string>();
+                var containerDir = new Dictionary<int, string>(); // dir the node's file sits in
+                var childDir     = new Dictionary<int, string>(); // dir holding a non-leaf node's children
+
+                // Assign unique names top-down. In each directory reserve "_" (the
+                // knowledge self-file marker) and the parent node's own file name
+                // ("<P>.md") so a child can never collide with a self-file.
+                void Assign(int parentId, string container, string? reservedSelf)
                 {
-                    var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var n in group.OrderBy(n => n.Id))
-                        nodeFolder[n.Id] = MakeUnique(Sanitize(n.Name), used);
+                    if (!childrenByParent.TryGetValue(parentId, out var kids)) return;
+                    var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "_" };
+                    if (reservedSelf != null) used.Add(reservedSelf);
+                    foreach (var n in kids)
+                    {
+                        var name = MakeUnique(Sanitize(n.Name), used);
+                        uniqueName[n.Id]   = name;
+                        containerDir[n.Id] = container;
+                        if (hasChildren.Contains(n.Id))
+                        {
+                            var dir = $"{container}/{name}";
+                            childDir[n.Id] = dir;
+                            Assign(n.Id, dir, name);
+                        }
+                    }
                 }
+                Assign(0, kDir, null); // root group: only "_" (knowledge self) is reserved
 
                 foreach (var node in activeNodes)
                 {
                     var questions = await _questionRepo.GetQuestionsByNodeAsync(node.Id);
                     var active    = questions.Where(q => q.DeletedAt == null).ToList();
-                    // Front-matter (id + name) then the questions markdown.
                     var content   = BuildFrontMatter(node.Id, node.Name) + BuildRepoMarkdown(active);
-                    var dir       = BuildNodeDir(kDir, node, nodeIndex, nodeFolder);
-                    fileMap[$"{dir}/{DetailFile}"] = content;
+                    var name      = uniqueName[node.Id];
+                    // Non-leaf → folder "<name>/<name>.md"; leaf → file "<name>.md".
+                    var filePath  = hasChildren.Contains(node.Id)
+                        ? $"{childDir[node.Id]}/{name}.md"
+                        : $"{containerDir[node.Id]}/{name}.md";
+                    fileMap[filePath] = content;
                 }
             }
 
@@ -479,33 +501,27 @@ namespace SuperAppServices.Services.K
             var remoteHead = remoteBranch.Tip;
             var now = DateTime.UtcNow;
 
-            // ── 1. Read repo: every node FOLDER + the questions in its detail.md ──
-            var dirDetail = new Dictionary<string, string?>(StringComparer.Ordinal);
-            WalkTree(remoteHead.Tree, "", dirDetail);
+            // ── 1. Read repo: every ".md" file → a logical knowledge/node ──────────
+            // Layout: leaf node = "<Name>.md"; non-leaf node = folder "<Name>/" whose own
+            // "<Name>.md" holds its questions; knowledge = folder "<K>/" with "<K>.md".
+            // A file whose base name equals its containing folder is that folder's "self"
+            // file (the entity = the folder); any other ".md" is a leaf node.
+            var mdFiles = new Dictionary<string, string>(StringComparer.Ordinal);
+            WalkMdFiles(remoteHead.Tree, "", mdFiles);
 
-            // Knowledge folder = directory exactly 2 segments deep (Knowledge/<K>); it
-            // carries a placeholder _.md (with the id) so even empty knowledges are tracked.
-            var knowledgeFolders = dirDetail
-                .Where(kv => kv.Key.Split('/', StringSplitOptions.RemoveEmptyEntries).Length == 2)
-                .Select(kv =>
-                {
-                    var seg = kv.Key.Split('/', StringSplitOptions.RemoveEmptyEntries)[1];
-                    var (id, _, _) = ParseFrontMatter(kv.Value ?? "");
-                    return new RepoKnowledgeFolder(seg, id, seg);
-                })
-                .ToList();
+            var knowledgeFolders = new List<RepoKnowledgeFolder>();
+            var nodeFolders      = new List<RepoNodeFolder>();
+            foreach (var (path, content) in mdFiles)
+            {
+                var logical = KRepoSyncPlanner.LogicalPath(path);
+                if (logical == null) continue;
 
-            // Node folder = any directory ≥3 segments deep: Knowledge/<K>/<Node>… Identity
-            // (id) comes from its _.md front-matter; the display name is the folder name.
-            var nodeFolders = dirDetail
-                .Where(kv => kv.Key.Split('/', StringSplitOptions.RemoveEmptyEntries).Length >= 3)
-                .Select(kv =>
-                {
-                    var segs = kv.Key.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                    var (id, _, body) = ParseFrontMatter(kv.Value ?? "");
-                    return new RepoNodeFolder(kv.Key, id, segs[^1], ParseQuestions(body));
-                })
-                .ToList();
+                var (id, _, body) = ParseFrontMatter(content);
+                if (logical.Length == 2)                               // Knowledge/<K> ⇒ knowledge
+                    knowledgeFolders.Add(new RepoKnowledgeFolder(logical[1], id, logical[1]));
+                else if (logical.Length >= 3)                          // node
+                    nodeFolders.Add(new RepoNodeFolder(string.Join("/", logical), id, logical[^1], ParseQuestions(body)));
+            }
 
             // ── 2. DB snapshot for this user ──────────────────────────────────────
             var dbKnowledges   = await _db.KKnowledges
@@ -698,24 +714,17 @@ namespace SuperAppServices.Services.K
             return await DoPushAsync(profile);
         }
 
-        // Walks the whole tree, recording every directory and the text of any detail.md
-        // it directly contains. dirDetail[dirPath] = detail.md content (null if none).
-        private static void WalkTree(Tree tree, string prefix, Dictionary<string, string?> dirDetail)
+        // Collects every ".md" blob in the tree: path → text content.
+        private static void WalkMdFiles(Tree tree, string prefix, Dictionary<string, string> mdFiles)
         {
             foreach (var entry in tree)
             {
                 var fullPath = string.IsNullOrEmpty(prefix) ? entry.Name : $"{prefix}/{entry.Name}";
                 if (entry.TargetType == TreeEntryTargetType.Tree)
-                {
-                    if (!dirDetail.ContainsKey(fullPath)) dirDetail[fullPath] = null;
-                    WalkTree((Tree)entry.Target, fullPath, dirDetail);
-                }
+                    WalkMdFiles((Tree)entry.Target, fullPath, mdFiles);
                 else if (entry.TargetType == TreeEntryTargetType.Blob
-                         && entry.Name.Equals(DetailFile, StringComparison.OrdinalIgnoreCase)
-                         && !string.IsNullOrEmpty(prefix))
-                {
-                    dirDetail[prefix] = ((Blob)entry.Target).GetContentText(Encoding.UTF8);
-                }
+                         && entry.Name.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+                    mdFiles[fullPath] = ((Blob)entry.Target).GetContentText(Encoding.UTF8);
             }
         }
 
@@ -754,24 +763,6 @@ namespace SuperAppServices.Services.K
             }
 
             return sb.ToString().TrimEnd();
-        }
-
-        // Builds a node's folder path (no trailing file): "<knowledgeDir>/<anc>/…/<node>".
-        // Uses the precomputed unique sibling folder names so two nodes sharing a name
-        // never collide on disk.
-        private static string BuildNodeDir(
-            string knowledgeDir, KNodeEntity node,
-            Dictionary<int, KNodeEntity> nodeIndex, Dictionary<int, string> nodeFolder)
-        {
-            var parts = new List<string>();
-            var current = node;
-            while (current != null)
-            {
-                parts.Add(nodeFolder[current.Id]);
-                current = current.ParentId.HasValue && nodeIndex.TryGetValue(current.ParentId.Value, out var p) ? p : null;
-            }
-            parts.Reverse();
-            return string.Join("/", new[] { knowledgeDir }.Concat(parts));
         }
 
         // Assigns each (id, name) a unique folder name, in id order for stability.

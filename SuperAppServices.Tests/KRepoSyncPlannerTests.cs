@@ -382,6 +382,26 @@ namespace SuperAppServices.Tests
             Assert.Equal("Knowledge/IT/B", a.ParentFolderKey);
         }
 
+        // ── LogicalPath: ".md" file → logical entity path (leaf vs self-file) ───────
+        [Theory]
+        [InlineData("Knowledge/IT/_.md", "Knowledge/IT")]                  // knowledge self-file (_.md)
+        [InlineData("Knowledge/IT/Mạng.md", "Knowledge/IT/Mạng")]         // leaf node under knowledge
+        [InlineData("Knowledge/IT/TCP/TCP.md", "Knowledge/IT/TCP")]        // non-leaf node self-file
+        [InlineData("Knowledge/IT/TCP/Handshake.md", "Knowledge/IT/TCP/Handshake")] // leaf under non-leaf
+        public void LogicalPath_mapsFileToEntityPath(string file, string expected)
+        {
+            var logical = KRepoSyncPlanner.LogicalPath(file);
+            Assert.NotNull(logical);
+            Assert.Equal(expected, string.Join("/", logical!));
+        }
+
+        [Fact]
+        public void LogicalPath_returnsNull_forTooShallowOrNonMd()
+        {
+            Assert.Null(KRepoSyncPlanner.LogicalPath("Knowledge"));
+            Assert.Null(KRepoSyncPlanner.LogicalPath("Knowledge/IT/note.txt"));
+        }
+
         // ── CREATE: everything brand-new and nested ─────────────────────────────────
         [Fact]
         public void CreateAll_nested_isAllNew()
