@@ -127,21 +127,19 @@ namespace SuperAppServices.Services.K
                 }
             }
 
-            // ── 4. Deletes ────────────────────────────────────────────────────────
-            foreach (var n in nodes)
-                if (!claimedNodeIds.Contains(n.Id))
-                    plan.NodeIdsToDelete.Add(n.Id);
-
-            // Every knowledge folder keeps a placeholder _.md, so a present-but-empty
-            // knowledge is still listed (claimed). Absence ⇒ real deletion.
-            foreach (var k in knowledges)
-                if (!claimedKnowledgeIds.Contains(k.Id))
-                    plan.KnowledgeIdsToDelete.Add(k.Id);
-
-            var deletedNodeIds = plan.NodeIdsToDelete.ToHashSet();
+            // ── 4. Deletes — DB-wins strategy ───────────────────────────────────
+            // Under "DB wins", entities in DB but absent from the repo are NOT deleted
+            // — they simply haven't been pushed yet. Deletion only happens through the
+            // application (DB), never by removing files from the repo. Questions whose
+            // parent node still exists in DB but that were removed from the repo's
+            // detail.md ARE deleted — the user intentionally edited the file.
             foreach (var q in questions)
-                if (!claimedQuestionIds.Contains(q.Id) && !deletedNodeIds.Contains(q.NodeId))
+                if (!claimedQuestionIds.Contains(q.Id)
+                    && claimedNodeIds.Contains(q.NodeId))  // node still present in repo
                     plan.QuestionIdsToDelete.Add(q.Id);
+
+            // NodeIdsToDelete and KnowledgeIdsToDelete stay empty:
+            // unclaimed nodes/knowledges will be pushed back by DoPushAsync.
 
             return plan;
         }

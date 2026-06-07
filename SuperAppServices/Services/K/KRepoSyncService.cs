@@ -489,23 +489,43 @@ namespace SuperAppServices.Services.K
             using (var repo = new LibGit2Sharp.Repository(localPath))
             {
                 Commands.Stage(repo, "*");
-                if (!repo.RetrieveStatus().IsDirty)
+
+                var localTip   = repo.Head.Tip;
+                var tracking   = repo.Head.TrackedBranch;
+                var remoteTip  = tracking?.Tip;
+                var isDirty    = repo.RetrieveStatus().IsDirty;
+                var localAhead = localTip != null && (remoteTip == null || remoteTip.Sha != localTip.Sha);
+
+                if (!isDirty && !localAhead)
                 {
+                    _logger.LogInformation("DoPush: no file changes and local == remote — nothing to do");
                     profile.KRepoContentHash = newHash;
                     await _profileRepo.UpsertUserProfileAsync(profile);
                     return new ResultOptions { Success = true, Message = "No changes after write" };
                 }
 
-                var sig        = new Signature("SuperApp Sync", "sync@superapp.local", DateTimeOffset.UtcNow);
-                var commitMsg  = $"DB sync: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}";
-                if (conflictedPaths is { Count: > 0 })
-                    commitMsg += $"\n\nResolved {conflictedPaths.Count} conflict(s) — DB wins:\n"
-                               + string.Join("\n", conflictedPaths.Select(p => $"  - {p}"));
-                var commit = repo.Commit(commitMsg, sig, sig);
+                // Create a new commit if there are staged changes
+                Commit? commit = localTip;
+                if (isDirty)
+                {
+                    var sig        = new Signature("SuperApp Sync", "sync@superapp.local", DateTimeOffset.UtcNow);
+                    var commitMsg  = $"DB sync: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}";
+                    if (conflictedPaths is { Count: > 0 })
+                        commitMsg += $"\n\nResolved {conflictedPaths.Count} conflict(s) — DB wins:\n"
+                                   + string.Join("\n", conflictedPaths.Select(p => $"  - {p}"));
+                    commit = repo.Commit(commitMsg, sig, sig);
+                    _logger.LogInformation("DoPush: committed {Sha}", commit.Sha[..8]);
+                }
+                else
+                {
+                    _logger.LogInformation("DoPush: no file changes but local is ahead of remote — pushing pending commit(s)");
+                }
 
+                // Push to remote
                 repo.Network.Push(repo.Branches[branch], new PushOptions { CredentialsProvider = creds });
+                _logger.LogInformation("DoPush: pushed to remote successfully");
 
-                profile.KRepoLastPushSha  = commit.Sha;
+                profile.KRepoLastPushSha  = commit!.Sha;
                 profile.KRepoLastPushAt   = DateTime.UtcNow;
                 profile.KRepoContentHash  = newHash;
                 profile.KRepoStatusCode   = "synced";
@@ -712,38 +732,15 @@ namespace SuperAppServices.Services.K
             if (plan.QuestionIdsToDelete.Any())
                 await _questionRepo.DeleteQuestionsAsync(plan.QuestionIdsToDelete);
 
-            // ── 7. Soft-delete nodes & knowledges removed from the repo ───────────
-            foreach (var nodeId in plan.NodeIdsToDelete)
-            {
-                if (!dbNodeMap.TryGetValue(nodeId, out var node)) continue;
-                var qIds = await _db.KQuestions
-                    .Where(q => q.NodeId == nodeId && q.DeletedAt == null)
-                    .Select(q => q.Id).ToListAsync();
-                if (qIds.Any()) await _questionRepo.DeleteQuestionsAsync(qIds);
-                node.DeletedAt = now;
-                node.UpdatedAt = now;
-                _logger.LogInformation("Reconcile: soft-deleted node {Id}", nodeId);
-            }
-            await _db.SaveChangesAsync();
-
-            foreach (var kid in plan.KnowledgeIdsToDelete)
-            {
-                if (!dbKnowledgeMap.TryGetValue(kid, out var k)) continue;
-                var knodes = await _db.KNodes.Where(n => n.KnowledgeId == kid && n.DeletedAt == null).ToListAsync();
-                foreach (var n in knodes)
-                {
-                    var qIds = await _db.KQuestions
-                        .Where(q => q.NodeId == n.Id && q.DeletedAt == null)
-                        .Select(q => q.Id).ToListAsync();
-                    if (qIds.Any()) await _questionRepo.DeleteQuestionsAsync(qIds);
-                    n.DeletedAt = now;
-                    n.UpdatedAt = now;
-                }
-                k.DeletedAt = now;
-                k.UpdatedAt = now;
-                _logger.LogInformation("Reconcile: soft-deleted knowledge {Id} (+{Count} nodes)", kid, knodes.Count);
-            }
-            await _db.SaveChangesAsync();
+            // ── 7. DB-wins: unclaimed nodes/knowledges are NOT deleted ─────────
+            // They will be pushed back to the repo by DoPushAsync below.
+            // Only log for diagnostics.
+            var unclaimedNodeCount = dbNodes.Count(n => !plan.Nodes.Any(p => p.ExistingId == n.Id));
+            var unclaimedKnowledgeCount = dbKnowledges.Count(k => !plan.Knowledges.Any(p => p.ExistingId == k.Id));
+            if (unclaimedNodeCount > 0 || unclaimedKnowledgeCount > 0)
+                _logger.LogInformation(
+                    "Reconcile: {Nodes} node(s) and {Knowledges} knowledge(s) in DB but not in repo — will push back",
+                    unclaimedNodeCount, unclaimedKnowledgeCount);
 
             // Push back so newly-created ids / detail.md files land in the repo.
             return await DoPushAsync(profile);
