@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
+using SuperAppAPI.BackgroundServices;
+using SuperAppAPI.Hubs;
 using SuperAppAPI.Middlewares;
 using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
@@ -65,6 +67,18 @@ namespace SuperAppAPI
                         ValidateAudience = false,
                         ValidateLifetime = true,
                         ClockSkew = TimeSpan.Zero
+                    };
+                    // Allow SignalR to receive JWT via query string
+                    options.Events = new JwtBearerEvents
+                    {
+                        OnMessageReceived = context =>
+                        {
+                            var accessToken = context.Request.Query["access_token"];
+                            var path = context.HttpContext.Request.Path;
+                            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                                context.Token = accessToken;
+                            return Task.CompletedTask;
+                        }
                     };
                 });
             services.AddAuthorization();
@@ -223,6 +237,14 @@ namespace SuperAppAPI
             services.AddSingleton<SuperAppServices.Interfaces.IClaudibleService, ClaudibleService>();
             services.AddScoped<SuperAppServices.Interfaces.IKGradingService, KGradingService>();
             services.AddScoped<SuperAppServices.Interfaces.IKMarkdownImportService, KMarkdownImportService>();
+            services.AddScoped<SuperAppServices.Interfaces.IKRepoSyncService, KRepoSyncService>();
+            services.AddScoped<SuperAppServices.Interfaces.IKSyncNotifier, SuperAppAPI.Hubs.SignalRKSyncNotifier>();
+
+            // SignalR
+            services.AddSignalR();
+
+            // Background services
+            services.AddHostedService<KRepoSyncBackgroundService>();
         }
 
         public void Configure(IApplicationBuilder app)
@@ -259,6 +281,7 @@ namespace SuperAppAPI
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
+                endpoints.MapHub<KSyncHub>("/hubs/k-sync");
                 endpoints.MapGet("/", async context =>
                 {
                     await context.Response.WriteAsync("Welcome to SuperApp API");

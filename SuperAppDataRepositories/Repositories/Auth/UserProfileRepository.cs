@@ -96,6 +96,17 @@ namespace SuperAppDataRepositories.Repositories
                     if (profile.Language != null) existingProfile.Language = profile.Language;
                     if (profile.Filters != null) existingProfile.Filters = profile.Filters;
 
+                    // K Repo Sync fields
+                    if (profile.KRepoUrl       != null) existingProfile.KRepoUrl           = profile.KRepoUrl;
+                    if (profile.KRepoBranch     != null) existingProfile.KRepoBranch        = profile.KRepoBranch;
+                    if (profile.KRepoPat        != null) existingProfile.KRepoPat           = profile.KRepoPat;
+                    if (profile.KRepoStatusCode != null) existingProfile.KRepoStatusCode    = profile.KRepoStatusCode;
+                    if (profile.KRepoContentHash   != null) existingProfile.KRepoContentHash   = profile.KRepoContentHash;
+                    if (profile.KRepoLastPushSha   != null) existingProfile.KRepoLastPushSha   = profile.KRepoLastPushSha;
+                    if (profile.KRepoLastPushAt    != null) existingProfile.KRepoLastPushAt    = profile.KRepoLastPushAt;
+                    if (profile.KRepoLastCheckAt   != null) existingProfile.KRepoLastCheckAt   = profile.KRepoLastCheckAt;
+                    if (profile.KRepoLastRemoteSha != null) existingProfile.KRepoLastRemoteSha = profile.KRepoLastRemoteSha;
+
                     existingProfile.UpdatedAt = VietnamDateTime.Now();
 
                     _context.UserProfiles.Update(existingProfile);

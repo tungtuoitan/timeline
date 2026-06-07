@@ -1,5 +1,6 @@
 namespace SuperAppModels.Models
 {
+    using System.ComponentModel.DataAnnotations.Schema;
     /// <summary>
     /// Domain model representing user profile - EXACTLY matches urm.user_profiles schema
     /// </summary>
@@ -70,6 +71,27 @@ namespace SuperAppModels.Models
         /// Stores filter settings for different views (noteGrid, wsGrid, workspace)
         /// </summary>
         public string? Filters { get; set; }
+
+        // ── K Repo Sync ──────────────────────────────────────────────────────────
+
+        [Column("k_repo_url")]
+        public string? KRepoUrl { get; set; }
+        [Column("k_repo_branch")]
+        public string? KRepoBranch { get; set; }
+        [Column("k_repo_pat")]
+        public string? KRepoPat { get; set; }
+        [Column("k_repo_last_push_sha")]
+        public string? KRepoLastPushSha { get; set; }
+        [Column("k_repo_last_push_at")]
+        public DateTime? KRepoLastPushAt { get; set; }
+        [Column("k_repo_last_check_at")]
+        public DateTime? KRepoLastCheckAt { get; set; }
+        [Column("k_repo_last_remote_sha")]
+        public string? KRepoLastRemoteSha { get; set; }
+        [Column("k_repo_status_code")]
+        public string? KRepoStatusCode { get; set; } = "idle";
+        [Column("k_repo_content_hash")]
+        public string? KRepoContentHash { get; set; }
 
         /// <summary>
         /// When the profile was created (UTC)

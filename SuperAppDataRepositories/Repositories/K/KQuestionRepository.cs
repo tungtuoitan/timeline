@@ -31,7 +31,7 @@ namespace SuperAppDataRepositories.Repositories
             try
             {
                 return await _context.KQuestions
-                    .Where(q => q.NodeId == nodeId)
+                    .Where(q => q.NodeId == nodeId && q.DeletedAt == null)
                     .OrderBy(q => q.SortOrder)
                     .ThenBy(q => q.CreatedAt)
                     .ToListAsync();

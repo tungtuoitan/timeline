@@ -40,9 +40,7 @@ namespace SuperAppDataRepositories.Repositories
                 }
 
                 var nodes = await _context.KNodes
-                    .Where(n => n.KnowledgeId == knowledgeId
-                    //&& n.DeletedAt == null
-                    )
+                    .Where(n => n.KnowledgeId == knowledgeId && n.DeletedAt == null)
                     .ToListAsync();
 
                 _logger.LogInformation("Found {Count} nodes in knowledge {KnowledgeId}", nodes.Count, knowledgeId);
