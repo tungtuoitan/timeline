@@ -48,6 +48,9 @@ namespace SuperAppModels.DTOs.Requests
 
         [JsonPropertyName("description")]
         public string? Description { get; set; }
+
+        [JsonPropertyName("sortOrder")]
+        public int? SortOrder { get; set; }
     }
 
     public class KNewQuestionItem
@@ -57,6 +60,9 @@ namespace SuperAppModels.DTOs.Requests
 
         [JsonPropertyName("description")]
         public string? Description { get; set; }
+
+        [JsonPropertyName("sortOrder")]
+        public int? SortOrder { get; set; }
     }
 
     /// <summary>Move a question to a different node (nodeId = null → orphan).</summary>

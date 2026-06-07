@@ -132,7 +132,7 @@ namespace SuperAppDataRepositories.Repositories
                     Name        = q.Name,
                     Description = q.Description,
                     StatusCode  = "learning",
-                    SortOrder   = maxOrder + 1 + i,
+                    SortOrder   = q.SortOrder ?? (maxOrder + 1 + i),
                 }).ToList();
 
                 _context.KQuestions.AddRange(rows);
@@ -170,6 +170,7 @@ namespace SuperAppDataRepositories.Repositories
                     if (upd == null) continue;
                     q.Name        = upd.Name;
                     q.Description = string.IsNullOrWhiteSpace(upd.Description) ? null : upd.Description;
+                    if (upd.SortOrder.HasValue) q.SortOrder = upd.SortOrder.Value;
                     q.UpdatedAt   = VietnamDateTime.Now();
                 }
 
