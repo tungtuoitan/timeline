@@ -18,6 +18,7 @@ namespace SuperAppAPI.Controllers.K
         private readonly IKNodeService _nodeService;
         private readonly IKMarkdownImportService _markdownImportService;
         private readonly IKQuestionService _questionService;
+        private readonly IKSyncEventPublisher _syncPublisher;
         private readonly ILogger<KController> _logger;
 
         public KController(
@@ -25,12 +26,14 @@ namespace SuperAppAPI.Controllers.K
             IKNodeService nodeService,
             IKMarkdownImportService markdownImportService,
             IKQuestionService questionService,
+            IKSyncEventPublisher syncPublisher,
             ILogger<KController> logger)
         {
             _knowledgeService      = knowledgeService      ?? throw new ArgumentNullException(nameof(knowledgeService));
             _nodeService           = nodeService           ?? throw new ArgumentNullException(nameof(nodeService));
             _markdownImportService = markdownImportService ?? throw new ArgumentNullException(nameof(markdownImportService));
             _questionService       = questionService       ?? throw new ArgumentNullException(nameof(questionService));
+            _syncPublisher         = syncPublisher         ?? throw new ArgumentNullException(nameof(syncPublisher));
             _logger                = logger                ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -62,6 +65,7 @@ namespace SuperAppAPI.Controllers.K
                 var userId = GetUserId();
                 if (userId == null) return Unauthorized("User ID not found in token");
                 var result = await _questionService.UpdateOrphanQuestionsAsync(userId.Value, request);
+                if (result.Success) _syncPublisher.NotifyChanged(userId.Value);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
@@ -80,6 +84,7 @@ namespace SuperAppAPI.Controllers.K
                 var userId = GetUserId();
                 if (userId == null) return Unauthorized("User ID not found in token");
                 var result = await _questionService.MoveQuestionAsync(id, request.NodeId, userId.Value);
+                if (result.Success) _syncPublisher.NotifyChanged(userId.Value);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
@@ -138,6 +143,7 @@ namespace SuperAppAPI.Controllers.K
 
                 request.UserId = userId.Value;
                 var result = await _knowledgeService.CreateKnowledgeAsync(request);
+                if (result.Success) _syncPublisher.NotifyChanged(userId.Value);
                 return result.Success ? StatusCode(201, result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
@@ -162,6 +168,7 @@ namespace SuperAppAPI.Controllers.K
 
                 request.UserId = userId.Value;
                 var result = await _knowledgeService.UpdateKnowledgeAsync(id, request);
+                if (result.Success) _syncPublisher.NotifyChanged(userId.Value);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
@@ -182,6 +189,7 @@ namespace SuperAppAPI.Controllers.K
                 if (userId == null) return Unauthorized("User ID not found in token");
 
                 var result = await _knowledgeService.SoftDeleteKnowledgeAsync(id, userId.Value);
+                if (result.Success) _syncPublisher.NotifyChanged(userId.Value);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
@@ -253,6 +261,7 @@ namespace SuperAppAPI.Controllers.K
                 _logger.LogInformation("Deleting {Count} nodes in knowledge {KnowledgeId}", request.NodeIds.Count, knowledgeId);
 
                 var result = await _knowledgeService.DeleteNodesAsync(knowledgeId, userId.Value, request);
+                if (result.Success) _syncPublisher.NotifyChanged(userId.Value);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
@@ -300,6 +309,7 @@ namespace SuperAppAPI.Controllers.K
                     knowledgeId);
 
                 var response = await _nodeService.UpsertNodesAsync(requests, userId.Value, knowledgeId);
+                if (response.Success) _syncPublisher.NotifyChanged(userId.Value);
                 return Ok(response);
             }
             catch (Exception ex)
@@ -331,6 +341,7 @@ namespace SuperAppAPI.Controllers.K
                     return BadRequest(new ResultOptions { Success = false, Message = "No tests or questions provided.", Status = 400 });
 
                 var testsCreated = await _markdownImportService.ImportTestMarkdownAsync(knowledgeId, userId.Value, request);
+                _syncPublisher.NotifyChanged(userId.Value);
                 return Ok(new ResultOptions
                 {
                     Success = true,
@@ -366,6 +377,7 @@ namespace SuperAppAPI.Controllers.K
                 if (userId == null) return Unauthorized("User ID not found in token");
 
                 var nodes = await _markdownImportService.ImportAsync(knowledgeId, userId.Value, request);
+                _syncPublisher.NotifyChanged(userId.Value);
                 return Ok(new ResultOptions
                 {
                     Success = true,

@@ -239,12 +239,13 @@ namespace SuperAppAPI
             services.AddScoped<SuperAppServices.Interfaces.IKMarkdownImportService, KMarkdownImportService>();
             services.AddScoped<SuperAppServices.Interfaces.IKRepoSyncService, KRepoSyncService>();
             services.AddScoped<SuperAppServices.Interfaces.IKSyncNotifier, SuperAppAPI.Hubs.SignalRKSyncNotifier>();
+            services.AddSingleton<SuperAppServices.Interfaces.IKSyncEventPublisher, SuperAppServices.Services.K.KSyncEventPublisher>();
 
             // SignalR
             services.AddSignalR();
 
-            // Background services
-            services.AddHostedService<KRepoSyncBackgroundService>();
+            // Background services — real-time sync daemon (replaces old polling-only service)
+            services.AddHostedService<KRepoSyncDaemon>();
         }
 
         public void Configure(IApplicationBuilder app)

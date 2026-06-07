@@ -396,17 +396,18 @@ namespace SuperAppServices.Services.K
 
             var creds = BuildCredentials(profile.KRepoPat!);
             string repoWorkDir;
+            List<string>? conflictedPaths = null;
 
             // ── Pull latest (close repo after so handles are released on Windows) ──
             using (var repo = new LibGit2Sharp.Repository(localPath))
             {
                 repoWorkDir = repo.Info.WorkingDirectory.TrimEnd('/', '\\');
+                var pullSig = new Signature("superapp", "superapp@local", DateTimeOffset.UtcNow);
 
                 MergeResult pullResult;
                 try
                 {
-                    pullResult = Commands.Pull(repo,
-                        new Signature("superapp", "superapp@local", DateTimeOffset.UtcNow),
+                    pullResult = Commands.Pull(repo, pullSig,
                         new PullOptions { FetchOptions = new FetchOptions { CredentialsProvider = creds } });
                 }
                 catch (Exception ex)
@@ -415,7 +416,37 @@ namespace SuperAppServices.Services.K
                 }
 
                 if (pullResult.Status == MergeStatus.Conflicts)
-                    return ResultOptions.Fail("Conflict: remote has diverged. Resolve in git and retry.", 409);
+                {
+                    // ── DB-wins conflict resolution ──────────────────────────────
+                    // 1. Collect conflicted file paths for the commit message
+                    conflictedPaths = repo.Index.Conflicts
+                        .Select(c => c.Ours?.Path ?? c.Theirs?.Path ?? c.Ancestor?.Path ?? "?")
+                        .ToList();
+
+                    _logger.LogWarning("DoPush: {Count} merge conflict(s) — resolving with DB-wins strategy: {Paths}",
+                        conflictedPaths.Count, string.Join(", ", conflictedPaths));
+
+                    // 2. Abort the conflicted merge
+                    repo.Reset(ResetMode.Hard);
+
+                    // 3. Re-pull with MergeFileFavor.Ours (auto-resolves content conflicts)
+                    try
+                    {
+                        pullResult = Commands.Pull(repo, pullSig, new PullOptions
+                        {
+                            FetchOptions = new FetchOptions { CredentialsProvider = creds },
+                            MergeOptions = new MergeOptions { MergeFileFavor = MergeFileFavor.Ours }
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        return ResultOptions.Fail("Pull (DB-wins retry) failed: " + ex.Message, 409);
+                    }
+
+                    // Structural conflict (e.g. file vs directory) — extremely rare
+                    if (pullResult.Status == MergeStatus.Conflicts)
+                        return ResultOptions.Fail("Structural merge conflict — resolve manually in git.", 409);
+                }
             }
             // repo disposed here — all file handles released before we touch the FS
 
@@ -465,8 +496,12 @@ namespace SuperAppServices.Services.K
                     return new ResultOptions { Success = true, Message = "No changes after write" };
                 }
 
-                var sig    = new Signature("SuperApp Sync", "sync@superapp.local", DateTimeOffset.UtcNow);
-                var commit = repo.Commit($"DB sync: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}", sig, sig);
+                var sig        = new Signature("SuperApp Sync", "sync@superapp.local", DateTimeOffset.UtcNow);
+                var commitMsg  = $"DB sync: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}";
+                if (conflictedPaths is { Count: > 0 })
+                    commitMsg += $"\n\nResolved {conflictedPaths.Count} conflict(s) — DB wins:\n"
+                               + string.Join("\n", conflictedPaths.Select(p => $"  - {p}"));
+                var commit = repo.Commit(commitMsg, sig, sig);
 
                 repo.Network.Push(repo.Branches[branch], new PushOptions { CredentialsProvider = creds });
 

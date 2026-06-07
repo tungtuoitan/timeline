@@ -13,12 +13,17 @@ namespace SuperAppAPI.Controllers.K
     public class KQuestionController : BaseAuthController
     {
         private readonly IKQuestionService _service;
+        private readonly IKSyncEventPublisher _syncPublisher;
         private readonly ILogger<KQuestionController> _logger;
 
-        public KQuestionController(IKQuestionService service, ILogger<KQuestionController> logger)
+        public KQuestionController(
+            IKQuestionService service,
+            IKSyncEventPublisher syncPublisher,
+            ILogger<KQuestionController> logger)
         {
-            _service = service;
-            _logger  = logger;
+            _service       = service;
+            _syncPublisher = syncPublisher;
+            _logger        = logger;
         }
 
         // GET /api/k/global-daily-queue
@@ -85,6 +90,7 @@ namespace SuperAppAPI.Controllers.K
                 var userId = GetUserId();
                 if (userId == null) return Unauthorized();
                 var result = await _service.UpdateQuestionsAsync(nodeId, userId.Value, request);
+                if (result.Success) _syncPublisher.NotifyChanged(userId.Value);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
@@ -139,6 +145,7 @@ namespace SuperAppAPI.Controllers.K
                 var userId = GetUserId();
                 if (userId == null) return Unauthorized();
                 var result = await _service.MarkQuestionDraftAsync(questionId);
+                if (result.Success) _syncPublisher.NotifyChanged(userId.Value);
                 return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
             }
             catch (Exception ex)
