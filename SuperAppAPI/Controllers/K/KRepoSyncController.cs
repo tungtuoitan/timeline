@@ -109,6 +109,24 @@ namespace SuperAppAPI.Controllers.K
             }
         }
 
+        // POST /api/k/repo-sync/force-update  — force overwrites remote with DB content
+        [HttpPost("force-update")]
+        public async Task<IActionResult> ForceUpdate()
+        {
+            try
+            {
+                var userId = GetUserId();
+                if (userId == null) return Unauthorized();
+                var result = await _syncService.ForceUpdateRemoteAsync(userId.Value);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 400, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ForceUpdate failed");
+                return StatusCode(500, ResultOptions.Fail("An error occurred", 500));
+            }
+        }
+
         // POST /api/k/repo-sync/retry  — clears conflict status and retries push
         [HttpPost("retry")]
         public async Task<IActionResult> Retry()
@@ -131,7 +149,7 @@ namespace SuperAppAPI.Controllers.K
     public class KRepoSyncConfigRequest
     {
         public string RepoUrl { get; set; } = "";
-        public string Branch  { get; set; } = "K";
+        public string Branch  { get; set; } = "main";
         /// <summary>Empty string = keep existing PAT in DB unchanged.</summary>
         public string Pat     { get; set; } = "";
     }

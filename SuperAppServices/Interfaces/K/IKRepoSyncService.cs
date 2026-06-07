@@ -14,5 +14,12 @@ namespace SuperAppServices.Interfaces
         Task CheckAllUsersAsync();
         Task PushAllUsersAsync();
         Task<ResultOptions> ResetConflictAndRetryAsync(int userId);
+
+        /// <summary>
+        /// Force-overwrites the remote repo with DB content. Ignores remote state entirely:
+        /// writes all DB files, commits, and force-pushes. Use when remote is out of sync
+        /// and normal push hits structural conflicts.
+        /// </summary>
+        Task<ResultOptions> ForceUpdateRemoteAsync(int userId);
     }
 }

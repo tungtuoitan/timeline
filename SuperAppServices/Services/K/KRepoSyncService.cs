@@ -58,7 +58,7 @@ namespace SuperAppServices.Services.K
             return new KRepoSyncStatusResponse
             {
                 RepoUrl       = profile.KRepoUrl,
-                Branch        = profile.KRepoBranch ?? "K",
+                Branch        = profile.KRepoBranch ?? "main",
                 StatusCode    = profile.KRepoStatusCode ?? "idle",
                 LastPushAt    = profile.KRepoLastPushAt,
                 LastCheckAt   = profile.KRepoLastCheckAt,
@@ -242,7 +242,7 @@ namespace SuperAppServices.Services.K
             try
             {
                 var localPath = GetLocalPath(userId);
-                EnsureCloned(localPath, profile.KRepoUrl, profile.KRepoPat, profile.KRepoBranch ?? "K");
+                EnsureCloned(localPath, profile.KRepoUrl, profile.KRepoPat, profile.KRepoBranch ?? "main");
 
                 using var repo = new LibGit2Sharp.Repository(localPath);
                 var creds = BuildCredentials(profile.KRepoPat);
@@ -250,7 +250,7 @@ namespace SuperAppServices.Services.K
                 Remote remote = repo.Network.Remotes["origin"];
                 repo.Network.Fetch(remote.Name, remote.FetchRefSpecs.Select(r => r.Specification), new FetchOptions { CredentialsProvider = creds });
 
-                var remoteBranch = repo.Branches[$"refs/remotes/origin/{profile.KRepoBranch ?? "K"}"];
+                var remoteBranch = repo.Branches[$"refs/remotes/origin/{profile.KRepoBranch ?? "main"}"];
                 var remoteHeadSha = remoteBranch?.Tip?.Sha;
 
                 profile.KRepoLastRemoteSha = remoteHeadSha;
@@ -315,7 +315,7 @@ namespace SuperAppServices.Services.K
         private async Task<ResultOptions> DoPushAsync(UserProfile profile, bool force = false)
         {
             var userId    = profile.UserId;
-            var branch    = profile.KRepoBranch ?? "K";
+            var branch    = profile.KRepoBranch ?? "main";
             var localPath = GetLocalPath(userId);
             EnsureCloned(localPath, profile.KRepoUrl!, profile.KRepoPat!, branch);
 
@@ -443,9 +443,9 @@ namespace SuperAppServices.Services.K
                         return ResultOptions.Fail("Pull (DB-wins retry) failed: " + ex.Message, 409);
                     }
 
-                    // Structural conflict (e.g. file vs directory) — extremely rare
+                    // Structural conflict (e.g. delete-vs-modify, file-vs-directory)
                     if (pullResult.Status == MergeStatus.Conflicts)
-                        return ResultOptions.Fail("Structural merge conflict — resolve manually in git.", 409);
+                        return ResultOptions.Fail("Structural merge conflict — use Force Update to overwrite remote.", 409);
                 }
             }
             // repo disposed here — all file handles released before we touch the FS
@@ -488,6 +488,25 @@ namespace SuperAppServices.Services.K
             // ── Stage, commit, push (reopen repo after FS writes are done) ────────
             using (var repo = new LibGit2Sharp.Repository(localPath))
             {
+                // Ensure we're on the configured branch (clone may default to "main")
+                var localBranch = repo.Branches[branch];
+                if (localBranch == null)
+                {
+                    _logger.LogInformation("DoPush: creating local branch '{Branch}' from HEAD", branch);
+                    localBranch = repo.CreateBranch(branch);
+                }
+                if (!repo.Head.FriendlyName.Equals(branch, StringComparison.Ordinal))
+                {
+                    _logger.LogInformation("DoPush: switching from '{Current}' to '{Target}'",
+                        repo.Head.FriendlyName, branch);
+                    Commands.Checkout(repo, localBranch);
+                }
+
+                // Set up tracking so ahead/behind detection works
+                var remoteBranchRef = $"refs/remotes/origin/{branch}";
+                if (repo.Branches[remoteBranchRef] != null)
+                    repo.Branches.Update(localBranch, b => b.TrackedBranch = remoteBranchRef);
+
                 Commands.Stage(repo, "*");
 
                 var localTip   = repo.Head.Tip;
@@ -522,6 +541,7 @@ namespace SuperAppServices.Services.K
                 }
 
                 // Push to remote
+                _logger.LogInformation("DoPush: pushing branch '{Branch}', HEAD={Sha}", branch, repo.Head.Tip.Sha[..8]);
                 repo.Network.Push(repo.Branches[branch], new PushOptions { CredentialsProvider = creds });
                 _logger.LogInformation("DoPush: pushed to remote successfully");
 
@@ -543,7 +563,7 @@ namespace SuperAppServices.Services.K
 
             using var repo = new LibGit2Sharp.Repository(localPath);
             var creds  = BuildCredentials(profile.KRepoPat!);
-            var branch = profile.KRepoBranch ?? "K";
+            var branch = profile.KRepoBranch ?? "main";
 
             Remote remote = repo.Network.Remotes["origin"];
             repo.Network.Fetch(remote.Name, remote.FetchRefSpecs.Select(r => r.Specification),
@@ -995,6 +1015,216 @@ namespace SuperAppServices.Services.K
         {
             profile.KRepoStatusCode = statusCode;
             await _profileRepo.UpsertUserProfileAsync(profile);
+        }
+
+        // ── Force Update Remote ──────────────────────────────────────────────────
+
+        public async Task<ResultOptions> ForceUpdateRemoteAsync(int userId)
+        {
+            var profile = await _profileRepo.GetByUserIdAsync(userId);
+            if (profile == null)
+                return ResultOptions.Fail("User profile not found", 404);
+            if (string.IsNullOrEmpty(profile.KRepoUrl) || string.IsNullOrEmpty(profile.KRepoPat))
+                return ResultOptions.Fail("Repo not configured", 400);
+
+            try
+            {
+                await PushStatusAsync(userId, "syncing", "Force updating remote…", "push");
+                var result = await DoForceUpdateRemoteAsync(profile);
+                await PushStatusAsync(userId, result.Success ? "synced" : "error",
+                    result.Message, "push");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ForceUpdateRemote failed for user {UserId}", userId);
+                await PushStatusAsync(userId, "error", ex.Message, "push");
+                return ResultOptions.Fail("Force update failed: " + ex.Message, 500);
+            }
+        }
+
+        /// <summary>
+        /// Overwrites remote repo with DB content. No pull, no merge — just write files,
+        /// commit, and force-push. The remote branch is completely replaced.
+        /// </summary>
+        private async Task<ResultOptions> DoForceUpdateRemoteAsync(UserProfile profile)
+        {
+            var userId    = profile.UserId;
+            var branch    = profile.KRepoBranch ?? "main";
+            var localPath = GetLocalPath(userId);
+            EnsureCloned(localPath, profile.KRepoUrl!, profile.KRepoPat!, branch);
+
+            // ── Build file map from DB (same as DoPushAsync) ─────────────────────
+            var knowledges = (await _knowledgeRepo.GetAllKnowledgesByUserIdAsync(userId))
+                .Where(k => k.DeletedAt == null).ToList();
+            var fileMap = new Dictionary<string, string>();
+
+            var knowledgeName = AssignUniqueNames(knowledges.Select(k => (k.Id, k.Name)));
+
+            foreach (var k in knowledges)
+            {
+                var kUniq = knowledgeName[k.Id];
+                var kDir  = $"Knowledge/{kUniq}";
+                fileMap[$"{kDir}/_.md"] = BuildFrontMatter(k.Id, k.Name);
+
+                var tree = await _knowledgeRepo.GetKnowledgeTreeAsync(k.Id, userId);
+                if (tree == null) continue;
+
+                var activeNodes = tree.Nodes.Where(n => n.DeletedAt == null).ToList();
+                var childrenByParent = activeNodes.GroupBy(n => n.ParentId ?? 0)
+                    .ToDictionary(g => g.Key, g => g.OrderBy(n => n.Id).ToList());
+                var hasChildren = childrenByParent.Keys.Where(id => id != 0).ToHashSet();
+
+                var uniqueName   = new Dictionary<int, string>();
+                var containerDir = new Dictionary<int, string>();
+                var childDir     = new Dictionary<int, string>();
+
+                void Assign(int parentId, string container, string? reservedSelf)
+                {
+                    if (!childrenByParent.TryGetValue(parentId, out var kids)) return;
+                    var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "_" };
+                    if (reservedSelf != null) used.Add(reservedSelf);
+                    foreach (var n in kids)
+                    {
+                        var name = MakeUnique(Sanitize(n.Name), used);
+                        uniqueName[n.Id]   = name;
+                        containerDir[n.Id] = container;
+                        if (hasChildren.Contains(n.Id))
+                        {
+                            var dir = $"{container}/{name}";
+                            childDir[n.Id] = dir;
+                            Assign(n.Id, dir, name);
+                        }
+                    }
+                }
+                Assign(0, kDir, null);
+
+                foreach (var node in activeNodes)
+                {
+                    var questions = await _questionRepo.GetQuestionsByNodeAsync(node.Id);
+                    var active    = questions.Where(q => q.DeletedAt == null).ToList();
+                    var content   = BuildFrontMatter(node.Id, node.Name) + BuildRepoMarkdown(active);
+                    var name      = uniqueName[node.Id];
+                    var filePath  = hasChildren.Contains(node.Id)
+                        ? $"{childDir[node.Id]}/{name}.md"
+                        : $"{containerDir[node.Id]}/{name}.md";
+                    fileMap[filePath] = content;
+                }
+            }
+
+            if (fileMap.Count == 0)
+                return ResultOptions.Fail("No data in DB to push", 400);
+
+            _logger.LogInformation("ForceUpdate: writing {Count} files for user {UserId}", fileMap.Count, userId);
+
+            var creds = BuildCredentials(profile.KRepoPat!);
+            string repoWorkDir;
+
+            // ── Fetch remote (no merge) so we have the tracking ref ──────────────
+            using (var repo = new LibGit2Sharp.Repository(localPath))
+            {
+                repoWorkDir = repo.Info.WorkingDirectory.TrimEnd('/', '\\');
+                var remote = repo.Network.Remotes["origin"];
+                try
+                {
+                    repo.Network.Fetch(remote.Name,
+                        remote.FetchRefSpecs.Select(r => r.Specification),
+                        new FetchOptions { CredentialsProvider = creds });
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "ForceUpdate: fetch failed (will force-push anyway)");
+                }
+            }
+
+            // ── Clear Knowledge dir and write all DB files ───────────────────────
+            var knowledgeRoot = Path.Combine(repoWorkDir, "Knowledge");
+            if (Directory.Exists(knowledgeRoot))
+                Directory.Delete(knowledgeRoot, recursive: true);
+            Directory.CreateDirectory(knowledgeRoot);
+
+            foreach (var (relPath, content) in fileMap)
+            {
+                var absPath = Path.Combine(repoWorkDir, relPath.Replace('/', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(Path.GetDirectoryName(absPath)!);
+                await System.IO.File.WriteAllTextAsync(absPath, content, Encoding.UTF8);
+            }
+
+            // ── Stage, commit, force-push ────────────────────────────────────────
+            using (var repo = new LibGit2Sharp.Repository(localPath))
+            {
+                // Ensure we're on the configured branch (clone may default to "main")
+                var localBranch = repo.Branches[branch];
+                if (localBranch == null)
+                {
+                    _logger.LogInformation("ForceUpdate: creating local branch '{Branch}' from HEAD", branch);
+                    localBranch = repo.CreateBranch(branch);
+                }
+                if (!repo.Head.FriendlyName.Equals(branch, StringComparison.Ordinal))
+                {
+                    _logger.LogInformation("ForceUpdate: switching from '{Current}' to '{Target}'",
+                        repo.Head.FriendlyName, branch);
+                    Commands.Checkout(repo, localBranch);
+                }
+
+                // Set up tracking so push knows the upstream
+                var remoteBranchRef = $"refs/remotes/origin/{branch}";
+                if (repo.Branches[remoteBranchRef] != null)
+                    repo.Branches.Update(localBranch, b => b.TrackedBranch = remoteBranchRef);
+
+                Commands.Stage(repo, "*");
+                if (!repo.RetrieveStatus().IsDirty)
+                {
+                    _logger.LogInformation("ForceUpdate: files match HEAD — force-pushing existing commits");
+                }
+                else
+                {
+                    var sig = new Signature("SuperApp Sync", "sync@superapp.local", DateTimeOffset.UtcNow);
+                    var commit = repo.Commit($"Force sync: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}", sig, sig);
+                    _logger.LogInformation("ForceUpdate: committed {Sha}", commit.Sha[..8]);
+                }
+
+                // Force-push: "+" prefix on refspec forces the remote ref to match local
+                _logger.LogInformation("ForceUpdate: pushing branch '{Branch}', HEAD={Sha}",
+                    branch, repo.Head.Tip.Sha[..8]);
+
+                var localSha = repo.Head.Tip.Sha;
+                var remoteUrl = repo.Network.Remotes["origin"].Url;
+                _logger.LogInformation("ForceUpdate: remote URL = {Url}", remoteUrl);
+
+                repo.Network.Push(
+                    repo.Network.Remotes["origin"],
+                    $"+refs/heads/{branch}:refs/heads/{branch}",
+                    new PushOptions { CredentialsProvider = creds });
+
+                // ── Verify push actually landed ──────────────────────────────────
+                repo.Network.Fetch(repo.Network.Remotes["origin"].Name,
+                    repo.Network.Remotes["origin"].FetchRefSpecs.Select(r => r.Specification),
+                    new FetchOptions { CredentialsProvider = creds });
+
+                var remoteAfterPush = repo.Branches[$"refs/remotes/origin/{branch}"];
+                var remoteSha = remoteAfterPush?.Tip?.Sha;
+
+                _logger.LogInformation(
+                    "ForceUpdate: local={LocalSha}, remote after push={RemoteSha}, match={Match}",
+                    localSha[..8], remoteSha?[..8] ?? "NULL", localSha == remoteSha);
+
+                if (remoteSha != localSha)
+                    return ResultOptions.Fail(
+                        $"Push did not update remote. Local={localSha[..8]}, remote={remoteSha?[..8] ?? "NULL"}. " +
+                        "Check PAT permissions (needs write/push access) and repo URL.", 500);
+
+                _logger.LogInformation("ForceUpdate: verified — remote matches local");
+
+                var newHash = ComputeHash(fileMap);
+                profile.KRepoLastPushSha  = localSha;
+                profile.KRepoLastPushAt   = DateTime.UtcNow;
+                profile.KRepoContentHash  = newHash;
+                profile.KRepoStatusCode   = "synced";
+                await _profileRepo.UpsertUserProfileAsync(profile);
+            }
+
+            return new ResultOptions { Success = true, Message = $"Force updated remote with {fileMap.Count} files" };
         }
     }
 }
