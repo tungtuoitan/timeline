@@ -244,8 +244,8 @@ namespace SuperAppAPI
             // SignalR
             services.AddSignalR();
 
-            // Background services — real-time sync daemon (replaces old polling-only service)
-            services.AddHostedService<KRepoSyncDaemon>();
+            // Background services — disabled: manual sync only (re-enable KRepoSyncDaemon when ready)
+            // services.AddHostedService<KRepoSyncDaemon>();
         }
 
         public void Configure(IApplicationBuilder app)

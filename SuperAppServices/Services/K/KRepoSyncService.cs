@@ -125,18 +125,20 @@ namespace SuperAppServices.Services.K
             if (profile.KRepoStatusCode == "conflict")
                 return ResultOptions.Fail("Sync paused due to conflict. Resolve in git and click Retry.", 409);
 
-            // Step 1: push DB → repo first (DB is source of truth)
-            await PushStatusAsync(userId, "pushing", "Pushing DB → repo before pull...", "push");
-            var pushResult = await DoPushAsync(profile);
-            if (!pushResult.Success)
-            {
-                var isConflict = pushResult.Status == 409;
-                await PushStatusAsync(userId, isConflict ? "conflict" : "error", pushResult.Message, "push");
-                await SaveStatusAsync(profile, isConflict ? "conflict" : "error");
-                return pushResult;
-            }
+            // NOTE: DoPushAsync (push DB → repo first) is intentionally disabled.
+            // Manual workflow: user edits repo directly and pulls → DB wins repo content.
+            // Re-enable when daemon/auto-sync is needed.
+            // await PushStatusAsync(userId, "pushing", "Pushing DB → repo before pull...", "push");
+            // var pushResult = await DoPushAsync(profile);
+            // if (!pushResult.Success)
+            // {
+            //     var isConflict = pushResult.Status == 409;
+            //     await PushStatusAsync(userId, isConflict ? "conflict" : "error", pushResult.Message, "push");
+            //     await SaveStatusAsync(profile, isConflict ? "conflict" : "error");
+            //     return pushResult;
+            // }
 
-            // Step 2: parse remote changes and apply to DB
+            // Parse remote changes and apply to DB
             await PushStatusAsync(userId, "pulling", "Pulling repo → DB...", "pull");
             try
             {
@@ -228,6 +230,232 @@ namespace SuperAppServices.Services.K
                 _logger.LogError(ex, "GetDiff failed for user {UserId}", userId);
                 return new KRepoSyncDiffResponse();
             }
+        }
+
+        /// <summary>
+        /// Compares current remote repo state against DB — returns a structured diff
+        /// without modifying anything. Fetches remote first to get latest.
+        /// </summary>
+        public async Task<KRepoCompareDiffResponse> GetCompareDiffAsync(int userId)
+        {
+            var profile = await _profileRepo.GetByUserIdAsync(userId);
+            if (string.IsNullOrEmpty(profile?.KRepoUrl) || string.IsNullOrEmpty(profile.KRepoPat))
+                return new KRepoCompareDiffResponse();
+
+            var localPath = GetLocalPath(userId);
+            EnsureCloned(localPath, profile.KRepoUrl, profile.KRepoPat, profile.KRepoBranch ?? "main");
+
+            var entries = new List<KRepoCompareEntry>();
+
+            try
+            {
+                using var repo   = new LibGit2Sharp.Repository(localPath);
+                var creds        = BuildCredentials(profile.KRepoPat!);
+                var branch       = profile.KRepoBranch ?? "main";
+
+                // Fetch to get latest remote state
+                Remote remote = repo.Network.Remotes["origin"];
+                repo.Network.Fetch(remote.Name, remote.FetchRefSpecs.Select(r => r.Specification),
+                    new FetchOptions { CredentialsProvider = creds });
+
+                var remoteBranch = repo.Branches[$"refs/remotes/origin/{branch}"];
+                if (remoteBranch == null)
+                    return new KRepoCompareDiffResponse { Error = "Remote branch not found" };
+
+                // ── 1. Read repo files ────────────────────────────────────────────
+                var mdFiles = new Dictionary<string, string>(StringComparer.Ordinal);
+                WalkMdFiles(remoteBranch.Tip.Tree, "", mdFiles);
+
+                var knowledgeFolders = new List<RepoKnowledgeFolder>();
+                var nodeFolders      = new List<RepoNodeFolder>();
+                foreach (var (path, content) in mdFiles)
+                {
+                    var logical = KRepoSyncPlanner.LogicalPath(path);
+                    if (logical == null) continue;
+                    var (id, _, body) = ParseFrontMatter(content);
+                    if (logical.Length == 2)
+                        knowledgeFolders.Add(new RepoKnowledgeFolder(logical[1], id, logical[1]));
+                    else if (logical.Length >= 3)
+                        nodeFolders.Add(new RepoNodeFolder(string.Join("/", logical), id, logical[^1], ParseQuestions(body)));
+                }
+
+                // ── 2. DB snapshot ────────────────────────────────────────────────
+                var dbKnowledges = await _db.KKnowledges
+                    .Where(k => k.UserId == userId && k.DeletedAt == null).ToListAsync();
+                var dbKnowledgeMap = dbKnowledges.ToDictionary(k => k.Id);
+                var userKnowledgeIds = dbKnowledges.Select(k => k.Id).ToList();
+
+                var dbNodes = await _db.KNodes
+                    .Where(n => userKnowledgeIds.Contains(n.KnowledgeId) && n.DeletedAt == null).ToListAsync();
+                var dbNodeMap = dbNodes.ToDictionary(n => n.Id);
+                var dbNodeIds = dbNodes.Select(n => n.Id).ToList();
+
+                var dbQuestions = await _db.KQuestions
+                    .Where(q => q.NodeId != null && dbNodeIds.Contains(q.NodeId.Value) && q.DeletedAt == null)
+                    .ToListAsync();
+
+                // ── 3. Plan (pure comparison) ─────────────────────────────────────
+                var plan = KRepoSyncPlanner.Plan(
+                    knowledgeFolders,
+                    nodeFolders,
+                    dbKnowledges.Select(k => new DbKnowledgeRef(k.Id, k.Name)).ToList(),
+                    dbNodes.Select(n => new DbNodeRef(n.Id, n.KnowledgeId, n.ParentId, n.Name)).ToList(),
+                    dbQuestions.Select(q => new DbQuestionRef(q.Id, q.NodeId!.Value, q.Name, q.Description, q.StatusCode == "draft", q.SortOrder)).ToList());
+
+                // ── 4. Translate plan → compare entries ───────────────────────────
+
+                // Knowledges only in repo (will be created on Push to DB)
+                foreach (var pk in plan.Knowledges.Where(k => k.ExistingId == null))
+                    entries.Add(new KRepoCompareEntry
+                    {
+                        EntityType  = "knowledge",
+                        ChangeType  = "repo_only",
+                        Name        = pk.Name,
+                        RepoPath    = $"Knowledge/{pk.FolderKey}",
+                    });
+
+                // Knowledges only in DB (will be pushed on Push to R)
+                var claimedKnowledgeIds = plan.Knowledges.Where(k => k.ExistingId != null).Select(k => k.ExistingId!.Value).ToHashSet();
+                foreach (var k in dbKnowledges.Where(k => !claimedKnowledgeIds.Contains(k.Id)))
+                    entries.Add(new KRepoCompareEntry
+                    {
+                        EntityType = "knowledge",
+                        ChangeType = "db_only",
+                        DbId       = k.Id,
+                        Name       = k.Name,
+                    });
+
+                // Knowledges in both but renamed
+                foreach (var pk in plan.Knowledges.Where(k => k.ExistingId != null))
+                {
+                    if (!dbKnowledgeMap.TryGetValue(pk.ExistingId!.Value, out var dbK)) continue;
+                    if (dbK.Name != pk.Name)
+                        entries.Add(new KRepoCompareEntry
+                        {
+                            EntityType    = "knowledge",
+                            ChangeType    = "modified",
+                            DbId          = dbK.Id,
+                            Name          = pk.Name,
+                            OldText       = dbK.Name,
+                            NewText       = pk.Name,
+                        });
+                }
+
+                // Nodes only in repo
+                foreach (var pn in plan.Nodes.Where(n => n.ExistingId == null))
+                    entries.Add(new KRepoCompareEntry
+                    {
+                        EntityType    = "node",
+                        ChangeType    = "repo_only",
+                        Name          = pn.Name,
+                        KnowledgeName = pn.KnowledgeFolderKey,
+                        RepoPath      = pn.FolderKey,
+                    });
+
+                // Nodes only in DB
+                var claimedNodeIds = plan.Nodes.Where(n => n.ExistingId != null).Select(n => n.ExistingId!.Value).ToHashSet();
+                foreach (var n in dbNodes.Where(n => !claimedNodeIds.Contains(n.Id)))
+                {
+                    var kName = dbKnowledgeMap.TryGetValue(n.KnowledgeId, out var kk) ? kk.Name : "";
+                    entries.Add(new KRepoCompareEntry
+                    {
+                        EntityType    = "node",
+                        ChangeType    = "db_only",
+                        DbId          = n.Id,
+                        Name          = n.Name,
+                        KnowledgeName = kName,
+                    });
+                }
+
+                // Nodes in both but renamed/moved
+                foreach (var pn in plan.Nodes.Where(n => n.ExistingId != null))
+                {
+                    if (!dbNodeMap.TryGetValue(pn.ExistingId!.Value, out var dbN)) continue;
+                    var repoKName = pn.KnowledgeFolderKey;
+                    var dbKName   = dbKnowledgeMap.TryGetValue(dbN.KnowledgeId, out var dbKK) ? dbKK.Name : "";
+                    var nameChanged   = dbN.Name != pn.Name;
+                    var parentChanged = pn.ParentFolderKey != null; // non-null means it has a parent in repo
+                    // only flag if name actually changed
+                    if (nameChanged)
+                        entries.Add(new KRepoCompareEntry
+                        {
+                            EntityType    = "node",
+                            ChangeType    = "modified",
+                            DbId          = dbN.Id,
+                            Name          = pn.Name,
+                            KnowledgeName = dbKName,
+                            OldText       = dbN.Name,
+                            NewText       = pn.Name,
+                        });
+                }
+
+                // Questions: new in repo
+                var dbQuestionMap = dbQuestions.ToDictionary(q => q.Id);
+                var claimedQIds   = new HashSet<int>();
+                foreach (var pq in plan.Questions.Where(q => q.ExistingId == null))
+                {
+                    // resolve node name for display
+                    var nodeFolderName = pq.NodeFolderKey.Split('/').LastOrDefault() ?? pq.NodeFolderKey;
+                    entries.Add(new KRepoCompareEntry
+                    {
+                        EntityType = "question",
+                        ChangeType = "repo_only",
+                        Name       = pq.Question,
+                        NodeName   = nodeFolderName,
+                        NewText    = pq.Answer,
+                    });
+                }
+
+                // Questions: modified (content changed)
+                foreach (var pq in plan.Questions.Where(q => q.ExistingId != null))
+                {
+                    claimedQIds.Add(pq.ExistingId!.Value);
+                    if (!dbQuestionMap.TryGetValue(pq.ExistingId.Value, out var dbQ)) continue;
+                    var dbText   = dbQ.Name + (string.IsNullOrEmpty(dbQ.Description) ? "" : "\n" + dbQ.Description);
+                    var repoText = pq.Question + (string.IsNullOrEmpty(pq.Answer) ? "" : "\n" + pq.Answer);
+                    if (dbText == repoText) continue;
+                    var nodeFolderName = pq.NodeFolderKey.Split('/').LastOrDefault() ?? pq.NodeFolderKey;
+                    entries.Add(new KRepoCompareEntry
+                    {
+                        EntityType = "question",
+                        ChangeType = "modified",
+                        DbId       = dbQ.Id,
+                        Name       = pq.Question,
+                        NodeName   = nodeFolderName,
+                        OldText    = dbText,
+                        NewText    = repoText,
+                    });
+                }
+
+                // Questions: only in DB (deleted in repo)
+                foreach (var qId in plan.QuestionIdsToDelete)
+                {
+                    if (!dbQuestionMap.TryGetValue(qId, out var dbQ)) continue;
+                    var nodeForQ = dbNodeMap.TryGetValue(dbQ.NodeId!.Value, out var nn) ? nn.Name : "";
+                    entries.Add(new KRepoCompareEntry
+                    {
+                        EntityType = "question",
+                        ChangeType = "db_only",
+                        DbId       = dbQ.Id,
+                        Name       = dbQ.Name,
+                        NodeName   = nodeForQ,
+                        OldText    = dbQ.Name + (string.IsNullOrEmpty(dbQ.Description) ? "" : "\n" + dbQ.Description),
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetCompareDiff failed for user {UserId}", userId);
+                return new KRepoCompareDiffResponse { Error = ex.Message };
+            }
+
+            return new KRepoCompareDiffResponse
+            {
+                Entries       = entries,
+                RepoOnlyCount = entries.Count(e => e.ChangeType == "repo_only"),
+                DbOnlyCount   = entries.Count(e => e.ChangeType == "db_only"),
+                ModifiedCount = entries.Count(e => e.ChangeType == "modified"),
+            };
         }
 
         public async Task CheckAndUpdateStatusAsync(int userId)

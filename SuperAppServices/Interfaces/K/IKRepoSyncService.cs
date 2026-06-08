@@ -21,5 +21,11 @@ namespace SuperAppServices.Interfaces
         /// and normal push hits structural conflicts.
         /// </summary>
         Task<ResultOptions> ForceUpdateRemoteAsync(int userId);
+
+        /// <summary>
+        /// Compares current remote repo state vs DB without modifying anything.
+        /// Fetches remote first to get latest state.
+        /// </summary>
+        Task<KRepoCompareDiffResponse> GetCompareDiffAsync(int userId);
     }
 }

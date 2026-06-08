@@ -127,6 +127,24 @@ namespace SuperAppAPI.Controllers.K
             }
         }
 
+        // GET /api/k/repo-sync/compare  — compare remote repo vs DB, no writes
+        [HttpGet("compare")]
+        public async Task<IActionResult> Compare()
+        {
+            try
+            {
+                var userId = GetUserId();
+                if (userId == null) return Unauthorized();
+                var result = await _syncService.GetCompareDiffAsync(userId.Value);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Compare failed");
+                return StatusCode(500, ResultOptions.Fail("An error occurred", 500));
+            }
+        }
+
         // POST /api/k/repo-sync/retry  — clears conflict status and retries push
         [HttpPost("retry")]
         public async Task<IActionResult> Retry()
