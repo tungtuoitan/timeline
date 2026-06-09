@@ -49,6 +49,9 @@ namespace SuperAppServices.Interfaces
         /// <summary>Get questions for a knowledge-scoped daily review session.</summary>
         Task<ResultOptions> GetKnowledgeDailySessionAsync(int nodeId, int userId, int dailyLimit);
 
+        /// <summary>Get every learning question across the whole knowledge — used by the "Review All" entry point on the root.</summary>
+        Task<ResultOptions> GetKnowledgeReviewAllSessionAsync(int knowledgeId, int userId);
+
         /// <summary>Submit daily review answers, update SRS.</summary>
         Task<ResultOptions> SubmitDailyAnswersAsync(int nodeId, int userId, KDailySubmitRequest request);
 

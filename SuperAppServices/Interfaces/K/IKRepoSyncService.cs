@@ -23,9 +23,22 @@ namespace SuperAppServices.Interfaces
         Task<ResultOptions> ForceUpdateRemoteAsync(int userId);
 
         /// <summary>
+        /// Same as <see cref="ForceUpdateRemoteAsync(int)"/> but cancellable. Used by the
+        /// background daemon so new DB events can interrupt an in-progress push at well-defined
+        /// checkpoints (mid-libgit2sharp call cannot be cancelled — the next debounce will retry).
+        /// </summary>
+        Task<ResultOptions> ForceUpdateRemoteAsync(int userId, CancellationToken ct);
+
+        /// <summary>
         /// Compares current remote repo state vs DB without modifying anything.
         /// Fetches remote first to get latest state.
         /// </summary>
         Task<KRepoCompareDiffResponse> GetCompareDiffAsync(int userId);
+
+        /// <summary>
+        /// Applies a per-entity resolution choice (keep_db / keep_repo) for each
+        /// conflict, then force-pushes the resulting DB state to remote.
+        /// </summary>
+        Task<ResultOptions> ResolveConflictsAsync(int userId, List<KRepoResolveConflictItem> items);
     }
 }

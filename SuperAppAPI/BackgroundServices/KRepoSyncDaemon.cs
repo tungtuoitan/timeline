@@ -1,26 +1,26 @@
 using System.Collections.Concurrent;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using SuperAppDataRepositories.Data;
-using SuperAppDataRepositories.Ins;
 using SuperAppServices.Interfaces;
 
 namespace SuperAppAPI.BackgroundServices
 {
     /// <summary>
-    /// Real-time sync daemon that watches for both DB mutations and remote git changes,
-    /// then synchronises them automatically. Conflict strategy: DB always wins.
+    /// Background sync daemon — DB is the source of truth, remote is a mirror.
     ///
     /// <list type="bullet">
-    ///   <item><b>DB change</b> (via <see cref="IKSyncEventPublisher"/> Channel):
-    ///         debounce 5 s, then push DB -> repo.</item>
-    ///   <item><b>Remote change</b> (git fetch every 2 min):
-    ///         if remote ahead, push DB first (DB wins) then pull remote -> DB.</item>
+    ///   <item>Listens to <see cref="IKSyncEventPublisher"/> channel for K mutations.</item>
+    ///   <item>Per-user debounce: 5 s after the last event before pushing.</item>
+    ///   <item>A new event during debounce or push <b>cancels the in-flight operation</b>;
+    ///         cancellation is honoured at well-defined checkpoints inside
+    ///         <c>ForceUpdateRemoteAsync</c>.</item>
+    ///   <item>Per-user lock makes overlapping pushes impossible; new events queue and
+    ///         the previous waiter is cancelled.</item>
+    ///   <item>The daemon does not pull, fetch-and-merge, or auto-resolve conflicts —
+    ///         it always force-overwrites the remote with the current DB state. The
+    ///         FE polls <c>/compare</c> to surface remote-vs-DB diffs to the user.</item>
     /// </list>
-    ///
-    /// Per-user <see cref="SemaphoreSlim"/> prevents overlapping syncs for the same user.
     /// </summary>
     public sealed class KRepoSyncDaemon : BackgroundService
     {
@@ -28,14 +28,14 @@ namespace SuperAppAPI.BackgroundServices
         private readonly IKSyncEventPublisher _publisher;
         private readonly ILogger<KRepoSyncDaemon> _logger;
 
+        /// <summary>One CTS per user — cancelled whenever a new event arrives so the
+        /// pending debounce or in-flight push aborts and the latest event wins.</summary>
+        private readonly ConcurrentDictionary<int, CancellationTokenSource> _userOpCts = new();
+
+        /// <summary>Per-user mutex so only one push runs at a time for a given user.</summary>
         private readonly ConcurrentDictionary<int, SemaphoreSlim> _userLocks = new();
-        private readonly ConcurrentDictionary<int, CancellationTokenSource> _debounceTimers = new();
 
-        /// <summary>How long to wait after the last DB change before pushing.</summary>
         private static readonly TimeSpan DebounceDelay = TimeSpan.FromSeconds(5);
-
-        /// <summary>How often to poll remote repos for new commits.</summary>
-        private static readonly TimeSpan RemotePollInterval = TimeSpan.FromMinutes(2);
 
         public KRepoSyncDaemon(
             IServiceScopeFactory scopeFactory,
@@ -49,156 +49,73 @@ namespace SuperAppAPI.BackgroundServices
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("KRepoSyncDaemon started (debounce={Debounce}s, poll={Poll}s)",
-                DebounceDelay.TotalSeconds, RemotePollInterval.TotalSeconds);
+            _logger.LogInformation("KRepoSyncDaemon started (debounce={Sec}s, force-push mode)",
+                DebounceDelay.TotalSeconds);
 
-            var dbTask     = ListenDbChangesAsync(stoppingToken);
-            var remoteTask = PollRemoteAsync(stoppingToken);
-
-            await Task.WhenAll(dbTask, remoteTask);
+            try
+            {
+                await foreach (var userId in _publisher.Reader.ReadAllAsync(stoppingToken))
+                    ScheduleSync(userId, stoppingToken);
+            }
+            catch (OperationCanceledException) { /* shutdown */ }
 
             _logger.LogInformation("KRepoSyncDaemon stopped");
         }
 
-        // ── DB change listener ──────────────────────────────────────────────
-
-        private async Task ListenDbChangesAsync(CancellationToken ct)
+        private void ScheduleSync(int userId, CancellationToken stoppingToken)
         {
-            try
+            // Replace the per-user CTS — cancelling the previous one terminates whichever
+            // stage (debounce delay, semaphore wait, or in-flight push) was running.
+            var newCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+            if (_userOpCts.TryGetValue(userId, out var prev))
             {
-                await foreach (var userId in _publisher.Reader.ReadAllAsync(ct))
-                {
-                    DebouncePush(userId, ct);
-                }
+                try { prev.Cancel(); } catch { /* already disposed */ }
             }
-            catch (OperationCanceledException) { /* shutdown */ }
-        }
-
-        /// <summary>
-        /// (Re-)schedules a debounced push for <paramref name="userId"/>.
-        /// If a previous timer is pending it is cancelled so rapid edits
-        /// are batched into a single push.
-        /// </summary>
-        private void DebouncePush(int userId, CancellationToken ct)
-        {
-            // Cancel any pending debounce for this user
-            if (_debounceTimers.TryRemove(userId, out var existing))
-            {
-                existing.Cancel();
-                existing.Dispose();
-            }
-
-            var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            _debounceTimers[userId] = cts;
+            _userOpCts[userId] = newCts;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await Task.Delay(DebounceDelay, cts.Token);
-                    _debounceTimers.TryRemove(userId, out _);
-
-                    _logger.LogInformation("KRepoSyncDaemon: pushing DB->repo for user {UserId} (debounced)", userId);
-
-                    await ExecuteWithLock(userId, async sp =>
-                    {
-                        var syncService = sp.GetRequiredService<IKRepoSyncService>();
-                        await syncService.PushToRepoAsync(userId);
-                    }, ct);
+                    await Task.Delay(DebounceDelay, newCts.Token);
+                    await RunSyncAsync(userId, newCts.Token);
                 }
-                catch (OperationCanceledException) { /* debounce reset or shutdown */ }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogDebug("Daemon: cancelled for user {UserId} (newer event arrived)", userId);
+                }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "KRepoSyncDaemon: debounced push failed for user {UserId}", userId);
+                    _logger.LogError(ex, "Daemon: sync failed for user {UserId}", userId);
                 }
-            }, ct);
+                finally
+                {
+                    // Only remove if this CTS is still the current one
+                    _userOpCts.TryRemove(new KeyValuePair<int, CancellationTokenSource>(userId, newCts));
+                    newCts.Dispose();
+                }
+            }, stoppingToken);
         }
 
-        // ── Remote poller ───────────────────────────────────────────────────
-
-        private async Task PollRemoteAsync(CancellationToken ct)
-        {
-            while (!ct.IsCancellationRequested)
-            {
-                // Wait first — give the app time to start up
-                try { await Task.Delay(RemotePollInterval, ct); }
-                catch (OperationCanceledException) { break; }
-
-                try
-                {
-                    // Discover all users with a configured repo
-                    List<int> userIds;
-                    using (var listScope = _scopeFactory.CreateScope())
-                    {
-                        var db = listScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                        userIds = await db.UserProfiles
-                            .Where(p => p.KRepoUrl != null && p.KRepoUrl != ""
-                                     && p.KRepoStatusCode != "conflict")
-                            .Select(p => p.UserId)
-                            .ToListAsync(ct);
-                    }
-
-                    foreach (var userId in userIds)
-                    {
-                        if (ct.IsCancellationRequested) break;
-
-                        try
-                        {
-                            await ExecuteWithLock(userId, async sp =>
-                            {
-                                var syncService = sp.GetRequiredService<IKRepoSyncService>();
-
-                                // Step 1: fetch remote HEAD and update status
-                                await syncService.CheckAndUpdateStatusAsync(userId);
-
-                                // Step 2: re-read profile to see if remote is ahead
-                                var profileRepo = sp.GetRequiredService<IUserProfileRepository>();
-                                var profile = await profileRepo.GetByUserIdAsync(userId);
-
-                                if (profile?.KRepoStatusCode == "behind")
-                                {
-                                    _logger.LogInformation(
-                                        "KRepoSyncDaemon: remote ahead — auto-pulling for user {UserId}", userId);
-                                    // PullFromRepoAsync pushes DB first (DB wins) then applies remote
-                                    await syncService.PullFromRepoAsync(userId);
-                                }
-                            }, ct);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "KRepoSyncDaemon: poll error for user {UserId}", userId);
-                        }
-                    }
-                }
-                catch (OperationCanceledException) { break; }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "KRepoSyncDaemon: remote poll cycle error");
-                }
-            }
-        }
-
-        // ── Lock helper ─────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Acquires a per-user lock (non-blocking) and runs <paramref name="action"/>
-        /// inside a fresh DI scope. If the lock is already held (another sync for this
-        /// user is in progress), the call is silently skipped.
-        /// </summary>
-        private async Task ExecuteWithLock(int userId, Func<IServiceProvider, Task> action, CancellationToken ct)
+        private async Task RunSyncAsync(int userId, CancellationToken ct)
         {
             var sem = _userLocks.GetOrAdd(userId, _ => new SemaphoreSlim(1, 1));
 
-            if (!await sem.WaitAsync(TimeSpan.Zero, ct))
-            {
-                _logger.LogDebug("KRepoSyncDaemon: skipping user {UserId} — sync already in progress", userId);
-                return;
-            }
-
+            // Wait for any previous push to release. If a newer event cancels us
+            // while waiting, we exit cleanly — the newer event scheduled its own task.
+            await sem.WaitAsync(ct);
             try
             {
+                ct.ThrowIfCancellationRequested();
+
                 using var scope = _scopeFactory.CreateScope();
-                await action(scope.ServiceProvider);
+                var syncService = scope.ServiceProvider.GetRequiredService<IKRepoSyncService>();
+
+                _logger.LogInformation("Daemon: force-pushing DB → remote for user {UserId}", userId);
+                var result = await syncService.ForceUpdateRemoteAsync(userId, ct);
+                if (!result.Success)
+                    _logger.LogWarning("Daemon: force-push for user {UserId} failed: {Msg}",
+                        userId, result.Message);
             }
             finally
             {
@@ -206,16 +123,13 @@ namespace SuperAppAPI.BackgroundServices
             }
         }
 
-        // ── Cleanup ─────────────────────────────────────────────────────────
-
         public override void Dispose()
         {
-            foreach (var cts in _debounceTimers.Values)
+            foreach (var cts in _userOpCts.Values)
             {
-                cts.Cancel();
-                cts.Dispose();
+                try { cts.Cancel(); cts.Dispose(); } catch { /* best effort */ }
             }
-            _debounceTimers.Clear();
+            _userOpCts.Clear();
 
             foreach (var sem in _userLocks.Values)
                 sem.Dispose();

@@ -106,4 +106,24 @@ namespace SuperAppModels.DTOs.Responses
         [JsonPropertyName("error")]
         public string? Error { get; set; }
     }
+
+    public class KRepoResolveConflictItem
+    {
+        /// <summary>"knowledge" | "node" | "question"</summary>
+        [JsonPropertyName("entityType")]
+        public string EntityType { get; set; } = "";
+
+        [JsonPropertyName("dbId")]
+        public int DbId { get; set; }
+
+        /// <summary>"keep_db" | "keep_repo"</summary>
+        [JsonPropertyName("action")]
+        public string Action { get; set; } = "";
+    }
+
+    public class KRepoResolveConflictsRequest
+    {
+        [JsonPropertyName("items")]
+        public List<KRepoResolveConflictItem> Items { get; set; } = [];
+    }
 }

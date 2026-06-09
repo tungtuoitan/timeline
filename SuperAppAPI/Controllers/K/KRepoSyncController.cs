@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppModels.DTOs;
+using SuperAppModels.DTOs.Responses;
 using SuperAppServices.Interfaces;
 
 namespace SuperAppAPI.Controllers.K
@@ -141,6 +142,24 @@ namespace SuperAppAPI.Controllers.K
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Compare failed");
+                return StatusCode(500, ResultOptions.Fail("An error occurred", 500));
+            }
+        }
+
+        // POST /api/k/repo-sync/resolve-conflicts  — apply per-entity choices then force-push
+        [HttpPost("resolve-conflicts")]
+        public async Task<IActionResult> ResolveConflicts([FromBody] KRepoResolveConflictsRequest request)
+        {
+            try
+            {
+                var userId = GetUserId();
+                if (userId == null) return Unauthorized();
+                var result = await _syncService.ResolveConflictsAsync(userId.Value, request?.Items ?? []);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 400, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ResolveConflicts failed");
                 return StatusCode(500, ResultOptions.Fail("An error occurred", 500));
             }
         }

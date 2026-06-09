@@ -756,6 +756,32 @@ namespace SuperAppDataRepositories.Repositories
 
         // ── Active questions for retention ────────────────────────────────────
 
+        public async Task<List<KQuestionEntity>> GetKnowledgeReviewAllQuestionsAsync(int knowledgeId)
+        {
+            try
+            {
+                var now = VietnamDateTime.Now();
+                return await _context.KQuestions
+                    .Include(q => q.Node)
+                    .Where(q => q.Node != null && q.Node.KnowledgeId == knowledgeId
+                             && q.Node.DeletedAt == null
+                             && q.Node.StatusCode == "learning"
+                             && q.StatusCode == "learning"
+                             && q.DeletedAt == null
+                             && (q.SrsNextReviewAt == null || q.SrsNextReviewAt <= now))
+                    .OrderBy(q => q.SrsNextReviewAt == null ? 1 : 0)
+                    .ThenBy(q => q.SrsNextReviewAt)
+                    .ThenBy(q => q.NodeId)
+                    .ThenBy(q => q.SortOrder)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting review-all questions for knowledge {KnowledgeId}", knowledgeId);
+                throw;
+            }
+        }
+
         public async Task<List<KQuestionEntity>> GetActiveQuestionsAsync(int knowledgeId)
         {
             try

@@ -209,6 +209,24 @@ namespace SuperAppAPI.Controllers.K
             }
         }
 
+        // GET /api/k/{knowledgeId}/knowledge-review-all-session
+        [HttpGet("knowledge-review-all-session")]
+        public async Task<IActionResult> GetKnowledgeReviewAllSession(int nodeId)
+        {
+            try
+            {
+                var userId = GetUserId();
+                if (userId == null) return Unauthorized();
+                var result = await _service.GetKnowledgeReviewAllSessionAsync(nodeId, userId.Value);
+                return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting knowledge review-all session for knowledge {KnowledgeId}", nodeId);
+                return StatusCode(500, new ResultOptions { Success = false, Message = "An error occurred", Status = 500 });
+            }
+        }
+
         // POST /api/k/{nodeId}/daily-submit
         [HttpPost("daily-submit")]
         public async Task<IActionResult> SubmitDailyAnswers(int nodeId, [FromBody] KDailySubmitRequest request)

@@ -244,8 +244,10 @@ namespace SuperAppAPI
             // SignalR
             services.AddSignalR();
 
-            // Background services — disabled: manual sync only (re-enable KRepoSyncDaemon when ready)
-            // services.AddHostedService<KRepoSyncDaemon>();
+            // Background services — debounced force-push DB → remote on every K mutation.
+            // Daemon never pulls; it only pushes. FE polls /compare to surface remote-vs-DB
+            // diffs, and the user resolves any conflicts via the resolve-conflicts dialog.
+            services.AddHostedService<KRepoSyncDaemon>();
         }
 
         public void Configure(IApplicationBuilder app)

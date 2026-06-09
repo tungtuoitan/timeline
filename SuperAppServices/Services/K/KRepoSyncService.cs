@@ -406,14 +406,23 @@ namespace SuperAppServices.Services.K
                     });
                 }
 
-                // Questions: modified (content changed)
+                // Questions: modified (content or draft-status changed)
                 foreach (var pq in plan.Questions.Where(q => q.ExistingId != null))
                 {
                     claimedQIds.Add(pq.ExistingId!.Value);
                     if (!dbQuestionMap.TryGetValue(pq.ExistingId.Value, out var dbQ)) continue;
-                    var dbText   = dbQ.Name + (string.IsNullOrEmpty(dbQ.Description) ? "" : "\n" + dbQ.Description);
-                    var repoText = pq.Question + (string.IsNullOrEmpty(pq.Answer) ? "" : "\n" + pq.Answer);
-                    if (dbText == repoText) continue;
+                    // DB name is flattened by the builder before being written to repo, so
+                    // compare flattened-vs-flattened to avoid false "modified" diffs.
+                    var dbBody   = FlattenLine(dbQ.Name) + (string.IsNullOrEmpty(dbQ.Description) ? "" : "\n" + dbQ.Description.Trim());
+                    var repoBody = pq.Question.Trim() + (string.IsNullOrEmpty(pq.Answer) ? "" : "\n" + pq.Answer.Trim());
+                    var dbDraft   = dbQ.StatusCode == "draft";
+                    var repoDraft = pq.IsDraft;
+                    if (dbBody == repoBody && dbDraft == repoDraft) continue;
+
+                    // Tag draft status into the diff text so the UI shows *why* it's marked modified
+                    // even when the body is identical (only the active/draft flag differs).
+                    var dbText   = (dbDraft   ? "[draft] "  : "[active] ") + dbBody;
+                    var repoText = (repoDraft ? "[draft] "  : "[active] ") + repoBody;
                     var nodeFolderName = pq.NodeFolderKey.Split('/').LastOrDefault() ?? pq.NodeFolderKey;
                     entries.Add(new KRepoCompareEntry
                     {
@@ -1010,6 +1019,15 @@ namespace SuperAppServices.Services.K
 
         // ── Markdown builder (C# port of kMarkdownEditor.utils.ts) ───────────────
 
+        /// <summary>
+        /// Flattens a string to a single line — collapses CRLF/LF and any run of
+        /// whitespace into one space. Used when a value goes onto the heading line
+        /// of a markdown question (newlines there would break the parser, since a
+        /// new line starting with "# " is read as a new question).
+        /// </summary>
+        private static string FlattenLine(string? s) =>
+            string.IsNullOrEmpty(s) ? "" : Regex.Replace(s.Replace("\r\n", "\n").Replace('\n', ' '), @"\s+", " ").Trim();
+
         private static string BuildRepoMarkdown(List<KQuestionEntity> questions)
         {
             if (!questions.Any()) return string.Empty;
@@ -1019,23 +1037,24 @@ namespace SuperAppServices.Services.K
 
             foreach (var q in sorted)
             {
-                var tag = $"[id:{q.Id} order:{q.SortOrder}]";
+                var tag      = $"[id:{q.Id} order:{q.SortOrder}]";
+                var nameLine = FlattenLine(q.Name);
                 if (q.StatusCode == "draft")
                 {
                     var answer = q.Description?.Trim();
                     if (!string.IsNullOrEmpty(answer))
                     {
-                        sb.AppendLine($"<!--# {q.Name} {tag}");
+                        sb.AppendLine($"<!--# {nameLine} {tag}");
                         sb.AppendLine($"{answer} -->");
                     }
                     else
                     {
-                        sb.AppendLine($"<!--# {q.Name} {tag} -->");
+                        sb.AppendLine($"<!--# {nameLine} {tag} -->");
                     }
                 }
                 else
                 {
-                    sb.AppendLine($"# {q.Name} {tag}");
+                    sb.AppendLine($"# {nameLine} {tag}");
                     if (!string.IsNullOrEmpty(q.Description?.Trim()))
                         sb.AppendLine(q.Description!.Trim());
                 }
@@ -1117,6 +1136,12 @@ namespace SuperAppServices.Services.K
             bool isDraft = false;
             int? id = null, order = null;
             bool inDraft = false;
+
+            // Tolerate the editor putting "<!--" on its own line with the heading on
+            // the next line — collapse that into the canonical single-line opener so
+            // the regex below can recognise it as a draft block.
+            body = (body ?? "").Replace("\r\n", "\n");
+            body = Regex.Replace(body, @"<!--\s*\n\s*#\s", "<!--# ");
 
             void Flush()
             {
@@ -1248,6 +1273,9 @@ namespace SuperAppServices.Services.K
         // ── Force Update Remote ──────────────────────────────────────────────────
 
         public async Task<ResultOptions> ForceUpdateRemoteAsync(int userId)
+            => await ForceUpdateRemoteAsync(userId, CancellationToken.None);
+
+        public async Task<ResultOptions> ForceUpdateRemoteAsync(int userId, CancellationToken ct)
         {
             var profile = await _profileRepo.GetByUserIdAsync(userId);
             if (profile == null)
@@ -1258,10 +1286,16 @@ namespace SuperAppServices.Services.K
             try
             {
                 await PushStatusAsync(userId, "syncing", "Force updating remote…", "push");
-                var result = await DoForceUpdateRemoteAsync(profile);
+                ct.ThrowIfCancellationRequested();
+                var result = await DoForceUpdateRemoteAsync(profile, ct);
                 await PushStatusAsync(userId, result.Success ? "synced" : "error",
                     result.Message, "push");
                 return result;
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("ForceUpdateRemote cancelled for user {UserId}", userId);
+                return ResultOptions.Fail("Cancelled", 499);
             }
             catch (Exception ex)
             {
@@ -1271,16 +1305,148 @@ namespace SuperAppServices.Services.K
             }
         }
 
+        // ── Resolve Conflicts ────────────────────────────────────────────────────
+
+        /// <summary>
+        /// For each conflict, applies "keep_db" (no-op — DB already has it) or
+        /// "keep_repo" (overwrite DB entity with repo's value), then force-pushes
+        /// the resulting DB state to remote so both sides match.
+        /// </summary>
+        public async Task<ResultOptions> ResolveConflictsAsync(int userId, List<KRepoResolveConflictItem> items)
+        {
+            var profile = await _profileRepo.GetByUserIdAsync(userId);
+            if (profile == null)
+                return ResultOptions.Fail("User profile not found", 404);
+            if (string.IsNullOrEmpty(profile.KRepoUrl) || string.IsNullOrEmpty(profile.KRepoPat))
+                return ResultOptions.Fail("Repo not configured", 400);
+            if (items == null || items.Count == 0)
+                return ResultOptions.Fail("No items to resolve", 400);
+
+            try
+            {
+                await PushStatusAsync(userId, "syncing", "Resolving conflicts…", "push");
+
+                var keepRepo = items.Where(i => i.Action == "keep_repo").ToList();
+                if (keepRepo.Count > 0)
+                {
+                    // Need repo content to apply "keep_repo" — fetch & parse
+                    var localPath = GetLocalPath(userId);
+                    EnsureCloned(localPath, profile.KRepoUrl, profile.KRepoPat, profile.KRepoBranch ?? "main");
+
+                    var repoNodes      = new Dictionary<int, ParsedQuestion[]>();
+                    var repoNodeNames  = new Dictionary<int, string>();
+                    var repoKnowledges = new Dictionary<int, string>();
+                    using (var repo = new LibGit2Sharp.Repository(localPath))
+                    {
+                        var creds  = BuildCredentials(profile.KRepoPat);
+                        var branch = profile.KRepoBranch ?? "main";
+                        Remote remote = repo.Network.Remotes["origin"];
+                        repo.Network.Fetch(remote.Name, remote.FetchRefSpecs.Select(r => r.Specification),
+                            new FetchOptions { CredentialsProvider = creds });
+                        var remoteBranch = repo.Branches[$"refs/remotes/origin/{branch}"];
+                        if (remoteBranch == null)
+                            return ResultOptions.Fail("Remote branch not found", 400);
+
+                        var mdFiles = new Dictionary<string, string>(StringComparer.Ordinal);
+                        WalkMdFiles(remoteBranch.Tip.Tree, "", mdFiles);
+                        foreach (var (path, content) in mdFiles)
+                        {
+                            var logical = KRepoSyncPlanner.LogicalPath(path);
+                            if (logical == null) continue;
+                            var (id, _, body) = ParseFrontMatter(content);
+                            if (id == null) continue;
+                            if (logical.Length == 2)
+                                repoKnowledges[id.Value] = logical[1];
+                            else if (logical.Length >= 3)
+                            {
+                                repoNodeNames[id.Value] = logical[^1];
+                                repoNodes[id.Value]     = ParseQuestions(body).ToArray();
+                            }
+                        }
+                    }
+
+                    var now = DateTime.UtcNow;
+                    foreach (var it in keepRepo)
+                    {
+                        if (it.EntityType == "knowledge")
+                        {
+                            var k = await _db.KKnowledges.FirstOrDefaultAsync(x => x.Id == it.DbId && x.DeletedAt == null);
+                            if (k != null && repoKnowledges.TryGetValue(it.DbId, out var newName) && k.Name != newName)
+                            {
+                                k.Name = newName; k.UpdatedAt = now;
+                                _logger.LogInformation("ResolveConflict: knowledge {Id} → '{Name}' (keep_repo)", k.Id, newName);
+                            }
+                        }
+                        else if (it.EntityType == "node")
+                        {
+                            var n = await _db.KNodes.FirstOrDefaultAsync(x => x.Id == it.DbId && x.DeletedAt == null);
+                            if (n != null && repoNodeNames.TryGetValue(it.DbId, out var newName) && n.Name != newName)
+                            {
+                                n.Name = newName; n.UpdatedAt = now;
+                                _logger.LogInformation("ResolveConflict: node {Id} → '{Name}' (keep_repo)", n.Id, newName);
+                            }
+                        }
+                        else if (it.EntityType == "question")
+                        {
+                            var q = await _db.KQuestions.FirstOrDefaultAsync(x => x.Id == it.DbId && x.DeletedAt == null);
+                            if (q == null) continue;
+                            // Find the parsed question with matching id across all repo nodes
+                            ParsedQuestion? match = null;
+                            foreach (var arr in repoNodes.Values)
+                            {
+                                match = arr.FirstOrDefault(p => p.Id == it.DbId);
+                                if (match != null) break;
+                            }
+                            if (match != null)
+                            {
+                                q.Name        = match.Question;
+                                q.Description = match.Answer;
+                                // Flip draft/active to match repo. The reconcile that follows
+                                // would also toggle this, but doing it here keeps the
+                                // keep_repo intent explicit for the audit log.
+                                q.StatusCode  = match.IsDraft ? "draft" : "active";
+                                q.UpdatedAt   = now;
+                                _logger.LogInformation("ResolveConflict: question {Id} → '{Name}' draft={Draft} (keep_repo)",
+                                    q.Id, match.Question, match.IsDraft);
+                            }
+                        }
+                    }
+                    await _db.SaveChangesAsync();
+                }
+
+                // Apply chosen "keep_repo" overrides to DB. Then run the full
+                // repo→DB reconcile so that repo_only items get created in DB,
+                // db_only stays (DB-wins by design), and modified items —
+                // already aligned by the keep_repo loop above — pass through clean.
+                // Daemon will force-push DB → remote afterwards so both sides match.
+                var pullResult = await DoApplyRemoteChangesAsync(profile, userId);
+                await PushStatusAsync(userId, pullResult.Success ? "synced" : "error", pullResult.Message,
+                    pullResult.Success ? "" : "pull");
+                return pullResult;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ResolveConflicts failed for user {UserId}", userId);
+                await PushStatusAsync(userId, "error", ex.Message, "push");
+                return ResultOptions.Fail("Resolve conflicts failed: " + ex.Message, 500);
+            }
+        }
+
         /// <summary>
         /// Overwrites remote repo with DB content. No pull, no merge — just write files,
         /// commit, and force-push. The remote branch is completely replaced.
+        ///
+        /// <para><paramref name="ct"/> is checked at well-defined checkpoints (between DB load,
+        /// fetch, file writes, commit, and push). Mid-libgit2sharp call cannot be cancelled —
+        /// the next debounce will retry with the latest DB state.</para>
         /// </summary>
-        private async Task<ResultOptions> DoForceUpdateRemoteAsync(UserProfile profile)
+        private async Task<ResultOptions> DoForceUpdateRemoteAsync(UserProfile profile, CancellationToken ct = default)
         {
             var userId    = profile.UserId;
             var branch    = profile.KRepoBranch ?? "main";
             var localPath = GetLocalPath(userId);
             EnsureCloned(localPath, profile.KRepoUrl!, profile.KRepoPat!, branch);
+            ct.ThrowIfCancellationRequested();
 
             // ── Build file map from DB (same as DoPushAsync) ─────────────────────
             var knowledges = (await _knowledgeRepo.GetAllKnowledgesByUserIdAsync(userId))
@@ -1342,6 +1508,7 @@ namespace SuperAppServices.Services.K
 
             if (fileMap.Count == 0)
                 return ResultOptions.Fail("No data in DB to push", 400);
+            ct.ThrowIfCancellationRequested();
 
             _logger.LogInformation("ForceUpdate: writing {Count} files for user {UserId}", fileMap.Count, userId);
 
@@ -1364,6 +1531,7 @@ namespace SuperAppServices.Services.K
                     _logger.LogWarning(ex, "ForceUpdate: fetch failed (will force-push anyway)");
                 }
             }
+            ct.ThrowIfCancellationRequested();
 
             // ── Clear Knowledge dir and write all DB files ───────────────────────
             var knowledgeRoot = Path.Combine(repoWorkDir, "Knowledge");
@@ -1375,8 +1543,9 @@ namespace SuperAppServices.Services.K
             {
                 var absPath = Path.Combine(repoWorkDir, relPath.Replace('/', Path.DirectorySeparatorChar));
                 Directory.CreateDirectory(Path.GetDirectoryName(absPath)!);
-                await System.IO.File.WriteAllTextAsync(absPath, content, Encoding.UTF8);
+                await System.IO.File.WriteAllTextAsync(absPath, content, Encoding.UTF8, ct);
             }
+            ct.ThrowIfCancellationRequested();
 
             // ── Stage, commit, force-push ────────────────────────────────────────
             using (var repo = new LibGit2Sharp.Repository(localPath))

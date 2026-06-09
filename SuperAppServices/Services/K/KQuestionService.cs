@@ -389,6 +389,7 @@ namespace SuperAppServices.Services.K
                         Id                     = q.Id,
                         Question               = q.Name,
                         Answer                 = q.Description,
+                        NodeName               = q.Node?.Name,
                         PreviewIntervalSeconds = previews,
                     };
                 }).ToList();
@@ -418,12 +419,43 @@ namespace SuperAppServices.Services.K
                         Id                     = q.Id,
                         Question               = q.Name,
                         Answer                 = q.Description,
+                        NodeName               = q.Node?.Name,
                         PreviewIntervalSeconds = previews,
                     };
                 }).ToList();
                 return Ok(response);
             }
             catch (Exception ex) { _logger.LogError(ex, "GetKnowledgeDailySession failed for node {NodeId}", nodeId); return Fail(500, "Failed"); }
+        }
+
+        public async Task<ResultOptions> GetKnowledgeReviewAllSessionAsync(int knowledgeId, int userId)
+        {
+            try
+            {
+                var questions = await _repo.GetKnowledgeReviewAllQuestionsAsync(knowledgeId);
+                var now = VietnamDateTime.Now();
+                var response = questions.Select(q =>
+                {
+                    var state = new SpacedRepetitionEngine.SrsState(
+                        q.SrsInterval, q.SrsEaseFactor, q.SrsRepetitions, q.SrsNextReviewAt);
+                    var previews = new Dictionary<int, long>();
+                    for (var score = 1; score <= 5; score++)
+                    {
+                        var next = SpacedRepetitionEngine.CalculateNext(score, state);
+                        previews[score] = (long)(next.NextReviewAt!.Value - now).TotalSeconds;
+                    }
+                    return new KDailySessionQuestionResponse
+                    {
+                        Id                     = q.Id,
+                        Question               = q.Name,
+                        Answer                 = q.Description,
+                        NodeName               = q.Node?.Name,
+                        PreviewIntervalSeconds = previews,
+                    };
+                }).ToList();
+                return Ok(response);
+            }
+            catch (Exception ex) { _logger.LogError(ex, "GetKnowledgeReviewAllSession failed for knowledge {KnowledgeId}", knowledgeId); return Fail(500, "Failed"); }
         }
 
         public async Task<ResultOptions> SubmitDailyAnswersAsync(int nodeId, int userId, KDailySubmitRequest request)
