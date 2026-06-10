@@ -907,6 +907,7 @@ namespace SuperAppServices.Services.K
                         KnowledgeId = knowledgeId,
                         ParentId    = parentId,
                         Name        = pn.Name,
+                        StatusCode  = "draft",
                         CreatedAt   = now,
                     };
                     _db.KNodes.Add(node);
@@ -914,7 +915,7 @@ namespace SuperAppServices.Services.K
                     _db.KNodeStatusHistory.Add(new KNodeStatusHistoryEntity
                     {
                         NodeId     = node.Id,
-                        StatusCode = node.StatusCode ?? "learning",
+                        StatusCode = "draft",
                         ChangedAt  = now,
                         UserId     = userId,
                     });
