@@ -411,14 +411,13 @@ namespace SuperAppServices.Services.K
                 {
                     claimedQIds.Add(pq.ExistingId!.Value);
                     if (!dbQuestionMap.TryGetValue(pq.ExistingId.Value, out var dbQ)) continue;
-                    // DB name is flattened by the builder before being written to repo, so
-                    // compare flattened-vs-flattened to avoid false "modified" diffs.
-                    var dbBody   = FlattenLine(dbQ.Name) + (string.IsNullOrEmpty(dbQ.Description) ? "" : "\n" + dbQ.Description.Trim());
-                    var repoBody = pq.Question.Trim() + (string.IsNullOrEmpty(pq.Answer) ? "" : "\n" + pq.Answer.Trim());
                     var dbDraft   = dbQ.StatusCode == "draft";
                     var repoDraft = pq.IsDraft;
-                    if (dbBody == repoBody && dbDraft == repoDraft) continue;
+                    if (QuestionsEqual(dbQ.Name, dbQ.Description, dbDraft,
+                                       pq.Question, pq.Answer, repoDraft)) continue;
 
+                    var dbBody   = FlattenLine(dbQ.Name) + (string.IsNullOrEmpty(dbQ.Description) ? "" : "\n" + NormalizeDescription(dbQ.Description));
+                    var repoBody = pq.Question.Trim() + (string.IsNullOrEmpty(pq.Answer) ? "" : "\n" + NormalizeDescription(pq.Answer));
                     // Tag draft status into the diff text so the UI shows *why* it's marked modified
                     // even when the body is identical (only the active/draft flag differs).
                     var dbText   = (dbDraft   ? "[draft] "  : "[active] ") + dbBody;
@@ -1025,10 +1024,36 @@ namespace SuperAppServices.Services.K
         /// of a markdown question (newlines there would break the parser, since a
         /// new line starting with "# " is read as a new question).
         /// </summary>
-        private static string FlattenLine(string? s) =>
+        internal static string FlattenLine(string? s) =>
             string.IsNullOrEmpty(s) ? "" : Regex.Replace(s.Replace("\r\n", "\n").Replace('\n', ' '), @"\s+", " ").Trim();
 
-        private static string BuildRepoMarkdown(List<KQuestionEntity> questions)
+        /// <summary>
+        /// Per-line right-trim plus overall trim. Used by the diff comparer because
+        /// the parser reads each repo line via <c>line.TrimEnd()</c>, so trailing
+        /// whitespace per line is lost on round-trip; we strip it from the DB side
+        /// before comparing to avoid false "modified" diffs.
+        /// </summary>
+        internal static string NormalizeDescription(string? s) => string.IsNullOrEmpty(s)
+            ? ""
+            : string.Join("\n", s.Replace("\r\n", "\n").Split('\n').Select(l => l.TrimEnd())).Trim();
+
+        /// <summary>
+        /// Pure compare for a question round-trip. Returns true when DB and repo carry
+        /// the same content + draft flag (ignoring incidental whitespace lost during
+        /// the round-trip). Mirrors the logic in <c>GetCompareDiffAsync</c>.
+        /// </summary>
+        internal static bool QuestionsEqual(
+            string dbName, string? dbDescription, bool dbDraft,
+            string repoName, string repoAnswer, bool repoDraft)
+        {
+            var dbBody   = FlattenLine(dbName)
+                         + (string.IsNullOrEmpty(dbDescription) ? "" : "\n" + NormalizeDescription(dbDescription));
+            var repoBody = (repoName ?? "").Trim()
+                         + (string.IsNullOrEmpty(repoAnswer) ? "" : "\n" + NormalizeDescription(repoAnswer));
+            return dbBody == repoBody && dbDraft == repoDraft;
+        }
+
+        internal static string BuildRepoMarkdown(List<KQuestionEntity> questions)
         {
             if (!questions.Any()) return string.Empty;
 
@@ -1129,7 +1154,7 @@ namespace SuperAppServices.Services.K
 
         // ── Markdown parser (C# port) ─────────────────────────────────────────────
 
-        private static List<ParsedQuestion> ParseQuestions(string body)
+        internal static List<ParsedQuestion> ParseQuestions(string body)
         {
             var result = new List<ParsedQuestion>();
             string? question = null, answer = null;

@@ -24,4 +24,8 @@
     <ProjectReference Include="..\SuperAppModels\SuperAppModels.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="SuperAppServices.Tests" />
+  </ItemGroup>
+
 </Project>

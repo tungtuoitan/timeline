@@ -95,9 +95,9 @@ namespace SuperAppServices.Tests
             Assert.Equal("New Name", n.Name);
         }
 
-        // ── NODE: delete (gone from repo) ───────────────────────────────────────────
+        // ── NODE: delete (gone from repo) — DB-wins: never auto-deletes nodes ───────
         [Fact]
-        public void DeleteNode_whenAbsentFromRepo()
+        public void DeleteNode_whenAbsentFromRepo_keepsNode()
         {
             var plan = Plan(
                 kfs: new[] { KF("IT", 1141, "IT") },
@@ -105,8 +105,8 @@ namespace SuperAppServices.Tests
                 ks: new[] { K(1141, "IT") },
                 ns: new[] { N(100, 1141, null, "A"), N(200, 1141, null, "B") });
 
-            Assert.Contains(200, plan.NodeIdsToDelete);
-            Assert.DoesNotContain(100, plan.NodeIdsToDelete);
+            // DB-wins: nodes only present in DB stay; the daemon will push them back.
+            Assert.Empty(plan.NodeIdsToDelete);
         }
 
         // ── NODE: copy (same id in two _.md) ⇒ first keeps id, second is new ────────
@@ -171,9 +171,9 @@ namespace SuperAppServices.Tests
             Assert.Equal("NewK", k.Name);
         }
 
-        // ── KNOWLEDGE: deleted only when its folder is gone from the repo ───────────
+        // ── KNOWLEDGE: DB-wins — never auto-delete a knowledge that disappeared ────
         [Fact]
-        public void DeleteKnowledge_whenFolderAbsent_keepWhenPresent()
+        public void DeleteKnowledge_whenFolderAbsent_keepsAll()
         {
             var plan = Plan(
                 kfs: new[] { KF("IT", 1141, "IT") },              // 1141 present, 1142 absent
@@ -181,8 +181,8 @@ namespace SuperAppServices.Tests
                 ks: new[] { K(1141, "IT"), K(1142, "Gone") },
                 ns: new[] { N(100, 1141, null, "A") });
 
-            Assert.DoesNotContain(1141, plan.KnowledgeIdsToDelete);
-            Assert.Contains(1142, plan.KnowledgeIdsToDelete);
+            // DB-wins: even though 1142 is absent from repo, it is NOT deleted.
+            Assert.Empty(plan.KnowledgeIdsToDelete);
         }
 
         // ── KNOWLEDGE: empty knowledge kept alive by its placeholder folder ─────────
@@ -336,7 +336,8 @@ namespace SuperAppServices.Tests
             var n = Node(plan, "Knowledge/NewK/5");
             Assert.Equal(2536, n.ExistingId);
             Assert.Equal("NewK", n.KnowledgeFolderKey);
-            Assert.Contains(1142, plan.KnowledgeIdsToDelete); // source folder absent ⇒ deleted
+            // DB-wins: source knowledge 1142 is absent from repo but stays in DB.
+            Assert.Empty(plan.KnowledgeIdsToDelete);
         }
 
         // ── COMBO: move node under a parent that is itself newly created ────────────
