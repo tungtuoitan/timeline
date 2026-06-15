@@ -26,6 +26,7 @@ namespace SuperAppAPI.BackgroundServices
     {
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly IKSyncEventPublisher _publisher;
+        private readonly IKViewerTracker _viewerTracker;
         private readonly ILogger<KRepoSyncDaemon> _logger;
 
         /// <summary>One CTS per user — cancelled whenever a new event arrives so the
@@ -40,11 +41,13 @@ namespace SuperAppAPI.BackgroundServices
         public KRepoSyncDaemon(
             IServiceScopeFactory scopeFactory,
             IKSyncEventPublisher publisher,
+            IKViewerTracker viewerTracker,
             ILogger<KRepoSyncDaemon> logger)
         {
-            _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
-            _publisher    = publisher    ?? throw new ArgumentNullException(nameof(publisher));
-            _logger       = logger       ?? throw new ArgumentNullException(nameof(logger));
+            _scopeFactory  = scopeFactory  ?? throw new ArgumentNullException(nameof(scopeFactory));
+            _publisher     = publisher     ?? throw new ArgumentNullException(nameof(publisher));
+            _viewerTracker = viewerTracker ?? throw new ArgumentNullException(nameof(viewerTracker));
+            _logger        = logger        ?? throw new ArgumentNullException(nameof(logger));
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -99,6 +102,15 @@ namespace SuperAppAPI.BackgroundServices
 
         private async Task RunSyncAsync(int userId, CancellationToken ct)
         {
+            // Skip while the user is reviewing diff entries on the FE — pushing
+            // would invalidate what they're looking at. The next event after they
+            // close the popup re-runs the sync (or the periodic check will).
+            if (_viewerTracker.IsViewing(userId))
+            {
+                _logger.LogInformation("Daemon: user {UserId} is viewing diff — skip force-push", userId);
+                return;
+            }
+
             var sem = _userLocks.GetOrAdd(userId, _ => new SemaphoreSlim(1, 1));
 
             // Wait for any previous push to release. If a newer event cancels us
@@ -107,6 +119,13 @@ namespace SuperAppAPI.BackgroundServices
             try
             {
                 ct.ThrowIfCancellationRequested();
+                // Re-check after acquiring the lock — user may have opened the popup
+                // while we were queued behind another push.
+                if (_viewerTracker.IsViewing(userId))
+                {
+                    _logger.LogInformation("Daemon: user {UserId} started viewing while queued — skip force-push", userId);
+                    return;
+                }
 
                 using var scope = _scopeFactory.CreateScope();
                 var syncService = scope.ServiceProvider.GetRequiredService<IKRepoSyncService>();

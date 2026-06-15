@@ -8,6 +8,7 @@ namespace SuperAppAPI.BackgroundServices
     public class KRepoSyncBackgroundService : BackgroundService
     {
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly IKViewerTracker _viewerTracker;
         private readonly ILogger<KRepoSyncBackgroundService> _logger;
 
         private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(10);
@@ -15,10 +16,14 @@ namespace SuperAppAPI.BackgroundServices
 
         private DateTime _lastPush = DateTime.MinValue;
 
-        public KRepoSyncBackgroundService(IServiceScopeFactory scopeFactory, ILogger<KRepoSyncBackgroundService> logger)
+        public KRepoSyncBackgroundService(
+            IServiceScopeFactory scopeFactory,
+            IKViewerTracker viewerTracker,
+            ILogger<KRepoSyncBackgroundService> logger)
         {
-            _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
-            _logger       = logger       ?? throw new ArgumentNullException(nameof(logger));
+            _scopeFactory  = scopeFactory  ?? throw new ArgumentNullException(nameof(scopeFactory));
+            _viewerTracker = viewerTracker ?? throw new ArgumentNullException(nameof(viewerTracker));
+            _logger        = logger        ?? throw new ArgumentNullException(nameof(logger));
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -34,14 +39,15 @@ namespace SuperAppAPI.BackgroundServices
                     using var scope = _scopeFactory.CreateScope();
                     var syncService = scope.ServiceProvider.GetRequiredService<IKRepoSyncService>();
 
-                    // Every 10min: check for remote changes
-                    await syncService.CheckAllUsersAsync();
+                    // Per-user CheckAllUsers / PushAllUsers iterate users themselves —
+                    // we filter at the call site by skipping users currently viewing
+                    // the diff popup so their compare/push state stays stable.
+                    await syncService.CheckAllUsersAsync(_viewerTracker);
 
-                    // Every 1h: push DB → repo (service skips if hash unchanged)
                     if (DateTime.UtcNow - _lastPush >= PushInterval)
                     {
                         _lastPush = DateTime.UtcNow;
-                        await syncService.PushAllUsersAsync();
+                        await syncService.PushAllUsersAsync(_viewerTracker);
                     }
                 }
                 catch (OperationCanceledException) { break; }

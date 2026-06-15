@@ -11,8 +11,8 @@ namespace SuperAppServices.Interfaces
         Task<ResultOptions> PullFromRepoAsync(int userId);
         Task<KRepoSyncDiffResponse> GetDiffAsync(int userId);
         Task CheckAndUpdateStatusAsync(int userId);
-        Task CheckAllUsersAsync();
-        Task PushAllUsersAsync();
+        Task CheckAllUsersAsync(IKViewerTracker? viewerTracker = null);
+        Task PushAllUsersAsync(IKViewerTracker? viewerTracker = null);
         Task<ResultOptions> ResetConflictAndRetryAsync(int userId);
 
         /// <summary>

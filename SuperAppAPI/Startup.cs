@@ -174,8 +174,8 @@ namespace SuperAppAPI
                         "Connection string 'SuperAppConnection' is not configured. " +
                         "Please ensure the .env file exists and contains ConnectionStrings__SuperAppConnection.");
 
-                Log.Information("Using connection string: {ConnectionString}",
-                    connectionString.Replace(connectionString.Split("Password=")[1].Split(";")[0], "***"));
+                //Log.Information("Using connection string: {ConnectionString}",
+                //    connectionString.Replace(connectionString.Split("Password=")[1].Split(";")[0], "***"));
 
                 options.UseSqlServer(connectionString, sqlOptions =>
                 {
@@ -240,6 +240,7 @@ namespace SuperAppAPI
             services.AddScoped<SuperAppServices.Interfaces.IKRepoSyncService, KRepoSyncService>();
             services.AddScoped<SuperAppServices.Interfaces.IKSyncNotifier, SuperAppAPI.Hubs.SignalRKSyncNotifier>();
             services.AddSingleton<SuperAppServices.Interfaces.IKSyncEventPublisher, SuperAppServices.Services.K.KSyncEventPublisher>();
+            services.AddSingleton<SuperAppServices.Interfaces.IKViewerTracker, SuperAppAPI.Hubs.KViewerTracker>();
 
             // SignalR
             services.AddSignalR();

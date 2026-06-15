@@ -367,26 +367,66 @@ namespace SuperAppServices.Services.K
                     });
                 }
 
-                // Nodes in both but renamed/moved
+                // Resolution maps so we can compare a repo node's intended location
+                // (folder key) against the DB's actual location (id-based).
+                var folderToKnowledgeIdCmp = plan.Knowledges
+                    .Where(k => k.ExistingId != null)
+                    .ToDictionary(k => k.FolderKey, k => k.ExistingId!.Value, StringComparer.Ordinal);
+                var folderToNodeIdCmp = plan.Nodes
+                    .Where(n => n.ExistingId != null)
+                    .ToDictionary(n => n.FolderKey, n => n.ExistingId!.Value, StringComparer.Ordinal);
+
+                // Nodes in both — flag rename, knowledge-move, or parent-move
                 foreach (var pn in plan.Nodes.Where(n => n.ExistingId != null))
                 {
                     if (!dbNodeMap.TryGetValue(pn.ExistingId!.Value, out var dbN)) continue;
-                    var repoKName = pn.KnowledgeFolderKey;
+
+                    // Resolve repo's intended location to DB ids
+                    int? repoKnowledgeId = folderToKnowledgeIdCmp.TryGetValue(pn.KnowledgeFolderKey, out var rkid) ? rkid : null;
+                    int? repoParentId    = null;
+                    if (pn.ParentFolderKey != null && folderToNodeIdCmp.TryGetValue(pn.ParentFolderKey, out var rpid))
+                        repoParentId = rpid;
+
+                    var nameChanged      = dbN.Name != pn.Name;
+                    // Only flag knowledge/parent change when we successfully resolved the
+                    // repo target (otherwise the repo side is "unknown" — likely a new
+                    // knowledge/parent that hasn't been planned yet) — to avoid false moves.
+                    var knowledgeChanged = repoKnowledgeId.HasValue && dbN.KnowledgeId != repoKnowledgeId.Value;
+                    var parentResolvable = pn.ParentFolderKey == null || repoParentId.HasValue;
+                    var parentChanged    = parentResolvable && dbN.ParentId != repoParentId;
+
+                    if (!nameChanged && !knowledgeChanged && !parentChanged) continue;
+
                     var dbKName   = dbKnowledgeMap.TryGetValue(dbN.KnowledgeId, out var dbKK) ? dbKK.Name : "";
-                    var nameChanged   = dbN.Name != pn.Name;
-                    var parentChanged = pn.ParentFolderKey != null; // non-null means it has a parent in repo
-                    // only flag if name actually changed
-                    if (nameChanged)
-                        entries.Add(new KRepoCompareEntry
-                        {
-                            EntityType    = "node",
-                            ChangeType    = "modified",
-                            DbId          = dbN.Id,
-                            Name          = pn.Name,
-                            KnowledgeName = dbKName,
-                            OldText       = dbN.Name,
-                            NewText       = pn.Name,
-                        });
+                    var repoKName = pn.KnowledgeFolderKey;
+
+                    // Build a "knowledge / parent" path label for both sides so the user
+                    // sees where the node lives now vs. where the repo wants it to live.
+                    string LocationLabel(string knowledgeName, int? parentDbId, string? repoParentFolderKey)
+                    {
+                        var parentName = parentDbId.HasValue && dbNodeMap.TryGetValue(parentDbId.Value, out var dbParent)
+                            ? dbParent.Name
+                            : repoParentFolderKey?.Split('/').LastOrDefault();
+                        return string.IsNullOrEmpty(parentName) ? knowledgeName : $"{knowledgeName} / {parentName}";
+                    }
+                    var dbLocation   = LocationLabel(dbKName,   dbN.ParentId,   null);
+                    var repoLocation = LocationLabel(repoKName, repoParentId,   pn.ParentFolderKey);
+
+                    // Show name on first line, location on second (same shape both sides
+                    // so char-diff highlights only what actually differs).
+                    var oldText = $"{dbN.Name}\nin: {dbLocation}";
+                    var newText = $"{pn.Name}\nin: {repoLocation}";
+
+                    entries.Add(new KRepoCompareEntry
+                    {
+                        EntityType    = "node",
+                        ChangeType    = "modified",
+                        DbId          = dbN.Id,
+                        Name          = pn.Name,
+                        KnowledgeName = dbKName,
+                        OldText       = oldText,
+                        NewText       = newText,
+                    });
                 }
 
                 // Questions: new in repo
@@ -406,15 +446,24 @@ namespace SuperAppServices.Services.K
                     });
                 }
 
-                // Questions: modified (content or draft-status changed)
+                // Questions: modified (content, draft-status, or owning node changed)
                 foreach (var pq in plan.Questions.Where(q => q.ExistingId != null))
                 {
                     claimedQIds.Add(pq.ExistingId!.Value);
                     if (!dbQuestionMap.TryGetValue(pq.ExistingId.Value, out var dbQ)) continue;
                     var dbDraft   = dbQ.StatusCode == "draft";
                     var repoDraft = pq.IsDraft;
-                    if (QuestionsEqual(dbQ.Name, dbQ.Description, dbDraft,
-                                       pq.Question, pq.Answer, repoDraft)) continue;
+                    var contentEqual = QuestionsEqual(dbQ.Name, dbQ.Description, dbDraft,
+                                                      pq.Question, pq.Answer, repoDraft);
+
+                    // A question "moves" when its NodeFolderKey in the repo resolves to
+                    // a different node id than the one stored in DB. Only flag when we
+                    // could actually resolve the repo target — otherwise the move could
+                    // be to a brand-new node not yet in DB (handled by the new-node entry).
+                    int? repoNodeId = folderToNodeIdCmp.TryGetValue(pq.NodeFolderKey, out var rnid) ? rnid : null;
+                    var nodeChanged = repoNodeId.HasValue && dbQ.NodeId != repoNodeId.Value;
+
+                    if (contentEqual && !nodeChanged) continue;
 
                     var dbBody   = FlattenLine(dbQ.Name) + (string.IsNullOrEmpty(dbQ.Description) ? "" : "\n" + NormalizeDescription(dbQ.Description));
                     var repoBody = pq.Question.Trim() + (string.IsNullOrEmpty(pq.Answer) ? "" : "\n" + NormalizeDescription(pq.Answer));
@@ -423,6 +472,20 @@ namespace SuperAppServices.Services.K
                     var dbText   = (dbDraft   ? "[draft] "  : "[active] ") + dbBody;
                     var repoText = (repoDraft ? "[draft] "  : "[active] ") + repoBody;
                     var nodeFolderName = pq.NodeFolderKey.Split('/').LastOrDefault() ?? pq.NodeFolderKey;
+
+                    // If the question moved between nodes, append the location so the
+                    // user sees the cross-node move (otherwise the diff text would be
+                    // identical when only the parent node differs).
+                    if (nodeChanged)
+                    {
+                        var dbNodeName   = dbQ.NodeId.HasValue && dbNodeMap.TryGetValue(dbQ.NodeId.Value, out var dbNn) ? dbNn.Name : "?";
+                        var repoNodeName = repoNodeId.HasValue && dbNodeMap.TryGetValue(repoNodeId.Value, out var rNn)
+                            ? rNn.Name
+                            : nodeFolderName;
+                        dbText   += $"\nin: {dbNodeName}";
+                        repoText += $"\nin: {repoNodeName}";
+                    }
+
                     entries.Add(new KRepoCompareEntry
                     {
                         EntityType = "question",
@@ -506,7 +569,7 @@ namespace SuperAppServices.Services.K
             }
         }
 
-        public async Task PushAllUsersAsync()
+        public async Task PushAllUsersAsync(IKViewerTracker? viewerTracker = null)
         {
             var userIds = await _db.UserProfiles
                 .Where(p => p.KRepoUrl != null && p.KRepoUrl != "" && p.KRepoStatusCode != "conflict")
@@ -515,6 +578,13 @@ namespace SuperAppServices.Services.K
 
             foreach (var userId in userIds)
             {
+                // Skip users actively reviewing the diff popup — pushing would
+                // change remote out from under them and invalidate their view.
+                if (viewerTracker?.IsViewing(userId) == true)
+                {
+                    _logger.LogDebug("PushAllUsers: skip user {UserId} — currently viewing diff", userId);
+                    continue;
+                }
                 try { await PushToRepoAsync(userId); }
                 catch (Exception ex) { _logger.LogError(ex, "PushAllUsers: error for user {UserId}", userId); }
             }
@@ -532,7 +602,7 @@ namespace SuperAppServices.Services.K
             return await PushToRepoAsync(userId);
         }
 
-        public async Task CheckAllUsersAsync()
+        public async Task CheckAllUsersAsync(IKViewerTracker? viewerTracker = null)
         {
             var userIds = await _db.UserProfiles
                 .Where(p => p.KRepoUrl != null && p.KRepoUrl != "" && p.KRepoStatusCode != "conflict")
@@ -541,6 +611,14 @@ namespace SuperAppServices.Services.K
 
             foreach (var userId in userIds)
             {
+                // Skip users viewing the diff popup — re-checking would replace
+                // KRepoStatusCode and emit a "behind" notification, which races
+                // with the diff entries the user is currently inspecting.
+                if (viewerTracker?.IsViewing(userId) == true)
+                {
+                    _logger.LogDebug("CheckAllUsers: skip user {UserId} — currently viewing diff", userId);
+                    continue;
+                }
                 try { await CheckAndUpdateStatusAsync(userId); }
                 catch (Exception ex) { _logger.LogError(ex, "CheckAllUsers: error for user {UserId}", userId); }
             }
@@ -707,7 +785,7 @@ namespace SuperAppServices.Services.K
             {
                 newPaths.Add(relPath);
                 var absPath = Path.Combine(repoWorkDir, relPath.Replace('/', Path.DirectorySeparatorChar));
-                _logger.LogDebug("DoPush: writing {Path}", relPath);
+                //_logger.LogDebug("DoPush: writing {Path}", relPath);
                 Directory.CreateDirectory(Path.GetDirectoryName(absPath)!);
                 await System.IO.File.WriteAllTextAsync(absPath, content, Encoding.UTF8);
             }
@@ -791,7 +869,7 @@ namespace SuperAppServices.Services.K
             return new ResultOptions { Success = true };
         }
 
-        private async Task<ResultOptions> DoApplyRemoteChangesAsync(UserProfile profile, int userId)
+        private async Task<ResultOptions> DoApplyRemoteChangesAsync(UserProfile profile, int userId, bool softDeleteUnclaimed = false)
         {
             var localPath = GetLocalPath(userId);
             if (!LibGit2Sharp.Repository.IsValid(localPath))
@@ -861,6 +939,7 @@ namespace SuperAppServices.Services.K
 
             // ── 4. Knowledges: create / rename ────────────────────────────────────
             var folderToKnowledgeId = new Dictionary<string, int>(StringComparer.Ordinal);
+            int kCreated = 0, kRenamed = 0;
             foreach (var pk in plan.Knowledges)
             {
                 if (pk.ExistingId == null)
@@ -869,6 +948,7 @@ namespace SuperAppServices.Services.K
                     _db.KKnowledges.Add(k);
                     await _db.SaveChangesAsync();
                     folderToKnowledgeId[pk.FolderKey] = k.Id;
+                    kCreated++;
                     _logger.LogInformation("Reconcile: created knowledge '{Name}' → id {Id}", pk.Name, k.Id);
                 }
                 else
@@ -879,6 +959,7 @@ namespace SuperAppServices.Services.K
                         _logger.LogInformation("Reconcile: renamed knowledge {Id} '{Old}' → '{New}'", k.Id, k.Name, pk.Name);
                         k.Name = pk.Name;
                         k.UpdatedAt = now;
+                        kRenamed++;
                     }
                 }
             }
@@ -887,6 +968,7 @@ namespace SuperAppServices.Services.K
             // ── 5. Nodes: create / rename / move (parents first, ids resolve top-down) ─
             var folderToNodeId = new Dictionary<string, int>(StringComparer.Ordinal);
             var touched        = new List<KNodeEntity>();
+            int nCreated = 0, nUpdated = 0;
             foreach (var pn in plan.Nodes)
             {
                 if (!folderToKnowledgeId.TryGetValue(pn.KnowledgeFolderKey, out var knowledgeId))
@@ -922,6 +1004,7 @@ namespace SuperAppServices.Services.K
                     await _db.SaveChangesAsync();
                     folderToNodeId[pn.FolderKey] = node.Id;
                     touched.Add(node);
+                    nCreated++;
                     _logger.LogInformation("Reconcile: created node '{Name}' → id {Id} (knowledge {K}, parent {P})",
                         pn.Name, node.Id, knowledgeId, parentId);
                 }
@@ -935,6 +1018,7 @@ namespace SuperAppServices.Services.K
                     if (changed)
                     {
                         node.UpdatedAt = now;
+                        nUpdated++;
                         _logger.LogInformation("Reconcile: updated node {Id} ('{Name}') → knowledge {K}, parent {P}",
                             node.Id, node.Name, knowledgeId, parentId);
                     }
@@ -948,6 +1032,7 @@ namespace SuperAppServices.Services.K
             if (touched.Any()) await _nodeHelper.SyncPathIdsAsync(touched);
 
             // ── 6. Questions: create / update / move / draft-toggle ───────────────
+            int qCreated = 0, qUpdated = 0, qMoved = 0, qDraftToggled = 0;
             foreach (var group in plan.Questions.GroupBy(q => q.NodeFolderKey))
             {
                 if (!folderToNodeId.TryGetValue(group.Key, out var nodeId)) continue;
@@ -967,7 +1052,7 @@ namespace SuperAppServices.Services.K
                     var q = await _db.KQuestions.FirstOrDefaultAsync(x => x.Id == pq.ExistingId.Value && x.DeletedAt == null);
                     if (q == null) continue;
 
-                    if (q.NodeId != nodeId) { q.NodeId = nodeId; q.UpdatedAt = now; } // moved to this node
+                    if (q.NodeId != nodeId) { q.NodeId = nodeId; q.UpdatedAt = now; qMoved++; }
                     var textChanged  = q.Name != pq.Question || (q.Description ?? "") != (pq.Answer ?? "");
                     var orderChanged = q.SortOrder != pq.SortOrder;
                     if (textChanged || orderChanged)
@@ -977,30 +1062,131 @@ namespace SuperAppServices.Services.K
 
                 await _db.SaveChangesAsync(); // persist any cross-node moves first
 
-                if (toUpdate.Any())    await _questionRepo.UpdateQuestionsDataAsync(toUpdate);
-                if (toggleDraft.Any()) await _questionRepo.ToggleQuestionsDraftAsync(toggleDraft);
+                if (toUpdate.Any())    { await _questionRepo.UpdateQuestionsDataAsync(toUpdate); qUpdated += toUpdate.Count; }
+                if (toggleDraft.Any()) { await _questionRepo.ToggleQuestionsDraftAsync(toggleDraft); qDraftToggled += toggleDraft.Count; }
                 if (toAdd.Any())
                 {
                     var newIds = await _questionRepo.AddQuestionsAsync(nodeId, toAdd.Select(x => x.item).ToList());
+                    qCreated += toAdd.Count;
                     var newDraftIds = toAdd.Zip(newIds, (x, id) => (x.isDraft, id)).Where(x => x.isDraft).Select(x => x.id).ToList();
                     if (newDraftIds.Any()) await _questionRepo.ToggleQuestionsDraftAsync(newDraftIds);
                 }
             }
+            int qDeleted = 0;
             if (plan.QuestionIdsToDelete.Any())
+            {
                 await _questionRepo.DeleteQuestionsAsync(plan.QuestionIdsToDelete);
+                qDeleted = plan.QuestionIdsToDelete.Count;
+            }
 
-            // ── 7. DB-wins: unclaimed nodes/knowledges are NOT deleted ─────────
-            // They will be pushed back to the repo by DoPushAsync below.
-            // Only log for diagnostics.
-            var unclaimedNodeCount = dbNodes.Count(n => !plan.Nodes.Any(p => p.ExistingId == n.Id));
-            var unclaimedKnowledgeCount = dbKnowledges.Count(k => !plan.Knowledges.Any(p => p.ExistingId == k.Id));
-            if (unclaimedNodeCount > 0 || unclaimedKnowledgeCount > 0)
+            // ── 7. Unclaimed knowledges/nodes ─────────────────────────────────────
+            // Two modes:
+            //   • softDeleteUnclaimed=false (daemon / DB-wins) — leave them; the final
+            //     DoPushAsync will restore them on the remote.
+            //   • softDeleteUnclaimed=true (explicit Apply from Review Changes popup)
+            //     — user has reviewed and confirmed remote-as-source-of-truth; soft
+            //     delete unclaimed entities and cascade to their children + questions.
+            var unclaimedNodes      = dbNodes
+                .Where(n => !plan.Nodes.Any(p => p.ExistingId == n.Id))
+                .ToList();
+            var unclaimedKnowledges = dbKnowledges
+                .Where(k => !plan.Knowledges.Any(p => p.ExistingId == k.Id))
+                .ToList();
+
+            int kSoftDeleted = 0, nSoftDeleted = 0, qSoftDeleted = 0;
+            if (softDeleteUnclaimed && (unclaimedNodes.Count > 0 || unclaimedKnowledges.Count > 0))
+            {
+                _logger.LogInformation(
+                    "Reconcile (Apply): soft-deleting {Nodes} node(s) and {Knowledges} knowledge(s) absent from repo",
+                    unclaimedNodes.Count, unclaimedKnowledges.Count);
+
+                // Soft-delete unclaimed nodes (already filtered to DeletedAt == null)
+                var nodeIdsToDelete = unclaimedNodes.Select(n => n.Id).ToHashSet();
+                var knowledgeIdsToDelete = unclaimedKnowledges.Select(k => k.Id).ToHashSet();
+
+                // Cascade: any node whose ancestor is being deleted must also go.
+                // PathIds is "/{rootId}/.../{selfId}/" so a descendant matches when
+                // any deleted id appears as a path segment. We do this in-memory on
+                // dbNodes (loaded earlier) — EF can't translate the interpolated
+                // pattern, and the user's full node set is already in memory anyway.
+                var pathPatterns = nodeIdsToDelete.Select(id => $"/{id}/").ToList();
+                var descendantNodes = dbNodes
+                    .Where(n => !nodeIdsToDelete.Contains(n.Id)
+                                && !string.IsNullOrEmpty(n.PathIds)
+                                && pathPatterns.Any(p => n.PathIds!.Contains(p)))
+                    .ToList();
+                foreach (var d in descendantNodes) nodeIdsToDelete.Add(d.Id);
+
+                // Knowledges cascade: nodes belonging to a deleted knowledge also go.
+                if (knowledgeIdsToDelete.Count > 0)
+                    foreach (var n in dbNodes.Where(n => knowledgeIdsToDelete.Contains(n.KnowledgeId)))
+                        nodeIdsToDelete.Add(n.Id);
+
+                // Soft-delete questions of all victim nodes (use the dbQuestions
+                // snapshot loaded earlier — already filtered to DeletedAt == null)
+                if (nodeIdsToDelete.Count > 0)
+                {
+                    var qIdsToSoftDelete = dbQuestions
+                        .Where(q => q.NodeId != null && nodeIdsToDelete.Contains(q.NodeId.Value))
+                        .Select(q => q.Id)
+                        .ToList();
+                    if (qIdsToSoftDelete.Count > 0)
+                    {
+                        var qsToDelete = await _db.KQuestions
+                            .Where(q => qIdsToSoftDelete.Contains(q.Id))
+                            .ToListAsync();
+                        foreach (var q in qsToDelete) { q.DeletedAt = now; q.UpdatedAt = now; }
+                        qSoftDeleted = qsToDelete.Count;
+                    }
+                }
+
+                // Soft-delete the nodes themselves — re-attach via tracked entities
+                if (nodeIdsToDelete.Count > 0)
+                {
+                    var nIds = nodeIdsToDelete.ToList();
+                    var nodesToDelete = await _db.KNodes
+                        .Where(n => nIds.Contains(n.Id) && n.DeletedAt == null)
+                        .ToListAsync();
+                    foreach (var n in nodesToDelete) { n.DeletedAt = now; n.UpdatedAt = now; }
+                    nSoftDeleted = nodesToDelete.Count;
+                }
+
+                // Soft-delete the knowledges
+                foreach (var k in unclaimedKnowledges)
+                {
+                    k.DeletedAt = now;
+                    k.UpdatedAt = now;
+                }
+                kSoftDeleted = unclaimedKnowledges.Count;
+
+                await _db.SaveChangesAsync();
+            }
+            else if (unclaimedNodes.Count > 0 || unclaimedKnowledges.Count > 0)
+            {
+                // Daemon path — DB wins; just log
                 _logger.LogInformation(
                     "Reconcile: {Nodes} node(s) and {Knowledges} knowledge(s) in DB but not in repo — will push back",
-                    unclaimedNodeCount, unclaimedKnowledgeCount);
+                    unclaimedNodes.Count, unclaimedKnowledges.Count);
+            }
+
+            // ── Summary ───────────────────────────────────────────────────────────
+            _logger.LogInformation(
+                "Reconcile summary ({Mode}) for user {UserId}: " +
+                "knowledges[+{KCreated} ~{KRenamed} -{KDeleted}], " +
+                "nodes[+{NCreated} ~{NUpdated} -{NDeleted}], " +
+                "questions[+{QCreated} ~{QUpdated} ↔{QMoved} draft↻{QDraft} -{QDeletedRepo}/-{QDeletedCascade}]",
+                softDeleteUnclaimed ? "Apply" : "Daemon", userId,
+                kCreated, kRenamed, kSoftDeleted,
+                nCreated, nUpdated, nSoftDeleted,
+                qCreated, qUpdated, qMoved, qDraftToggled, qDeleted, qSoftDeleted);
 
             // Push back so newly-created ids / detail.md files land in the repo.
-            return await DoPushAsync(profile);
+            // Force=true: the remote may have been edited/emptied out-of-band (e.g. user
+            // deleted folders in the repo, then opened Review Changes — db_only entries
+            // need to be restored on the remote OR DB needs to land on remote with the
+            // new ids assigned to repo_only entities). The DB content hash hasn't
+            // changed enough on its own, so DoPushAsync would otherwise short-circuit.
+            return await DoPushAsync(profile, force: true);
         }
 
         // Collects every ".md" blob in the tree: path → text content.
@@ -1345,8 +1531,11 @@ namespace SuperAppServices.Services.K
                 return ResultOptions.Fail("User profile not found", 404);
             if (string.IsNullOrEmpty(profile.KRepoUrl) || string.IsNullOrEmpty(profile.KRepoPat))
                 return ResultOptions.Fail("Repo not configured", 400);
-            if (items == null || items.Count == 0)
-                return ResultOptions.Fail("No items to resolve", 400);
+            // Empty items is valid: when only repo_only / db_only entries exist (no
+            // "modified"), there's nothing to override per-entity but the reconcile
+            // pass below still creates new entities for repo_only and pushes db_only
+            // back to remote. Don't reject.
+            items ??= new List<KRepoResolveConflictItem>();
 
             try
             {
@@ -1441,11 +1630,11 @@ namespace SuperAppServices.Services.K
                 }
 
                 // Apply chosen "keep_repo" overrides to DB. Then run the full
-                // repo→DB reconcile so that repo_only items get created in DB,
-                // db_only stays (DB-wins by design), and modified items —
-                // already aligned by the keep_repo loop above — pass through clean.
-                // Daemon will force-push DB → remote afterwards so both sides match.
-                var pullResult = await DoApplyRemoteChangesAsync(profile, userId);
+                // repo→DB reconcile with softDeleteUnclaimed=true: this is the
+                // explicit Apply path, so the user has confirmed the repo as the
+                // source of truth — entities present in DB but absent from the
+                // repo are soft-deleted (cascading to children + questions).
+                var pullResult = await DoApplyRemoteChangesAsync(profile, userId, softDeleteUnclaimed: true);
                 await PushStatusAsync(userId, pullResult.Success ? "synced" : "error", pullResult.Message,
                     pullResult.Success ? "" : "pull");
                 return pullResult;
@@ -1561,8 +1750,21 @@ namespace SuperAppServices.Services.K
 
             // ── Clear Knowledge dir and write all DB files ───────────────────────
             var knowledgeRoot = Path.Combine(repoWorkDir, "Knowledge");
+
+            // Snapshot existing repo files BEFORE clearing so we can summarise the
+            // diff (added/modified/deleted) at the file level. The daemon path
+            // doesn't go through DoApplyRemoteChangesAsync so we report at the FS
+            // layer instead of the entity layer.
+            var existingFiles = new Dictionary<string, string>(StringComparer.Ordinal);
             if (Directory.Exists(knowledgeRoot))
+            {
+                foreach (var f in Directory.GetFiles(knowledgeRoot, "*.md", SearchOption.AllDirectories))
+                {
+                    var rel = Path.GetRelativePath(repoWorkDir, f).Replace('\\', '/');
+                    existingFiles[rel] = await System.IO.File.ReadAllTextAsync(f, Encoding.UTF8, ct);
+                }
                 Directory.Delete(knowledgeRoot, recursive: true);
+            }
             Directory.CreateDirectory(knowledgeRoot);
 
             foreach (var (relPath, content) in fileMap)
@@ -1572,6 +1774,24 @@ namespace SuperAppServices.Services.K
                 await System.IO.File.WriteAllTextAsync(absPath, content, Encoding.UTF8, ct);
             }
             ct.ThrowIfCancellationRequested();
+
+            // Summary at file level (daemon path doesn't track entity-level diff).
+            int filesAdded = 0, filesModified = 0, filesDeleted = 0, filesUnchanged = 0;
+            foreach (var (path, newContent) in fileMap)
+            {
+                if (!existingFiles.TryGetValue(path, out var oldContent))
+                    filesAdded++;
+                else if (oldContent != newContent)
+                    filesModified++;
+                else
+                    filesUnchanged++;
+            }
+            foreach (var path in existingFiles.Keys)
+                if (!fileMap.ContainsKey(path)) filesDeleted++;
+
+            _logger.LogInformation(
+                "ForceUpdate summary for user {UserId}: files [+{Added} ~{Modified} -{Deleted} ={Unchanged}] (total in DB: {Total})",
+                userId, filesAdded, filesModified, filesDeleted, filesUnchanged, fileMap.Count);
 
             // ── Stage, commit, force-push ────────────────────────────────────────
             using (var repo = new LibGit2Sharp.Repository(localPath))
