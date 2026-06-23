@@ -44,6 +44,13 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("device_info")
                 .HasMaxLength(512);
 
+            builder.Property(t => t.DeviceId)
+                .HasColumnName("device_id")
+                .HasMaxLength(100);
+
+            builder.HasIndex(t => new { t.UserId, t.DeviceId })
+                .HasDatabaseName("IX_refresh_tokens_user_device");
+
             builder.HasIndex(t => t.TokenHash)
                 .HasDatabaseName("IX_refresh_tokens_token_hash")
                 .IsUnique();

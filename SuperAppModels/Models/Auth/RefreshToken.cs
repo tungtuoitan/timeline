@@ -11,6 +11,7 @@ namespace SuperAppModels.Models
         public DateTime? RevokedAt { get; set; }
         public string? ReplacedByTokenHash { get; set; }
         public string? DeviceInfo { get; set; }
+        public string? DeviceId { get; set; }
 
         public bool IsActive => RevokedAt == null && ExpiresAt > DateTime.UtcNow;
     }

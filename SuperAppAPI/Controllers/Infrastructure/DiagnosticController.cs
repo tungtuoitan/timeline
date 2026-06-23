@@ -93,3 +93,4 @@ namespace SuperAppAPI.Controllers.Infrastructure
         string UserAgent
     );
 }
+

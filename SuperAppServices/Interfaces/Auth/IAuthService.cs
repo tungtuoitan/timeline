@@ -42,7 +42,7 @@ namespace SuperAppServices.Interfaces
         /// </summary>
         /// <param name="refreshToken">Plaintext refresh token (from HttpOnly cookie)</param>
         /// <returns>New authentication response with new access token and refresh token</returns>
-        Task<AuthResponse> RefreshTokenAsync(string refreshToken);
+        Task<AuthResponse> RefreshTokenAsync(string refreshToken, string? deviceId = null);
 
         /// <summary>
         /// Revoke a refresh token (logout)

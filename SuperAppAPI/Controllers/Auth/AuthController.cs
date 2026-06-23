@@ -204,6 +204,7 @@ namespace SuperAppAPI.Controllers.Auth
             var ip = ClientIp();
             var ua = UserAgent();
             var hasCookie = !string.IsNullOrEmpty(Request.Cookies["refreshToken"]);
+            var deviceId = Request.Headers["X-Device-Id"].FirstOrDefault();
 
             _logger.LogInformation(
                 "[AUTH] refresh-start | TraceId={TraceId} | IP={IP} | UA={UA} | HasCookie={HasCookie}",
@@ -218,7 +219,7 @@ namespace SuperAppAPI.Controllers.Auth
                 return Unauthorized(new AuthResponse { Success = false, Message = "No refresh token", Error = "Missing cookie" });
             }
 
-            var result = await _authService.RefreshTokenAsync(refreshToken);
+            var result = await _authService.RefreshTokenAsync(refreshToken, deviceId);
 
             if (!result.Success)
             {

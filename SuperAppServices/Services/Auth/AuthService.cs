@@ -453,7 +453,7 @@ namespace SuperAppServices.Services.Auth
         /// <summary>
         /// Refresh access token using a valid refresh token (token rotation)
         /// </summary>
-        public async Task<AuthResponse> RefreshTokenAsync(string refreshToken)
+        public async Task<AuthResponse> RefreshTokenAsync(string refreshToken, string? deviceId = null)
         {
             var tokenHash = HashToken(refreshToken);
             _logger.LogInformation("[AUTH] refresh-start | TokenHashPrefix={Prefix}", tokenHash[..8]);
@@ -477,10 +477,23 @@ namespace SuperAppServices.Services.Auth
 
                 if (!isRecentRotation)
                 {
-                    _logger.LogWarning(
-                        "[AUTH] refresh-reuse-attack | UserId={UserId} | TokenId={TokenId} | RevokedAt={RevokedAt} | HasReplacement={HasReplacement} | Action=RevokeAll",
-                        storedToken.UserId, storedToken.Id, storedToken.RevokedAt, storedToken.ReplacedByTokenHash != null);
-                    await _refreshTokenRepository.RevokeAllUserTokensAsync(storedToken.UserId);
+                    // Scope revocation to this device only when deviceId is known.
+                    // Fall back to RevokeAll for legacy tokens (null DeviceId) to stay safe.
+                    var effectiveDeviceId = deviceId ?? storedToken.DeviceId;
+                    if (!string.IsNullOrEmpty(effectiveDeviceId))
+                    {
+                        _logger.LogWarning(
+                            "[AUTH] refresh-reuse-attack | UserId={UserId} | TokenId={TokenId} | RevokedAt={RevokedAt} | HasReplacement={HasReplacement} | Action=RevokeDevice | DeviceId={DeviceId}",
+                            storedToken.UserId, storedToken.Id, storedToken.RevokedAt, storedToken.ReplacedByTokenHash != null, effectiveDeviceId);
+                        await _refreshTokenRepository.RevokeUserTokensByDeviceAsync(storedToken.UserId, effectiveDeviceId);
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "[AUTH] refresh-reuse-attack | UserId={UserId} | TokenId={TokenId} | RevokedAt={RevokedAt} | HasReplacement={HasReplacement} | Action=RevokeAll",
+                            storedToken.UserId, storedToken.Id, storedToken.RevokedAt, storedToken.ReplacedByTokenHash != null);
+                        await _refreshTokenRepository.RevokeAllUserTokensAsync(storedToken.UserId);
+                    }
                     return new AuthResponse { Success = false, Message = "Token reuse detected", Error = "Security violation" };
                 }
 
@@ -511,7 +524,7 @@ namespace SuperAppServices.Services.Auth
 
             var user = storedToken.User;
             var newJwtToken = GenerateJwtToken(user);
-            var (newPlaintext, newTokenEntity) = await GenerateAndStoreRefreshTokenAsync(user.Id);
+            var (newPlaintext, newTokenEntity) = await GenerateAndStoreRefreshTokenAsync(user.Id, deviceId);
 
             storedToken.RevokedAt = DateTime.UtcNow;
             storedToken.ReplacedByTokenHash = newTokenEntity.TokenHash;
@@ -574,7 +587,7 @@ namespace SuperAppServices.Services.Auth
         /// <summary>
         /// Generate a cryptographically secure refresh token, store SHA-256 hash in DB
         /// </summary>
-        private async Task<(string plaintext, RefreshToken entity)> GenerateAndStoreRefreshTokenAsync(int userId)
+        private async Task<(string plaintext, RefreshToken entity)> GenerateAndStoreRefreshTokenAsync(int userId, string? deviceId = null)
         {
             var randomBytes = RandomNumberGenerator.GetBytes(64);
             var plaintext = Convert.ToBase64String(randomBytes)
@@ -585,6 +598,7 @@ namespace SuperAppServices.Services.Auth
             {
                 TokenHash = tokenHash,
                 UserId = userId,
+                DeviceId = deviceId,
                 ExpiresAt = DateTime.UtcNow.AddDays(7),
                 CreatedAt = DateTime.UtcNow
             };

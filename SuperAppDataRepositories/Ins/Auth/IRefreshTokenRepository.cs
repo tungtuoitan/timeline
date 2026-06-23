@@ -8,5 +8,6 @@ namespace SuperAppDataRepositories.Ins
         Task<RefreshToken> CreateAsync(RefreshToken token);
         Task UpdateAsync(RefreshToken token);
         Task RevokeAllUserTokensAsync(int userId);
+        Task RevokeUserTokensByDeviceAsync(int userId, string deviceId);
     }
 }

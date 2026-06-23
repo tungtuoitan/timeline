@@ -47,5 +47,19 @@ namespace SuperAppDataRepositories.Repositories
 
             await _context.SaveChangesAsync();
         }
+
+        public async Task RevokeUserTokensByDeviceAsync(int userId, string deviceId)
+        {
+            var activeTokens = await _context.RefreshTokens
+                .Where(t => t.UserId == userId && t.DeviceId == deviceId && t.RevokedAt == null)
+                .ToListAsync();
+
+            foreach (var token in activeTokens)
+            {
+                token.RevokedAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+        }
     }
 }
