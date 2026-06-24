@@ -12,7 +12,7 @@ namespace SuperAppServices.Tests
     public class KRepoSyncPlannerTests
     {
         // ── builders ──────────────────────────────────────────────────────────────
-        private static ParsedQuestion Q(int? id, string q, string a = "", bool draft = false) => new(id, q, a, draft, null);
+        private static ParsedQuestion Q(int? id, string q, string a = "", bool draft = false) => new(id, q, a, draft, null, Array.Empty<string>());
         private static RepoNodeFolder NF(string path, int? id, string name, params ParsedQuestion[] qs) => new(path, id, name, qs);
         private static RepoKnowledgeFolder KF(string key, int? id, string name) => new(key, id, name);
         private static DbKnowledgeRef K(int id, string name) => new(id, name);

@@ -28,6 +28,8 @@ namespace SuperAppDataRepositories.Data
         public DbSet<KPointHistoryEntity> KPointHistory { get; set; }
         public DbSet<KQuestionStatusHistoryEntity> KQuestionStatusHistory { get; set; }
         public DbSet<KNodeStatusHistoryEntity> KNodeStatusHistory { get; set; }
+        public DbSet<KAttachmentEntity> KAttachments { get; set; }
+        public DbSet<KAttachmentLinkEntity> KAttachmentLinks { get; set; }
 
         // Entity Tables (dbo schema)
         public DbSet<Note> Notes { get; set; }

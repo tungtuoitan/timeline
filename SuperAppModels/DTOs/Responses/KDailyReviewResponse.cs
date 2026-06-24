@@ -25,5 +25,7 @@ namespace SuperAppModels.DTOs.Responses
         public string? NodeName { get; set; }
         /// <summary>Seconds from now until next review for each score 1–5.</summary>
         public Dictionary<int, long> PreviewIntervalSeconds { get; set; } = new();
+        /// <summary>Attachments linked to this question (code files from Example/).</summary>
+        public List<KAttachmentResponse> Attachments { get; set; } = new();
     }
 }

@@ -6,6 +6,16 @@ namespace SuperAppModels.DTOs.Responses
         public List<KQuestionResponse> Questions { get; set; } = [];
     }
 
+    public class KAttachmentResponse
+    {
+        public int     Id       { get; set; }
+        public string  Title    { get; set; } = string.Empty;
+        public string  Type     { get; set; } = "code";
+        public string? Language { get; set; }
+        public string? Content  { get; set; }
+        public int     SortOrder { get; set; }
+    }
+
     public class KQuestionResponse
     {
         /// <summary>k.question.id</summary>
@@ -29,6 +39,8 @@ namespace SuperAppModels.DTOs.Responses
         public double Retention { get; set; }
         /// <summary>Non-null when question has been soft-deleted</summary>
         public DateTime? DeletedAt { get; set; }
+        /// <summary>Attachments linked to this question (code files from Example/ folder)</summary>
+        public List<KAttachmentResponse> Attachments { get; set; } = [];
     }
 
     public class KQuestionStatusTimelineResponse

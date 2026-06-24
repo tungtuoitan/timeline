@@ -262,9 +262,14 @@ namespace SuperAppServices.Services.K
                 if (remoteBranch == null)
                     return new KRepoCompareDiffResponse { Error = "Remote branch not found" };
 
-                // ── 1. Read repo files ────────────────────────────────────────────
+                // ── 1. Read repo files (all sync tree reads BEFORE any await) ────────
                 var mdFiles = new Dictionary<string, string>(StringComparer.Ordinal);
                 WalkMdFiles(remoteBranch.Tip.Tree, "", mdFiles);
+
+                // Read Example/ folder here — before any await, while the LibGit2Sharp
+                // tree is still valid on the current thread.
+                var repoCodeFiles = new Dictionary<string, string>(StringComparer.Ordinal);
+                WalkAllFiles(remoteBranch.Tip.Tree, "Example", repoCodeFiles);
 
                 var knowledgeFolders = new List<RepoKnowledgeFolder>();
                 var nodeFolders      = new List<RepoNodeFolder>();
@@ -293,6 +298,40 @@ namespace SuperAppServices.Services.K
                 var dbQuestions = await _db.KQuestions
                     .Where(q => q.NodeId != null && dbNodeIds.Contains(q.NodeId.Value) && q.DeletedAt == null)
                     .ToListAsync();
+
+                // Load existing attachment links per question (for att-ref change detection)
+                var dbQIds = dbQuestions.Select(q => q.Id).ToList();
+                var dbQAttLinks = dbQIds.Count > 0
+                    ? await _db.KAttachmentLinks
+                        .Where(l => l.EntityType == "question" && dbQIds.Contains(l.EntityId))
+                        .ToListAsync()
+                    : new List<KAttachmentLinkEntity>();
+                var dbQAttLinkMap = dbQAttLinks
+                    .GroupBy(l => l.EntityId)
+                    .ToDictionary(g => g.Key, g => g.Select(l => l.AttachmentId).ToHashSet());
+
+                // Build title → att id from Example/ files already fetched above (read-only)
+                // Register both full title ("case1.cs") and basename ("case1") so atts: tags
+                // can use either form.
+                var titleToAttIdCmp = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                foreach (var (attPath, attContent) in repoCodeFiles)
+                {
+                    var attTitle  = attPath.Split('/').Last();
+                    var attLines  = attContent.Replace("\r\n", "\n").Split('\n');
+                    var firstLine = attLines.Length > 0 ? attLines[0].Trim() : "";
+                    var idMatch   = Regex.Match(firstLine, @"att-id:(\d+)");
+                    if (idMatch.Success && int.TryParse(idMatch.Groups[1].Value, out var pid))
+                    {
+                        titleToAttIdCmp[attTitle] = pid;
+                        var dotIdx = attTitle.LastIndexOf('.');
+                        if (dotIdx > 0)
+                        {
+                            var basename = attTitle.Substring(0, dotIdx);
+                            if (!titleToAttIdCmp.ContainsKey(basename))
+                                titleToAttIdCmp[basename] = pid;
+                        }
+                    }
+                }
 
                 // ── 3. Plan (pure comparison) ─────────────────────────────────────
                 var plan = KRepoSyncPlanner.Plan(
@@ -456,14 +495,25 @@ namespace SuperAppServices.Services.K
                     var contentEqual = QuestionsEqual(dbQ.Name, dbQ.Description, dbDraft,
                                                       pq.Question, pq.Answer, repoDraft);
 
-                    // A question "moves" when its NodeFolderKey in the repo resolves to
-                    // a different node id than the one stored in DB. Only flag when we
-                    // could actually resolve the repo target — otherwise the move could
-                    // be to a brand-new node not yet in DB (handled by the new-node entry).
+                    // Check if att-links differ between repo and DB (either side has extras)
+                    var attLinksChanged = false;
+                    {
+                        var dbLinks = dbQAttLinkMap.TryGetValue(pq.ExistingId!.Value, out var ls) ? ls : new HashSet<int>();
+                        var repoIds = new HashSet<int>();
+                        foreach (var attRef in pq.AttRefs)
+                        {
+                            int? resolvedId = int.TryParse(attRef, out var pid)
+                                ? pid
+                                : titleToAttIdCmp.TryGetValue(attRef, out var mid) ? mid : (int?)null;
+                            if (resolvedId.HasValue) repoIds.Add(resolvedId.Value);
+                        }
+                        if (!dbLinks.SetEquals(repoIds)) attLinksChanged = true;
+                    }
+
                     int? repoNodeId = folderToNodeIdCmp.TryGetValue(pq.NodeFolderKey, out var rnid) ? rnid : null;
                     var nodeChanged = repoNodeId.HasValue && dbQ.NodeId != repoNodeId.Value;
 
-                    if (contentEqual && !nodeChanged) continue;
+                    if (contentEqual && !nodeChanged && !attLinksChanged) continue;
 
                     var dbBody   = FlattenLine(dbQ.Name) + (string.IsNullOrEmpty(dbQ.Description) ? "" : "\n" + NormalizeDescription(dbQ.Description));
                     var repoBody = pq.Question.Trim() + (string.IsNullOrEmpty(pq.Answer) ? "" : "\n" + NormalizeDescription(pq.Answer));
@@ -484,6 +534,20 @@ namespace SuperAppServices.Services.K
                             : nodeFolderName;
                         dbText   += $"\nin: {dbNodeName}";
                         repoText += $"\nin: {repoNodeName}";
+                    }
+
+                    // If only attachment links changed, surface that so the diff isn't
+                    // visually identical to the user.
+                    if (attLinksChanged)
+                    {
+                        var dbAttIds = dbQAttLinkMap.TryGetValue(dbQ.Id, out var dbLs)
+                            ? dbLs.OrderBy(x => x).ToList()
+                            : new List<int>();
+                        // Show repo refs as-written so filename refs (e.g. "case3.cs")
+                        // are visible even when not yet resolved to an id.
+                        var repoRefs = pq.AttRefs.ToList();
+                        dbText   += $"\natts: [{string.Join(",", dbAttIds)}]";
+                        repoText += $"\natts: [{string.Join(",", repoRefs)}]";
                     }
 
                     entries.Add(new KRepoCompareEntry
@@ -513,6 +577,65 @@ namespace SuperAppServices.Services.K
                         OldText    = dbQ.Name + (string.IsNullOrEmpty(dbQ.Description) ? "" : "\n" + dbQ.Description),
                     });
                 }
+
+                // ── Attachments: compare Example/ files vs DB ─────────────────────
+                // repoCodeFiles already populated before the first await (above).
+                var dbAttachments = await _db.KAttachments
+                    .Where(a => a.UserId == userId && a.DeletedAt == null)
+                    .ToListAsync();
+                var dbAttMap      = dbAttachments.ToDictionary(a => a.Id);
+                var claimedAttIds = new HashSet<int>();
+
+                foreach (var (attPath, attContent) in repoCodeFiles)
+                {
+                    var attTitle  = attPath.Split('/').Last();
+                    var attLines  = attContent.Replace("\r\n", "\n").Split('\n');
+                    var firstLine = attLines.Length > 0 ? attLines[0].Trim() : "";
+                    var idMatch   = Regex.Match(firstLine, @"att-id:(\d+)");
+                    int? attId    = idMatch.Success && int.TryParse(idMatch.Groups[1].Value, out var parsedAttId)
+                                    ? parsedAttId : (int?)null;
+                    var codeBody  = attLines.Length > 1
+                                    ? string.Join("\n", attLines.Skip(1)).TrimStart('\n')
+                                    : "";
+
+                    if (attId.HasValue && dbAttMap.TryGetValue(attId.Value, out var dbAtt))
+                    {
+                        claimedAttIds.Add(attId.Value);
+                        var dbBody = (dbAtt.Content ?? "").TrimEnd();
+                        if (dbBody != codeBody.TrimEnd() || dbAtt.Title != attTitle)
+                            entries.Add(new KRepoCompareEntry
+                            {
+                                EntityType = "attachment",
+                                ChangeType = "modified",
+                                DbId       = dbAtt.Id,
+                                Name       = attTitle,
+                                OldText    = dbAtt.Content ?? "",
+                                NewText    = codeBody,
+                            });
+                    }
+                    else
+                    {
+                        entries.Add(new KRepoCompareEntry
+                        {
+                            EntityType = "attachment",
+                            ChangeType = "repo_only",
+                            Name       = attTitle,
+                            RepoPath   = attPath,
+                            NewText    = codeBody,
+                        });
+                    }
+                }
+
+                // DB attachments absent from repo (not yet pushed, or deleted from repo)
+                foreach (var att in dbAttachments.Where(a => !claimedAttIds.Contains(a.Id)))
+                    entries.Add(new KRepoCompareEntry
+                    {
+                        EntityType = "attachment",
+                        ChangeType = "db_only",
+                        DbId       = att.Id,
+                        Name       = att.Title,
+                        OldText    = att.Content ?? "",
+                    });
             }
             catch (Exception ex)
             {
@@ -690,7 +813,21 @@ namespace SuperAppServices.Services.K
                 {
                     var questions = await _questionRepo.GetQuestionsByNodeAsync(node.Id);
                     var active    = questions.Where(q => q.DeletedAt == null).ToList();
-                    var content   = BuildFrontMatter(node.Id, node.Name) + BuildRepoMarkdown(active);
+                    var activeIds = active.Select(q => q.Id).ToList();
+
+                    // Load attachment links for this node's questions
+                    Dictionary<int, List<int>>? attsByQ = null;
+                    if (activeIds.Count > 0)
+                    {
+                        var links = await _db.KAttachmentLinks
+                            .Where(l => l.EntityType == "question" && activeIds.Contains(l.EntityId))
+                            .ToListAsync();
+                        if (links.Count > 0)
+                            attsByQ = links.GroupBy(l => l.EntityId)
+                                .ToDictionary(g => g.Key, g => g.Select(l => l.AttachmentId).ToList());
+                    }
+
+                    var content   = BuildFrontMatter(node.Id, node.Name) + BuildRepoMarkdown(active, attsByQ);
                     var name      = uniqueName[node.Id];
                     // Non-leaf → folder "<name>/<name>.md"; leaf → file "<name>.md".
                     var filePath  = hasChildren.Contains(node.Id)
@@ -698,6 +835,20 @@ namespace SuperAppServices.Services.K
                         : $"{containerDir[node.Id]}/{name}.md";
                     fileMap[filePath] = content;
                 }
+            }
+
+            // ── Example/ folder: one file per attachment ──────────────────────────
+            var allAttachments = await _db.KAttachments
+                .Where(a => a.UserId == userId && a.DeletedAt == null)
+                .OrderBy(a => a.SortOrder).ThenBy(a => a.Title)
+                .ToListAsync();
+
+            foreach (var att in allAttachments)
+            {
+                var safeTitle   = Sanitize(att.Title);
+                var metaComment = BuildAttachmentMetaComment(att.Title, att.Id);
+                var body        = string.IsNullOrEmpty(att.Content) ? "" : "\n" + att.Content;
+                fileMap[$"Example/{safeTitle}"] = metaComment + body;
             }
 
             // Compute content hash. The short-circuit is an optimisation for the
@@ -764,18 +915,23 @@ namespace SuperAppServices.Services.K
             }
             // repo disposed here — all file handles released before we touch the FS
 
-            // ── Write new files, remove stale .md files (never delete dirs) ─────────
-            // Deleting a dir that git just removed via Pull leaves it in Windows
-            // "pending deletion" state; an immediate CreateDirectory on the same path
-            // then fails with ERROR_INVALID_NAME. Avoid the problem by only touching
-            // individual files and letting git Stage("*") detect the deletions.
+            // ── Write new files, remove stale files (never delete dirs) ─────────
             var knowledgeRoot = Path.Combine(repoWorkDir, "Knowledge");
             if (!Directory.Exists(knowledgeRoot))
                 Directory.CreateDirectory(knowledgeRoot);
 
-            // Existing .md paths (repo-relative, forward slashes)
+            var exampleRoot = Path.Combine(repoWorkDir, "Example");
+            if (!Directory.Exists(exampleRoot))
+                Directory.CreateDirectory(exampleRoot);
+
+            // Existing tracked paths (repo-relative, forward slashes)
             var existingMd = Directory
                 .GetFiles(knowledgeRoot, "*.md", SearchOption.AllDirectories)
+                .Select(f => Path.GetRelativePath(repoWorkDir, f).Replace('\\', '/'))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var existingExample = Directory
+                .GetFiles(exampleRoot, "*", SearchOption.AllDirectories)
                 .Select(f => Path.GetRelativePath(repoWorkDir, f).Replace('\\', '/'))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -785,16 +941,24 @@ namespace SuperAppServices.Services.K
             {
                 newPaths.Add(relPath);
                 var absPath = Path.Combine(repoWorkDir, relPath.Replace('/', Path.DirectorySeparatorChar));
-                //_logger.LogDebug("DoPush: writing {Path}", relPath);
                 Directory.CreateDirectory(Path.GetDirectoryName(absPath)!);
                 await System.IO.File.WriteAllTextAsync(absPath, content, Encoding.UTF8);
             }
 
-            // Delete .md files no longer present in DB
+            // Delete stale Knowledge/ .md files no longer in DB
             foreach (var old in existingMd.Where(p => !newPaths.Contains(p)))
             {
                 var absOld = Path.Combine(repoWorkDir, old.Replace('/', Path.DirectorySeparatorChar));
                 _logger.LogDebug("DoPush: removing stale {Path}", old);
+                if (System.IO.File.Exists(absOld))
+                    System.IO.File.Delete(absOld);
+            }
+
+            // Delete stale Example/ files no longer in DB
+            foreach (var old in existingExample.Where(p => !newPaths.Contains(p)))
+            {
+                var absOld = Path.Combine(repoWorkDir, old.Replace('/', Path.DirectorySeparatorChar));
+                _logger.LogDebug("DoPush: removing stale example {Path}", old);
                 if (System.IO.File.Exists(absOld))
                     System.IO.File.Delete(absOld);
             }
@@ -891,10 +1055,6 @@ namespace SuperAppServices.Services.K
             var now = DateTime.UtcNow;
 
             // ── 1. Read repo: every ".md" file → a logical knowledge/node ──────────
-            // Layout: leaf node = "<Name>.md"; non-leaf node = folder "<Name>/" whose own
-            // "<Name>.md" holds its questions; knowledge = folder "<K>/" with "<K>.md".
-            // A file whose base name equals its containing folder is that folder's "self"
-            // file (the entity = the folder); any other ".md" is a leaf node.
             var mdFiles = new Dictionary<string, string>(StringComparer.Ordinal);
             WalkMdFiles(remoteHead.Tree, "", mdFiles);
 
@@ -906,11 +1066,82 @@ namespace SuperAppServices.Services.K
                 if (logical == null) continue;
 
                 var (id, _, body) = ParseFrontMatter(content);
-                if (logical.Length == 2)                               // Knowledge/<K> ⇒ knowledge
+                if (logical.Length == 2)
                     knowledgeFolders.Add(new RepoKnowledgeFolder(logical[1], id, logical[1]));
-                else if (logical.Length >= 3)                          // node
+                else if (logical.Length >= 3)
                     nodeFolders.Add(new RepoNodeFolder(string.Join("/", logical), id, logical[^1], ParseQuestions(body)));
             }
+
+            // ── 1b. Read Example/ folder: each file = one attachment ─────────────
+            var codeFiles = new Dictionary<string, string>(StringComparer.Ordinal);
+            WalkAllFiles(remoteHead.Tree, "Example", codeFiles);
+
+            // title (filename without leading path) → attachmentId (after upsert)
+            // Two keys per file: full title ("case1.cs") AND basename without extension
+            // ("case1") so users can ref either form in atts: tags.
+            var titleToAttachmentId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var claimedAttIds       = new HashSet<int>();
+            void RegisterAttTitle(string title, int id)
+            {
+                titleToAttachmentId[title] = id;
+                var dot = title.LastIndexOf('.');
+                if (dot > 0)
+                {
+                    var basename = title.Substring(0, dot);
+                    if (!titleToAttachmentId.ContainsKey(basename))
+                        titleToAttachmentId[basename] = id;
+                }
+            }
+            foreach (var (path, content) in codeFiles)
+            {
+                var title    = path.Split('/').Last();
+                var language = DetectLanguage(title);
+                var lines    = content.Replace("\r\n", "\n").Split('\n');
+
+                int? existingId = null;
+                var firstLine   = lines.Length > 0 ? lines[0].Trim() : "";
+                var idMatch     = Regex.Match(firstLine, @"att-id:(\d+)");
+                if (idMatch.Success && int.TryParse(idMatch.Groups[1].Value, out var parsedId))
+                    existingId = parsedId;
+
+                // Code body = everything after the metadata comment line
+                var codeBody = lines.Length > 1
+                    ? string.Join("\n", lines.Skip(1)).TrimStart('\n')
+                    : "";
+
+                if (existingId.HasValue)
+                {
+                    var att = await _db.KAttachments.FirstOrDefaultAsync(
+                        a => a.Id == existingId.Value && a.UserId == userId && a.DeletedAt == null);
+                    if (att != null)
+                    {
+                        att.Title     = title;
+                        att.Content   = codeBody;
+                        att.Language  = language;
+                        att.UpdatedAt = now;
+                        RegisterAttTitle(title, att.Id);
+                        claimedAttIds.Add(att.Id);
+                    }
+                }
+                else
+                {
+                    // New file — create row; DoPushAsync at the end will rewrite file with att-id
+                    var att = new KAttachmentEntity
+                    {
+                        UserId    = userId,
+                        Title     = title,
+                        Type      = "code",
+                        Language  = language,
+                        Content   = codeBody,
+                        CreatedAt = now,
+                    };
+                    _db.KAttachments.Add(att);
+                    await _db.SaveChangesAsync();
+                    RegisterAttTitle(title, att.Id);
+                    claimedAttIds.Add(att.Id);
+                }
+            }
+            await _db.SaveChangesAsync();
 
             // ── 2. DB snapshot for this user ──────────────────────────────────────
             var dbKnowledges   = await _db.KKnowledges
@@ -1079,7 +1310,42 @@ namespace SuperAppServices.Services.K
                 qDeleted = plan.QuestionIdsToDelete.Count;
             }
 
-            // ── 7. Unclaimed knowledges/nodes ─────────────────────────────────────
+            // ── 7. Sync attachment links from atts: tags ──────────────────────────
+            // Each ref is either a numeric id ("5") or a filename ("case1.cs").
+            // Filename refs are resolved via titleToAttachmentId (populated in step 1b).
+            // We only add missing links — we do NOT remove links not present in the tag.
+            foreach (var pq in plan.Questions.Where(q => q.ExistingId != null && q.AttRefs.Count > 0))
+            {
+                var qId = pq.ExistingId!.Value;
+                var existingLinkAttIds = await _db.KAttachmentLinks
+                    .Where(l => l.EntityType == "question" && l.EntityId == qId)
+                    .Select(l => l.AttachmentId)
+                    .ToListAsync();
+                var existingSet = existingLinkAttIds.ToHashSet();
+
+                foreach (var attRef in pq.AttRefs)
+                {
+                    int? attId = int.TryParse(attRef, out var parsedId)
+                        ? parsedId
+                        : titleToAttachmentId.TryGetValue(attRef, out var mappedId) ? mappedId : (int?)null;
+
+                    if (attId == null || existingSet.Contains(attId.Value)) continue;
+
+                    var attExists = await _db.KAttachments
+                        .AnyAsync(a => a.Id == attId.Value && a.UserId == userId && a.DeletedAt == null);
+                    if (!attExists) continue;
+                    _db.KAttachmentLinks.Add(new KAttachmentLinkEntity
+                    {
+                        AttachmentId = attId.Value,
+                        EntityType   = "question",
+                        EntityId     = qId,
+                        CreatedAt    = now,
+                    });
+                }
+            }
+            await _db.SaveChangesAsync();
+
+            // ── 8. Unclaimed knowledges/nodes ─────────────────────────────────────
             // Two modes:
             //   • softDeleteUnclaimed=false (daemon / DB-wins) — leave them; the final
             //     DoPushAsync will restore them on the remote.
@@ -1159,6 +1425,15 @@ namespace SuperAppServices.Services.K
                 }
                 kSoftDeleted = unclaimedKnowledges.Count;
 
+                // Soft-delete attachments absent from Example/ folder.
+                // claimedAttIds holds every att touched by step 1b — anything else is gone from repo.
+                var unclaimedAtts = await _db.KAttachments
+                    .Where(a => a.UserId == userId && a.DeletedAt == null && !claimedAttIds.Contains(a.Id))
+                    .ToListAsync();
+                foreach (var a in unclaimedAtts) { a.DeletedAt = now; a.UpdatedAt = now; }
+                if (unclaimedAtts.Count > 0)
+                    _logger.LogInformation("Reconcile (Apply): soft-deleting {Count} attachment(s) absent from Example/", unclaimedAtts.Count);
+
                 await _db.SaveChangesAsync();
             }
             else if (unclaimedNodes.Count > 0 || unclaimedKnowledges.Count > 0)
@@ -1203,6 +1478,64 @@ namespace SuperAppServices.Services.K
             }
         }
 
+        // Collects all blobs under a specific root folder prefix: path → text content.
+        private static void WalkAllFiles(Tree tree, string rootFolder, Dictionary<string, string> files)
+        {
+            var root = tree[rootFolder];
+            if (root?.TargetType != TreeEntryTargetType.Tree) return;
+            WalkAllFilesInner((Tree)root.Target, rootFolder, files);
+        }
+
+        private static void WalkAllFilesInner(Tree tree, string prefix, Dictionary<string, string> files)
+        {
+            foreach (var entry in tree)
+            {
+                var fullPath = $"{prefix}/{entry.Name}";
+                if (entry.TargetType == TreeEntryTargetType.Tree)
+                    WalkAllFilesInner((Tree)entry.Target, fullPath, files);
+                else if (entry.TargetType == TreeEntryTargetType.Blob)
+                    files[fullPath] = ((Blob)entry.Target).GetContentText(Encoding.UTF8);
+            }
+        }
+
+        // Builds the metadata comment line for a code attachment file (line 1).
+        // Format: <comment-prefix> att-id:<id>
+        private static string BuildAttachmentMetaComment(string title, int id)
+        {
+            var ext = Path.GetExtension(title).ToLowerInvariant();
+            var prefix = ext switch
+            {
+                ".py" or ".sh" or ".rb" or ".yaml" or ".yml" or ".toml" => "#",
+                ".sql" => "--",
+                ".html" or ".xml" => "<!--",
+                _ => "//"
+            };
+            var suffix = (ext == ".html" || ext == ".xml") ? " -->" : "";
+            return $"{prefix} att-id:{id}{suffix}";
+        }
+
+        private static string DetectLanguage(string filename) =>
+            Path.GetExtension(filename).ToLowerInvariant() switch
+            {
+                ".py"   => "python",
+                ".js"   => "javascript",
+                ".ts"   => "typescript",
+                ".cs" or ".csx" => "csharp",
+                ".go"   => "go",
+                ".java" => "java",
+                ".rs"   => "rust",
+                ".cpp"  => "cpp",
+                ".c"    => "c",
+                ".sql"  => "sql",
+                ".sh"   => "shell",
+                ".rb"   => "ruby",
+                ".php"  => "php",
+                ".md"   => "markdown",
+                ".json" => "json",
+                ".yaml" or ".yml" => "yaml",
+                _       => "plaintext",
+            };
+
         // ── Markdown builder (C# port of kMarkdownEditor.utils.ts) ───────────────
 
         /// <summary>
@@ -1240,7 +1573,9 @@ namespace SuperAppServices.Services.K
             return dbBody == repoBody && dbDraft == repoDraft;
         }
 
-        internal static string BuildRepoMarkdown(List<KQuestionEntity> questions)
+        internal static string BuildRepoMarkdown(
+            List<KQuestionEntity> questions,
+            Dictionary<int, List<int>>? attsByQuestionId = null)
         {
             if (!questions.Any()) return string.Empty;
 
@@ -1249,7 +1584,9 @@ namespace SuperAppServices.Services.K
 
             foreach (var q in sorted)
             {
-                var tag      = $"[id:{q.Id} order:{q.SortOrder}]";
+                var attIds  = attsByQuestionId?.TryGetValue(q.Id, out var ids) == true ? ids : null;
+                var attPart = attIds?.Count > 0 ? $" atts:{string.Join(",", attIds)}" : "";
+                var tag      = $"[id:{q.Id} order:{q.SortOrder}{attPart}]";
                 var nameLine = FlattenLine(q.Name);
                 if (q.StatusCode == "draft")
                 {
@@ -1348,6 +1685,7 @@ namespace SuperAppServices.Services.K
             bool isDraft = false;
             int? id = null, order = null;
             bool inDraft = false;
+            IReadOnlyList<string> attRefs = Array.Empty<string>();
 
             // Tolerate the editor putting "<!--" on its own line with the heading on
             // the next line — collapse that into the canonical single-line opener so
@@ -1358,8 +1696,8 @@ namespace SuperAppServices.Services.K
             void Flush()
             {
                 if (question == null) return;
-                result.Add(new ParsedQuestion(id, question, answer?.Trim() ?? "", isDraft, order));
-                question = answer = null; isDraft = false; id = order = null;
+                result.Add(new ParsedQuestion(id, question, answer?.Trim() ?? "", isDraft, order, attRefs));
+                question = answer = null; isDraft = false; id = order = null; attRefs = Array.Empty<string>();
             }
 
             foreach (var raw in body.Split('\n'))
@@ -1373,10 +1711,10 @@ namespace SuperAppServices.Services.K
                     var isSingle = line.TrimEnd().EndsWith("-->");
                     var inner    = Regex.Replace(line, @"^<!--\s*#\s+", "").TrimEnd();
                     if (isSingle) inner = Regex.Replace(inner, @"\s*-->\s*$", "");
-                    var (q, metaId, metaOrder) = ExtractMeta(inner);
+                    var (q, metaId, metaOrder, metaAtts) = ExtractMeta(inner);
                     if (q.Length > 0 && metaId.HasValue)
                     {
-                        question = q; id = metaId; order = metaOrder; isDraft = true;
+                        question = q; id = metaId; order = metaOrder; isDraft = true; attRefs = metaAtts;
                         if (isSingle) Flush();
                         else inDraft = true;
                     }
@@ -1397,8 +1735,8 @@ namespace SuperAppServices.Services.K
                 if (Regex.IsMatch(line, @"^#\s"))
                 {
                     Flush();
-                    var (q, metaId, metaOrder) = ExtractMeta(line[2..].Trim());
-                    if (q.Length > 0) { question = q; id = metaId; order = metaOrder; }
+                    var (q, metaId, metaOrder, metaAtts) = ExtractMeta(line[2..].Trim());
+                    if (q.Length > 0) { question = q; id = metaId; order = metaOrder; attRefs = metaAtts; }
                     continue;
                 }
 
@@ -1410,21 +1748,32 @@ namespace SuperAppServices.Services.K
             return result;
         }
 
-        private static (string question, int? id, int? order) ExtractMeta(string text)
+        private static (string question, int? id, int? order, IReadOnlyList<string> attRefs) ExtractMeta(string text)
         {
             var match = Regex.Match(text, @"\[([^\]]+)\]");
-            if (!match.Success) return (text.Trim(), null, null);
+            if (!match.Success) return (text.Trim(), null, null, Array.Empty<string>());
 
             var bracket = match.Value;
             var clean   = text.Replace(bracket, "").Trim();
             int? id = null, order = null;
+            var attRefs = new List<string>();
 
-            foreach (Match m in Regex.Matches(bracket, @"(\w+):(\S+)"))
+            foreach (Match m in Regex.Matches(bracket, @"(\w+):([^\s\]]+)"))
             {
-                if (m.Groups[1].Value == "id"    && int.TryParse(m.Groups[2].Value, out var i)) id    = i;
-                if (m.Groups[1].Value == "order" && int.TryParse(m.Groups[2].Value, out var o)) order = o;
+                var key = m.Groups[1].Value;
+                var val = m.Groups[2].Value;
+                if (key == "id"    && int.TryParse(val, out var i)) id    = i;
+                if (key == "order" && int.TryParse(val, out var o)) order = o;
+                if (key == "atts")
+                {
+                    foreach (var part in val.Split(','))
+                    {
+                        var trimmed = part.Trim();
+                        if (!string.IsNullOrEmpty(trimmed)) attRefs.Add(trimmed);
+                    }
+                }
             }
-            return (clean, id, order);
+            return (clean, id, order, attRefs);
         }
 
         // Quick helper used by GetDiffAsync
@@ -1712,7 +2061,20 @@ namespace SuperAppServices.Services.K
                 {
                     var questions = await _questionRepo.GetQuestionsByNodeAsync(node.Id);
                     var active    = questions.Where(q => q.DeletedAt == null).ToList();
-                    var content   = BuildFrontMatter(node.Id, node.Name) + BuildRepoMarkdown(active);
+                    var activeIds = active.Select(q => q.Id).ToList();
+
+                    Dictionary<int, List<int>>? attsByQ = null;
+                    if (activeIds.Count > 0)
+                    {
+                        var links = await _db.KAttachmentLinks
+                            .Where(l => l.EntityType == "question" && activeIds.Contains(l.EntityId))
+                            .ToListAsync();
+                        if (links.Count > 0)
+                            attsByQ = links.GroupBy(l => l.EntityId)
+                                .ToDictionary(g => g.Key, g => g.Select(l => l.AttachmentId).ToList());
+                    }
+
+                    var content   = BuildFrontMatter(node.Id, node.Name) + BuildRepoMarkdown(active, attsByQ);
                     var name      = uniqueName[node.Id];
                     var filePath  = hasChildren.Contains(node.Id)
                         ? $"{childDir[node.Id]}/{name}.md"

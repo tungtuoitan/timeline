@@ -1,5 +1,7 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SuperAppModels.Utils;
+using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
@@ -15,6 +17,7 @@ namespace SuperAppServices.Services.K
         private readonly IKKnowledgeRepository _knowledgeRepo;
         private readonly IKStatusHistoryRepository _statusHistory;
         private readonly IKGradingService _grading;
+        private readonly ApplicationDbContext _db;
         private readonly ILogger<KQuestionService> _logger;
 
         public KQuestionService(
@@ -22,13 +25,47 @@ namespace SuperAppServices.Services.K
             IKKnowledgeRepository knowledgeRepo,
             IKStatusHistoryRepository statusHistory,
             IKGradingService grading,
+            ApplicationDbContext db,
             ILogger<KQuestionService> logger)
         {
             _repo          = repo           ?? throw new ArgumentNullException(nameof(repo));
             _knowledgeRepo = knowledgeRepo  ?? throw new ArgumentNullException(nameof(knowledgeRepo));
             _statusHistory = statusHistory  ?? throw new ArgumentNullException(nameof(statusHistory));
             _grading       = grading        ?? throw new ArgumentNullException(nameof(grading));
+            _db            = db             ?? throw new ArgumentNullException(nameof(db));
             _logger        = logger         ?? throw new ArgumentNullException(nameof(logger));
+        }
+
+        // Loads attachment responses for a set of question ids in one query.
+        private async Task<Dictionary<int, List<KAttachmentResponse>>> LoadAttachmentsForQuestionsAsync(List<int> questionIds)
+        {
+            if (questionIds.Count == 0) return new();
+            var links = await _db.KAttachmentLinks
+                .Where(l => l.EntityType == "question" && questionIds.Contains(l.EntityId))
+                .ToListAsync();
+            if (links.Count == 0) return new();
+            var attIds = links.Select(l => l.AttachmentId).Distinct().ToList();
+            var atts = await _db.KAttachments
+                .Where(a => attIds.Contains(a.Id) && a.DeletedAt == null)
+                .ToListAsync();
+            var attMap = atts.ToDictionary(a => a.Id);
+            var result = new Dictionary<int, List<KAttachmentResponse>>();
+            foreach (var link in links)
+            {
+                if (!attMap.TryGetValue(link.AttachmentId, out var att)) continue;
+                if (!result.TryGetValue(link.EntityId, out var list))
+                    result[link.EntityId] = list = new();
+                list.Add(new KAttachmentResponse
+                {
+                    Id       = att.Id,
+                    Title    = att.Title,
+                    Type     = att.Type,
+                    Language = att.Language,
+                    Content  = att.Content,
+                    SortOrder = att.SortOrder,
+                });
+            }
+            return result;
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -52,6 +89,8 @@ namespace SuperAppServices.Services.K
                               .Select(h => h.Point)
                               .ToList());
 
+                var attachmentsByQuestion = await LoadAttachmentsForQuestionsAsync(questionIds);
+
                 var response = new KQuestionsListResponse
                 {
                     KnowledgeId = nodeId,
@@ -69,6 +108,7 @@ namespace SuperAppServices.Services.K
                             ScoreHistory    = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
                             SrsNextReviewAt = q.SrsNextReviewAt,
                             Retention       = SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt),
+                            Attachments     = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],
                         }).ToList(),
                 };
 
@@ -98,6 +138,8 @@ namespace SuperAppServices.Services.K
                               .Select(h => h.Point)
                               .ToList());
 
+                var attachmentsByQuestion = await LoadAttachmentsForQuestionsAsync(questionIds);
+
                 var response = new KQuestionsListResponse
                 {
                     KnowledgeId = knowledgeId,
@@ -115,6 +157,7 @@ namespace SuperAppServices.Services.K
                             ScoreHistory    = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
                             SrsNextReviewAt = q.SrsNextReviewAt,
                             Retention       = SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt),
+                            Attachments     = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],
                         }).ToList(),
                 };
 
@@ -144,6 +187,8 @@ namespace SuperAppServices.Services.K
                               .Select(h => h.Point)
                               .ToList());
 
+                var attachmentsByQuestion = await LoadAttachmentsForQuestionsAsync(questionIds);
+
                 var response = new KQuestionsListResponse
                 {
                     KnowledgeId = null,
@@ -159,6 +204,7 @@ namespace SuperAppServices.Services.K
                             ScoreHistory    = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
                             SrsNextReviewAt = q.SrsNextReviewAt,
                             Retention       = SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt),
+                            Attachments     = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],
                         }).ToList(),
                 };
 
@@ -373,6 +419,7 @@ namespace SuperAppServices.Services.K
             try
             {
                 var questions = await _repo.GetDailySessionQuestionsAsync(nodeId, dailyLimit, 0.4);
+                var attachmentsByQuestion = await LoadAttachmentsForQuestionsAsync(questions.Select(q => q.Id).ToList());
                 var now = VietnamDateTime.Now();
                 var response  = questions.Select(q =>
                 {
@@ -391,6 +438,7 @@ namespace SuperAppServices.Services.K
                         Answer                 = q.Description,
                         NodeName               = q.Node?.Name,
                         PreviewIntervalSeconds = previews,
+                        Attachments            = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],
                     };
                 }).ToList();
                 return Ok(response);
@@ -403,6 +451,7 @@ namespace SuperAppServices.Services.K
             try
             {
                 var questions = await _repo.GetKnowledgeDailySessionQuestionsAsync(nodeId, dailyLimit, 0.4);
+                var attachmentsByQuestion = await LoadAttachmentsForQuestionsAsync(questions.Select(q => q.Id).ToList());
                 var now = VietnamDateTime.Now();
                 var response = questions.Select(q =>
                 {
@@ -421,6 +470,7 @@ namespace SuperAppServices.Services.K
                         Answer                 = q.Description,
                         NodeName               = q.Node?.Name,
                         PreviewIntervalSeconds = previews,
+                        Attachments            = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],
                     };
                 }).ToList();
                 return Ok(response);
@@ -433,6 +483,7 @@ namespace SuperAppServices.Services.K
             try
             {
                 var questions = await _repo.GetKnowledgeReviewAllQuestionsAsync(knowledgeId);
+                var attachmentsByQuestion = await LoadAttachmentsForQuestionsAsync(questions.Select(q => q.Id).ToList());
                 var now = VietnamDateTime.Now();
                 var response = questions.Select(q =>
                 {
@@ -451,6 +502,7 @@ namespace SuperAppServices.Services.K
                         Answer                 = q.Description,
                         NodeName               = q.Node?.Name,
                         PreviewIntervalSeconds = previews,
+                        Attachments            = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],
                     };
                 }).ToList();
                 return Ok(response);

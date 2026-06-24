@@ -3,7 +3,7 @@ namespace SuperAppServices.Services.K
     // ── Inputs ───────────────────────────────────────────────────────────────────
 
     /// <summary>A single question parsed from a node's _.md body.</summary>
-    public sealed record ParsedQuestion(int? Id, string Question, string Answer, bool IsDraft, int? Order);
+    public sealed record ParsedQuestion(int? Id, string Question, string Answer, bool IsDraft, int? Order, IReadOnlyList<string> AttRefs);
 
     /// <summary>
     /// A node as seen in the repo. <see cref="Path"/> is the node FOLDER path
@@ -34,7 +34,7 @@ namespace SuperAppServices.Services.K
 
     public sealed record PlannedQuestion(
         string NodeFolderKey, int? ExistingId, string Question,
-        string Answer, bool IsDraft, int SortOrder);
+        string Answer, bool IsDraft, int SortOrder, IReadOnlyList<string> AttRefs);
 
     public sealed class ReconcilePlan
     {
@@ -123,7 +123,7 @@ namespace SuperAppServices.Services.K
                         existingId = pq.Id.Value;
 
                     plan.Questions.Add(new PlannedQuestion(
-                        f.Path, existingId, pq.Question, pq.Answer ?? "", pq.IsDraft, idx + 1));
+                        f.Path, existingId, pq.Question, pq.Answer ?? "", pq.IsDraft, idx + 1, pq.AttRefs));
                 }
             }
 
