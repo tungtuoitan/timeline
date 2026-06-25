@@ -1220,7 +1220,7 @@ namespace SuperAppServices.Services.K
                         KnowledgeId = knowledgeId,
                         ParentId    = parentId,
                         Name        = pn.Name,
-                        StatusCode  = "draft",
+                        StatusCode  = "learning",
                         CreatedAt   = now,
                     };
                     _db.KNodes.Add(node);
@@ -1228,7 +1228,7 @@ namespace SuperAppServices.Services.K
                     _db.KNodeStatusHistory.Add(new KNodeStatusHistoryEntity
                     {
                         NodeId     = node.Id,
-                        StatusCode = "draft",
+                        StatusCode = "learning",
                         ChangedAt  = now,
                         UserId     = userId,
                     });
