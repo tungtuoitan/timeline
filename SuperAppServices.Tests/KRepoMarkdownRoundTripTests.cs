@@ -16,14 +16,16 @@ namespace SuperAppServices.Tests
     /// </summary>
     public class KRepoMarkdownRoundTripTests
     {
-        private static KQuestionEntity DbQ(int id, string name, string? desc = null, bool draft = false, int order = 1) =>
+        private static KQuestionEntity DbQ(int id, string name, string? desc = null, bool draft = false, int order = 1, string? context = null, int? contextQuestionId = null) =>
             new()
             {
-                Id          = id,
-                Name        = name,
-                Description = desc,
-                StatusCode  = draft ? "draft" : "active",
-                SortOrder   = order,
+                Id                = id,
+                Name              = name,
+                Description       = desc,
+                Context           = context,
+                ContextQuestionId = contextQuestionId,
+                StatusCode        = draft ? "draft" : "active",
+                SortOrder         = order,
             };
 
         // ── FlattenLine: collapses any whitespace run (CRLF, LF, tabs, multi-space) ─
@@ -211,6 +213,178 @@ namespace SuperAppServices.Tests
                     p.Question, p.Answer, p.IsDraft),
                     $"Question {db.Id} did not round-trip clean: db='{db.Name}' p='{p.Question}'");
             }
+        }
+
+        // ── Code block: leading fenced block in body → captured as Context ──────────
+        [Fact]
+        public void Parser_hashInsideCodeBlock_notTreatedAsHeading()
+        {
+            var md = """
+                # What is a shell script? [id:20 order:1]
+                ```bash
+                # this is a bash comment
+                echo hello
+                # another comment
+                ```
+                """;
+            var parsed = KRepoSyncService.ParseQuestions(md);
+            Assert.Single(parsed);
+            Assert.Equal(20, parsed[0].Id);
+            // Leading code block → context, not answer
+            Assert.Contains("# this is a bash comment", parsed[0].Context ?? "");
+            Assert.Contains("echo hello", parsed[0].Context ?? "");
+            Assert.True(string.IsNullOrWhiteSpace(parsed[0].Answer));
+        }
+
+        // ── Code block: description that starts with code block round-trips via Context ─
+        [Fact]
+        public void RoundTrip_descriptionWithCodeBlock_isEqual()
+        {
+            // When Context is set explicitly, builder writes code block before description
+            var ctx  = "```python\n# python comment\ndef foo():\n    return 1\n```";
+            var db   = DbQ(21, "How to write Python?", desc: "Answer text", context: ctx);
+            var md   = KRepoSyncService.BuildRepoMarkdown(new() { db });
+            var parsed = KRepoSyncService.ParseQuestions(md);
+
+            Assert.Single(parsed);
+            Assert.Equal(21, parsed[0].Id);
+            Assert.Equal("Answer text", parsed[0].Answer);
+            Assert.NotNull(parsed[0].Context);
+            Assert.Contains("def foo():", parsed[0].Context!);
+            Assert.True(KRepoSyncService.QuestionsEqual(
+                db.Name, db.Description, false,
+                parsed[0].Question, parsed[0].Answer, parsed[0].IsDraft,
+                db.Context, parsed[0].Context));
+        }
+
+        // ── Code block: multiple questions — context in first doesn't bleed into second ─
+        [Fact]
+        public void Parser_codeBlockInFirstQuestion_doesNotAffectSecond()
+        {
+            var md = """
+                # Question A [id:30 order:1]
+                ```js
+                // comment
+                # not a heading
+                const x = 1;
+                ```
+
+                # Question B [id:31 order:2]
+                plain answer
+                """;
+            var parsed = KRepoSyncService.ParseQuestions(md);
+            Assert.Equal(2, parsed.Count);
+            Assert.Equal(30, parsed[0].Id);
+            Assert.Equal(31, parsed[1].Id);
+            // Leading code block → context of Q A
+            Assert.Contains("# not a heading", parsed[0].Context ?? "");
+            Assert.True(string.IsNullOrWhiteSpace(parsed[0].Answer));
+            Assert.Equal("plain answer", parsed[1].Answer);
+        }
+
+        // ── Draft + code block: --> inside code block does not close draft early ──────
+        [Fact]
+        public void Parser_arrowInsideDraftCodeBlock_doesNotCloseDraftEarly()
+        {
+            var md = "<!--# Draft with code [id:40 order:1]\n```html\n<!-- comment -->\n<div>hi</div>\n```\n-->";
+            var parsed = KRepoSyncService.ParseQuestions(md);
+            Assert.Single(parsed);
+            Assert.Equal(40, parsed[0].Id);
+            Assert.True(parsed[0].IsDraft);
+            Assert.Contains("<!-- comment -->", parsed[0].Answer);
+        }
+
+        // ── Tilde fence (~~~) also tracked as code block ─────────────────────────────
+        [Fact]
+        public void Parser_tildeFence_alsoTrackedAsCodeBlock()
+        {
+            var md = """
+                # Tilde fence test [id:50 order:1]
+                ~~~bash
+                # bash comment
+                echo hi
+                ~~~
+                """;
+            var parsed = KRepoSyncService.ParseQuestions(md);
+            Assert.Single(parsed);
+            Assert.Equal(50, parsed[0].Id);
+            // Leading tilde fence → context
+            Assert.Contains("# bash comment", parsed[0].Context ?? "");
+        }
+
+        // ── Owned context: round-trip preserves context separate from answer ──────────
+        [Fact]
+        public void RoundTrip_ownedContext_preservedOnRoundTrip()
+        {
+            var ctx = "```python\n# setup\ndef foo():\n    return 1\n```";
+            var db  = DbQ(60, "What does foo return?", desc: "It returns 1.", context: ctx);
+            var md  = KRepoSyncService.BuildRepoMarkdown(new() { db });
+            var parsed = KRepoSyncService.ParseQuestions(md);
+
+            Assert.Single(parsed);
+            Assert.Equal(60, parsed[0].Id);
+            Assert.Equal("It returns 1.", parsed[0].Answer);
+            Assert.NotNull(parsed[0].Context);
+            Assert.Contains("def foo():", parsed[0].Context!);
+            // Context must NOT appear in answer
+            Assert.DoesNotContain("def foo():", parsed[0].Answer);
+            Assert.True(KRepoSyncService.QuestionsEqual(
+                db.Name, db.Description, false,
+                parsed[0].Question, parsed[0].Answer, parsed[0].IsDraft,
+                db.Context, parsed[0].Context));
+        }
+
+        // ── Context with blank lines between heading and code block ───────────────────
+        [Fact]
+        public void Parser_blankLineBetweenHeadingAndContext_stillCapturedAsContext()
+        {
+            var md = "# Question [id:61 order:1]\n\n```python\ndef bar(): pass\n```\nAnswer here";
+            var parsed = KRepoSyncService.ParseQuestions(md);
+            Assert.Single(parsed);
+            Assert.NotNull(parsed[0].Context);
+            Assert.Contains("def bar():", parsed[0].Context!);
+            Assert.Equal("Answer here", parsed[0].Answer);
+        }
+
+        // ── No context: plain-text answer not affected ────────────────────────────────
+        [Fact]
+        public void Parser_noContext_backwardCompatible()
+        {
+            var md = "# Plain question [id:62 order:1]\nThis is the answer.\nSecond line.";
+            var parsed = KRepoSyncService.ParseQuestions(md);
+            Assert.Single(parsed);
+            Assert.Null(parsed[0].Context);
+            Assert.Contains("This is the answer.", parsed[0].Answer);
+            Assert.Contains("Second line.", parsed[0].Answer);
+        }
+
+        // ── Borrowed context: getctx: tag round-trips ────────────────────────────────
+        [Fact]
+        public void RoundTrip_borrowedContext_getctxTagRoundTrips()
+        {
+            var db = DbQ(70, "Question B", desc: "Answer B", contextQuestionId: 5);
+            var md = KRepoSyncService.BuildRepoMarkdown(new() { db });
+            var parsed = KRepoSyncService.ParseQuestions(md);
+
+            Assert.Single(parsed);
+            Assert.Equal(70, parsed[0].Id);
+            Assert.Equal(5, parsed[0].ContextQuestionId);
+            Assert.Null(parsed[0].Context); // no owned context
+            Assert.Equal("Answer B", parsed[0].Answer);
+        }
+
+        // ── Owned context wins over getctx: (builder doesn't emit getctx when owned) ──
+        [Fact]
+        public void Builder_ownedContextTakesPrecedenceOverGetctx()
+        {
+            var ctx = "```go\nfunc main() {}\n```";
+            var db  = DbQ(71, "Question C", desc: "Answer C", context: ctx, contextQuestionId: 5);
+            var md  = KRepoSyncService.BuildRepoMarkdown(new() { db });
+
+            // getctx: must NOT appear in the heading tag
+            Assert.DoesNotContain("getctx:", md);
+            // context code block must appear
+            Assert.Contains("func main()", md);
         }
     }
 }

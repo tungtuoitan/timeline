@@ -21,6 +21,8 @@ namespace SuperAppModels.DTOs.Responses
         public int     Id       { get; set; }
         public string  Question { get; set; } = string.Empty;
         public string? Answer   { get; set; }
+        /// <summary>Resolved context (owned or borrowed from another question).</summary>
+        public string? Context  { get; set; }
         /// <summary>Owning node name — used by knowledge-wide review screens.</summary>
         public string? NodeName { get; set; }
         /// <summary>Seconds from now until next review for each score 1–5.</summary>

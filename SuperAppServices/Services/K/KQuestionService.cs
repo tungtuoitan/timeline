@@ -37,8 +37,7 @@ namespace SuperAppServices.Services.K
         }
 
         // Loads attachment responses for a set of question ids in one query.
-        private async Task<Dictionary<int, List<KAttachmentResponse>>> LoadAttachmentsForQuestionsAsync(List<int> questionIds)
-        {
+        private async Task<Dictionary<int, List<KAttachmentResponse>>> LoadAttachmentsForQuestionsAsync(List<int> questionIds)        {
             if (questionIds.Count == 0) return new();
             var links = await _db.KAttachmentLinks
                 .Where(l => l.EntityType == "question" && questionIds.Contains(l.EntityId))
@@ -64,6 +63,36 @@ namespace SuperAppServices.Services.K
                     Content  = att.Content,
                     SortOrder = att.SortOrder,
                 });
+            }
+            return result;
+        }
+
+        // Resolves context for each question: borrowed (ContextQuestionId) → owned (Context) → null.
+        // Single batch query for all borrowed sources to avoid N+1.
+        private async Task<Dictionary<int, string?>> LoadContextForQuestionsAsync(List<KQuestionEntity> questions)
+        {
+            var result = new Dictionary<int, string?>();
+            var borrowedIds = questions
+                .Where(q => q.ContextQuestionId.HasValue && string.IsNullOrWhiteSpace(q.Context))
+                .Select(q => q.ContextQuestionId!.Value)
+                .Distinct()
+                .ToList();
+
+            var sourceContexts = borrowedIds.Count > 0
+                ? await _db.KQuestions
+                    .Where(q => borrowedIds.Contains(q.Id) && q.DeletedAt == null)
+                    .Select(q => new { q.Id, q.Context })
+                    .ToDictionaryAsync(q => q.Id, q => q.Context)
+                : new Dictionary<int, string?>();
+
+            foreach (var q in questions)
+            {
+                if (!string.IsNullOrWhiteSpace(q.Context))
+                    result[q.Id] = q.Context;
+                else if (q.ContextQuestionId.HasValue && sourceContexts.TryGetValue(q.ContextQuestionId.Value, out var borrowed))
+                    result[q.Id] = borrowed;
+                else
+                    result[q.Id] = null;
             }
             return result;
         }
@@ -97,18 +126,20 @@ namespace SuperAppServices.Services.K
                     Questions   = questions
                         .Select(q => new KQuestionResponse
                         {
-                            Id              = q.Id,
-                            NodeId          = q.NodeId,
-                            NodeName        = q.Node?.Name ?? string.Empty,
-                            Question        = q.Name,
-                            Answer          = q.Description,
-                            StatusCode      = q.StatusCode,
-                            SortOrder       = q.SortOrder,
-                            DeletedAt       = q.DeletedAt,
-                            ScoreHistory    = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
-                            SrsNextReviewAt = q.SrsNextReviewAt,
-                            Retention       = SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt),
-                            Attachments     = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],
+                            Id                = q.Id,
+                            NodeId            = q.NodeId,
+                            NodeName          = q.Node?.Name ?? string.Empty,
+                            Question          = q.Name,
+                            Answer            = q.Description,
+                            Context           = q.Context,
+                            ContextQuestionId = q.ContextQuestionId,
+                            StatusCode        = q.StatusCode,
+                            SortOrder         = q.SortOrder,
+                            DeletedAt         = q.DeletedAt,
+                            ScoreHistory      = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
+                            SrsNextReviewAt   = q.SrsNextReviewAt,
+                            Retention         = SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt),
+                            Attachments       = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],
                         }).ToList(),
                 };
 
@@ -146,18 +177,20 @@ namespace SuperAppServices.Services.K
                     Questions   = questions
                         .Select(q => new KQuestionResponse
                         {
-                            Id              = q.Id,
-                            NodeId          = q.NodeId,
-                            NodeName        = q.Node?.Name ?? string.Empty,
-                            Question        = q.Name,
-                            Answer          = q.Description,
-                            StatusCode      = q.StatusCode,
-                            SortOrder       = q.SortOrder,
-                            DeletedAt       = q.DeletedAt,
-                            ScoreHistory    = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
-                            SrsNextReviewAt = q.SrsNextReviewAt,
-                            Retention       = SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt),
-                            Attachments     = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],
+                            Id                = q.Id,
+                            NodeId            = q.NodeId,
+                            NodeName          = q.Node?.Name ?? string.Empty,
+                            Question          = q.Name,
+                            Answer            = q.Description,
+                            Context           = q.Context,
+                            ContextQuestionId = q.ContextQuestionId,
+                            StatusCode        = q.StatusCode,
+                            SortOrder         = q.SortOrder,
+                            DeletedAt         = q.DeletedAt,
+                            ScoreHistory      = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
+                            SrsNextReviewAt   = q.SrsNextReviewAt,
+                            Retention         = SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt),
+                            Attachments       = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],
                         }).ToList(),
                 };
 
@@ -195,16 +228,18 @@ namespace SuperAppServices.Services.K
                     Questions   = questions
                         .Select(q => new KQuestionResponse
                         {
-                            Id              = q.Id,
-                            Question        = q.Name,
-                            Answer          = q.Description,
-                            StatusCode      = q.StatusCode,
-                            SortOrder       = q.SortOrder,
-                            DeletedAt       = q.DeletedAt,
-                            ScoreHistory    = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
-                            SrsNextReviewAt = q.SrsNextReviewAt,
-                            Retention       = SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt),
-                            Attachments     = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],
+                            Id                = q.Id,
+                            Question          = q.Name,
+                            Answer            = q.Description,
+                            Context           = q.Context,
+                            ContextQuestionId = q.ContextQuestionId,
+                            StatusCode        = q.StatusCode,
+                            SortOrder         = q.SortOrder,
+                            DeletedAt         = q.DeletedAt,
+                            ScoreHistory      = historyByQuestion.TryGetValue(q.Id, out var hist) ? hist : [],
+                            SrsNextReviewAt   = q.SrsNextReviewAt,
+                            Retention         = SpacedRepetitionEngine.CalculateRetention(q.SrsInterval, q.SrsNextReviewAt),
+                            Attachments       = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],
                         }).ToList(),
                 };
 
@@ -420,6 +455,7 @@ namespace SuperAppServices.Services.K
             {
                 var questions = await _repo.GetDailySessionQuestionsAsync(nodeId, dailyLimit, 0.4);
                 var attachmentsByQuestion = await LoadAttachmentsForQuestionsAsync(questions.Select(q => q.Id).ToList());
+                var contextByQuestion = await LoadContextForQuestionsAsync(questions);
                 var now = VietnamDateTime.Now();
                 var response  = questions.Select(q =>
                 {
@@ -436,6 +472,7 @@ namespace SuperAppServices.Services.K
                         Id                     = q.Id,
                         Question               = q.Name,
                         Answer                 = q.Description,
+                        Context                = contextByQuestion.TryGetValue(q.Id, out var ctx) ? ctx : null,
                         NodeName               = q.Node?.Name,
                         PreviewIntervalSeconds = previews,
                         Attachments            = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],
@@ -452,6 +489,7 @@ namespace SuperAppServices.Services.K
             {
                 var questions = await _repo.GetKnowledgeDailySessionQuestionsAsync(nodeId, dailyLimit, 0.4);
                 var attachmentsByQuestion = await LoadAttachmentsForQuestionsAsync(questions.Select(q => q.Id).ToList());
+                var contextByQuestion = await LoadContextForQuestionsAsync(questions);
                 var now = VietnamDateTime.Now();
                 var response = questions.Select(q =>
                 {
@@ -468,6 +506,7 @@ namespace SuperAppServices.Services.K
                         Id                     = q.Id,
                         Question               = q.Name,
                         Answer                 = q.Description,
+                        Context                = contextByQuestion.TryGetValue(q.Id, out var ctx) ? ctx : null,
                         NodeName               = q.Node?.Name,
                         PreviewIntervalSeconds = previews,
                         Attachments            = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],
@@ -484,6 +523,7 @@ namespace SuperAppServices.Services.K
             {
                 var questions = await _repo.GetKnowledgeReviewAllQuestionsAsync(knowledgeId);
                 var attachmentsByQuestion = await LoadAttachmentsForQuestionsAsync(questions.Select(q => q.Id).ToList());
+                var contextByQuestion = await LoadContextForQuestionsAsync(questions);
                 var now = VietnamDateTime.Now();
                 var response = questions.Select(q =>
                 {
@@ -500,6 +540,7 @@ namespace SuperAppServices.Services.K
                         Id                     = q.Id,
                         Question               = q.Name,
                         Answer                 = q.Description,
+                        Context                = contextByQuestion.TryGetValue(q.Id, out var ctx) ? ctx : null,
                         NodeName               = q.Node?.Name,
                         PreviewIntervalSeconds = previews,
                         Attachments            = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],

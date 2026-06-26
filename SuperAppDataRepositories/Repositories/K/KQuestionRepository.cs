@@ -128,11 +128,13 @@ namespace SuperAppDataRepositories.Repositories
 
                 var rows = questions.Select((q, i) => new KQuestionEntity
                 {
-                    NodeId      = nodeId,
-                    Name        = q.Name,
-                    Description = q.Description,
-                    StatusCode  = "learning",
-                    SortOrder   = q.SortOrder ?? (maxOrder + 1 + i),
+                    NodeId            = nodeId,
+                    Name              = q.Name,
+                    Description       = q.Description,
+                    Context           = string.IsNullOrWhiteSpace(q.Context) ? null : q.Context,
+                    ContextQuestionId = q.ContextQuestionId,
+                    StatusCode        = "learning",
+                    SortOrder         = q.SortOrder ?? (maxOrder + 1 + i),
                 }).ToList();
 
                 _context.KQuestions.AddRange(rows);
@@ -168,8 +170,10 @@ namespace SuperAppDataRepositories.Repositories
                 {
                     var upd = updates.FirstOrDefault(u => u.Id == q.Id);
                     if (upd == null) continue;
-                    q.Name        = upd.Name;
-                    q.Description = string.IsNullOrWhiteSpace(upd.Description) ? null : upd.Description;
+                    q.Name              = upd.Name;
+                    q.Description       = string.IsNullOrWhiteSpace(upd.Description) ? null : upd.Description;
+                    q.Context           = string.IsNullOrWhiteSpace(upd.Context) ? null : upd.Context;
+                    q.ContextQuestionId = upd.ContextQuestionId;
                     if (upd.SortOrder.HasValue) q.SortOrder = upd.SortOrder.Value;
                     q.UpdatedAt   = VietnamDateTime.Now();
                 }

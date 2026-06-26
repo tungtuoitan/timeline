@@ -49,6 +49,12 @@ namespace SuperAppModels.DTOs.Requests
         [JsonPropertyName("description")]
         public string? Description { get; set; }
 
+        [JsonPropertyName("context")]
+        public string? Context { get; set; }
+
+        [JsonPropertyName("contextQuestionId")]
+        public int? ContextQuestionId { get; set; }
+
         [JsonPropertyName("sortOrder")]
         public int? SortOrder { get; set; }
     }
@@ -60,6 +66,12 @@ namespace SuperAppModels.DTOs.Requests
 
         [JsonPropertyName("description")]
         public string? Description { get; set; }
+
+        [JsonPropertyName("context")]
+        public string? Context { get; set; }
+
+        [JsonPropertyName("contextQuestionId")]
+        public int? ContextQuestionId { get; set; }
 
         [JsonPropertyName("sortOrder")]
         public int? SortOrder { get; set; }

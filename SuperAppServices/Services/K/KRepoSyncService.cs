@@ -496,7 +496,8 @@ namespace SuperAppServices.Services.K
                     var dbDraft   = dbQ.StatusCode == "draft";
                     var repoDraft = pq.IsDraft;
                     var contentEqual = QuestionsEqual(dbQ.Name, dbQ.Description, dbDraft,
-                                                      pq.Question, pq.Answer, repoDraft);
+                                                      pq.Question, pq.Answer, repoDraft,
+                                                      dbQ.Context, pq.Context);
 
                     // Check if att-links differ between repo and DB (either side has extras)
                     var attLinksChanged = false;
@@ -525,6 +526,14 @@ namespace SuperAppServices.Services.K
                     var dbText   = (dbDraft   ? "[draft] "  : "[active] ") + dbBody;
                     var repoText = (repoDraft ? "[draft] "  : "[active] ") + repoBody;
                     var nodeFolderName = pq.NodeFolderKey.Split('/').LastOrDefault() ?? pq.NodeFolderKey;
+
+                    // Always include context in diff text so the user sees the full picture,
+                    // not just the lines that changed. If only context differs (answer same),
+                    // the section below also makes the diff visible.
+                    if (!string.IsNullOrWhiteSpace(dbQ.Context))   dbText   += "\ncontext:\n" + dbQ.Context.Trim();
+                    if (!string.IsNullOrWhiteSpace(pq.Context))    repoText += "\ncontext:\n" + pq.Context.Trim();
+                    if (dbQ.ContextQuestionId.HasValue)            dbText   += $"\ngetctx: {dbQ.ContextQuestionId}";
+                    if (pq.ContextQuestionId.HasValue)             repoText += $"\ngetctx: {pq.ContextQuestionId}";
 
                     // If the question moved between nodes, append the location so the
                     // user sees the cross-node move (otherwise the diff text would be
@@ -1279,7 +1288,7 @@ namespace SuperAppServices.Services.K
                 {
                     if (pq.ExistingId == null)
                     {
-                        toAdd.Add((new KNewQuestionItem { Name = pq.Question, Description = pq.Answer, SortOrder = pq.SortOrder }, pq.IsDraft, pq.AttRefs));
+                        toAdd.Add((new KNewQuestionItem { Name = pq.Question, Description = pq.Answer, Context = pq.Context, ContextQuestionId = pq.ContextQuestionId, SortOrder = pq.SortOrder }, pq.IsDraft, pq.AttRefs));
                         continue;
                     }
 
@@ -1287,10 +1296,11 @@ namespace SuperAppServices.Services.K
                     if (q == null) continue;
 
                     if (q.NodeId != nodeId) { q.NodeId = nodeId; q.UpdatedAt = now; qMoved++; }
-                    var textChanged  = q.Name != pq.Question || (q.Description ?? "") != (pq.Answer ?? "");
+                    var textChanged  = q.Name != pq.Question || (q.Description ?? "") != (pq.Answer ?? "")
+                                    || (q.Context ?? "") != (pq.Context ?? "") || q.ContextQuestionId != pq.ContextQuestionId;
                     var orderChanged = q.SortOrder != pq.SortOrder;
                     if (textChanged || orderChanged)
-                        toUpdate.Add(new KUpdateQuestionItem { Id = q.Id, Name = pq.Question, Description = pq.Answer, SortOrder = pq.SortOrder });
+                        toUpdate.Add(new KUpdateQuestionItem { Id = q.Id, Name = pq.Question, Description = pq.Answer, Context = pq.Context, ContextQuestionId = pq.ContextQuestionId, SortOrder = pq.SortOrder });
                     if ((q.StatusCode == "draft") != pq.IsDraft) toggleDraft.Add(q.Id);
                 }
 
@@ -1588,13 +1598,15 @@ namespace SuperAppServices.Services.K
         /// </summary>
         internal static bool QuestionsEqual(
             string dbName, string? dbDescription, bool dbDraft,
-            string repoName, string repoAnswer, bool repoDraft)
+            string repoName, string repoAnswer, bool repoDraft,
+            string? dbContext = null, string? repoContext = null)
         {
             var dbBody   = FlattenLine(dbName)
                          + (string.IsNullOrEmpty(dbDescription) ? "" : "\n" + NormalizeDescription(dbDescription));
             var repoBody = (repoName ?? "").Trim()
                          + (string.IsNullOrEmpty(repoAnswer) ? "" : "\n" + NormalizeDescription(repoAnswer));
-            return dbBody == repoBody && dbDraft == repoDraft;
+            var ctxEqual = NormalizeDescription(dbContext ?? "") == NormalizeDescription(repoContext ?? "");
+            return dbBody == repoBody && dbDraft == repoDraft && ctxEqual;
         }
 
         internal static string BuildRepoMarkdown(
@@ -1608,9 +1620,11 @@ namespace SuperAppServices.Services.K
 
             foreach (var q in sorted)
             {
-                var attIds  = attsByQuestionId?.TryGetValue(q.Id, out var ids) == true ? ids : null;
-                var attPart = attIds?.Count > 0 ? $" atts:{string.Join(",", attIds)}" : "";
-                var tag      = $"[id:{q.Id} order:{q.SortOrder}{attPart}]";
+                var attIds   = attsByQuestionId?.TryGetValue(q.Id, out var ids) == true ? ids : null;
+                var attPart  = attIds?.Count > 0 ? $" atts:{string.Join(",", attIds)}" : "";
+                var getCtxPart = q.ContextQuestionId.HasValue && string.IsNullOrWhiteSpace(q.Context)
+                    ? $" getctx:{q.ContextQuestionId}" : "";
+                var tag      = $"[id:{q.Id} order:{q.SortOrder}{getCtxPart}{attPart}]";
                 var nameLine = FlattenLine(q.Name);
                 if (q.StatusCode == "draft")
                 {
@@ -1628,6 +1642,11 @@ namespace SuperAppServices.Services.K
                 else
                 {
                     sb.AppendLine($"# {nameLine} {tag}");
+                    if (!string.IsNullOrWhiteSpace(q.Context))
+                    {
+                        sb.AppendLine(q.Context.Trim());
+                        sb.AppendLine();
+                    }
                     if (!string.IsNullOrEmpty(q.Description?.Trim()))
                         sb.AppendLine(q.Description!.Trim());
                 }
@@ -1705,10 +1724,12 @@ namespace SuperAppServices.Services.K
         internal static List<ParsedQuestion> ParseQuestions(string body)
         {
             var result = new List<ParsedQuestion>();
-            string? question = null, answer = null;
+            string? question = null, answer = null, context = null;
             bool isDraft = false;
-            int? id = null, order = null;
+            int? id = null, order = null, contextQuestionId = null;
             bool inDraft = false;
+            bool inCodeBlock = false;
+            bool inContext = false;
             IReadOnlyList<string> attRefs = Array.Empty<string>();
 
             // Tolerate the editor putting "<!--" on its own line with the heading on
@@ -1720,13 +1741,48 @@ namespace SuperAppServices.Services.K
             void Flush()
             {
                 if (question == null) return;
-                result.Add(new ParsedQuestion(id, question, answer?.Trim() ?? "", isDraft, order, attRefs));
-                question = answer = null; isDraft = false; id = order = null; attRefs = Array.Empty<string>();
+                result.Add(new ParsedQuestion(id, question, answer?.Trim() ?? "", isDraft, order, attRefs, context?.Trim(), contextQuestionId));
+                question = answer = context = null;
+                isDraft = false; inContext = false;
+                id = order = contextQuestionId = null;
+                attRefs = Array.Empty<string>();
             }
 
             foreach (var raw in body.Split('\n'))
             {
                 var line = raw.TrimEnd();
+                var isFence = line.StartsWith("```") || line.StartsWith("~~~");
+
+                // Context mode: collect leading code block (before any answer text).
+                // Triggered when question is set, answer is still blank, and we see an
+                // opening fence. Ends on closing fence — inCodeBlock stays false so the
+                // main code-block tracker is not confused by the context block.
+                if (inContext)
+                {
+                    context = context == null ? line : context + "\n" + line;
+                    if (isFence) inContext = false; // closing fence — context done
+                    continue;
+                }
+
+                // Detect start of context: opening fence when answer is still blank
+                if (question != null && !isDraft && !inCodeBlock && isFence && string.IsNullOrWhiteSpace(answer))
+                {
+                    inContext = true;
+                    context = line; // include the opening fence line
+                    continue;
+                }
+
+                // Track fenced code blocks in answer so that `# ` and `-->` inside
+                // code are not misinterpreted as heading or draft-block terminators.
+                if (isFence)
+                    inCodeBlock = !inCodeBlock;
+
+                if (inCodeBlock)
+                {
+                    if (question != null)
+                        answer = answer == null ? line : answer + "\n" + line;
+                    continue;
+                }
 
                 // Draft block start
                 if (Regex.IsMatch(line, @"^<!--\s*#\s"))
@@ -1735,10 +1791,11 @@ namespace SuperAppServices.Services.K
                     var isSingle = line.TrimEnd().EndsWith("-->");
                     var inner    = Regex.Replace(line, @"^<!--\s*#\s+", "").TrimEnd();
                     if (isSingle) inner = Regex.Replace(inner, @"\s*-->\s*$", "");
-                    var (q, metaId, metaOrder, metaAtts) = ExtractMeta(inner);
+                    var (q, metaId, metaOrder, metaAtts, metaGetCtx) = ExtractMeta(inner);
                     if (q.Length > 0 && metaId.HasValue)
                     {
-                        question = q; id = metaId; order = metaOrder; isDraft = true; attRefs = metaAtts;
+                        question = q; id = metaId; order = metaOrder; isDraft = true;
+                        attRefs = metaAtts; contextQuestionId = metaGetCtx;
                         if (isSingle) Flush();
                         else inDraft = true;
                     }
@@ -1755,12 +1812,16 @@ namespace SuperAppServices.Services.K
                     continue;
                 }
 
-                // Active question
+                // Active question heading
                 if (Regex.IsMatch(line, @"^#\s"))
                 {
                     Flush();
-                    var (q, metaId, metaOrder, metaAtts) = ExtractMeta(line[2..].Trim());
-                    if (q.Length > 0) { question = q; id = metaId; order = metaOrder; attRefs = metaAtts; }
+                    var (q, metaId, metaOrder, metaAtts, metaGetCtx) = ExtractMeta(line[2..].Trim());
+                    if (q.Length > 0)
+                    {
+                        question = q; id = metaId; order = metaOrder;
+                        attRefs = metaAtts; contextQuestionId = metaGetCtx;
+                    }
                     continue;
                 }
 
@@ -1772,22 +1833,23 @@ namespace SuperAppServices.Services.K
             return result;
         }
 
-        private static (string question, int? id, int? order, IReadOnlyList<string> attRefs) ExtractMeta(string text)
+        private static (string question, int? id, int? order, IReadOnlyList<string> attRefs, int? contextQuestionId) ExtractMeta(string text)
         {
             var match = Regex.Match(text, @"\[([^\]]+)\]");
-            if (!match.Success) return (text.Trim(), null, null, Array.Empty<string>());
+            if (!match.Success) return (text.Trim(), null, null, Array.Empty<string>(), null);
 
             var bracket = match.Value;
             var clean   = text.Replace(bracket, "").Trim();
-            int? id = null, order = null;
+            int? id = null, order = null, contextQuestionId = null;
             var attRefs = new List<string>();
 
             foreach (Match m in Regex.Matches(bracket, @"(\w+):([^\s\]]+)"))
             {
                 var key = m.Groups[1].Value;
                 var val = m.Groups[2].Value;
-                if (key == "id"    && int.TryParse(val, out var i)) id    = i;
-                if (key == "order" && int.TryParse(val, out var o)) order = o;
+                if (key == "id"      && int.TryParse(val, out var i)) id               = i;
+                if (key == "order"   && int.TryParse(val, out var o)) order            = o;
+                if (key == "getctx"  && int.TryParse(val, out var c)) contextQuestionId = c;
                 if (key == "atts")
                 {
                     foreach (var part in val.Split(','))
@@ -1797,7 +1859,7 @@ namespace SuperAppServices.Services.K
                     }
                 }
             }
-            return (clean, id, order, attRefs);
+            return (clean, id, order, attRefs, contextQuestionId);
         }
 
         // Quick helper used by GetDiffAsync
@@ -1987,8 +2049,10 @@ namespace SuperAppServices.Services.K
                             }
                             if (match != null)
                             {
-                                q.Name        = match.Question;
-                                q.Description = match.Answer;
+                                q.Name              = match.Question;
+                                q.Description       = match.Answer;
+                                q.Context           = match.Context;
+                                q.ContextQuestionId = match.ContextQuestionId;
                                 // Flip draft/active to match repo. The reconcile that follows
                                 // would also toggle this, but doing it here keeps the
                                 // keep_repo intent explicit for the audit log.
