@@ -475,13 +475,16 @@ namespace SuperAppServices.Services.K
                 {
                     // resolve node name for display
                     var nodeFolderName = pq.NodeFolderKey.Split('/').LastOrDefault() ?? pq.NodeFolderKey;
+                    var repoOnlyText = pq.Answer ?? "";
+                    if (pq.AttRefs.Count > 0)
+                        repoOnlyText += $"\natts: [{string.Join(",", pq.AttRefs)}]";
                     entries.Add(new KRepoCompareEntry
                     {
                         EntityType = "question",
                         ChangeType = "repo_only",
                         Name       = pq.Question,
                         NodeName   = nodeFolderName,
-                        NewText    = pq.Answer,
+                        NewText    = repoOnlyText,
                     });
                 }
 
@@ -1268,7 +1271,7 @@ namespace SuperAppServices.Services.K
             {
                 if (!folderToNodeId.TryGetValue(group.Key, out var nodeId)) continue;
 
-                var toAdd       = new List<(KNewQuestionItem item, bool isDraft)>();
+                var toAdd       = new List<(KNewQuestionItem item, bool isDraft, IReadOnlyList<string> attRefs)>();
                 var toUpdate    = new List<KUpdateQuestionItem>();
                 var toggleDraft = new List<int>();
 
@@ -1276,7 +1279,7 @@ namespace SuperAppServices.Services.K
                 {
                     if (pq.ExistingId == null)
                     {
-                        toAdd.Add((new KNewQuestionItem { Name = pq.Question, Description = pq.Answer, SortOrder = pq.SortOrder }, pq.IsDraft));
+                        toAdd.Add((new KNewQuestionItem { Name = pq.Question, Description = pq.Answer, SortOrder = pq.SortOrder }, pq.IsDraft, pq.AttRefs));
                         continue;
                     }
 
@@ -1301,6 +1304,27 @@ namespace SuperAppServices.Services.K
                     qCreated += toAdd.Count;
                     var newDraftIds = toAdd.Zip(newIds, (x, id) => (x.isDraft, id)).Where(x => x.isDraft).Select(x => x.id).ToList();
                     if (newDraftIds.Any()) await _questionRepo.ToggleQuestionsDraftAsync(newDraftIds);
+
+                    foreach (var (entry, newQId) in toAdd.Zip(newIds, (x, id) => (x, id)))
+                    {
+                        foreach (var attRef in entry.attRefs)
+                        {
+                            int? attId = int.TryParse(attRef, out var parsedId)
+                                ? parsedId
+                                : titleToAttachmentId.TryGetValue(attRef, out var mappedId) ? mappedId : (int?)null;
+                            if (attId == null) continue;
+                            var attExists = await _db.KAttachments
+                                .AnyAsync(a => a.Id == attId.Value && a.UserId == userId && a.DeletedAt == null);
+                            if (!attExists) continue;
+                            _db.KAttachmentLinks.Add(new KAttachmentLinkEntity
+                            {
+                                AttachmentId = attId.Value,
+                                EntityType   = "question",
+                                EntityId     = newQId,
+                                CreatedAt    = now,
+                            });
+                        }
+                    }
                 }
             }
             int qDeleted = 0;
