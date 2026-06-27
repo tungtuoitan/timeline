@@ -28,10 +28,10 @@ namespace SuperAppModels.DTOs.Responses
         public string Question   { get; set; } = string.Empty;
         /// <summary>k.question.description — the expected answer</summary>
         public string? Answer    { get; set; }
-        /// <summary>Resolved context code snippet (owned or borrowed from another question).</summary>
+        /// <summary>Resolved context code snippet (owned or inherited via scope).</summary>
         public string? Context   { get; set; }
-        /// <summary>Raw context_question_id (null if context is owned or absent). Needed by markdown editor for round-trip.</summary>
-        public int? ContextQuestionId { get; set; }
+        /// <summary>Directive tags from bracket e.g. ["open-context"]. Needed by markdown editor for round-trip.</summary>
+        public List<string>? Directives { get; set; }
         /// <summary>"learning" = active in review; "draft" = excluded from review sessions</summary>
         public string StatusCode { get; set; } = "learning";
         public int    SortOrder  { get; set; }

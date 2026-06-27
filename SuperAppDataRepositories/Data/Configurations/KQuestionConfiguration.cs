@@ -17,7 +17,7 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(q => q.Name).HasColumnName("name").HasMaxLength(500).IsRequired();
             builder.Property(q => q.Description).HasColumnName("description").HasColumnType("nvarchar(max)").IsRequired(false);
             builder.Property(q => q.Context).HasColumnName("context").HasColumnType("nvarchar(max)").IsRequired(false);
-            builder.Property(q => q.ContextQuestionId).HasColumnName("context_question_id").IsRequired(false);
+            builder.Property(q => q.Directives).HasColumnName("directives").HasColumnType("nvarchar(max)").IsRequired(false);
             builder.Property(q => q.StatusCode).HasColumnName("status_code").HasMaxLength(50).HasDefaultValue("learning");
             builder.Property(q => q.SortOrder).HasColumnName("sort_order").HasDefaultValue(0);
 

@@ -67,34 +67,57 @@ namespace SuperAppServices.Services.K
             return result;
         }
 
-        // Resolves context for each question: borrowed (ContextQuestionId) → owned (Context) → null.
-        // Single batch query for all borrowed sources to avoid N+1.
-        private async Task<Dictionary<int, string?>> LoadContextForQuestionsAsync(List<KQuestionEntity> questions)
+        private static List<string>? DeserializeDirectives(string? json)
         {
-            var result = new Dictionary<int, string?>();
-            var borrowedIds = questions
-                .Where(q => q.ContextQuestionId.HasValue && string.IsNullOrWhiteSpace(q.Context))
-                .Select(q => q.ContextQuestionId!.Value)
-                .Distinct()
-                .ToList();
+            if (string.IsNullOrWhiteSpace(json)) return null;
+            try { return System.Text.Json.JsonSerializer.Deserialize<List<string>>(json); }
+            catch { return null; }
+        }
 
-            var sourceContexts = borrowedIds.Count > 0
-                ? await _db.KQuestions
-                    .Where(q => borrowedIds.Contains(q.Id) && q.DeletedAt == null)
-                    .Select(q => new { q.Id, q.Context })
-                    .ToDictionaryAsync(q => q.Id, q => q.Context)
-                : new Dictionary<int, string?>();
+        /// <summary>
+        /// Runs the open-context/close-context scope resolution pass over an ordered question list
+        /// and returns a map of question id → resolved context (null = no context).
+        /// Scope children inherit the opener's context; the opener itself keeps its own.
+        /// </summary>
+        private static Dictionary<int, string?> BuildScopeContextMap(IEnumerable<KQuestionEntity> ordered)
+        {
+            var map = new Dictionary<int, string?>();
+            string? scopeContext = null;
+            bool inScope = false;
 
-            foreach (var q in questions)
+            foreach (var q in ordered)
             {
-                if (!string.IsNullOrWhiteSpace(q.Context))
-                    result[q.Id] = q.Context;
-                else if (q.ContextQuestionId.HasValue && sourceContexts.TryGetValue(q.ContextQuestionId.Value, out var borrowed))
-                    result[q.Id] = borrowed;
+                var dirs = DeserializeDirectives(q.Directives) ?? new List<string>();
+                var hasOpen  = dirs.Contains("open-context");
+                var hasClose = dirs.Contains("close-context");
+
+                if (hasOpen)
+                {
+                    // For draft openers the parser puts the code block into Description (not Context).
+                    // Fall back to Description so scope still opens even when Context was wiped.
+                    var effectiveCtx = !string.IsNullOrWhiteSpace(q.Context) ? q.Context
+                                     : (q.StatusCode == "draft" ? q.Description : null);
+                    map[q.Id] = effectiveCtx;
+                    if (!string.IsNullOrWhiteSpace(effectiveCtx))
+                    {
+                        scopeContext = effectiveCtx;
+                        inScope = true;
+                    }
+                    continue;
+                }
+
+                if (inScope)
+                {
+                    map[q.Id] = string.IsNullOrWhiteSpace(q.Context) ? scopeContext : q.Context;
+                    if (hasClose) { inScope = false; scopeContext = null; }
+                }
                 else
-                    result[q.Id] = null;
+                {
+                    map[q.Id] = q.Context;
+                }
             }
-            return result;
+
+            return map;
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -132,7 +155,7 @@ namespace SuperAppServices.Services.K
                             Question          = q.Name,
                             Answer            = q.Description,
                             Context           = q.Context,
-                            ContextQuestionId = q.ContextQuestionId,
+                            Directives        = DeserializeDirectives(q.Directives),
                             StatusCode        = q.StatusCode,
                             SortOrder         = q.SortOrder,
                             DeletedAt         = q.DeletedAt,
@@ -183,7 +206,7 @@ namespace SuperAppServices.Services.K
                             Question          = q.Name,
                             Answer            = q.Description,
                             Context           = q.Context,
-                            ContextQuestionId = q.ContextQuestionId,
+                            Directives        = DeserializeDirectives(q.Directives),
                             StatusCode        = q.StatusCode,
                             SortOrder         = q.SortOrder,
                             DeletedAt         = q.DeletedAt,
@@ -232,7 +255,7 @@ namespace SuperAppServices.Services.K
                             Question          = q.Name,
                             Answer            = q.Description,
                             Context           = q.Context,
-                            ContextQuestionId = q.ContextQuestionId,
+                            Directives        = DeserializeDirectives(q.Directives),
                             StatusCode        = q.StatusCode,
                             SortOrder         = q.SortOrder,
                             DeletedAt         = q.DeletedAt,
@@ -455,7 +478,12 @@ namespace SuperAppServices.Services.K
             {
                 var questions = await _repo.GetDailySessionQuestionsAsync(nodeId, dailyLimit, 0.4);
                 var attachmentsByQuestion = await LoadAttachmentsForQuestionsAsync(questions.Select(q => q.Id).ToList());
-                var contextByQuestion = await LoadContextForQuestionsAsync(questions);
+
+                // Resolve scope-inherited context: session only contains a subset of node questions,
+                // so load all to build the full open-context/close-context scope map.
+                var allNodeQuestions = await _repo.GetQuestionsByNodeAsync(nodeId);
+                var scopeContextMap  = BuildScopeContextMap(allNodeQuestions.OrderBy(q => q.SortOrder));
+
                 var now = VietnamDateTime.Now();
                 var response  = questions.Select(q =>
                 {
@@ -472,7 +500,7 @@ namespace SuperAppServices.Services.K
                         Id                     = q.Id,
                         Question               = q.Name,
                         Answer                 = q.Description,
-                        Context                = contextByQuestion.TryGetValue(q.Id, out var ctx) ? ctx : null,
+                        Context                = scopeContextMap.TryGetValue(q.Id, out var ctx) ? ctx : q.Context,
                         NodeName               = q.Node?.Name,
                         PreviewIntervalSeconds = previews,
                         Attachments            = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],
@@ -489,7 +517,14 @@ namespace SuperAppServices.Services.K
             {
                 var questions = await _repo.GetKnowledgeDailySessionQuestionsAsync(nodeId, dailyLimit, 0.4);
                 var attachmentsByQuestion = await LoadAttachmentsForQuestionsAsync(questions.Select(q => q.Id).ToList());
-                var contextByQuestion = await LoadContextForQuestionsAsync(questions);
+
+                // Resolve scope per node: scope is node-scoped, so group by nodeId before resolving.
+                var allKnowledgeQuestions = await _repo.GetAllQuestionsByKnowledgeAsync(nodeId);
+                var scopeContextMap = allKnowledgeQuestions
+                    .GroupBy(q => q.NodeId)
+                    .SelectMany(g => BuildScopeContextMap(g.OrderBy(q => q.SortOrder)))
+                    .ToDictionary(kv => kv.Key, kv => kv.Value);
+
                 var now = VietnamDateTime.Now();
                 var response = questions.Select(q =>
                 {
@@ -506,7 +541,7 @@ namespace SuperAppServices.Services.K
                         Id                     = q.Id,
                         Question               = q.Name,
                         Answer                 = q.Description,
-                        Context                = contextByQuestion.TryGetValue(q.Id, out var ctx) ? ctx : null,
+                        Context                = scopeContextMap.TryGetValue(q.Id, out var ctx) ? ctx : q.Context,
                         NodeName               = q.Node?.Name,
                         PreviewIntervalSeconds = previews,
                         Attachments            = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],
@@ -523,7 +558,13 @@ namespace SuperAppServices.Services.K
             {
                 var questions = await _repo.GetKnowledgeReviewAllQuestionsAsync(knowledgeId);
                 var attachmentsByQuestion = await LoadAttachmentsForQuestionsAsync(questions.Select(q => q.Id).ToList());
-                var contextByQuestion = await LoadContextForQuestionsAsync(questions);
+
+                // ReviewAll already loads all questions in a knowledge — run scope resolution per node.
+                var scopeContextMap = questions
+                    .GroupBy(q => q.NodeId)
+                    .SelectMany(g => BuildScopeContextMap(g.OrderBy(q => q.SortOrder)))
+                    .ToDictionary(kv => kv.Key, kv => kv.Value);
+
                 var now = VietnamDateTime.Now();
                 var response = questions.Select(q =>
                 {
@@ -540,7 +581,7 @@ namespace SuperAppServices.Services.K
                         Id                     = q.Id,
                         Question               = q.Name,
                         Answer                 = q.Description,
-                        Context                = contextByQuestion.TryGetValue(q.Id, out var ctx) ? ctx : null,
+                        Context                = scopeContextMap.TryGetValue(q.Id, out var ctx) ? ctx : q.Context,
                         NodeName               = q.Node?.Name,
                         PreviewIntervalSeconds = previews,
                         Attachments            = attachmentsByQuestion.TryGetValue(q.Id, out var atts) ? atts : [],

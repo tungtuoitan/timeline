@@ -11,7 +11,7 @@ namespace SuperAppModels.Models
         public string Name        { get; set; } = string.Empty;
         public string? Description { get; set; }
         public string? Context { get; set; }
-        public int?    ContextQuestionId { get; set; }
+        public string? Directives { get; set; }
         public string StatusCode  { get; set; } = "learning";
         public int    SortOrder   { get; set; } = 0;
 

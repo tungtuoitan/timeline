@@ -52,8 +52,8 @@ namespace SuperAppModels.DTOs.Requests
         [JsonPropertyName("context")]
         public string? Context { get; set; }
 
-        [JsonPropertyName("contextQuestionId")]
-        public int? ContextQuestionId { get; set; }
+        [JsonPropertyName("directives")]
+        public List<string>? Directives { get; set; }
 
         [JsonPropertyName("sortOrder")]
         public int? SortOrder { get; set; }
@@ -70,8 +70,8 @@ namespace SuperAppModels.DTOs.Requests
         [JsonPropertyName("context")]
         public string? Context { get; set; }
 
-        [JsonPropertyName("contextQuestionId")]
-        public int? ContextQuestionId { get; set; }
+        [JsonPropertyName("directives")]
+        public List<string>? Directives { get; set; }
 
         [JsonPropertyName("sortOrder")]
         public int? SortOrder { get; set; }

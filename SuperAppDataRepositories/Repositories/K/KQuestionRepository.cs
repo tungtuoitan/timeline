@@ -132,7 +132,7 @@ namespace SuperAppDataRepositories.Repositories
                     Name              = q.Name,
                     Description       = q.Description,
                     Context           = string.IsNullOrWhiteSpace(q.Context) ? null : q.Context,
-                    ContextQuestionId = q.ContextQuestionId,
+                    Directives        = q.Directives != null && q.Directives.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(q.Directives) : null,
                     StatusCode        = "learning",
                     SortOrder         = q.SortOrder ?? (maxOrder + 1 + i),
                 }).ToList();
@@ -173,7 +173,7 @@ namespace SuperAppDataRepositories.Repositories
                     q.Name              = upd.Name;
                     q.Description       = string.IsNullOrWhiteSpace(upd.Description) ? null : upd.Description;
                     q.Context           = string.IsNullOrWhiteSpace(upd.Context) ? null : upd.Context;
-                    q.ContextQuestionId = upd.ContextQuestionId;
+                    q.Directives        = upd.Directives != null && upd.Directives.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(upd.Directives) : null;
                     if (upd.SortOrder.HasValue) q.SortOrder = upd.SortOrder.Value;
                     q.UpdatedAt   = VietnamDateTime.Now();
                 }
