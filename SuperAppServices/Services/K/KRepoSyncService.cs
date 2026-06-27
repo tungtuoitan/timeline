@@ -471,18 +471,56 @@ namespace SuperAppServices.Services.K
                 // Questions: new in repo
                 var dbQuestionMap = dbQuestions.ToDictionary(q => q.Id);
                 var claimedQIds   = new HashSet<int>();
+
+                // Pre-compute which planned questions are scope children (inherited context, not owned).
+                // Uses object-reference equality so it covers both new and existing questions.
+                var repoScopeChildSet = new HashSet<PlannedQuestion>(ReferenceEqualityComparer.Instance);
+                var repoScopeChildIds  = new HashSet<int>();
+                {
+                    foreach (var nodeGroup in plan.Questions
+                        .OrderBy(q => q.SortOrder)
+                        .GroupBy(q => q.NodeFolderKey))
+                    {
+                        var nodeQs = nodeGroup.ToList();
+                        var validOpeners2 = FindValidScopeOpenerIndices(nodeQs,
+                            pq2 => pq2.Directives != null && pq2.Directives.Contains("open-context"),
+                            pq2 => pq2.Directives != null && pq2.Directives.Contains("close-context"),
+                            _ => false);
+                        bool inSc2 = false;
+                        for (int ni = 0; ni < nodeQs.Count; ni++)
+                        {
+                            var pq2      = nodeQs[ni];
+                            var hasOpen2  = pq2.Directives != null && pq2.Directives.Contains("open-context");
+                            var hasClose2 = pq2.Directives != null && pq2.Directives.Contains("close-context");
+                            if (hasOpen2)
+                            {
+                                if (validOpeners2.Contains(ni)) inSc2 = true;
+                                continue;
+                            }
+                            if (inSc2)
+                            {
+                                repoScopeChildSet.Add(pq2);
+                                if (pq2.ExistingId.HasValue) repoScopeChildIds.Add(pq2.ExistingId.Value);
+                                if (hasClose2) inSc2 = false;
+                            }
+                        }
+                    }
+                }
+
                 foreach (var pq in plan.Questions.Where(q => q.ExistingId == null))
                 {
                     var nodeFolderName = pq.NodeFolderKey.Split('/').LastOrDefault() ?? pq.NodeFolderKey;
-                    var repoOnlyText = pq.Answer ?? "";
                     var isOpener    = pq.Directives != null && pq.Directives.Contains("open-context");
-                    var isInherited = !isOpener && !string.IsNullOrWhiteSpace(pq.Context);
-                    if (isOpener && !string.IsNullOrWhiteSpace(pq.Context))
-                        repoOnlyText += "\ncontext:\n" + pq.Context.Trim();
-                    if (isInherited)
-                        repoOnlyText += "\n[inherits context]";
+                    var isInherited = repoScopeChildSet.Contains(pq);
+                    var repoOnlyText = pq.Question;
                     if (pq.Directives != null && pq.Directives.Count > 0)
                         repoOnlyText += "\ndirectives: " + string.Join(", ", pq.Directives);
+                    if (isInherited)
+                        repoOnlyText += "\n[inherits context]";
+                    else if (!string.IsNullOrWhiteSpace(pq.Context))
+                        repoOnlyText += "\ncontext:\n" + pq.Context.Trim();
+                    if (!string.IsNullOrWhiteSpace(pq.Answer))
+                        repoOnlyText += "\n" + pq.Answer.Trim();
                     if (pq.AttRefs.Count > 0)
                         repoOnlyText += $"\natts: [{string.Join(",", pq.AttRefs)}]";
                     entries.Add(new KRepoCompareEntry
@@ -527,32 +565,37 @@ namespace SuperAppServices.Services.K
 
                     if (contentEqual && !nodeChanged && !attLinksChanged) continue;
 
-                    // Append context only for opener; show "[inherits context]" for scope children.
+                    // Append context only for questions that own it; show "[inherits context]" for scope children.
                     var repoIsOpener  = pq.Directives != null && pq.Directives.Contains("open-context");
+                    var repoIsChild   = pq.ExistingId.HasValue && repoScopeChildIds.Contains(pq.ExistingId.Value);
                     // Draft opener: parser puts context code into answer body — strip it from display
                     // so we don't show the code block twice (once in body, once from repoDisplayContext).
                     var repoAnswerForDisplay = (repoIsOpener && pq.IsDraft) ? null : pq.Answer;
-                    var dbBody   = FlattenLine(dbQ.Name) + (string.IsNullOrEmpty(dbQ.Description) ? "" : "\n" + NormalizeDescription(dbQ.Description));
-                    var repoBody = pq.Question.Trim() + (string.IsNullOrEmpty(repoAnswerForDisplay) ? "" : "\n" + NormalizeDescription(repoAnswerForDisplay));
-                    // Tag draft status into the diff text so the UI shows *why* it's marked modified
-                    // even when the body is identical (only the active/draft flag differs).
-                    var dbText   = (dbDraft   ? "[draft] "  : "[active] ") + dbBody;
-                    var repoText = (repoDraft ? "[draft] "  : "[active] ") + repoBody;
+                    var dbDirs   = DeserializeDirectives(dbQ.Directives);
+                    // Order: [status] question > directives > context > answer
+                    var dbText   = (dbDraft  ? "[draft] " : "[active] ") + FlattenLine(dbQ.Name);
+                    var repoText = (repoDraft ? "[draft] " : "[active] ") + pq.Question.Trim();
                     var nodeFolderName = pq.NodeFolderKey.Split('/').LastOrDefault() ?? pq.NodeFolderKey;
-                    var dbIsOpener    = DeserializeDirectives(dbQ.Directives)?.Contains("open-context") == true;
-                    var repoInherited = !repoIsOpener && !string.IsNullOrWhiteSpace(pq.Context);
-                    var dbInherited   = !dbIsOpener   && !string.IsNullOrWhiteSpace(dbQ.Context);
+                    if (dbDirs != null && dbDirs.Count > 0)
+                        dbText   += "\ndirectives: " + string.Join(", ", dbDirs);
+                    if (pq.Directives != null && pq.Directives.Count > 0)
+                        repoText += "\ndirectives: " + string.Join(", ", pq.Directives);
                     // Draft parser never extracts context — fall back to DB context for display so
                     // toggling to draft doesn't show a spurious context removal in the diff.
                     var repoDisplayContext = (repoIsOpener && pq.IsDraft && string.IsNullOrWhiteSpace(pq.Context))
                         ? dbQ.Context : pq.Context;
-                    if (dbIsOpener   && !string.IsNullOrWhiteSpace(dbQ.Context))          dbText   += "\ncontext:\n" + dbQ.Context.Trim();
-                    if (repoIsOpener && !string.IsNullOrWhiteSpace(repoDisplayContext))    repoText += "\ncontext:\n" + repoDisplayContext.Trim();
-                    if (dbInherited)   dbText   += "\n[inherits context]";
-                    if (repoInherited) repoText += "\n[inherits context]";
-                    var dbDirs   = DeserializeDirectives(dbQ.Directives);
-                    if (dbDirs   != null && dbDirs.Count > 0)   dbText   += "\ndirectives: " + string.Join(", ", dbDirs);
-                    if (pq.Directives != null && pq.Directives.Count > 0) repoText += "\ndirectives: " + string.Join(", ", pq.Directives);
+                    if (!string.IsNullOrWhiteSpace(dbQ.Context) && !repoScopeChildIds.Contains(dbQ.Id))
+                        dbText   += "\ncontext:\n" + dbQ.Context.Trim();
+                    if (repoScopeChildIds.Contains(dbQ.Id))
+                        dbText   += "\n[inherits context]";
+                    if (!string.IsNullOrWhiteSpace(repoDisplayContext) && !repoIsChild)
+                        repoText += "\ncontext:\n" + repoDisplayContext.Trim();
+                    if (repoIsChild)
+                        repoText += "\n[inherits context]";
+                    if (!string.IsNullOrEmpty(dbQ.Description))
+                        dbText   += "\n" + NormalizeDescription(dbQ.Description);
+                    if (!string.IsNullOrEmpty(repoAnswerForDisplay))
+                        repoText += "\n" + NormalizeDescription(repoAnswerForDisplay);
 
                     // If the question moved between nodes, append the location so the
                     // user sees the cross-node move (otherwise the diff text would be
@@ -598,10 +641,14 @@ namespace SuperAppServices.Services.K
                 {
                     if (!dbQuestionMap.TryGetValue(qId, out var dbQ)) continue;
                     var nodeForQ = dbNodeMap.TryGetValue(dbQ.NodeId!.Value, out var nn) ? nn.Name : "";
-                    var dbOnlyText = dbQ.Name + (string.IsNullOrEmpty(dbQ.Description) ? "" : "\n" + dbQ.Description);
-                    if (!string.IsNullOrWhiteSpace(dbQ.Context))   dbOnlyText += "\ncontext:\n" + dbQ.Context.Trim();
                     var dbOnlyDirs = DeserializeDirectives(dbQ.Directives);
-                    if (dbOnlyDirs != null && dbOnlyDirs.Count > 0) dbOnlyText += "\ndirectives: " + string.Join(", ", dbOnlyDirs);
+                    var dbOnlyText = dbQ.Name;
+                    if (dbOnlyDirs != null && dbOnlyDirs.Count > 0)
+                        dbOnlyText += "\ndirectives: " + string.Join(", ", dbOnlyDirs);
+                    if (!string.IsNullOrWhiteSpace(dbQ.Context))
+                        dbOnlyText += "\ncontext:\n" + dbQ.Context.Trim();
+                    if (!string.IsNullOrEmpty(dbQ.Description))
+                        dbOnlyText += "\n" + dbQ.Description;
                     entries.Add(new KRepoCompareEntry
                     {
                         EntityType = "question",
@@ -1635,11 +1682,11 @@ namespace SuperAppServices.Services.K
                          + (string.IsNullOrEmpty(dbDescription) ? "" : "\n" + NormalizeDescription(dbDescription));
             var repoBody = (repoName ?? "").Trim()
                          + (string.IsNullOrEmpty(repoAnswer) ? "" : "\n" + NormalizeDescription(repoAnswer));
-            // Only compare context for active openers — inherited context on scope children is
-            // denormalized noise, and draft parser never extracts context (goes into answer body),
-            // so skip context comparison for drafts to avoid false-positive "modified" entries.
-            var isOpener  = repoDirectives != null && repoDirectives.Contains("open-context");
-            var ctxEqual  = !isOpener || repoDraft
+            // Skip context comparison for drafts — draft parser never extracts context (goes into
+            // answer body), so pq.Context is always null for drafts, causing false "modified" entries.
+            // For all active questions (opener, standalone, scope children) compare normally —
+            // after apply, context is denormalized so both sides should be equal.
+            var ctxEqual  = repoDraft
                          || NormalizeDescription(dbContext ?? "") == NormalizeDescription(repoContext ?? "");
             var dirsEqual = new HashSet<string>(dbDirectives ?? Array.Empty<string>(), StringComparer.Ordinal)
                             .SetEquals(repoDirectives ?? Array.Empty<string>());
@@ -1653,6 +1700,34 @@ namespace SuperAppServices.Services.K
             catch { return null; }
         }
 
+        /// <summary>
+        /// Returns the set of indices that are valid scope openers. Rules:
+        ///   1. Opener must have a matching close-context question below it (no close = no scope)
+        ///   2. No question inside the scope may have its own context
+        ///   3. No question inside the scope may carry open-context or close-context
+        /// If any rule is violated the opener is not valid — its context belongs only to itself.
+        /// </summary>
+        private static HashSet<int> FindValidScopeOpenerIndices<T>(
+            IReadOnlyList<T> items,
+            Func<T, bool> hasOpen,
+            Func<T, bool> hasClose,
+            Func<T, bool> hasOwnContext)
+        {
+            var valid = new HashSet<int>();
+            for (int i = 0; i < items.Count; i++)
+            {
+                if (!hasOpen(items[i])) continue;
+                for (int j = i + 1; j < items.Count; j++)
+                {
+                    var inner = items[j];
+                    if (hasOpen(inner) || hasOwnContext(inner)) break; // invalid scope
+                    if (hasClose(inner)) { valid.Add(i); break; }      // valid — found closer
+                    // close-context on an inner item that isn't the closer is already caught by hasClose above
+                }
+            }
+            return valid;
+        }
+
         internal static string BuildRepoMarkdown(
             List<KQuestionEntity> questions,
             Dictionary<int, List<int>>? attsByQuestionId = null)
@@ -1662,8 +1737,20 @@ namespace SuperAppServices.Services.K
             var sb = new StringBuilder();
             var sorted = questions.OrderBy(q => q.SortOrder).ToList();
 
-            foreach (var q in sorted)
+            // Pre-compute which openers form a valid open/close pair (no-pair = context stays private).
+            // For the builder, only check pair + no nesting — inner questions may have the same context
+            // stored (denormalized copies); the emit loop's string comparison handles skipping those.
+            var validOpenerIdx = FindValidScopeOpenerIndices(sorted,
+                q => DeserializeDirectives(q.Directives)?.Contains("open-context") == true,
+                q => DeserializeDirectives(q.Directives)?.Contains("close-context") == true,
+                _ => false);
+
+            string? buildScopeContext = null;
+            bool    inBuildScope      = false;
+
+            for (int qi = 0; qi < sorted.Count; qi++)
             {
+                var q        = sorted[qi];
                 var attIds   = attsByQuestionId?.TryGetValue(q.Id, out var ids) == true ? ids : null;
                 var attPart  = attIds?.Count > 0 ? $" atts:{string.Join(",", attIds)}" : "";
                 var dirs     = DeserializeDirectives(q.Directives);
@@ -1686,13 +1773,30 @@ namespace SuperAppServices.Services.K
                 else
                 {
                     sb.AppendLine($"# {nameLine} {tag}");
-                    if (!string.IsNullOrWhiteSpace(q.Context) && dirs != null && dirs.Contains("open-context"))
+                    // Emit context only for questions that own it (valid opener or standalone).
+                    // Scope children carry a denormalized copy — skip so we don't emit it twice.
+                    var isValidOpener = validOpenerIdx.Contains(qi);
+                    var ownsContext = !string.IsNullOrWhiteSpace(q.Context)
+                        && (isValidOpener
+                            || !(inBuildScope && q.Context!.Trim() == buildScopeContext!.Trim()));
+                    if (ownsContext)
                     {
-                        sb.AppendLine(q.Context.Trim());
+                        sb.AppendLine(q.Context!.Trim());
                         sb.AppendLine();
                     }
                     if (!string.IsNullOrEmpty(q.Description?.Trim()))
                         sb.AppendLine(q.Description!.Trim());
+                }
+                // Update scope tracking — only enter scope for valid openers.
+                if (validOpenerIdx.Contains(qi) && !string.IsNullOrWhiteSpace(q.Context))
+                {
+                    buildScopeContext = q.Context!.Trim();
+                    inBuildScope      = true;
+                }
+                else if (inBuildScope && dirs != null && dirs.Contains("close-context"))
+                {
+                    inBuildScope      = false;
+                    buildScopeContext = null;
                 }
                 sb.AppendLine();
             }
@@ -1864,8 +1968,13 @@ namespace SuperAppServices.Services.K
             }
             Flush();
 
-            // Scope resolution: questions between open-context and close-context (inclusive)
-            // inherit the opener's context string (denormalized — no FK at query time).
+            // Scope resolution: open-context + close-context MUST pair up.
+            // Rules: no inner question may have its own context or carry open/close-context.
+            // Openers that don't pass validation keep their context only for themselves.
+            var validOpeners = FindValidScopeOpenerIndices(result,
+                pq => pq.Directives.Contains("open-context"),
+                pq => pq.Directives.Contains("close-context"),
+                pq => !string.IsNullOrWhiteSpace(pq.Context));
             string? scopeContext = null;
             bool inScope = false;
             for (int i = 0; i < result.Count; i++)
@@ -1874,11 +1983,14 @@ namespace SuperAppServices.Services.K
                 var hasOpen  = pq.Directives.Contains("open-context");
                 var hasClose = pq.Directives.Contains("close-context");
 
-                if (hasOpen && !string.IsNullOrWhiteSpace(pq.Context))
+                if (hasOpen)
                 {
-                    scopeContext = pq.Context;
-                    inScope      = true;
-                    continue; // opener keeps its own context
+                    if (validOpeners.Contains(i) && !string.IsNullOrWhiteSpace(pq.Context))
+                    {
+                        scopeContext = pq.Context;
+                        inScope      = true;
+                    }
+                    continue; // opener always keeps its own context
                 }
 
                 if (inScope)

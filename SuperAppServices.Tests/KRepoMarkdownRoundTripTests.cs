@@ -16,16 +16,16 @@ namespace SuperAppServices.Tests
     /// </summary>
     public class KRepoMarkdownRoundTripTests
     {
-        private static KQuestionEntity DbQ(int id, string name, string? desc = null, bool draft = false, int order = 1, string? context = null, int? contextQuestionId = null) =>
+        private static KQuestionEntity DbQ(int id, string name, string? desc = null, bool draft = false, int order = 1, string? context = null, string? directives = null) =>
             new()
             {
-                Id                = id,
-                Name              = name,
-                Description       = desc,
-                Context           = context,
-                ContextQuestionId = contextQuestionId,
-                StatusCode        = draft ? "draft" : "active",
-                SortOrder         = order,
+                Id         = id,
+                Name       = name,
+                Description = desc,
+                Context    = context,
+                Directives = directives,
+                StatusCode = draft ? "draft" : "active",
+                SortOrder  = order,
             };
 
         // ── FlattenLine: collapses any whitespace run (CRLF, LF, tabs, multi-space) ─
@@ -358,33 +358,111 @@ namespace SuperAppServices.Tests
             Assert.Contains("Second line.", parsed[0].Answer);
         }
 
-        // ── Borrowed context: getctx: tag round-trips ────────────────────────────────
+        // ── Scope validity: open without close = context private to opener ─────────
         [Fact]
-        public void RoundTrip_borrowedContext_getctxTagRoundTrips()
+        public void Scope_openWithoutClose_contextStaysPrivateToOpener()
         {
-            var db = DbQ(70, "Question B", desc: "Answer B", contextQuestionId: 5);
-            var md = KRepoSyncService.BuildRepoMarkdown(new() { db });
+            var ctx = "```cs\nvar x = 1;\n```";
+            var dbList = new List<KQuestionEntity>
+            {
+                DbQ(1, "Opener",  "ans1", order: 1, context: ctx,  directives: "[\"open-context\"]"),
+                DbQ(2, "Child",   "ans2", order: 2),   // no own context, no close-context below → scope invalid
+                DbQ(3, "Other",   "ans3", order: 3),
+            };
+            var md     = KRepoSyncService.BuildRepoMarkdown(dbList);
             var parsed = KRepoSyncService.ParseQuestions(md);
 
-            Assert.Single(parsed);
-            Assert.Equal(70, parsed[0].Id);
-            Assert.Equal(5, parsed[0].ContextQuestionId);
-            Assert.Null(parsed[0].Context); // no owned context
-            Assert.Equal("Answer B", parsed[0].Answer);
+            Assert.Equal(3, parsed.Count);
+            // Opener keeps its own context
+            Assert.NotNull(parsed[0].Context);
+            // No scope entered — q2 and q3 get no inherited context
+            Assert.Null(parsed[1].Context);
+            Assert.Null(parsed[2].Context);
         }
 
-        // ── Owned context wins over getctx: (builder doesn't emit getctx when owned) ──
+        // ── Scope validity: valid open+close pair propagates context ─────────────
         [Fact]
-        public void Builder_ownedContextTakesPrecedenceOverGetctx()
+        public void Scope_validOpenClosePair_contextPropagatedToChildren()
+        {
+            var ctx = "```cs\nvar x = 1;\n```";
+            var dbList = new List<KQuestionEntity>
+            {
+                DbQ(1, "Opener",  "ans1", order: 1, context: ctx,  directives: "[\"open-context\"]"),
+                DbQ(2, "Child",   "ans2", order: 2),
+                DbQ(3, "Closer",  "ans3", order: 3, directives: "[\"close-context\"]"),
+                DbQ(4, "After",   "ans4", order: 4),
+            };
+            var md     = KRepoSyncService.BuildRepoMarkdown(dbList);
+            var parsed = KRepoSyncService.ParseQuestions(md);
+
+            Assert.Equal(4, parsed.Count);
+            Assert.NotNull(parsed[0].Context);
+            Assert.Contains("var x = 1", parsed[1].Context ?? "");  // inherited
+            Assert.Contains("var x = 1", parsed[2].Context ?? "");  // closer also inherits
+            Assert.Null(parsed[3].Context);                          // after scope — no context
+        }
+
+        // ── Scope validity: inner question with own context breaks the scope ──────
+        [Fact]
+        public void Scope_innerQuestionWithOwnContext_invalidatesScope()
+        {
+            var ctx1 = "```cs\nvar x = 1;\n```";
+            var ctx2 = "```cs\nvar y = 2;\n```";
+            var dbList = new List<KQuestionEntity>
+            {
+                DbQ(1, "Opener",    "a1", order: 1, context: ctx1, directives: "[\"open-context\"]"),
+                DbQ(2, "HasCtx",    "a2", order: 2, context: ctx2),  // own context breaks scope
+                DbQ(3, "Closer",    "a3", order: 3, directives: "[\"close-context\"]"),
+            };
+            var md     = KRepoSyncService.BuildRepoMarkdown(dbList);
+            var parsed = KRepoSyncService.ParseQuestions(md);
+
+            Assert.Equal(3, parsed.Count);
+            // Opener keeps its context
+            Assert.NotNull(parsed[0].Context);
+            // Inner question keeps its own context (not inherited)
+            Assert.Contains("var y = 2", parsed[1].Context ?? "");
+            // Closer gets no inherited context (scope was invalid)
+            Assert.Null(parsed[2].Context);
+        }
+
+        // ── Scope validity: standalone question with context is not shared ────────
+        [Fact]
+        public void Scope_standaloneContextNotShared()
         {
             var ctx = "```go\nfunc main() {}\n```";
-            var db  = DbQ(71, "Question C", desc: "Answer C", context: ctx, contextQuestionId: 5);
-            var md  = KRepoSyncService.BuildRepoMarkdown(new() { db });
+            var dbList = new List<KQuestionEntity>
+            {
+                DbQ(1, "StandaloneWithCtx", "a1", order: 1, context: ctx),
+                DbQ(2, "Next",              "a2", order: 2),
+            };
+            var md     = KRepoSyncService.BuildRepoMarkdown(dbList);
+            var parsed = KRepoSyncService.ParseQuestions(md);
 
-            // getctx: must NOT appear in the heading tag
-            Assert.DoesNotContain("getctx:", md);
-            // context code block must appear
-            Assert.Contains("func main()", md);
+            Assert.Equal(2, parsed.Count);
+            Assert.NotNull(parsed[0].Context);
+            Assert.Null(parsed[1].Context);
+        }
+
+        // ── Scope validity: round-trip of valid scope preserves children context ──
+        [Fact]
+        public void RoundTrip_validScope_childrenContextPreservedOnRoundTrip()
+        {
+            var ctx = "```python\ndef foo(): pass\n```";
+            var dbList = new List<KQuestionEntity>
+            {
+                DbQ(1, "Opener", "a1", order: 1, context: ctx, directives: "[\"open-context\"]"),
+                DbQ(2, "Child",  "a2", order: 2, context: ctx),  // denormalized copy
+                DbQ(3, "Closer", "a3", order: 3, context: ctx, directives: "[\"close-context\"]"),
+            };
+            var md     = KRepoSyncService.BuildRepoMarkdown(dbList);
+            var parsed = KRepoSyncService.ParseQuestions(md);
+
+            // After round-trip, children should have inherited context re-applied
+            Assert.Contains("def foo():", parsed[1].Context ?? "");
+            Assert.Contains("def foo():", parsed[2].Context ?? "");
+            // Opener's context emitted once in the markdown
+            Assert.Equal(1, md.Split("def foo():").Length - 1);
         }
     }
 }

@@ -75,18 +75,50 @@ namespace SuperAppServices.Services.K
         }
 
         /// <summary>
+        /// Returns indices of valid scope openers (must have a matching close-context below,
+        /// no inner question with own context, no nested open/close directives).
+        /// Mirrors KRepoSyncService.FindValidScopeOpenerIndices.
+        /// </summary>
+        private static HashSet<int> FindValidScopeOpenerIndices(
+            IReadOnlyList<KQuestionEntity> items,
+            Func<KQuestionEntity, bool> hasOpen,
+            Func<KQuestionEntity, bool> hasClose,
+            Func<KQuestionEntity, bool> hasOwnContext)
+        {
+            var valid = new HashSet<int>();
+            for (int i = 0; i < items.Count; i++)
+            {
+                if (!hasOpen(items[i])) continue;
+                for (int j = i + 1; j < items.Count; j++)
+                {
+                    var inner = items[j];
+                    if (hasOpen(inner) || hasOwnContext(inner)) break;
+                    if (hasClose(inner)) { valid.Add(i); break; }
+                }
+            }
+            return valid;
+        }
+
+        /// <summary>
         /// Runs the open-context/close-context scope resolution pass over an ordered question list
         /// and returns a map of question id → resolved context (null = no context).
         /// Scope children inherit the opener's context; the opener itself keeps its own.
         /// </summary>
         private static Dictionary<int, string?> BuildScopeContextMap(IEnumerable<KQuestionEntity> ordered)
         {
+            var list = ordered.ToList();
+            var validOpeners = FindValidScopeOpenerIndices(list,
+                q => (DeserializeDirectives(q.Directives) ?? new List<string>()).Contains("open-context"),
+                q => (DeserializeDirectives(q.Directives) ?? new List<string>()).Contains("close-context"),
+                q => !string.IsNullOrWhiteSpace(q.Context));
+
             var map = new Dictionary<int, string?>();
             string? scopeContext = null;
             bool inScope = false;
 
-            foreach (var q in ordered)
+            for (int i = 0; i < list.Count; i++)
             {
+                var q    = list[i];
                 var dirs = DeserializeDirectives(q.Directives) ?? new List<string>();
                 var hasOpen  = dirs.Contains("open-context");
                 var hasClose = dirs.Contains("close-context");
@@ -98,7 +130,8 @@ namespace SuperAppServices.Services.K
                     var effectiveCtx = !string.IsNullOrWhiteSpace(q.Context) ? q.Context
                                      : (q.StatusCode == "draft" ? q.Description : null);
                     map[q.Id] = effectiveCtx;
-                    if (!string.IsNullOrWhiteSpace(effectiveCtx))
+                    // Only enter scope if this opener is part of a valid open/close pair.
+                    if (validOpeners.Contains(i) && !string.IsNullOrWhiteSpace(effectiveCtx))
                     {
                         scopeContext = effectiveCtx;
                         inScope = true;
