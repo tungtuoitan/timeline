@@ -110,7 +110,8 @@ namespace SuperAppServices.Services.K
             var validOpeners = FindValidScopeOpenerIndices(list,
                 q => (DeserializeDirectives(q.Directives) ?? new List<string>()).Contains("open-context"),
                 q => (DeserializeDirectives(q.Directives) ?? new List<string>()).Contains("close-context"),
-                q => !string.IsNullOrWhiteSpace(q.Context));
+                // "has own context" = is itself a nested opener, NOT inherited/denormalized context from Apply
+                q => (DeserializeDirectives(q.Directives) ?? new List<string>()).Contains("open-context"));
 
             var map = new Dictionary<int, string?>();
             string? scopeContext = null;
