@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SuperAppModels.Models;
+using SuperAppModels.Models.DailyLog;
 using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Data
@@ -58,6 +59,10 @@ namespace SuperAppDataRepositories.Data
         // LifeLog Tables (log schema)
         public DbSet<LifeLogTrack> LifeLogTracks { get; set; }
         public DbSet<LifeLogLog> LifeLogLogs { get; set; }
+
+        // DailyLog Tables (pro schema)
+        public DbSet<SuperAppModels.Models.DailyLog.DailyLog> DailyLogs { get; set; }
+        public DbSet<DailyLogFieldTemplate> DailyLogFieldTemplates { get; set; }
 
         // Wiki Tables (wiki schema)
         public DbSet<WikiKeyword> WikiKeywords { get; set; }
