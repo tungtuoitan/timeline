@@ -81,6 +81,9 @@ namespace SuperAppDataRepositories.Repositories.DailyLog
                             existing.RangeMin = field.RangeMin;
                             existing.RangeMax = field.RangeMax;
                             existing.SortOrder = field.SortOrder;
+                            existing.GroupOrder = field.GroupOrder;
+                            existing.GroupLabel = field.GroupLabel;
+                            existing.LineOrder = field.LineOrder;
                             existing.DeletedAt = field.DeletedAt;
                             existing.UpdatedAt = VietnamDateTime.Now();
                             upserted.Add(existing);

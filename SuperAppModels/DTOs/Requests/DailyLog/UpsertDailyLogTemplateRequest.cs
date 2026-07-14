@@ -41,6 +41,15 @@ namespace SuperAppModels.DTOs.Requests.DailyLog
         [JsonPropertyName("sortOrder")]
         public int SortOrder { get; set; }
 
+        [JsonPropertyName("groupOrder")]
+        public int? GroupOrder { get; set; }
+
+        [JsonPropertyName("groupLabel")]
+        public string? GroupLabel { get; set; }
+
+        [JsonPropertyName("lineOrder")]
+        public int? LineOrder { get; set; }
+
         [JsonPropertyName("deletedAt")]
         public DateTime? DeletedAt { get; set; }
     }
