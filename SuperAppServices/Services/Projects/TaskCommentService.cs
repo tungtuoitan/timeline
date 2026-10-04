@@ -15,12 +15,16 @@ namespace SuperAppServices.Services.Projects
         private readonly ITaskCommentRepository _repository;
         private readonly ILogger<TaskCommentService> _logger;
 
+        private readonly OwnershipGuard _ownership;
+
         public TaskCommentService(
             ITaskCommentRepository repository,
-            ILogger<TaskCommentService> logger)
+            ILogger<TaskCommentService> logger,
+            OwnershipGuard ownership)
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _ownership = ownership ?? throw new ArgumentNullException(nameof(ownership));
         }
 
         public async Task<ResultOptions> GetCommentsByTaskIdAsync(int taskId, int userId)
@@ -48,6 +52,15 @@ namespace SuperAppServices.Services.Projects
 
                 _logger.LogInformation("Upserting comment for taskId: {TaskId}, commentId: {CommentId}",
                     request.TaskId, request.Id);
+
+                // Ownership: task must belong to the user; an edit must target the user's own
+                // comment on that task; a reply must point at a comment on the same task.
+                if (!await _ownership.TasksOwnedAsync(userId, new[] { request.TaskId }))
+                    return OwnershipGuard.Denied("Task");
+                if (request.Id > 0 && !await _ownership.CommentOwnedAsync(userId, request.Id, request.TaskId))
+                    return OwnershipGuard.Denied("Comment");
+                if (request.ParentCommentId.HasValue && !await _ownership.CommentOnTaskAsync(request.ParentCommentId.Value, request.TaskId))
+                    return OwnershipGuard.Denied("Parent comment");
 
                 var comment = new TaskComment
                 {

@@ -228,6 +228,7 @@ namespace SuperAppAPI
             services.AddScoped<SuperAppServices.Interfaces.IUserProfileService, UserProfileService>();
             services.AddScoped<KeywordServiceV2>();
             services.AddScoped<WorkspaceItemPathService>();
+            services.AddScoped<OwnershipGuard>();
             services.AddScoped<SuperAppServices.Interfaces.IProjectService, ProjectService>();
             services.AddScoped<SuperAppServices.Interfaces.DailyLog.IDailyLogService, SuperAppServices.Services.DailyLog.DailyLogService>();
             services.AddScoped<SuperAppServices.Interfaces.DailyLog.IDailyLogTemplateService, SuperAppServices.Services.DailyLog.DailyLogTemplateService>();

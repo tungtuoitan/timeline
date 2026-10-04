@@ -21,19 +21,22 @@ namespace SuperAppServices.Services.Projects
         private readonly ILogger<TaskService> _logger;
         private readonly KeywordServiceV2 _keywordService;
         private readonly ApplicationDbContext _context;
+        private readonly OwnershipGuard _ownership;
 
         public TaskService(
             ITaskRepository taskRepository,
             IWorkspaceRepository workspaceRepository,
             ILogger<TaskService> logger,
             KeywordServiceV2 keywordService,
-            ApplicationDbContext context)
+            ApplicationDbContext context,
+            OwnershipGuard ownership)
         {
             _taskRepository = taskRepository ?? throw new ArgumentNullException(nameof(taskRepository));
             _workspaceRepository = workspaceRepository ?? throw new ArgumentNullException(nameof(workspaceRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _keywordService = keywordService ?? throw new ArgumentNullException(nameof(keywordService));
             _context = context ?? throw new ArgumentNullException(nameof(context));
+            _ownership = ownership ?? throw new ArgumentNullException(nameof(ownership));
         }
 
         /// <summary>
@@ -93,6 +96,17 @@ namespace SuperAppServices.Services.Projects
                 }
 
                 _logger.LogInformation("Batch upserting {Count} tasks", requests.Count);
+
+                // Ownership: target projects, existing tasks, parents and linked folders must all
+                // belong to the user — checked before any side effect (folder rename below).
+                if (!await _ownership.ProjectsOwnedAsync(userId, requests.Select(r => r.ProjectId)))
+                    return OwnershipGuard.Denied("Project");
+                if (!await _ownership.TasksOwnedAsync(userId, requests.Where(r => r.Id > 0).Select(r => r.Id)))
+                    return OwnershipGuard.Denied("Task");
+                if (!await _ownership.TasksOwnedAsync(userId, requests.Where(r => r.ParentTaskId.HasValue).Select(r => r.ParentTaskId!.Value)))
+                    return OwnershipGuard.Denied("Parent task");
+                if (!await _ownership.WorkspaceItemsOwnedAsync(userId, requests.Where(r => r.FolderWorkspaceItemId.HasValue).Select(r => r.FolderWorkspaceItemId!.Value)))
+                    return OwnershipGuard.Denied("Folder");
 
                 // Map requests to entities
                 var tasks = new List<ProTask>();
@@ -198,6 +212,9 @@ namespace SuperAppServices.Services.Projects
             {
                 _logger.LogInformation("Patching task ID: {TaskId} for user: {UserId}", taskId, userId);
 
+                if (!await _ownership.TasksOwnedAsync(userId, new[] { taskId }))
+                    return OwnershipGuard.Denied("Task");
+
                 var result = await _taskRepository.PatchTaskAsync(taskId, request);
 
                 if (result.Success)
@@ -231,6 +248,9 @@ namespace SuperAppServices.Services.Projects
             {
                 if (taskIds == null || !taskIds.Any())
                     return new ResultOptions { Success = false, Message = "No task IDs provided", Status = 400 };
+
+                if (!await _ownership.TasksOwnedAsync(userId, taskIds))
+                    return OwnershipGuard.Denied("Task");
 
                 var now = VietnamDateTime.Now();
 

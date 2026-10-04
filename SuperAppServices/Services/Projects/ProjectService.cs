@@ -17,17 +17,20 @@ namespace SuperAppServices.Services.Projects
         private readonly IWsRepository _wsRepository;
         private readonly ILogger<ProjectService> _logger;
         private readonly KeywordServiceV2 _keywordService;
+        private readonly OwnershipGuard _ownership;
 
         public ProjectService(
             IProjectRepository projectRepository,
             IWsRepository wsRepository,
             ILogger<ProjectService> logger,
-            KeywordServiceV2 keywordService)
+            KeywordServiceV2 keywordService,
+            OwnershipGuard ownership)
         {
             _projectRepository = projectRepository ?? throw new ArgumentNullException(nameof(projectRepository));
             _wsRepository = wsRepository ?? throw new ArgumentNullException(nameof(wsRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _keywordService = keywordService ?? throw new ArgumentNullException(nameof(keywordService));
+            _ownership = ownership ?? throw new ArgumentNullException(nameof(ownership));
         }
 
         /// <summary>
@@ -86,6 +89,18 @@ namespace SuperAppServices.Services.Projects
                 }
 
                 _logger.LogInformation("Batch upserting {Count} projects", requests.Count);
+
+                // Ownership: the controller stamps every request with the caller's id from the JWT.
+                // Existing projects and linked workspaces must belong to that user — checked before
+                // any side effect (workspace auto-create/rename below).
+                var userIds = requests.Select(r => r.UserId).Distinct().ToList();
+                if (userIds.Count != 1 || userIds[0] <= 0)
+                    return new ResultOptions { Success = false, Message = "Invalid user", Status = 400 };
+                var userId = userIds[0];
+                if (!await _ownership.ProjectsOwnedAsync(userId, requests.Where(r => r.Id > 0).Select(r => r.Id)))
+                    return OwnershipGuard.Denied("Project");
+                if (!await _ownership.WorkspacesOwnedAsync(userId, requests.Where(r => r.WorkspaceId.HasValue).Select(r => r.WorkspaceId!.Value)))
+                    return OwnershipGuard.Denied("Workspace");
 
                 // Map requests to entities
                 var projects = new List<Project>();
