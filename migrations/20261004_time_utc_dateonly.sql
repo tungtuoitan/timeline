@@ -3,9 +3,9 @@
 --   * Calendar dates -> DATE: pro.task / pro.project start_date, end_date
 --     (values at 17:00 are the old toISOString bug = 00:00 VN of the NEXT day -> fixed)
 --   * Instants -> UTC: tables written in Vietnam time (VietnamDateTime / SYSDATETIME on a
---     +07 server) are shifted -7h ONCE. Tables already written in UTC (K, keywords, wiki,
---     workspace models, auth) are left as is; mixed columns (e.g. k.question.updated_at)
---     are not touched — up to 7h drift in history accepted (Tung, 2026-10-04).
+--     +07 server) are shifted -7h ONCE (pro.project/task/task_comment, log, daily_log).
+--     NOTE: K, workspace, notes, files, flow, user_profiles were ALSO written in Vietnam time
+--     from 2026-05-04 (commit fdd20d2) — fixed by 20261004_time_utc_fix_vn_window.sql.
 --   * Column defaults SYSDATETIME()/GETDATE() -> SYSUTCDATETIME()
 --   * urm.user_profiles.timezone (IANA id, default Asia/Ho_Chi_Minh) for API display
 -- Idempotent: the one-shot data shift is guarded by dbo.schema_migrations.
