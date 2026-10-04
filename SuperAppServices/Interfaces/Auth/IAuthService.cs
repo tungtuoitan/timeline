@@ -15,7 +15,12 @@ namespace SuperAppServices.Interfaces
         /// <param name="authorizationCode">Authorization code from Google OAuth flow</param>
         /// <param name="codeVerifier">PKCE code verifier (optional for backward compatibility)</param>
         /// <returns>Authentication response with JWT token and user info</returns>
-        Task<AuthResponse> GoogleLoginAsync(string authorizationCode, string? codeVerifier = null);
+        Task<AuthResponse> GoogleLoginAsync(string authorizationCode, string? codeVerifier = null, string? redirectUri = null, string? deviceId = null);
+
+        /// <summary>
+        /// Public Google OAuth parameters for non-browser clients (client id is public anyway).
+        /// </summary>
+        object GetGoogleCliConfig();
 
         /// <summary>
         /// Authenticate user with username and password (local login)

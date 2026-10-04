@@ -14,5 +14,13 @@ namespace SuperAppModels.DTOs.Requests
         /// </summary>
         [StringLength(128, MinimumLength = 43, ErrorMessage = "Code verifier must be between 43 and 128 characters")]
         public string? CodeVerifier { get; set; }
+
+        /// <summary>
+        /// Redirect URI used when requesting the code. Optional: defaults to the web callback.
+        /// Must be in the server allowlist (OAuth:Google:RedirectUri + OAuth:Google:CliRedirectUris).
+        /// Used by the TungRoot CLI (scripts/sa/sa.py), which receives the code on localhost.
+        /// </summary>
+        [StringLength(500)]
+        public string? RedirectUri { get; set; }
     }
 }

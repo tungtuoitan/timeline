@@ -59,10 +59,48 @@ namespace SuperAppServices.Services.Auth
         /// </summary>
         /// <param name="authorizationCode">Authorization code from Google OAuth flow</param>
         /// <param name="codeVerifier">PKCE code verifier (required)</param>
-        public async Task<AuthResponse> GoogleLoginAsync(string authorizationCode, string? codeVerifier = null)
+        private const string DefaultCliRedirectUri = "http://localhost:3000/auth/callback";
+        private const string GoogleScope = "openid profile email https://www.googleapis.com/auth/drive.file";
+
+        /// <summary>
+        /// Allowed redirect URIs: the web callback plus CLI loopback URIs (comma-separated
+        /// OAuth:Google:CliRedirectUris, default http://localhost:3000/auth/callback — already
+        /// registered on the Google client for local dev).
+        /// </summary>
+        private HashSet<string> AllowedGoogleRedirectUris()
+        {
+            var allowed = new HashSet<string>(StringComparer.Ordinal);
+            var web = _configuration["OAuth:Google:RedirectUri"];
+            if (!string.IsNullOrWhiteSpace(web)) allowed.Add(web);
+            var cli = _configuration["OAuth:Google:CliRedirectUris"] ?? DefaultCliRedirectUri;
+            foreach (var uri in cli.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                allowed.Add(uri);
+            return allowed;
+        }
+
+        public object GetGoogleCliConfig()
+        {
+            var cli = (_configuration["OAuth:Google:CliRedirectUris"] ?? DefaultCliRedirectUri)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return new
+            {
+                clientId = _configuration["OAuth:Google:ClientId"] ?? "",
+                redirectUri = cli.FirstOrDefault() ?? DefaultCliRedirectUri,
+                scope = GoogleScope,
+                authUrl = "https://accounts.google.com/o/oauth2/v2/auth"
+            };
+        }
+
+        public async Task<AuthResponse> GoogleLoginAsync(string authorizationCode, string? codeVerifier = null, string? redirectUri = null, string? deviceId = null)
         {
             try
             {
+                if (redirectUri != null && !AllowedGoogleRedirectUris().Contains(redirectUri))
+                {
+                    _logger.LogWarning("Google login rejected: redirect URI not allowed: {RedirectUri}", redirectUri);
+                    return new AuthResponse { Success = false, Message = "Google login failed", Error = "Redirect URI not allowed" };
+                }
+
                 // Enforce PKCE - codeVerifier is required
                 if (string.IsNullOrEmpty(codeVerifier))
                 {
@@ -82,7 +120,7 @@ namespace SuperAppServices.Services.Auth
                 GoogleTokenResponse googleTokenResponse;
                 try
                 {
-                    googleTokenResponse = await ExchangeCodeForGoogleTokenAsync(authorizationCode, codeVerifier);
+                    googleTokenResponse = await ExchangeCodeForGoogleTokenAsync(authorizationCode, codeVerifier, redirectUri);
                     _logger.LogInformation("Google token exchange succeeded. HasRefreshToken={HasRefreshToken}, ExpiresIn={ExpiresIn}s",
                         !string.IsNullOrEmpty(googleTokenResponse.RefreshToken), googleTokenResponse.ExpiresIn);
                 }
@@ -144,7 +182,7 @@ namespace SuperAppServices.Services.Auth
                 _logger.LogDebug("JWT token generated for UserId={UserId}", user.Id);
 
                 // Step 8: Generate refresh token and store in DB
-                var (plaintext, refreshTokenEntity) = await GenerateAndStoreRefreshTokenAsync(user.Id);
+                var (plaintext, refreshTokenEntity) = await GenerateAndStoreRefreshTokenAsync(user.Id, deviceId);
                 _logger.LogDebug("Refresh token stored. TokenId={TokenId}, ExpiresAt={ExpiresAt}", refreshTokenEntity.Id, refreshTokenEntity.ExpiresAt);
 
                 _logger.LogInformation("Google login successful. UserId={UserId}, Email={Email}", user.Id, user.Email);
@@ -306,14 +344,14 @@ namespace SuperAppServices.Services.Auth
         /// Exchange authorization code for Google tokens
         /// Supports PKCE (RFC 7636) when code_verifier is provided
         /// </summary>
-        private async Task<GoogleTokenResponse> ExchangeCodeForGoogleTokenAsync(string code, string? codeVerifier = null)
+        private async Task<GoogleTokenResponse> ExchangeCodeForGoogleTokenAsync(string code, string? codeVerifier = null, string? redirectUriOverride = null)
         {
             var client = _httpClientFactory.CreateClient();
             var tokenEndpoint = "https://oauth2.googleapis.com/token";
 
             var clientId = _configuration["OAuth:Google:ClientId"] ?? "";
             var clientSecret = _configuration["OAuth:Google:ClientSecret"] ?? "";
-            var redirectUri = _configuration["OAuth:Google:RedirectUri"] ?? "";
+            var redirectUri = redirectUriOverride ?? _configuration["OAuth:Google:RedirectUri"] ?? "";
 
             _logger.LogDebug("Exchanging code with Google. RedirectUri={RedirectUri}, HasClientId={HasClientId}, HasClientSecret={HasClientSecret}, HasCodeVerifier={HasCodeVerifier}",
                 redirectUri, !string.IsNullOrEmpty(clientId), !string.IsNullOrEmpty(clientSecret), !string.IsNullOrEmpty(codeVerifier));

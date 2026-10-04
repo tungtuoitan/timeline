@@ -58,6 +58,12 @@ namespace SuperAppAPI.Controllers.Auth
 
         // ── Endpoints ─────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Public Google OAuth parameters for the TungRoot CLI (no secrets).
+        /// </summary>
+        [HttpGet("google/config")]
+        public IActionResult GoogleConfig() => Ok(_authService.GetGoogleCliConfig());
+
         [HttpPost("google/login")]
         [EnableRateLimiting("login")]
         public async Task<ActionResult<AuthResponse>> GoogleLogin([FromBody] GoogleCodeRequest request)
@@ -82,7 +88,8 @@ namespace SuperAppAPI.Controllers.Auth
                     return BadRequest(new AuthResponse { Success = false, Message = "Authorization code is required", Error = "Invalid request" });
                 }
 
-                var result = await _authService.GoogleLoginAsync(request.Code, request.CodeVerifier);
+                var deviceId = Request.Headers["X-Device-Id"].FirstOrDefault();
+                var result = await _authService.GoogleLoginAsync(request.Code, request.CodeVerifier, request.RedirectUri, deviceId);
 
                 if (!result.Success)
                 {
