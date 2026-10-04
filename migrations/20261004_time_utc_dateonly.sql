@@ -61,6 +61,10 @@ BEGIN
 
     DECLARE @t NVARCHAR(200), @cols NVARCHAR(400), @c NVARCHAR(100), @q NVARCHAR(MAX);
 
+    -- filtered index on pro.task(start_date, end_date) exists on prod (not dev) and blocks ALTER COLUMN
+    DECLARE @had_ix BIT = CASE WHEN EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_task_start_end_date' AND object_id = OBJECT_ID('pro.task')) THEN 1 ELSE 0 END;
+    IF @had_ix = 1 DROP INDEX ix_task_start_end_date ON pro.task;
+
     -- 3a. calendar: 17:00 -> next day midnight, then datetime2 -> date (main + history)
     DECLARE cal CURSOR LOCAL FAST_FORWARD FOR
         SELECT v FROM (VALUES ('pro.project'), ('pro.project_history'), ('pro.task'), ('pro.task_history')) x(v);
@@ -75,6 +79,9 @@ BEGIN
         FETCH NEXT FROM cal INTO @t;
     END
     CLOSE cal; DEALLOCATE cal;
+
+    IF @had_ix = 1
+        EXEC('CREATE NONCLUSTERED INDEX ix_task_start_end_date ON pro.task (start_date, end_date) WHERE deleted_at IS NULL');
 
     -- 4. instants written in Vietnam time -> UTC (-7h)
     DECLARE @shift TABLE (tbl NVARCHAR(200), col NVARCHAR(100));
