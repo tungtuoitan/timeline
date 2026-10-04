@@ -67,16 +67,18 @@ namespace SuperAppDataRepositories.Repositories
                                            (t.Note != null && t.Note.Contains(filterOptions.SearchText)));
                 }
 
-                // Filter by status
+                // Filter by status (CSV, exact match — substring match let "open" hit "reopened")
                 if (!string.IsNullOrWhiteSpace(filterOptions.Status))
                 {
-                    query = query.Where(t => filterOptions.Status.Contains(t.Status));
+                    var statuses = SplitCsv(filterOptions.Status);
+                    query = query.Where(t => statuses.Contains(t.Status));
                 }
 
-                // Filter by priority
+                // Filter by priority (CSV, exact match)
                 if (!string.IsNullOrWhiteSpace(filterOptions.Priority))
                 {
-                    query = query.Where(t => filterOptions.Priority.Contains(t.Priority));
+                    var priorities = SplitCsv(filterOptions.Priority);
+                    query = query.Where(t => priorities.Contains(t.Priority));
                 }
 
                 // Filter by type
@@ -340,6 +342,11 @@ namespace SuperAppDataRepositories.Repositories
         /// <summary>
         /// Partial update: load existing task, merge non-null fields, save, return updated task with project/parent dates.
         /// </summary>
+        private static List<string> SplitCsv(string value) =>
+            value.Split(new[] { ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                 .Distinct()
+                 .ToList();
+
         public async Task<ResultOptions> PatchTaskAsync(int taskId, PatchTaskRequest request)
         {
             try
@@ -356,6 +363,31 @@ namespace SuperAppDataRepositories.Repositories
                 if (request.ProcessJson != null) existing.ProcessJson = request.ProcessJson;
                 if (request.CustomTabsJson != null) existing.CustomTabsJson = request.CustomTabsJson;
                 if (request.Status != null) existing.Status = request.Status;
+                if (request.Title != null) existing.Title = request.Title;
+                if (request.Priority != null) existing.Priority = request.Priority;
+                if (request.Type != null) existing.Type = request.Type;
+                if (request.TaskType != null) existing.TaskType = request.TaskType;
+                if (request.StartDate.HasValue) existing.StartDate = request.StartDate;
+                if (request.EndDate.HasValue) existing.EndDate = request.EndDate;
+                if (request.OrderIndex.HasValue) existing.OrderIndex = request.OrderIndex.Value;
+                if (request.IsMilestone.HasValue) existing.IsMilestone = request.IsMilestone.Value;
+                if (request.ProjectId.HasValue) existing.ProjectId = request.ProjectId.Value;
+                if (request.ParentTaskId.HasValue) existing.ParentTaskId = request.ParentTaskId;
+
+                // Explicit clears (null in the body means "unchanged")
+                foreach (var field in request.ClearFields ?? new List<string>())
+                {
+                    switch (field.ToLowerInvariant())
+                    {
+                        case "note": existing.Note = null; break;
+                        case "checklistjson": existing.ChecklistJson = null; break;
+                        case "processjson": existing.ProcessJson = null; break;
+                        case "customtabsjson": existing.CustomTabsJson = null; break;
+                        case "startdate": existing.StartDate = null; break;
+                        case "enddate": existing.EndDate = null; break;
+                        case "parenttaskid": existing.ParentTaskId = null; break;
+                    }
+                }
                 existing.UpdatedAt = VietnamDateTime.Now();
 
                 await _context.SaveChangesAsync();

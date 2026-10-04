@@ -214,6 +214,24 @@ namespace SuperAppServices.Services.Projects
 
                 if (!await _ownership.TasksOwnedAsync(userId, new[] { taskId }))
                     return OwnershipGuard.Denied("Task");
+                if (request.ProjectId.HasValue && !await _ownership.ProjectsOwnedAsync(userId, new[] { request.ProjectId.Value }))
+                    return OwnershipGuard.Denied("Project");
+                if (request.ParentTaskId.HasValue)
+                {
+                    if (request.ParentTaskId.Value == taskId)
+                        return new ResultOptions { Success = false, Message = "A task cannot be its own parent", Status = 400 };
+                    if (!await _ownership.TasksOwnedAsync(userId, new[] { request.ParentTaskId.Value }))
+                        return OwnershipGuard.Denied("Parent task");
+                }
+
+                var unknownClears = (request.ClearFields ?? new List<string>())
+                    .Where(f => !PatchTaskRequest.ClearableFields.Contains(f)).ToList();
+                if (unknownClears.Any())
+                    return new ResultOptions { Success = false, Message = $"Cannot clear field(s): {string.Join(", ", unknownClears)}", Status = 400 };
+                if (request.Title != null && string.IsNullOrWhiteSpace(request.Title))
+                    return new ResultOptions { Success = false, Message = "Title cannot be empty", Status = 400 };
+                if (request.Status != null && string.IsNullOrWhiteSpace(request.Status))
+                    return new ResultOptions { Success = false, Message = "Status cannot be empty", Status = 400 };
 
                 var result = await _taskRepository.PatchTaskAsync(taskId, request);
 
