@@ -44,8 +44,11 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasMaxLength(500)
                 .IsRequired();
 
-            builder.Property(t => t.Note)
-                .HasColumnName("note");
+            builder.Property(t => t.Description)
+                .HasColumnName("description");
+
+            // TODO(0109): remove legacy "note" alias after old FE is gone
+            builder.Ignore(t => t.LegacyNote);
 
             builder.Property(t => t.Status)
                 .HasColumnName("status_code")

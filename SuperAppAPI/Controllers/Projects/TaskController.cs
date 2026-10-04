@@ -31,7 +31,7 @@ namespace SuperAppAPI.Controllers.Projects
         /// Returns raw list (no tree building - frontend handles tree structure)
         /// </summary>
         /// <param name="projectIds">Optional: comma-separated project IDs (e.g., "1,2,3")</param>
-        /// <param name="searchText">Optional search text filter for title/note</param>
+        /// <param name="searchText">Optional search text filter for title/description</param>
         /// <param name="status">Optional status filter (e.g., "open", "done")</param>
         /// <param name="priority">Optional priority filter (e.g., "low", "medium", "high")</param>
         /// <param name="type">Optional type filter (e.g., "task", "milestone")</param>

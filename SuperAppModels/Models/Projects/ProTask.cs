@@ -44,8 +44,14 @@ namespace SuperAppModels.Models
         [JsonPropertyName("title")]
         public string Title { get; set; } = string.Empty;
 
+        [JsonPropertyName("description")]
+        public string? Description { get; set; }
+
+        // TODO(0109): remove legacy "note" alias after old FE is gone
+        /// <summary>Read-only legacy alias of Description so an old frontend still displays it. Not stored.</summary>
+        [NotMapped]
         [JsonPropertyName("note")]
-        public string? Note { get; set; }
+        public string? LegacyNote => Description;
 
         [JsonPropertyName("status")]
         public string Status { get; set; } = "open";

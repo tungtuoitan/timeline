@@ -9,8 +9,18 @@ namespace SuperAppModels.DTOs.Requests
     public class PatchTaskRequest
     {
         /// <summary>Description (HTML rich text)</summary>
+        [JsonPropertyName("description")]
+        public string? Description { get; set; }
+
+        // TODO(0109): remove legacy "note" alias after old FE is gone
+        /// <summary>Legacy alias of Description sent by the old frontend.</summary>
         [JsonPropertyName("note")]
-        public string? Note { get; set; }
+        public string? LegacyNote { get; set; }
+
+        // TODO(0109): remove legacy "note" alias after old FE is gone
+        /// <summary>Effective description: Description ?? LegacyNote.</summary>
+        [JsonIgnore]
+        public string? EffectiveDescription => Description ?? LegacyNote;
 
         /// <summary>Checklist JSON (serialized ChecklistJSON)</summary>
         [JsonPropertyName("checklistJson")]
@@ -62,14 +72,15 @@ namespace SuperAppModels.DTOs.Requests
 
         /// <summary>
         /// Fields to set to null — null in the body means "unchanged", so clearing needs this.
-        /// Allowed: note, checklistJson, processJson, customTabsJson, startDate, endDate, parentTaskId.
+        /// Allowed: description, checklistJson, processJson, customTabsJson, startDate, endDate, parentTaskId.
         /// </summary>
         [JsonPropertyName("clearFields")]
         public List<string>? ClearFields { get; set; }
 
         public static readonly HashSet<string> ClearableFields = new(StringComparer.OrdinalIgnoreCase)
         {
-            "note", "checklistJson", "processJson", "customTabsJson", "startDate", "endDate", "parentTaskId"
+            "description", "checklistJson", "processJson", "customTabsJson", "startDate", "endDate", "parentTaskId",
+            "note" // TODO(0109): remove legacy "note" alias after old FE is gone
         };
     }
 }

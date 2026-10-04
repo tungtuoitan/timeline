@@ -35,8 +35,21 @@ namespace SuperAppModels.DTOs.Requests
         [JsonPropertyName("title")]
         public string Title { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Description (HTML rich text). On update, null = keep the existing value; "" = clear.
+        /// </summary>
+        [JsonPropertyName("description")]
+        public string? Description { get; set; }
+
+        // TODO(0109): remove legacy "note" alias after old FE is gone
+        /// <summary>Legacy alias of Description sent by the old frontend.</summary>
         [JsonPropertyName("note")]
-        public string? Note { get; set; }
+        public string? LegacyNote { get; set; }
+
+        // TODO(0109): remove legacy "note" alias after old FE is gone
+        /// <summary>Effective description: Description ?? LegacyNote.</summary>
+        [JsonIgnore]
+        public string? EffectiveDescription => Description ?? LegacyNote;
 
         [StringLength(20, ErrorMessage = "Status cannot exceed 20 characters")]
         [JsonPropertyName("status")]

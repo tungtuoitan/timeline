@@ -64,7 +64,7 @@ namespace SuperAppDataRepositories.Repositories
                 if (!string.IsNullOrWhiteSpace(filterOptions.SearchText))
                 {
                     query = query.Where(t => t.Title.Contains(filterOptions.SearchText) ||
-                                           (t.Note != null && t.Note.Contains(filterOptions.SearchText)));
+                                           (t.Description != null && t.Description.Contains(filterOptions.SearchText)));
                 }
 
                 // Filter by status (CSV, exact match — substring match let "open" hit "reopened")
@@ -127,7 +127,7 @@ namespace SuperAppDataRepositories.Repositories
                             Type = x.Task.Type,
                             TaskType = x.Task.TaskType,
                             Title = x.Task.Title,
-                            Note = x.Task.Note,
+                            Description = x.Task.Description,
                             Status = x.Task.Status,
                             Priority = x.Task.Priority,
                             StartDate = x.Task.StartDate,
@@ -261,7 +261,9 @@ namespace SuperAppDataRepositories.Repositories
                             existingTask.ProcessJson = task.ProcessJson;
                             existingTask.CustomTabsJson = task.CustomTabsJson;
                             existingTask.Title = task.Title;
-                            existingTask.Note = task.Note;
+                            // Null description = keep existing (stale old-FE tabs post the full task without it); "" = explicit clear.
+                            // TODO(0109): remove legacy "note" alias after old FE is gone (revisit whether null should overwrite)
+                            if (task.Description != null) existingTask.Description = task.Description;
                             existingTask.Status = task.Status;
                             existingTask.Priority = task.Priority;
                             existingTask.StartDate = task.StartDate;
@@ -358,7 +360,8 @@ namespace SuperAppDataRepositories.Repositories
                 }
 
                 // Merge only non-null fields
-                if (request.Note != null) existing.Note = request.Note;
+                // TODO(0109): remove legacy "note" alias after old FE is gone (use request.Description)
+                if (request.EffectiveDescription != null) existing.Description = request.EffectiveDescription;
                 if (request.ChecklistJson != null) existing.ChecklistJson = request.ChecklistJson;
                 if (request.ProcessJson != null) existing.ProcessJson = request.ProcessJson;
                 if (request.CustomTabsJson != null) existing.CustomTabsJson = request.CustomTabsJson;
@@ -379,7 +382,8 @@ namespace SuperAppDataRepositories.Repositories
                 {
                     switch (field.ToLowerInvariant())
                     {
-                        case "note": existing.Note = null; break;
+                        case "description": existing.Description = null; break;
+                        case "note": existing.Description = null; break; // TODO(0109): remove legacy "note" alias after old FE is gone
                         case "checklistjson": existing.ChecklistJson = null; break;
                         case "processjson": existing.ProcessJson = null; break;
                         case "customtabsjson": existing.CustomTabsJson = null; break;

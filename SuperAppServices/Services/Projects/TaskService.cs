@@ -140,7 +140,7 @@ namespace SuperAppServices.Services.Projects
                         Type = request.Type,
                         TaskType = request.TaskType,
                         Title = request.Title,
-                        Note = request.Note,
+                        Description = request.EffectiveDescription, // TODO(0109): remove legacy "note" alias after old FE is gone (use request.Description)
                         Status = request.Status,
                         Priority = request.Priority,
                         StartDate = request.StartDate,

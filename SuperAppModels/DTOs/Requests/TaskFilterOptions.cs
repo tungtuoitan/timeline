@@ -17,7 +17,7 @@ namespace SuperAppModels.DTOs.Requests
         public List<int>? ProjectIds { get; set; }
 
         /// <summary>
-        /// Search text for title/note
+        /// Search text for title/description
         /// </summary>
         public string? SearchText { get; set; }
 
