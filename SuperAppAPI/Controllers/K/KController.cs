@@ -6,6 +6,7 @@ using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
 using SuperAppServices.Interfaces;
+using SuperAppModels.Time;
 
 namespace SuperAppAPI.Controllers.K
 {
@@ -114,8 +115,8 @@ namespace SuperAppAPI.Controllers.K
                         ? statusCode.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList()
                         : null,
                     DeletedAt   = deletedAt,
-                    CreatedFrom = !string.IsNullOrEmpty(createdAtFrom) && DateTime.TryParse(createdAtFrom, out var from) ? from : null,
-                    CreatedTo   = !string.IsNullOrEmpty(createdAtTo)   && DateTime.TryParse(createdAtTo,   out var to)   ? to   : null
+                    CreatedFrom = TimeParsing.ParseInstantLenient(createdAtFrom),
+                    CreatedTo   = TimeParsing.ParseInstantLenient(createdAtTo)
                 };
 
                 var result = await _knowledgeService.GetAllKnowledgesAsync(userId.Value, filter);

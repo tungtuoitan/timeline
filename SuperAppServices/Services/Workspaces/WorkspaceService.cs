@@ -6,7 +6,6 @@ using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
-using SuperAppModels.Utils;
 using SuperAppServices.Interfaces;
 using SuperAppDataRepositories.Data;
 
@@ -130,7 +129,7 @@ namespace SuperAppServices.Services.Workspaces
                     FolderCount = 0,
                     MemberCount = 1,
                     Settings = null,
-                    CreatedAt = workspace.CreatedAt ?? VietnamDateTime.Now(),
+                    CreatedAt = workspace.CreatedAt ?? DateTime.UtcNow,
                     UpdatedAt = workspace.UpdatedAt,
                     Items = flatResponse // ✅ FLAT list with parentId - Frontend builds hierarchy
                 };
@@ -226,7 +225,7 @@ namespace SuperAppServices.Services.Workspaces
                             Description = f.Description,
                             Color = f.Color,
                             Icon = f.Icon,
-                            CreatedAt = f.CreatedAt ?? VietnamDateTime.Now(),
+                            CreatedAt = f.CreatedAt ?? DateTime.UtcNow,
                             UpdatedAt = f.UpdatedAt,
                             DeletedAt = f.DeletedAt
                         },
@@ -239,7 +238,7 @@ namespace SuperAppServices.Services.Workspaces
                             StatusCode = n.StatusCode,
                             Icon = n.Icon,
                             Color = n.Color,
-                            CreatedAt = n.CreatedAt ?? VietnamDateTime.Now(),
+                            CreatedAt = n.CreatedAt ?? DateTime.UtcNow,
                             UpdatedAt = n.UpdatedAt,
                             DeletedAt = n.DeletedAt
                         },
@@ -253,7 +252,7 @@ namespace SuperAppServices.Services.Workspaces
                             MimeType = fl.MimeType,
                             Extension = fl.Extension,
                             StatusCode = fl.StatusCode,
-                            CreatedAt = fl.CreatedAt ?? VietnamDateTime.Now(),
+                            CreatedAt = fl.CreatedAt ?? DateTime.UtcNow,
                             UpdatedAt = fl.UpdatedAt,
                             DeletedAt = fl.DeletedAt
                         },
@@ -271,7 +270,7 @@ namespace SuperAppServices.Services.Workspaces
                         ParentId = item.ParentId,
                         EntityType = item.EntityType,
                         EntityId = item.EntityId,
-                        CreatedAt = item.CreatedAt ?? VietnamDateTime.Now(),
+                        CreatedAt = item.CreatedAt ?? DateTime.UtcNow,
                         UpdatedAt = item.UpdatedAt,
                         DeletedAt = item.DeletedAt,
                         Level = 0,
@@ -307,7 +306,7 @@ namespace SuperAppServices.Services.Workspaces
                     FileCount = fileCount,
                     MemberCount = 1,
                     Settings = null,
-                    CreatedAt = workspace.CreatedAt ?? VietnamDateTime.Now(),
+                    CreatedAt = workspace.CreatedAt ?? DateTime.UtcNow,
                     UpdatedAt = workspace.UpdatedAt,
                     DeletedAt = workspace.DeletedAt,
                     FlatData = itemsV2

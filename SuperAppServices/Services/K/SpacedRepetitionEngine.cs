@@ -9,7 +9,7 @@ namespace SuperAppServices.Services.K
     {
         public record SrsState(int Interval, double EaseFactor, int Repetitions, DateTime? NextReviewAt);
 
-        // Use VietnamDateTime.Now() — see SuperAppModels/Utils/VietnamDateTime.cs for rationale.
+        // All instants are UTC (DateTime.UtcNow); see SuperAppModels/Time/UserClock.cs.
 
         /// <summary>
         /// Calculate the next SRS state after a review with the given score (1–5).
@@ -31,21 +31,21 @@ namespace SuperAppServices.Services.K
                 // Very forgot — reset, requeue in 30 minutes
                 repetitions = 0;
                 interval = 0;
-                nextReview = VietnamDateTime.Now().AddMinutes(30);
+                nextReview = DateTime.UtcNow.AddMinutes(30);
             }
             else if (score == 2)
             {
                 // Forgot — reset, requeue in 2 hours
                 repetitions = 0;
                 interval = 0;
-                nextReview = VietnamDateTime.Now().AddHours(2);
+                nextReview = DateTime.UtcNow.AddHours(2);
             }
             else if (score == 3)
             {
                 // Okay — reset, requeue in 4 hours
                 repetitions = 0;
                 interval = 0;
-                nextReview = VietnamDateTime.Now().AddHours(4);
+                nextReview = DateTime.UtcNow.AddHours(4);
             }
             else if (score == 4)
             {
@@ -58,7 +58,7 @@ namespace SuperAppServices.Services.K
                     interval = (int)Math.Round(interval * easeFactor);
 
                 repetitions++;
-                nextReview = VietnamDateTime.Now().AddDays(interval);
+                nextReview = DateTime.UtcNow.AddDays(interval);
             }
             else
             {
@@ -71,7 +71,7 @@ namespace SuperAppServices.Services.K
                     interval = (int)Math.Round(interval * easeFactor);
 
                 repetitions++;
-                nextReview = VietnamDateTime.Now().AddDays(interval);
+                nextReview = DateTime.UtcNow.AddDays(interval);
             }
 
             // Update ease factor based on score (1-5)
@@ -91,7 +91,7 @@ namespace SuperAppServices.Services.K
             if (nextReviewAt == null || interval <= 0) return 0;
 
             var lastReview = nextReviewAt.Value.AddDays(-interval);
-            var daysSince  = (VietnamDateTime.Now() - lastReview).TotalDays;
+            var daysSince  = (DateTime.UtcNow - lastReview).TotalDays;
             if (daysSince < 0) daysSince = 0;
 
             return Math.Round(Math.Pow(0.9, daysSince / interval) * 100, 1);

@@ -6,7 +6,6 @@ using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
 using SuperAppModels.Helpers;
-using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Repositories
 {
@@ -456,7 +455,7 @@ namespace SuperAppDataRepositories.Repositories
                             existingNote.Icon = note.Icon;
                             existingNote.Color = note.Color;
                             existingNote.DeletedAt = note.DeletedAt;  // Handle soft delete/restore
-                            existingNote.UpdatedAt = VietnamDateTime.Now();
+                            existingNote.UpdatedAt = DateTime.UtcNow;
 
                             upsertedNotes.Add(existingNote);
                         }
@@ -467,7 +466,7 @@ namespace SuperAppDataRepositories.Repositories
                                 note.Name, note.UserId);
 
                             // Ensure timestamps
-                            note.CreatedAt = VietnamDateTime.Now();
+                            note.CreatedAt = DateTime.UtcNow;
                             note.UpdatedAt = null;
                             note.DeletedAt = null;
 
@@ -498,7 +497,7 @@ namespace SuperAppDataRepositories.Repositories
                                     note.Id);
 
                                 note.Description = updatedDescription;
-                                note.UpdatedAt = VietnamDateTime.Now();
+                                note.UpdatedAt = DateTime.UtcNow;
                                 notesToUpdateDescription.Add(note);
                             }
                         }

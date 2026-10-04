@@ -17,7 +17,7 @@ namespace SuperAppModels.Models
 
         [JsonPropertyName("date")]
         [Column("date", TypeName = "date")]
-        public DateTime Date { get; set; }
+        public DateOnly Date { get; set; }
 
         [JsonPropertyName("checklistSnapshot")]
         [Column("checklist_snapshot")]

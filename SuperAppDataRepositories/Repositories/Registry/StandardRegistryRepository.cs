@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.Models;
-using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Repositories
 {
@@ -73,7 +72,7 @@ namespace SuperAppDataRepositories.Repositories
                 throw new KeyNotFoundException($"Registry entry '{code}' of type '{type}' not found.");
 
             entity.Json_detail = jsonDetail;
-            entity.LastModifiedDate = VietnamDateTime.Now();
+            entity.LastModifiedDate = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }
     }

@@ -4,6 +4,7 @@ using SuperAppAPI.Extensions;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppServices.Interfaces;
+using SuperAppModels.Time;
 
 namespace SuperAppAPI.Controllers.LifeLog
 {
@@ -126,8 +127,8 @@ namespace SuperAppAPI.Controllers.LifeLog
                     ? type.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList()
                     : null,
                 TrackId = trackId,
-                CreatedFrom = !string.IsNullOrEmpty(createdAtFrom) && DateTime.TryParse(createdAtFrom, out var from) ? from : null,
-                CreatedTo = !string.IsNullOrEmpty(createdAtTo) && DateTime.TryParse(createdAtTo, out var to) ? to : null,
+                CreatedFrom = TimeParsing.ParseInstantLenient(createdAtFrom),
+                CreatedTo = TimeParsing.ParseInstantLenient(createdAtTo),
                 DeletedAt = deletedAt,
                 Ids = !string.IsNullOrEmpty(ids)
                     ? ids.Split(',', StringSplitOptions.RemoveEmptyEntries)

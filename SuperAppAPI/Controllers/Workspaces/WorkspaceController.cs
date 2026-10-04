@@ -6,6 +6,7 @@ using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
 using SuperAppServices.Interfaces;
+using SuperAppModels.Time;
 
 namespace SuperAppAPI.Controllers.Workspaces
 {
@@ -64,12 +65,8 @@ namespace SuperAppAPI.Controllers.Workspaces
                     ? statusCode.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList()
                     : null,
                 DeletedAt = deletedAt,
-                CreatedFrom = !string.IsNullOrEmpty(createdAtFrom) && DateTime.TryParse(createdAtFrom, out var parsedFrom)
-                    ? parsedFrom
-                    : null,
-                CreatedTo = !string.IsNullOrEmpty(createdAtTo) && DateTime.TryParse(createdAtTo, out var parsedTo)
-                    ? parsedTo
-                    : null
+                CreatedFrom = TimeParsing.ParseInstantLenient(createdAtFrom),
+                CreatedTo = TimeParsing.ParseInstantLenient(createdAtTo)
             };
 
             _logger.LogInformation("Retrieving all workspaces for userId: {UserId}, StatusCodes: {StatusCodes}, DeletedAt: {DeletedAt}, CreatedFrom: {CreatedFrom}, CreatedTo: {CreatedTo}",

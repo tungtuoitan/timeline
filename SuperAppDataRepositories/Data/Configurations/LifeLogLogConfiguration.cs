@@ -53,11 +53,11 @@ namespace SuperAppDataRepositories.Data.Configurations
 
             builder.Property(l => l.CreatedAt)
                 .HasColumnName("created_at")
-                .HasDefaultValueSql("SYSDATETIME()");
+                .HasDefaultValueSql("SYSUTCDATETIME()");
 
             builder.Property(l => l.UpdatedAt)
                 .HasColumnName("updated_at")
-                .HasDefaultValueSql("SYSDATETIME()");
+                .HasDefaultValueSql("SYSUTCDATETIME()");
 
             builder.Property(l => l.DeletedAt)
                 .HasColumnName("deleted_at");

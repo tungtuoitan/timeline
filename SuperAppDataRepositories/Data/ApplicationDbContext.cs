@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SuperAppModels.Models;
 using SuperAppModels.Models.DailyLog;
-using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Data
 {
@@ -87,36 +87,60 @@ namespace SuperAppDataRepositories.Data
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
         }
 
-        // Override SaveChanges to handle soft deletes and timestamps
-        public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        /// <summary>
+        /// Every DateTime column holds a UTC instant (TungRoot #1450). Values read back get
+        /// DateTimeKind.Utc; on write a Local value is converted to UTC and an Unspecified value is
+        /// assumed to already be UTC. Calendar dates are DateOnly (SQL date) and are not affected.
+        /// </summary>
+        protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+        {
+            base.ConfigureConventions(configurationBuilder);
+            configurationBuilder.Properties<DateTime>().HaveConversion<UtcDateTimeConverter>();
+            configurationBuilder.Properties<DateTime?>().HaveConversion<UtcDateTimeConverter>();
+        }
+
+        // Stamp CreatedAt/UpdatedAt (UTC) for entities implementing SuperAppModels.Models.ITimestampEntity.
+        // Base SaveChanges()/SaveChangesAsync(ct) overloads delegate to these two.
+        public override int SaveChanges(bool acceptAllChangesOnSuccess)
         {
             UpdateTimestamps();
-            return await base.SaveChangesAsync(cancellationToken);
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+
+        public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+        {
+            UpdateTimestamps();
+            return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
         }
 
         private void UpdateTimestamps()
         {
-            var entries = ChangeTracker.Entries()
-                .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
-
-            foreach (var entry in entries)
+            var now = DateTime.UtcNow;
+            foreach (var entry in ChangeTracker.Entries<ITimestampEntity>())
             {
-                if (entry.Entity is ITimestampEntity timestampEntity)
+                if (entry.State == EntityState.Added)
                 {
-                    if (entry.State == EntityState.Added)
-                    {
-                        timestampEntity.CreatedAt = VietnamDateTime.Now();
-                    }
-                    timestampEntity.UpdatedAt = VietnamDateTime.Now();
+                    // Keep an explicitly set CreatedAt (e.g. imports / restores carrying original times).
+                    if (entry.Entity.CreatedAt == null || entry.Entity.CreatedAt == default(DateTime))
+                        entry.Entity.CreatedAt = now;
+                    entry.Entity.UpdatedAt = now;
+                }
+                else if (entry.State == EntityState.Modified)
+                {
+                    entry.Entity.UpdatedAt = now;
                 }
             }
         }
     }
 
-    // Interface for entities with timestamps
-    public interface ITimestampEntity
+    /// <summary>EF value converter: DateTime stored as UTC, read back with Kind Utc.</summary>
+    public sealed class UtcDateTimeConverter : ValueConverter<DateTime, DateTime>
     {
-        DateTime? CreatedAt { get; set; }
-        DateTime? UpdatedAt { get; set; }
+        public UtcDateTimeConverter()
+            : base(
+                v => v.Kind == DateTimeKind.Local ? v.ToUniversalTime() : DateTime.SpecifyKind(v, DateTimeKind.Utc),
+                v => DateTime.SpecifyKind(v, DateTimeKind.Utc))
+        {
+        }
     }
 }

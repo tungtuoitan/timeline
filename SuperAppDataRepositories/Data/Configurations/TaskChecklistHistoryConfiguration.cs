@@ -35,7 +35,7 @@ namespace SuperAppDataRepositories.Data.Configurations
 
             builder.Property(h => h.CreatedAt)
                 .HasColumnName("created_at")
-                .HasDefaultValueSql("SYSDATETIME()");
+                .HasDefaultValueSql("SYSUTCDATETIME()");
 
             // Indexes
             builder.HasIndex(h => h.TaskId);

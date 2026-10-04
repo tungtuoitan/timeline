@@ -15,7 +15,7 @@ namespace SuperAppModels.Models.DailyLog
         public int UserId { get; set; }
 
         [JsonPropertyName("logDate")]
-        public DateTime LogDate { get; set; }
+        public DateOnly LogDate { get; set; }
 
         [JsonPropertyName("valuesJson")]
         public string ValuesJson { get; set; } = "{}";

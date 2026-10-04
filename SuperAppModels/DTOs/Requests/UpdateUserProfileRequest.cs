@@ -20,7 +20,7 @@ namespace SuperAppModels.DTOs.Requests
         [StringLength(1000, ErrorMessage = "Bio cannot exceed 1000 characters")]
         public string? Bio { get; set; }
 
-        public DateTime? DateOfBirth { get; set; }
+        public DateOnly? DateOfBirth { get; set; }
 
         [StringLength(20, ErrorMessage = "Gender cannot exceed 20 characters")]
         public string? Gender { get; set; }
@@ -31,7 +31,7 @@ namespace SuperAppModels.DTOs.Requests
         [StringLength(100, ErrorMessage = "City cannot exceed 100 characters")]
         public string? City { get; set; }
 
-        [StringLength(50, ErrorMessage = "Timezone cannot exceed 50 characters")]
+        [StringLength(64, ErrorMessage = "Timezone cannot exceed 64 characters")]
         public string? Timezone { get; set; }
 
         [StringLength(10, ErrorMessage = "Language code cannot exceed 10 characters")]

@@ -3,7 +3,6 @@ using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
-using SuperAppModels.Utils;
 using SuperAppServices.Interfaces;
 
 namespace SuperAppServices.Services.K
@@ -97,7 +96,7 @@ namespace SuperAppServices.Services.K
                     Name        = knowledge.Name,
                     Description = knowledge.Description,
                     StatusCode  = knowledge.StatusCode,
-                    CreatedAt   = knowledge.CreatedAt ?? VietnamDateTime.Now(),
+                    CreatedAt   = knowledge.CreatedAt ?? DateTime.UtcNow,
                     UpdatedAt   = knowledge.UpdatedAt,
                     DeletedAt   = knowledge.DeletedAt,
                     FlatData    = flatData

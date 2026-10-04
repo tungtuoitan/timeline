@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
-using SuperAppModels.Utils;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
 using SuperAppModels.Models;
@@ -273,7 +272,7 @@ namespace SuperAppServices.Services.K
                     StatusCode  = "draft",
                     Color       = null,
                     Icon        = null,
-                    CreatedAt   = VietnamDateTime.Now(),
+                    CreatedAt   = DateTime.UtcNow,
                 };
 
                 _context.KNodes.Add(entity);
@@ -283,7 +282,7 @@ namespace SuperAppServices.Services.K
                 {
                     NodeId     = entity.Id,
                     StatusCode = entity.StatusCode ?? "learning",
-                    ChangedAt  = entity.CreatedAt ?? VietnamDateTime.Now(),
+                    ChangedAt  = entity.CreatedAt ?? DateTime.UtcNow,
                     UserId     = null,
                 });
                 await _context.SaveChangesAsync();
@@ -377,7 +376,7 @@ namespace SuperAppServices.Services.K
             _context.KQuestions.AddRange(entities);
             await _context.SaveChangesAsync();
 
-            var now = VietnamDateTime.Now();
+            var now = DateTime.UtcNow;
             _context.KQuestionStatusHistory.AddRange(entities.Select(e => new KQuestionStatusHistoryEntity
             {
                 QuestionId = e.Id,

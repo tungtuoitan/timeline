@@ -5,7 +5,6 @@ using SuperAppDataRepositories.Ins.DailyLog;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests.DailyLog;
 using SuperAppModels.DTOs.Responses.DailyLog;
-using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Repositories.DailyLog
 {
@@ -26,10 +25,11 @@ namespace SuperAppDataRepositories.Repositories.DailyLog
             {
                 var query = _context.DailyLogs.AsNoTracking().Where(l => l.UserId == filterOptions.UserId);
 
-                if (filterOptions.FromDate.HasValue)
-                    query = query.Where(l => l.LogDate >= filterOptions.FromDate.Value.Date);
-                if (filterOptions.ToDate.HasValue)
-                    query = query.Where(l => l.LogDate <= filterOptions.ToDate.Value.Date);
+                // LogDate is a calendar date (SQL date) — compared as DateOnly, no timezone involved.
+                if (filterOptions.FromDate is DateOnly fromDate)
+                    query = query.Where(l => l.LogDate >= fromDate);
+                if (filterOptions.ToDate is DateOnly toDate)
+                    query = query.Where(l => l.LogDate <= toDate);
 
                 if (filterOptions.DeletedAt == "null")
                     query = query.Where(l => l.DeletedAt == null);
@@ -55,12 +55,12 @@ namespace SuperAppDataRepositories.Repositories.DailyLog
             }
         }
 
-        public async Task<ResultOptions> GetLogByDateAsync(int userId, DateTime logDate)
+        public async Task<ResultOptions> GetLogByDateAsync(int userId, DateOnly logDate)
         {
             try
             {
                 var log = await _context.DailyLogs.AsNoTracking()
-                    .FirstOrDefaultAsync(l => l.UserId == userId && l.LogDate == logDate.Date && l.DeletedAt == null);
+                    .FirstOrDefaultAsync(l => l.UserId == userId && l.LogDate == logDate && l.DeletedAt == null);
 
                 return new ResultOptions
                 {
@@ -87,8 +87,9 @@ namespace SuperAppDataRepositories.Repositories.DailyLog
 
                 try
                 {
+                    var logDate = log.LogDate;
                     var existing = await _context.DailyLogs
-                        .FirstOrDefaultAsync(l => l.UserId == log.UserId && l.LogDate == log.LogDate.Date && l.DeletedAt == null);
+                        .FirstOrDefaultAsync(l => l.UserId == log.UserId && l.LogDate == logDate && l.DeletedAt == null);
 
                     SuperAppModels.Models.DailyLog.DailyLog persisted;
 
@@ -99,14 +100,13 @@ namespace SuperAppDataRepositories.Repositories.DailyLog
                         // Persistence should never blow away an existing snapshot with null.
                         if (log.TemplateJson != null) existing.TemplateJson = log.TemplateJson;
                         existing.DeletedAt = log.DeletedAt;
-                        existing.UpdatedAt = VietnamDateTime.Now();
+                        existing.UpdatedAt = DateTime.UtcNow;
                         persisted = existing;
                     }
                     else
                     {
-                        log.LogDate = log.LogDate.Date;
-                        log.CreatedAt = VietnamDateTime.Now();
-                        log.UpdatedAt = VietnamDateTime.Now();
+                        log.CreatedAt = DateTime.UtcNow;
+                        log.UpdatedAt = DateTime.UtcNow;
                         log.DeletedAt = null;
                         _context.DailyLogs.Add(log);
                         persisted = log;
@@ -132,7 +132,7 @@ namespace SuperAppDataRepositories.Repositories.DailyLog
             });
         }
 
-        public async Task<List<DailyLogHistoryPoint>> GetFieldHistoryAsync(int userId, string fieldKey, DateTime? from, DateTime? to)
+        public async Task<List<DailyLogHistoryPoint>> GetFieldHistoryAsync(int userId, string fieldKey, DateOnly? from, DateOnly? to)
         {
             // fieldKey has format "<section>.<field_key>", e.g. "input.general"
             // Use JSON_VALUE server-side so we only ship (date, value) pairs, not full blobs.
@@ -141,8 +141,8 @@ namespace SuperAppDataRepositories.Repositories.DailyLog
             var query = _context.DailyLogs.AsNoTracking()
                 .Where(l => l.UserId == userId && l.DeletedAt == null);
 
-            if (from.HasValue) query = query.Where(l => l.LogDate >= from.Value.Date);
-            if (to.HasValue) query = query.Where(l => l.LogDate <= to.Value.Date);
+            if (from is DateOnly fromDate) query = query.Where(l => l.LogDate >= fromDate);
+            if (to is DateOnly toDate) query = query.Where(l => l.LogDate <= toDate);
 
             var rows = await query
                 .OrderBy(l => l.LogDate)

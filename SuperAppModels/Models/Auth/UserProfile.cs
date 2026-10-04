@@ -39,7 +39,7 @@ namespace SuperAppModels.Models
         /// <summary>
         /// Date of birth
         /// </summary>
-        public DateTime? DateOfBirth { get; set; }
+        public DateOnly? DateOfBirth { get; set; }
 
         /// <summary>
         /// Gender
@@ -57,9 +57,10 @@ namespace SuperAppModels.Models
         public string? City { get; set; }
 
         /// <summary>
-        /// Timezone (default: UTC)
+        /// IANA timezone id used to display instants and compute "today" for this user
+        /// (column timezone, default Asia/Ho_Chi_Minh). See SuperAppModels.Time.UserClock.
         /// </summary>
-        public string? Timezone { get; set; } = "UTC";
+        public string? Timezone { get; set; } = SuperAppModels.Time.TimeZones.DefaultId;
 
         /// <summary>
         /// Language (default: en)
@@ -119,7 +120,7 @@ namespace SuperAppModels.Models
         public UserProfile()
         {
             CreatedAt = DateTime.UtcNow;
-            Timezone = "UTC";
+            Timezone = SuperAppModels.Time.TimeZones.DefaultId;
             Language = "en";
         }
 
@@ -140,7 +141,7 @@ namespace SuperAppModels.Models
             string? lastName = null,
             string? avatarUrl = null,
             string? bio = null,
-            DateTime? dateOfBirth = null,
+            DateOnly? dateOfBirth = null,
             string? gender = null,
             string? country = null,
             string? city = null,

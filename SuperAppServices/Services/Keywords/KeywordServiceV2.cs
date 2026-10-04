@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
-using SuperAppModels.Utils;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
@@ -790,7 +789,7 @@ namespace SuperAppServices.Services.Keywords
                     if (!keyword.TargetItemId.HasValue) continue;
                     var (workspaceId, pathIds) = itemInfoMap[keyword.TargetItemId.Value];
                     keyword.Link = await BuildItemLinkAsync(pathIds, workspaceId, keyword.TargetItemId.Value);
-                    keyword.UpdatedAt = VietnamDateTime.Now();
+                    keyword.UpdatedAt = DateTime.UtcNow;
                 }
 
                 await _context.SaveChangesAsync();
@@ -815,8 +814,8 @@ namespace SuperAppServices.Services.Keywords
 
                 if (keyword != null && keyword.HardDeletedAt == null)
                 {
-                    keyword.HardDeletedAt = VietnamDateTime.Now();
-                    keyword.UpdatedAt = VietnamDateTime.Now();
+                    keyword.HardDeletedAt = DateTime.UtcNow;
+                    keyword.UpdatedAt = DateTime.UtcNow;
                     await _context.SaveChangesAsync();
                     _logger.LogInformation("Soft deleted workspace keyword for WorkspaceId: {WorkspaceId}", workspaceId);
                 }
@@ -884,7 +883,7 @@ namespace SuperAppServices.Services.Keywords
                     return;
                 }
 
-                var now = VietnamDateTime.Now();
+                var now = DateTime.UtcNow;
                 foreach (var keyword in keywords)
                 {
                     keyword.HardDeletedAt = now;
@@ -1114,7 +1113,7 @@ namespace SuperAppServices.Services.Keywords
                 activeSet.Add((kwType, i.Id));
             }
 
-            var nowTs = VietnamDateTime.Now();
+            var nowTs = DateTime.UtcNow;
             var hardDeletedNow = new List<KeywordSyncItemDto>();
             foreach (var kw in existingKeywords)
             {
@@ -1224,7 +1223,7 @@ namespace SuperAppServices.Services.Keywords
                     existingLinks.Add(expectedLink);
                     kw.Link = expectedLink;
                 }
-                kw.UpdatedAt = VietnamDateTime.Now();
+                kw.UpdatedAt = DateTime.UtcNow;
             }
             else
             {

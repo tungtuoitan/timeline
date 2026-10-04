@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using SuperAppModels.Utils;
 using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
@@ -8,6 +7,8 @@ using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
 using SuperAppServices.Interfaces;
 using SuperAppModels.Models;
+using SuperAppModels.Time;
+using System.Globalization;
 
 namespace SuperAppServices.Services.K
 {
@@ -518,7 +519,7 @@ namespace SuperAppServices.Services.K
                 var allNodeQuestions = await _repo.GetQuestionsByNodeAsync(nodeId);
                 var scopeContextMap  = BuildScopeContextMap(allNodeQuestions.OrderBy(q => q.SortOrder));
 
-                var now = VietnamDateTime.Now();
+                var now = DateTime.UtcNow;
                 var response  = questions.Select(q =>
                 {
                     var state = new SpacedRepetitionEngine.SrsState(
@@ -559,7 +560,7 @@ namespace SuperAppServices.Services.K
                     .SelectMany(g => BuildScopeContextMap(g.OrderBy(q => q.SortOrder)))
                     .ToDictionary(kv => kv.Key, kv => kv.Value);
 
-                var now = VietnamDateTime.Now();
+                var now = DateTime.UtcNow;
                 var response = questions.Select(q =>
                 {
                     var state = new SpacedRepetitionEngine.SrsState(
@@ -599,7 +600,7 @@ namespace SuperAppServices.Services.K
                     .SelectMany(g => BuildScopeContextMap(g.OrderBy(q => q.SortOrder)))
                     .ToDictionary(kv => kv.Key, kv => kv.Value);
 
-                var now = VietnamDateTime.Now();
+                var now = DateTime.UtcNow;
                 var response = questions.Select(q =>
                 {
                     var state = new SpacedRepetitionEngine.SrsState(
@@ -760,12 +761,17 @@ namespace SuperAppServices.Services.K
                     segmentsByQuestion[q.Id] = segments;
                 }
 
-                var today    = VietnamDateTime.Now().Date;
+                // Days are the user's local calendar days; review times (h.CreatedAt) are UTC instants.
+                var nowUtc   = DateTime.UtcNow;
+                var today    = UserClock.UserToday(nowUtc);
                 var daysList = new List<KRetentionGraphDay>();
 
                 for (var d = days - 1; d >= 0; d--)
                 {
-                    var date = d == 0 ? VietnamDateTime.Now() : today.AddDays(-d).AddHours(23).AddMinutes(59);
+                    // Evaluate "now" for today, otherwise 23:59 (user local) of that day, as a UTC instant.
+                    var date = d == 0
+                        ? nowUtc
+                        : UserClock.StartOfUserDayUtc(today.AddDays(-d + 1)).AddMinutes(-1);
 
                     var retentions = questions.Select(q =>
                     {
@@ -794,7 +800,7 @@ namespace SuperAppServices.Services.K
 
                     daysList.Add(new KRetentionGraphDay
                     {
-                        Date       = today.AddDays(-d).ToString("yyyy-MM-dd"),
+                        Date       = today.AddDays(-d).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                         Average    = avg,
                         Retentions = retentions,
                     });
@@ -855,18 +861,18 @@ namespace SuperAppServices.Services.K
                     .GroupBy(p => p.QuestionId!.Value)
                     .ToDictionary(g => g.Key, g => g.OrderBy(x => x.CreatedAt).ToList());
 
-                // Date range
-                var earliest = questions
+                // Date range — calendar days in the user's timezone; stored instants are UTC and are
+                // converted with UserClock.ToUserDate before comparing with a day.
+                var earliest = UserClock.ToUserDate(questions
                     .Where(q => q.CreatedAt.HasValue)
-                    .Min(q => q.CreatedAt!.Value)
-                    .Date;
-                var today = VietnamDateTime.Now().Date;
+                    .Min(q => q.CreatedAt!.Value));
+                var today = UserClock.UserToday();
                 if (earliest > today) earliest = today;
 
-                var totalDays = (int)(today - earliest).TotalDays + 1;
+                var totalDays = today.DayNumber - earliest.DayNumber + 1;
                 var step      = totalDays > 60 ? (int)Math.Ceiling(totalDays / 60.0) : 1;
 
-                var dates = new List<DateTime>();
+                var dates = new List<DateOnly>();
                 for (var d = earliest; d <= today; d = d.AddDays(step)) dates.Add(d);
                 if (dates.Count == 0 || dates[^1] != today) dates.Add(today);
 
@@ -874,7 +880,7 @@ namespace SuperAppServices.Services.K
                 var dbTotalToday = await _repo.CountAllByKnowledgeAsync(knowledgeId);
 
                 // Knowledge-level shortcut
-                var knowledgeKilledAt = knowledge.DeletedAt?.Date;
+                var knowledgeKilledAt = ToUserDate(knowledge.DeletedAt);
                 var knowledgeInactive = string.Equals(knowledge.StatusCode, "inactive", StringComparison.OrdinalIgnoreCase);
 
                 var result = new List<KQuestionStatusTimelinePoint>(dates.Count);
@@ -888,9 +894,9 @@ namespace SuperAppServices.Services.K
 
                     foreach (var q in questions)
                     {
-                        if (!q.CreatedAt.HasValue || q.CreatedAt.Value.Date > d) continue; // not yet created
+                        if (!q.CreatedAt.HasValue || UserClock.ToUserDate(q.CreatedAt.Value) > d) continue; // not yet created
 
-                        var qDeleted = q.DeletedAt?.Date;
+                        var qDeleted = ToUserDate(q.DeletedAt);
 
                         // Orphan: deleted if q.DeletedAt ≤ D, otherwise treat as draft regardless of status_code.
                         if (q.NodeId == null || q.Node == null)
@@ -900,7 +906,7 @@ namespace SuperAppServices.Services.K
                             continue;
                         }
 
-                        var nDeleted = q.Node.DeletedAt?.Date;
+                        var nDeleted = ToUserDate(q.Node.DeletedAt);
                         var effectiveDeletedAt = MinNullable(MinNullable(qDeleted, nDeleted), knowledgeKilledAt);
                         if (killByKnowledge || (effectiveDeletedAt.HasValue && effectiveDeletedAt.Value <= d))
                         {
@@ -925,7 +931,7 @@ namespace SuperAppServices.Services.K
 
                     result.Add(new KQuestionStatusTimelinePoint
                     {
-                        Date     = d.ToString("yyyy-MM-dd"),
+                        Date     = d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                         Master   = master,
                         Learning = learning,
                         Draft    = draft,
@@ -940,7 +946,7 @@ namespace SuperAppServices.Services.K
                     if (todaySum != dbTotalToday)
                     {
                         var nullCreatedAt = questions.Where(q => !q.CreatedAt.HasValue).ToList();
-                        var futureCreatedAt = questions.Where(q => q.CreatedAt.HasValue && q.CreatedAt.Value.Date > today).ToList();
+                        var futureCreatedAt = questions.Where(q => q.CreatedAt.HasValue && UserClock.ToUserDate(q.CreatedAt.Value) > today).ToList();
                         _logger.LogWarning(
                             "QuestionStatusTimeline mismatch (knowledge {KnowledgeId}): DB={DbTotal} classified={Sum} delta={Delta} | " +
                             "loaded={Loaded} nullCreatedAt={NullCount}({NullIds}) futureCreatedAt={FutureCount}({FutureIds}) | " +
@@ -962,7 +968,7 @@ namespace SuperAppServices.Services.K
             }
         }
 
-        private static string? StatusAt<T>(Dictionary<int, List<T>> byId, int id, DateTime d)
+        private static string? StatusAt<T>(Dictionary<int, List<T>> byId, int id, DateOnly d)
             where T : class
         {
             if (!byId.TryGetValue(id, out var list)) return null;
@@ -975,7 +981,7 @@ namespace SuperAppServices.Services.K
                     KNodeStatusHistoryEntity n     => n.ChangedAt,
                     _ => DateTime.MinValue,
                 };
-                if (changedAt.Date > d) break;
+                if (UserClock.ToUserDate(changedAt) > d) break;
                 last = row switch
                 {
                     KQuestionStatusHistoryEntity q => q.StatusCode,
@@ -986,17 +992,19 @@ namespace SuperAppServices.Services.K
             return last;
         }
 
-        private static bool IsMasterAt(Dictionary<int, List<KPointHistoryEntity>> byQid, int questionId, DateTime d)
+        private static bool IsMasterAt(Dictionary<int, List<KPointHistoryEntity>> byQid, int questionId, DateOnly d)
         {
             if (!byQid.TryGetValue(questionId, out var list)) return false;
-            // Take answers ≤ end of day D
-            var cutoff = d.Date.AddDays(1);
+            // Take answers ≤ end of day D (user local) — cutoff is the UTC instant the next user day starts
+            var cutoff = UserClock.StartOfUserDayUtc(d.AddDays(1));
             var inRange = list.Where(p => p.CreatedAt < cutoff).ToList();
             if (inRange.Count < 10) return false;
             return inRange.TakeLast(5).All(p => p.Point >= 4);
         }
 
-        private static DateTime? MinNullable(DateTime? a, DateTime? b)
+        private static DateOnly? ToUserDate(DateTime? utc) => utc.HasValue ? UserClock.ToUserDate(utc.Value) : null;
+
+        private static DateOnly? MinNullable(DateOnly? a, DateOnly? b)
         {
             if (!a.HasValue) return b;
             if (!b.HasValue) return a;

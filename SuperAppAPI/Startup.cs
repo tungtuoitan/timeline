@@ -11,6 +11,7 @@ using SuperAppAPI.Middlewares;
 using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
 using SuperAppDataRepositories.Repositories;
+using SuperAppModels.Time.Json;
 using SuperAppServices.Services.Auth;
 using SuperAppServices.Services.Files;
 using SuperAppServices.Services.Flow;
@@ -22,6 +23,7 @@ using SuperAppServices.Services.Registry;
 using SuperAppServices.Services.Profile;
 using SuperAppServices.Services.Wiki;
 using SuperAppServices.Services.Workspaces;
+using SuperAppServices.Time;
 using System.Text;
 using System.Threading.RateLimiting;
 
@@ -88,6 +90,9 @@ namespace SuperAppAPI
                 .AddJsonOptions(options =>
                 {
                     options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+                    // Instants: UTC in, ISO 8601 with the user's offset out (no-offset input -> 400).
+                    // Calendar dates: DateOnly "yyyy-MM-dd". See SuperAppModels/Time.
+                    options.JsonSerializerOptions.AddTimeConverters();
                 });
             services.AddSwaggerGen(c =>
             {
@@ -229,6 +234,7 @@ namespace SuperAppAPI
             services.AddScoped<KeywordServiceV2>();
             services.AddScoped<WorkspaceItemPathService>();
             services.AddScoped<OwnershipGuard>();
+            services.AddScoped<IUserTimeZoneResolver, UserTimeZoneResolver>();
             services.AddScoped<SuperAppServices.Interfaces.IProjectService, ProjectService>();
             services.AddScoped<SuperAppServices.Interfaces.DailyLog.IDailyLogService, SuperAppServices.Services.DailyLog.DailyLogService>();
             services.AddScoped<SuperAppServices.Interfaces.DailyLog.IDailyLogTemplateService, SuperAppServices.Services.DailyLog.DailyLogTemplateService>();
@@ -248,7 +254,8 @@ namespace SuperAppAPI
             services.AddSingleton<SuperAppServices.Interfaces.IKViewerTracker, SuperAppAPI.Hubs.KViewerTracker>();
 
             // SignalR
-            services.AddSignalR();
+            services.AddSignalR()
+                .AddJsonProtocol(o => o.PayloadSerializerOptions.AddTimeConverters());
 
             // Background services — debounced force-push DB → remote on every K mutation.
             // Daemon never pulls; it only pushes. FE polls /compare to surface remote-vs-DB
@@ -285,6 +292,7 @@ namespace SuperAppAPI
             app.UseSession();
             app.UseRateLimiter();
             app.UseAuthentication();
+            app.UseUserTimeZone(); // ambient display timezone (UserClock) for JSON output + "today"
             app.UseAuthorization();
 
             app.UseEndpoints(endpoints =>

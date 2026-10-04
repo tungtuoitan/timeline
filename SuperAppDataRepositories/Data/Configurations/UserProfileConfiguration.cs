@@ -39,7 +39,8 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasMaxLength(1000);
 
             builder.Property(up => up.DateOfBirth)
-                .HasColumnName("date_of_birth");
+                .HasColumnName("date_of_birth")
+                .HasColumnType("date");
 
             builder.Property(up => up.Gender)
                 .HasColumnName("gender")
@@ -55,8 +56,8 @@ namespace SuperAppDataRepositories.Data.Configurations
 
             builder.Property(up => up.Timezone)
                 .HasColumnName("timezone")
-                .HasMaxLength(50)
-                .HasDefaultValue("UTC");
+                .HasMaxLength(64)
+                .HasDefaultValue(SuperAppModels.Time.TimeZones.DefaultId);
 
             builder.Property(up => up.Language)
                 .HasColumnName("language")

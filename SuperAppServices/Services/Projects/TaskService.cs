@@ -5,7 +5,6 @@ using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
-using SuperAppModels.Utils;
 using SuperAppServices.Interfaces;
 using SuperAppServices.Services.Keywords;
 
@@ -270,7 +269,7 @@ namespace SuperAppServices.Services.Projects
                 if (!await _ownership.TasksOwnedAsync(userId, taskIds))
                     return OwnershipGuard.Denied("Task");
 
-                var now = VietnamDateTime.Now();
+                var now = DateTime.UtcNow;
 
                 // 1. Load tasks (need FolderWorkspaceItemId)
                 var tasks = await _context.ProTasks

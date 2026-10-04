@@ -5,7 +5,6 @@ using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
-using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Repositories
 {
@@ -51,12 +50,8 @@ namespace SuperAppDataRepositories.Repositories
                         ? await _context.FlowEdges.FirstOrDefaultAsync(e => e.Id == req.Id && e.UserId == userId)
                         : null;
 
-                    DateTime? parsedDeletedAt = null;
-                    if (!string.IsNullOrEmpty(req.DeletedAt) &&
-                        DateTime.TryParse(req.DeletedAt, out var dt))
-                    {
-                        parsedDeletedAt = dt;
-                    }
+                    // Instant -> UTC (offset honoured; no offset = user's local time), server-timezone independent.
+                    DateTime? parsedDeletedAt = SuperAppModels.Time.TimeParsing.ParseInstantLenient(req.DeletedAt);
 
                     if (existing != null)
                     {
@@ -69,7 +64,7 @@ namespace SuperAppDataRepositories.Repositories
                         existing.Note = req.Note;
                         existing.ArrowDirection = req.ArrowDirection;
                         existing.DeletedAt = parsedDeletedAt;
-                        existing.UpdatedAt = VietnamDateTime.Now();
+                        existing.UpdatedAt = DateTime.UtcNow;
                         results.Add(existing);
                     }
                     else
@@ -86,8 +81,8 @@ namespace SuperAppDataRepositories.Repositories
                             Note = req.Note,
                             ArrowDirection = req.ArrowDirection,
                             DeletedAt = parsedDeletedAt,
-                            CreatedAt = VietnamDateTime.Now(),
-                            UpdatedAt = VietnamDateTime.Now(),
+                            CreatedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow,
                         };
                         _context.FlowEdges.Add(edge);
                         results.Add(edge);
@@ -141,7 +136,7 @@ namespace SuperAppDataRepositories.Repositories
                     {
                         existing.X = req.X;
                         existing.Y = req.Y;
-                        existing.UpdatedAt = VietnamDateTime.Now();
+                        existing.UpdatedAt = DateTime.UtcNow;
                     }
                     else
                     {
@@ -152,8 +147,8 @@ namespace SuperAppDataRepositories.Repositories
                             NodeType = req.NodeType,
                             X = req.X,
                             Y = req.Y,
-                            CreatedAt = VietnamDateTime.Now(),
-                            UpdatedAt = VietnamDateTime.Now(),
+                            CreatedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow,
                         });
                     }
                 }

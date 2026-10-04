@@ -8,10 +8,10 @@ namespace SuperAppModels.DTOs.Requests.DailyLog
         public int UserId { get; set; }
 
         /// <summary>Inclusive lower bound (yyyy-MM-dd). Ignored if null.</summary>
-        public DateTime? FromDate { get; set; }
+        public DateOnly? FromDate { get; set; }
 
         /// <summary>Inclusive upper bound (yyyy-MM-dd). Ignored if null.</summary>
-        public DateTime? ToDate { get; set; }
+        public DateOnly? ToDate { get; set; }
 
         /// <summary>"null" for active only, "notNull" for deleted only, null for all.</summary>
         public string? DeletedAt { get; set; }

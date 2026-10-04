@@ -60,10 +60,10 @@ namespace SuperAppModels.Models
         public string Priority { get; set; } = "low";
 
         [JsonPropertyName("startDate")]
-        public DateTime? StartDate { get; set; }
+        public DateOnly? StartDate { get; set; }
 
         [JsonPropertyName("endDate")]
-        public DateTime? EndDate { get; set; }
+        public DateOnly? EndDate { get; set; }
 
         [JsonPropertyName("orderIndex")]
         public int OrderIndex { get; set; }
@@ -97,18 +97,18 @@ namespace SuperAppModels.Models
 
         [NotMapped]
         [JsonPropertyName("projectStartDate")]
-        public DateTime? ProjectStartDate { get; set; }
+        public DateOnly? ProjectStartDate { get; set; }
 
         [NotMapped]
         [JsonPropertyName("projectEndDate")]
-        public DateTime? ProjectEndDate { get; set; }
+        public DateOnly? ProjectEndDate { get; set; }
 
         [NotMapped]
         [JsonPropertyName("parentStartDate")]
-        public DateTime? ParentStartDate { get; set; }
+        public DateOnly? ParentStartDate { get; set; }
 
         [NotMapped]
         [JsonPropertyName("parentEndDate")]
-        public DateTime? ParentEndDate { get; set; }
+        public DateOnly? ParentEndDate { get; set; }
     }
 }

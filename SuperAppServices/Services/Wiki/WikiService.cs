@@ -4,7 +4,7 @@ using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
 using SuperAppModels.Models;
-using SuperAppModels.Utils;
+using SuperAppModels.Time;
 using SuperAppServices.Interfaces;
 
 namespace SuperAppServices.Services.Wiki
@@ -184,7 +184,7 @@ namespace SuperAppServices.Services.Wiki
             PosX           = k.PosX,
             PosY           = k.PosY,
             PinnedPosition = k.PinnedPosition,
-            DeletedAt      = k.DeletedAt?.ToString("O")
+            DeletedAt      = k.DeletedAt.HasValue ? UserClock.ToUserIsoString(k.DeletedAt.Value) : null
         };
 
         private static WikiInfoDto MapInfo(WikiInfo i) => new()
@@ -193,9 +193,9 @@ namespace SuperAppServices.Services.Wiki
             Title      = i.Title,
             Content    = i.Content,
             KeywordIds = i.InfoKeywords.Select(ik => ik.KeywordId).ToList(),
-            CreatedAt  = (i.CreatedAt ?? VietnamDateTime.Now()).ToString("O"),
-            UpdatedAt  = (i.UpdatedAt ?? i.CreatedAt ?? VietnamDateTime.Now()).ToString("O"),
-            DeletedAt  = i.DeletedAt?.ToString("O")
+            CreatedAt  = UserClock.ToUserIsoString(i.CreatedAt ?? DateTime.UtcNow),
+            UpdatedAt  = UserClock.ToUserIsoString(i.UpdatedAt ?? i.CreatedAt ?? DateTime.UtcNow),
+            DeletedAt  = i.DeletedAt.HasValue ? UserClock.ToUserIsoString(i.DeletedAt.Value) : null
         };
     }
 }

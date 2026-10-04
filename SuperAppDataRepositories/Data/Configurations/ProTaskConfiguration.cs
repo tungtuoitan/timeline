@@ -63,10 +63,12 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .IsRequired();
 
             builder.Property(t => t.StartDate)
-                .HasColumnName("start_date");
+                .HasColumnName("start_date")
+                .HasColumnType("date");
 
             builder.Property(t => t.EndDate)
-            .HasColumnName("end_date");
+                .HasColumnName("end_date")
+                .HasColumnType("date");
 
             builder.Property(t => t.OrderIndex)
                 .HasColumnName("order_index")
@@ -75,11 +77,11 @@ namespace SuperAppDataRepositories.Data.Configurations
 
             builder.Property(t => t.CreatedAt)
                 .HasColumnName("created_at")
-                .HasDefaultValueSql("SYSDATETIME()");
+                .HasDefaultValueSql("SYSUTCDATETIME()");
 
             builder.Property(t => t.UpdatedAt)
                 .HasColumnName("updated_at")
-                .HasDefaultValueSql("SYSDATETIME()");
+                .HasDefaultValueSql("SYSUTCDATETIME()");
 
             builder.Property(t => t.DeletedAt)
                 .HasColumnName("deleted_at");

@@ -8,9 +8,9 @@ namespace SuperAppDataRepositories.Ins.DailyLog
     public interface IDailyLogRepository
     {
         Task<ResultOptions> GetLogsAsync(DailyLogFilterOptions filterOptions);
-        Task<ResultOptions> GetLogByDateAsync(int userId, DateTime logDate);
+        Task<ResultOptions> GetLogByDateAsync(int userId, DateOnly logDate);
         Task<ResultOptions> UpsertLogAsync(SuperAppModels.Models.DailyLog.DailyLog log);
-        Task<List<DailyLogHistoryPoint>> GetFieldHistoryAsync(int userId, string fieldKey, DateTime? from, DateTime? to);
+        Task<List<DailyLogHistoryPoint>> GetFieldHistoryAsync(int userId, string fieldKey, DateOnly? from, DateOnly? to);
     }
 
     public interface IDailyLogTemplateRepository

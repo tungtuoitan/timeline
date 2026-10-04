@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.Models;
-using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Repositories
 {
@@ -24,7 +23,7 @@ namespace SuperAppDataRepositories.Repositories
             {
                 QuestionId = questionId,
                 StatusCode = statusCode,
-                ChangedAt  = VietnamDateTime.Now(),
+                ChangedAt  = DateTime.UtcNow,
                 UserId     = userId,
             });
             await _context.SaveChangesAsync();
@@ -32,7 +31,7 @@ namespace SuperAppDataRepositories.Repositories
 
         public async Task AddQuestionStatusBulkAsync(IEnumerable<(int QuestionId, string StatusCode)> rows, int? userId)
         {
-            var now = VietnamDateTime.Now();
+            var now = DateTime.UtcNow;
             var entities = rows.Select(r => new KQuestionStatusHistoryEntity
             {
                 QuestionId = r.QuestionId,
@@ -51,7 +50,7 @@ namespace SuperAppDataRepositories.Repositories
             {
                 NodeId     = nodeId,
                 StatusCode = statusCode,
-                ChangedAt  = VietnamDateTime.Now(),
+                ChangedAt  = DateTime.UtcNow,
                 UserId     = userId,
             });
             await _context.SaveChangesAsync();

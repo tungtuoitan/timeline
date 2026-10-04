@@ -4,7 +4,6 @@ using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
-using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Repositories
 {
@@ -175,7 +174,7 @@ namespace SuperAppDataRepositories.Repositories
                     q.Context           = string.IsNullOrWhiteSpace(upd.Context) ? null : upd.Context;
                     q.Directives        = upd.Directives != null && upd.Directives.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(upd.Directives) : null;
                     if (upd.SortOrder.HasValue) q.SortOrder = upd.SortOrder.Value;
-                    q.UpdatedAt   = VietnamDateTime.Now();
+                    q.UpdatedAt   = DateTime.UtcNow;
                 }
 
                 await _context.SaveChangesAsync();
@@ -199,7 +198,7 @@ namespace SuperAppDataRepositories.Repositories
                     .ToListAsync();
 
                 foreach (var q in questions)
-                    q.DeletedAt = VietnamDateTime.Now();
+                    q.DeletedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
                 _logger.LogInformation("Soft-deleted {Count} questions", questions.Count);
@@ -284,7 +283,7 @@ namespace SuperAppDataRepositories.Repositories
                 question.SrsEaseFactor    = 2.5;
                 question.SrsRepetitions   = 0;
                 question.SrsNextReviewAt  = null;
-                question.UpdatedAt        = VietnamDateTime.Now();
+                question.UpdatedAt        = DateTime.UtcNow;
 
                 var history = await _context.KPointHistory
                     .Where(p => p.QuestionId == questionId)
@@ -341,7 +340,7 @@ namespace SuperAppDataRepositories.Repositories
                 var q = await _context.KQuestions.FindAsync(questionId);
                 if (q == null) return;
                 q.NodeId    = targetNodeId;
-                q.UpdatedAt = VietnamDateTime.Now();
+                q.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
             }
             catch (Exception ex)
@@ -367,7 +366,7 @@ namespace SuperAppDataRepositories.Repositories
                     QuestionId  = r.QuestionId,
                     AnswerText  = r.AnswerText,
                     Point       = r.Point,
-                    CreatedAt   = VietnamDateTime.Now(),
+                    CreatedAt   = DateTime.UtcNow,
                 }).ToList();
 
                 _context.KPointHistory.AddRange(rows);
@@ -398,7 +397,7 @@ namespace SuperAppDataRepositories.Repositories
                     AnswerText     = r.AnswerText,
                     Point          = r.Point,
                     ResponseTimeMs = r.ResponseTimeMs,
-                    CreatedAt      = VietnamDateTime.Now(),
+                    CreatedAt      = DateTime.UtcNow,
                 }).ToList();
 
                 _context.KPointHistory.AddRange(rows);
@@ -491,7 +490,7 @@ namespace SuperAppDataRepositories.Repositories
                 question.SrsEaseFactor   = easeFactor;
                 question.SrsRepetitions  = repetitions;
                 question.SrsNextReviewAt = nextReviewAt;
-                question.UpdatedAt       = VietnamDateTime.Now();
+                question.UpdatedAt       = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
             }
@@ -516,7 +515,7 @@ namespace SuperAppDataRepositories.Repositories
                 foreach (var q in questions)
                 {
                     q.StatusCode = statusCode;
-                    q.UpdatedAt  = VietnamDateTime.Now();
+                    q.UpdatedAt  = DateTime.UtcNow;
                 }
 
                 await _context.SaveChangesAsync();
@@ -543,7 +542,7 @@ namespace SuperAppDataRepositories.Repositories
         {
             try
             {
-                var now = VietnamDateTime.Now();
+                var now = DateTime.UtcNow;
 
                 var knowledge = await _context.KKnowledges.FindAsync(knowledgeId);
                 if (knowledge == null) return [];
@@ -584,7 +583,7 @@ namespace SuperAppDataRepositories.Repositories
         //{
         //    try
         //    {
-        //        var now = VietnamDateTime.Now();
+        //        var now = DateTime.UtcNow;
 
         //        var knowledges = await _context.KKnowledges
         //            .Where(k => k.UserId == userId && k.DeletedAt == null && k.StatusCode == "active")
@@ -634,7 +633,7 @@ namespace SuperAppDataRepositories.Repositories
         {
             try
             {
-                var now      = VietnamDateTime.Now();
+                var now      = DateTime.UtcNow;
                 var dueLimit = (int)Math.Ceiling(dailyLimit * (1 - newRatio));
                 var newLimit = dailyLimit - dueLimit;
 
@@ -696,7 +695,7 @@ namespace SuperAppDataRepositories.Repositories
         {
             try
             {
-                var now      = VietnamDateTime.Now();
+                var now      = DateTime.UtcNow;
                 var dueLimit = (int)Math.Ceiling(dailyLimit * (1 - newRatio));
                 var newLimit = dailyLimit - dueLimit;
 
@@ -764,7 +763,7 @@ namespace SuperAppDataRepositories.Repositories
         {
             try
             {
-                var now = VietnamDateTime.Now();
+                var now = DateTime.UtcNow;
                 return await _context.KQuestions
                     .Include(q => q.Node)
                     .Where(q => q.Node != null && q.Node.KnowledgeId == knowledgeId

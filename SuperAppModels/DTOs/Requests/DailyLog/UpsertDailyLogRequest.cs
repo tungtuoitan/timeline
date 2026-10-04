@@ -14,7 +14,7 @@ namespace SuperAppModels.DTOs.Requests.DailyLog
 
         [Required]
         [JsonPropertyName("logDate")]
-        public DateTime LogDate { get; set; }
+        public DateOnly LogDate { get; set; }
 
         /// <summary>Serialized JSON string, keyed by "&lt;section&gt;.&lt;field_key&gt;" → value.</summary>
         [JsonPropertyName("valuesJson")]

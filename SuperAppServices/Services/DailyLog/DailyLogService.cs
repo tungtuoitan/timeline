@@ -20,7 +20,7 @@ namespace SuperAppServices.Services.DailyLog
         public Task<ResultOptions> GetLogsAsync(DailyLogFilterOptions filterOptions)
             => _repository.GetLogsAsync(filterOptions);
 
-        public Task<ResultOptions> GetLogByDateAsync(int userId, DateTime logDate)
+        public Task<ResultOptions> GetLogByDateAsync(int userId, DateOnly logDate)
             => _repository.GetLogByDateAsync(userId, logDate);
 
         public async Task<ResultOptions> UpsertLogAsync(UpsertDailyLogRequest request)
@@ -33,7 +33,7 @@ namespace SuperAppServices.Services.DailyLog
                 var log = new SuperAppModels.Models.DailyLog.DailyLog
                 {
                     UserId = request.UserId,
-                    LogDate = request.LogDate.Date,
+                    LogDate = request.LogDate,
                     ValuesJson = string.IsNullOrWhiteSpace(request.ValuesJson) ? "{}" : request.ValuesJson,
                     TemplateJson = string.IsNullOrWhiteSpace(request.TemplateJson) ? null : request.TemplateJson,
                     DeletedAt = request.DeletedAt
@@ -48,7 +48,7 @@ namespace SuperAppServices.Services.DailyLog
             }
         }
 
-        public async Task<ResultOptions> GetFieldHistoryAsync(int userId, string fieldKey, DateTime? from, DateTime? to)
+        public async Task<ResultOptions> GetFieldHistoryAsync(int userId, string fieldKey, DateOnly? from, DateOnly? to)
         {
             try
             {

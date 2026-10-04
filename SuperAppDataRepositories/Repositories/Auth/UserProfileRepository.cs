@@ -4,7 +4,6 @@ using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.Models;
-using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Repositories
 {
@@ -107,7 +106,7 @@ namespace SuperAppDataRepositories.Repositories
                     if (profile.KRepoLastCheckAt   != null) existingProfile.KRepoLastCheckAt   = profile.KRepoLastCheckAt;
                     if (profile.KRepoLastRemoteSha != null) existingProfile.KRepoLastRemoteSha = profile.KRepoLastRemoteSha;
 
-                    existingProfile.UpdatedAt = VietnamDateTime.Now();
+                    existingProfile.UpdatedAt = DateTime.UtcNow;
 
                     _context.UserProfiles.Update(existingProfile);
                     await _context.SaveChangesAsync();
@@ -124,8 +123,8 @@ namespace SuperAppDataRepositories.Repositories
                     // Create new profile
                     _logger.LogInformation("Creating new user profile for userId: {UserId}", profile.UserId);
 
-                    profile.CreatedAt = VietnamDateTime.Now();
-                    profile.UpdatedAt = VietnamDateTime.Now();
+                    profile.CreatedAt = DateTime.UtcNow;
+                    profile.UpdatedAt = DateTime.UtcNow;
 
                     _context.UserProfiles.Add(profile);
                     await _context.SaveChangesAsync();

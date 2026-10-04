@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using SuperAppAPI.Controllers;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests.DailyLog;
+using SuperAppModels.Time;
 using SuperAppServices.Interfaces.DailyLog;
 
 namespace SuperAppAPI.Controllers.DailyLog
@@ -88,11 +89,8 @@ namespace SuperAppAPI.Controllers.DailyLog
             return Ok(response);
         }
 
-        private static DateTime? ParseDate(string? s)
-        {
-            if (string.IsNullOrWhiteSpace(s)) return null;
-            if (DateTime.TryParse(s, out var d)) return d.Date;
-            return null;
-        }
+        // Calendar date "yyyy-MM-dd" (a full ISO date-time is still accepted for old clients:
+        // with an offset it is converted to the user's timezone first). Independent of the server timezone.
+        private static DateOnly? ParseDate(string? s) => TimeParsing.ParseDateOrNull(s);
     }
 }

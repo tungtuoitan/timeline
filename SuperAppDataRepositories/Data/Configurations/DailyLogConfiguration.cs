@@ -17,8 +17,8 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(l => l.LogDate).HasColumnName("log_date").HasColumnType("date").IsRequired();
             builder.Property(l => l.ValuesJson).HasColumnName("values_json").HasDefaultValue("{}").IsRequired();
             builder.Property(l => l.TemplateJson).HasColumnName("template_json");
-            builder.Property(l => l.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("SYSDATETIME()");
-            builder.Property(l => l.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("SYSDATETIME()");
+            builder.Property(l => l.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("SYSUTCDATETIME()");
+            builder.Property(l => l.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("SYSUTCDATETIME()");
             builder.Property(l => l.DeletedAt).HasColumnName("deleted_at");
 
             builder.HasIndex(l => new { l.UserId, l.LogDate });
@@ -42,8 +42,8 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(f => f.RangeMin).HasColumnName("range_min");
             builder.Property(f => f.RangeMax).HasColumnName("range_max");
             builder.Property(f => f.SortOrder).HasColumnName("sort_order").HasDefaultValue(0);
-            builder.Property(f => f.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("SYSDATETIME()");
-            builder.Property(f => f.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("SYSDATETIME()");
+            builder.Property(f => f.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("SYSUTCDATETIME()");
+            builder.Property(f => f.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("SYSUTCDATETIME()");
             builder.Property(f => f.DeletedAt).HasColumnName("deleted_at");
 
             builder.HasIndex(f => new { f.UserId, f.Section });

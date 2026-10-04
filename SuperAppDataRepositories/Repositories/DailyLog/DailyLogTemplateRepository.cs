@@ -4,7 +4,6 @@ using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins.DailyLog;
 using SuperAppModels.DTOs;
 using SuperAppModels.Models.DailyLog;
-using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Repositories.DailyLog
 {
@@ -85,13 +84,13 @@ namespace SuperAppDataRepositories.Repositories.DailyLog
                             existing.GroupLabel = field.GroupLabel;
                             existing.LineOrder = field.LineOrder;
                             existing.DeletedAt = field.DeletedAt;
-                            existing.UpdatedAt = VietnamDateTime.Now();
+                            existing.UpdatedAt = DateTime.UtcNow;
                             upserted.Add(existing);
                         }
                         else
                         {
-                            field.CreatedAt = VietnamDateTime.Now();
-                            field.UpdatedAt = VietnamDateTime.Now();
+                            field.CreatedAt = DateTime.UtcNow;
+                            field.UpdatedAt = DateTime.UtcNow;
                             _context.DailyLogFieldTemplates.Add(field);
                             upserted.Add(field);
                         }

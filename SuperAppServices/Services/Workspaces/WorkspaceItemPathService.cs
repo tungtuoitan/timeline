@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
 using SuperAppModels.Models;
-using SuperAppModels.Utils;
 
 namespace SuperAppServices.Services.Workspaces
 {
@@ -94,7 +93,7 @@ namespace SuperAppServices.Services.Workspaces
                 throw new ArgumentException($"Item {itemId} not found");
 
             //item.Slug = GenerateSlug(newName);
-            item.UpdatedAt = VietnamDateTime.Now();
+            item.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
 
@@ -148,7 +147,7 @@ namespace SuperAppServices.Services.Workspaces
             item.ParentId = newParentId;
             item.PathIds = newPathIds;
             item.PathDepth = newDepth;
-            item.UpdatedAt = VietnamDateTime.Now();
+            item.UpdatedAt = DateTime.UtcNow;
 
             // Update all descendants (CASCADE UPDATE)
             var descendants = await _context.Set<WorkspaceItemEntity>()
@@ -173,7 +172,7 @@ namespace SuperAppServices.Services.Workspaces
                 //   /a/b/c/d/e/    → 6 slashes → 6 - 1 = 5 (depth 5 - deeply nested)
                 descendant.PathDepth = descendant.PathIds.Count(c => c == '/') - 1;
 
-                descendant.UpdatedAt = VietnamDateTime.Now();
+                descendant.UpdatedAt = DateTime.UtcNow;
             }
 
             await _context.SaveChangesAsync();

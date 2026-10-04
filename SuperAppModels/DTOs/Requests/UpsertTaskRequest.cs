@@ -60,9 +60,9 @@ namespace SuperAppModels.DTOs.Requests
         public string Priority { get; set; } = "low";
 
         [JsonPropertyName("startDate")]
-        public DateTime? StartDate { get; set; }
+        public DateOnly? StartDate { get; set; }
         [JsonPropertyName("endDate")]
-        public DateTime? EndDate { get; set; }
+        public DateOnly? EndDate { get; set; }
 
         [JsonPropertyName("orderIndex")]
         public int OrderIndex { get; set; }

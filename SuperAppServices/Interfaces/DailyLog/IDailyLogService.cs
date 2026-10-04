@@ -6,9 +6,9 @@ namespace SuperAppServices.Interfaces.DailyLog
     public interface IDailyLogService
     {
         Task<ResultOptions> GetLogsAsync(DailyLogFilterOptions filterOptions);
-        Task<ResultOptions> GetLogByDateAsync(int userId, DateTime logDate);
+        Task<ResultOptions> GetLogByDateAsync(int userId, DateOnly logDate);
         Task<ResultOptions> UpsertLogAsync(UpsertDailyLogRequest request);
-        Task<ResultOptions> GetFieldHistoryAsync(int userId, string fieldKey, DateTime? from, DateTime? to);
+        Task<ResultOptions> GetFieldHistoryAsync(int userId, string fieldKey, DateOnly? from, DateOnly? to);
     }
 
     public interface IDailyLogTemplateService

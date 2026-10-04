@@ -39,18 +39,20 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .IsRequired();
 
             builder.Property(p => p.StartDate)
-                .HasColumnName("start_date");
+                .HasColumnName("start_date")
+                .HasColumnType("date");
 
             builder.Property(p => p.EndDate)
-                .HasColumnName("end_date");
+                .HasColumnName("end_date")
+                .HasColumnType("date");
 
             builder.Property(p => p.CreatedAt)
                 .HasColumnName("created_at")
-                .HasDefaultValueSql("SYSDATETIME()");
+                .HasDefaultValueSql("SYSUTCDATETIME()");
 
             builder.Property(p => p.UpdatedAt)
                 .HasColumnName("updated_at")
-                .HasDefaultValueSql("SYSDATETIME()");
+                .HasDefaultValueSql("SYSUTCDATETIME()");
 
             builder.Property(p => p.DeletedAt)
                 .HasColumnName("deleted_at");

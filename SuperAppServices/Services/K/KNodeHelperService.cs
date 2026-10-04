@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
-using SuperAppModels.Utils;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
 using SuperAppServices.Interfaces;
@@ -169,7 +168,7 @@ namespace SuperAppServices.Services.K
                     Color       = data.Color ?? "#F59E0B",
                     Icon        = data.Icon  ?? "📁",
                     StatusCode  = data.StatusCode,
-                    CreatedAt   = VietnamDateTime.Now(),
+                    CreatedAt   = DateTime.UtcNow,
                     DeletedAt   = null
                 };
 
@@ -180,7 +179,7 @@ namespace SuperAppServices.Services.K
                 {
                     NodeId     = newNode.Id,
                     StatusCode = newNode.StatusCode ?? "learning",
-                    ChangedAt  = newNode.CreatedAt ?? VietnamDateTime.Now(),
+                    ChangedAt  = newNode.CreatedAt ?? DateTime.UtcNow,
                     UserId     = userId,
                 });
                 await _context.SaveChangesAsync();
@@ -211,7 +210,7 @@ namespace SuperAppServices.Services.K
                 if (data.Color != null) node.Color = data.Color;
                 if (data.Icon  != null) node.Icon  = data.Icon;
                 if (data.StatusCode  != null) node.StatusCode = data.StatusCode;
-                node.UpdatedAt = VietnamDateTime.Now();
+                node.UpdatedAt = DateTime.UtcNow;
 
                 if (data.StatusCode != null && oldStatus != node.StatusCode)
                 {
@@ -219,7 +218,7 @@ namespace SuperAppServices.Services.K
                     {
                         NodeId     = node.Id,
                         StatusCode = node.StatusCode ?? "learning",
-                        ChangedAt  = VietnamDateTime.Now(),
+                        ChangedAt  = DateTime.UtcNow,
                         UserId     = null,
                     });
                 }
@@ -243,7 +242,7 @@ namespace SuperAppServices.Services.K
             {
                 var node = existingNodes[request.Id!.Value];
                 node.ParentId  = request.ParentId;
-                node.UpdatedAt = VietnamDateTime.Now();
+                node.UpdatedAt = DateTime.UtcNow;
 
                 upserted.Add(node);
                 _logger.LogInformation("Moved node ID {Id} → ParentId={ParentId}", node.Id, node.ParentId);
@@ -267,14 +266,14 @@ namespace SuperAppServices.Services.K
 
                 root.KnowledgeId = targetKnowledgeId;
                 root.ParentId    = request.ParentId > 0 ? request.ParentId : null;
-                root.UpdatedAt   = VietnamDateTime.Now();
+                root.UpdatedAt   = DateTime.UtcNow;
                 upserted.Add(root);
 
                 var descendants = await GetAllDescendantsAsync(root.Id);
                 foreach (var d in descendants)
                 {
                     d.KnowledgeId = targetKnowledgeId;
-                    d.UpdatedAt   = VietnamDateTime.Now();
+                    d.UpdatedAt   = DateTime.UtcNow;
                     upserted.Add(d);
                 }
 
@@ -296,8 +295,8 @@ namespace SuperAppServices.Services.K
             try
             {
                 var node = existingNodes[request.Id!.Value];
-                node.DeletedAt = VietnamDateTime.Now();
-                node.UpdatedAt = VietnamDateTime.Now();
+                node.DeletedAt = DateTime.UtcNow;
+                node.UpdatedAt = DateTime.UtcNow;
                 upserted.Add(node);
                 _logger.LogInformation("Soft-deleted node ID {Id}", node.Id);
             }
@@ -317,7 +316,7 @@ namespace SuperAppServices.Services.K
             {
                 var node = existingNodes[request.Id!.Value];
                 node.DeletedAt = null;
-                node.UpdatedAt = VietnamDateTime.Now();
+                node.UpdatedAt = DateTime.UtcNow;
                 upserted.Add(node);
                 _logger.LogInformation("Restored node ID {Id}", node.Id);
             }

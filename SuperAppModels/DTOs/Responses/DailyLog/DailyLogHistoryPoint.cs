@@ -9,7 +9,7 @@ namespace SuperAppModels.DTOs.Responses.DailyLog
     public class DailyLogHistoryPoint
     {
         [JsonPropertyName("logDate")]
-        public DateTime LogDate { get; set; }
+        public DateOnly LogDate { get; set; }
 
         [JsonPropertyName("value")]
         public string? Value { get; set; }

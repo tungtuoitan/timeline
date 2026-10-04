@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
-using SuperAppModels.Utils;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Responses;
 using SuperAppModels.Models;
@@ -175,7 +174,7 @@ namespace SuperAppServices.Services.Files
                     Extension = extension,
                     GoogleDriveFileId = uploadResult.FileId,
                     StatusCode = "active",
-                    CreatedAt = VietnamDateTime.Now()
+                    CreatedAt = DateTime.UtcNow
                 };
 
                 _context.Files.Add(file);
@@ -265,8 +264,8 @@ namespace SuperAppServices.Services.Files
                 }
 
                 // Soft delete the file record
-                file.DeletedAt = VietnamDateTime.Now();
-                file.UpdatedAt = VietnamDateTime.Now();
+                file.DeletedAt = DateTime.UtcNow;
+                file.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
 
                 _logger.LogInformation("File deleted: ID={FileId}, DriveId={DriveFileId}", fileId, file.GoogleDriveFileId);

@@ -3,6 +3,7 @@ using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.Models;
 using SuperAppServices.Interfaces;
+using SuperAppServices.Time;
 
 namespace SuperAppServices.Services.Profile
 {
@@ -13,13 +14,16 @@ namespace SuperAppServices.Services.Profile
     {
         private readonly IUserProfileRepository _repository;
         private readonly ILogger<UserProfileService> _logger;
+        private readonly IUserTimeZoneResolver _timeZoneResolver;
 
         public UserProfileService(
             IUserProfileRepository repository,
-            ILogger<UserProfileService> logger)
+            ILogger<UserProfileService> logger,
+            IUserTimeZoneResolver timeZoneResolver)
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _timeZoneResolver = timeZoneResolver ?? throw new ArgumentNullException(nameof(timeZoneResolver));
         }
 
         /// <summary>
@@ -102,6 +106,8 @@ namespace SuperAppServices.Services.Profile
                 {
                     throw new Exception("Fail to create/update user profile."); 
                 }
+                // Timezone may have changed — next request re-reads it.
+                _timeZoneResolver.Invalidate(userProfile.UserId);
                 var res = await _repository.GetByUserIdAsync(userProfile.UserId);
 
                 _logger.LogInformation("Successfully created/updated user profile for userId: {UserId}", userProfile.UserId);

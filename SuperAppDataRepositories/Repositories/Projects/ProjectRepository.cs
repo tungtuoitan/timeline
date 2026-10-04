@@ -5,7 +5,6 @@ using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
-using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Repositories
 {
@@ -167,7 +166,7 @@ namespace SuperAppDataRepositories.Repositories
                             existingProject.DeletedAt = project.DeletedAt;
                             existingProject.WorkspaceId = project.WorkspaceId;
                             existingProject.Image = project.Image;
-                            existingProject.UpdatedAt = VietnamDateTime.Now();
+                            existingProject.UpdatedAt = DateTime.UtcNow;
                             // UserId is immutable after creation
 
                             upsertedProjects.Add(existingProject);
@@ -177,8 +176,8 @@ namespace SuperAppDataRepositories.Repositories
                             // CREATE new project
                             _logger.LogInformation("Creating project with Name: '{Name}'", project.Name);
 
-                            project.CreatedAt = VietnamDateTime.Now();
-                            project.UpdatedAt = VietnamDateTime.Now();
+                            project.CreatedAt = DateTime.UtcNow;
+                            project.UpdatedAt = DateTime.UtcNow;
                             project.DeletedAt = null;
                             // UserId should already be set from the request
 

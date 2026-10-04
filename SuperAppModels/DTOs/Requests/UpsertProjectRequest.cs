@@ -37,13 +37,13 @@ namespace SuperAppModels.DTOs.Requests
         /// Project start date
         /// </summary>
         [JsonPropertyName("startDate")]
-        public DateTime? StartDate { get; set; }
+        public DateOnly? StartDate { get; set; }
 
         /// <summary>
         /// Project end date
         /// </summary>
         [JsonPropertyName("endDate")]
-        public DateTime? EndDate { get; set; }
+        public DateOnly? EndDate { get; set; }
 
         /// <summary>
         /// Optional: Soft delete timestamp (null = active, DateTime = soft deleted)

@@ -24,10 +24,10 @@ namespace SuperAppModels.Models
         public string Status { get; set; } = "open";
 
         [JsonPropertyName("startDate")]
-        public DateTime? StartDate { get; set; }
+        public DateOnly? StartDate { get; set; }
 
         [JsonPropertyName("endDate")]
-        public DateTime? EndDate { get; set; }
+        public DateOnly? EndDate { get; set; }
 
         [JsonPropertyName("createdAt")]
         public DateTime CreatedAt { get; set; }

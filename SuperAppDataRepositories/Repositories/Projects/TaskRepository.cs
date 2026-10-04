@@ -5,7 +5,6 @@ using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.Models;
-using SuperAppModels.Utils;
 
 namespace SuperAppDataRepositories.Repositories
 {
@@ -273,7 +272,7 @@ namespace SuperAppDataRepositories.Repositories
                             if (task.FolderWorkspaceItemId.HasValue)
                                 existingTask.FolderWorkspaceItemId = task.FolderWorkspaceItemId;
                             existingTask.IsMilestone = task.IsMilestone;
-                            existingTask.UpdatedAt = VietnamDateTime.Now();
+                            existingTask.UpdatedAt = DateTime.UtcNow;
 
                             upsertedTasks.Add(existingTask);
                         }
@@ -283,8 +282,8 @@ namespace SuperAppDataRepositories.Repositories
                             _logger.LogInformation("Creating task with Title: '{Title}', FolderWorkspaceItemId: {FWI}",
                                 task.Title, task.FolderWorkspaceItemId);
 
-                            task.CreatedAt = VietnamDateTime.Now();
-                            task.UpdatedAt = VietnamDateTime.Now();
+                            task.CreatedAt = DateTime.UtcNow;
+                            task.UpdatedAt = DateTime.UtcNow;
 
                             _context.ProTasks.Add(task);
                             upsertedTasks.Add(task);
@@ -392,7 +391,7 @@ namespace SuperAppDataRepositories.Repositories
                         case "parenttaskid": existing.ParentTaskId = null; break;
                     }
                 }
-                existing.UpdatedAt = VietnamDateTime.Now();
+                existing.UpdatedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
 
