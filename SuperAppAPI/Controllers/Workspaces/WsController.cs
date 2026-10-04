@@ -76,7 +76,7 @@ namespace SuperAppAPI.Controllers.Workspaces
                     : null,
                 DeletedAt = deletedAt,
                 CreatedFrom = TimeParsing.ParseInstantLenient(createdAtFrom),
-                CreatedTo = TimeParsing.ParseInstantLenient(createdAtTo),
+                CreatedTo = TimeParsing.ParseInstantLenientEnd(createdAtTo),
                 Ids = !string.IsNullOrEmpty(ids)
                     ? ids.Split(',', StringSplitOptions.RemoveEmptyEntries)
                         .Select(s => int.TryParse(s.Trim(), out var id) ? id : 0)

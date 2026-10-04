@@ -51,6 +51,22 @@ namespace SuperAppModels.Time
         }
 
         /// <summary>
+        /// Upper bound of a "to" filter (compared with &lt;=): like <see cref="ParseInstantLenient"/>, but a
+        /// plain day "yyyy-MM-dd" or month "yyyy-MM" includes that whole day/month in the user's timezone
+        /// (= start of the next day/month minus one tick). Returns UTC, or null when unparsable.
+        /// </summary>
+        public static DateTime? ParseInstantLenientEnd(string? s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return null;
+            var t = s.Trim();
+            if (DateTime.TryParseExact(t, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day))
+                return UserClock.FromUserLocal(DateTime.SpecifyKind(day.AddDays(1), DateTimeKind.Unspecified)).AddTicks(-1);
+            if (DateTime.TryParseExact(t, "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var month))
+                return UserClock.FromUserLocal(DateTime.SpecifyKind(month.AddMonths(1), DateTimeKind.Unspecified)).AddTicks(-1);
+            return ParseInstantLenient(t);
+        }
+
+        /// <summary>
         /// Calendar date parsing: "yyyy-MM-dd" (canonical). For backward compatibility also accepts a
         /// full ISO date-time: with an offset/'Z' the instant is converted to the user's timezone before
         /// taking the date; without an offset the date part is taken as written.

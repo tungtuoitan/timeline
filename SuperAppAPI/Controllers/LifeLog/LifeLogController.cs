@@ -128,7 +128,7 @@ namespace SuperAppAPI.Controllers.LifeLog
                     : null,
                 TrackId = trackId,
                 CreatedFrom = TimeParsing.ParseInstantLenient(createdAtFrom),
-                CreatedTo = TimeParsing.ParseInstantLenient(createdAtTo),
+                CreatedTo = TimeParsing.ParseInstantLenientEnd(createdAtTo),
                 DeletedAt = deletedAt,
                 Ids = !string.IsNullOrEmpty(ids)
                     ? ids.Split(',', StringSplitOptions.RemoveEmptyEntries)

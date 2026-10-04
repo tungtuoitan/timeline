@@ -66,7 +66,7 @@ namespace SuperAppAPI.Controllers.Workspaces
                     : null,
                 DeletedAt = deletedAt,
                 CreatedFrom = TimeParsing.ParseInstantLenient(createdAtFrom),
-                CreatedTo = TimeParsing.ParseInstantLenient(createdAtTo)
+                CreatedTo = TimeParsing.ParseInstantLenientEnd(createdAtTo)
             };
 
             _logger.LogInformation("Retrieving all workspaces for userId: {UserId}, StatusCodes: {StatusCodes}, DeletedAt: {DeletedAt}, CreatedFrom: {CreatedFrom}, CreatedTo: {CreatedTo}",

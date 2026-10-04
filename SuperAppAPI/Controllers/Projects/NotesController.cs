@@ -75,7 +75,7 @@ namespace SuperAppAPI.Controllers.Projects
                     : null,
                 DeletedAt = deletedAt,
                 CreatedFrom = TimeParsing.ParseInstantLenient(createdAtFrom),
-                CreatedTo = TimeParsing.ParseInstantLenient(createdAtTo),
+                CreatedTo = TimeParsing.ParseInstantLenientEnd(createdAtTo),
                 Ids = !string.IsNullOrEmpty(ids)
                     ? ids.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList()
                     : null,

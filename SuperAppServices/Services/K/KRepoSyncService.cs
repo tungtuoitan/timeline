@@ -1088,7 +1088,7 @@ namespace SuperAppServices.Services.K
                 if (isDirty)
                 {
                     var sig        = new Signature("SuperApp Sync", "sync@superapp.local", DateTimeOffset.UtcNow);
-                    var commitMsg  = $"DB sync: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}";
+                    var commitMsg  = $"DB sync: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC";
                     if (conflictedPaths is { Count: > 0 })
                         commitMsg += $"\n\nResolved {conflictedPaths.Count} conflict(s) — DB wins:\n"
                                    + string.Join("\n", conflictedPaths.Select(p => $"  - {p}"));
@@ -2452,7 +2452,7 @@ namespace SuperAppServices.Services.K
                 else
                 {
                     var sig = new Signature("SuperApp Sync", "sync@superapp.local", DateTimeOffset.UtcNow);
-                    var commit = repo.Commit($"Force sync: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}", sig, sig);
+                    var commit = repo.Commit($"Force sync: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC", sig, sig);
                     _logger.LogInformation("ForceUpdate: committed {Sha}", commit.Sha[..8]);
                 }
 

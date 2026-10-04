@@ -169,6 +169,37 @@ namespace SuperAppServices.Tests
         }
 
         [Fact]
+        public void ParseInstantLenientEnd_PlainDay_IncludesWholeUserDay()
+        {
+            using (UserClock.Use(Vn))
+            {
+                // 2026-10-04 VN ends at 2026-10-04T17:00Z (exclusive)
+                var end = TimeParsing.ParseInstantLenientEnd("2026-10-04")!.Value;
+                Assert.Equal(DateTimeKind.Utc, end.Kind);
+                Assert.Equal(new DateTime(2026, 10, 4, 17, 0, 0, DateTimeKind.Utc).AddTicks(-1), end);
+            }
+        }
+
+        [Fact]
+        public void ParseInstantLenientEnd_Month_IncludesWholeUserMonth()
+        {
+            using (UserClock.Use(Vn))
+            {
+                var end = TimeParsing.ParseInstantLenientEnd("2026-10")!.Value;
+                Assert.Equal(new DateTime(2026, 10, 31, 17, 0, 0, DateTimeKind.Utc).AddTicks(-1), end);
+            }
+        }
+
+        [Fact]
+        public void ParseInstantLenientEnd_InstantWithOffset_IsExact()
+        {
+            var end = TimeParsing.ParseInstantLenientEnd("2026-10-04T08:00:00+07:00")!.Value;
+            Assert.Equal(new DateTime(2026, 10, 4, 1, 0, 0, DateTimeKind.Utc), end);
+            Assert.Null(TimeParsing.ParseInstantLenientEnd(""));
+            Assert.Null(TimeParsing.ParseInstantLenientEnd("not a date"));
+        }
+
+        [Fact]
         public void DateOnlyConverter_InstantWithZ_UsesUserTimeZone()
         {
             using (UserClock.Use(Vn))

@@ -34,4 +34,17 @@ Please refer to that file for:
 
 ---
 
+## Time (dates & instants) — task #1450
+
+- **Instants** (`CreatedAt`, `UpdatedAt`, `OccurredAt`, `SrsNextReviewAt`…): `DateTime` in **UTC**
+  (`DateTime.UtcNow`; never `DateTime.Now`). EF reads them back as `Kind=Utc`; JSON writes ISO 8601
+  with the **user's offset** (e.g. `+07:00`); JSON input without `Z`/offset is rejected (400).
+- **Calendar dates** (task/project `StartDate`/`EndDate`, `DailyLog.LogDate`, `DateOfBirth`):
+  `DateOnly` / SQL `DATE`, `"YYYY-MM-DD"`.
+- "Today" / day boundaries of the user: `UserClock` (`SuperAppModels/Time/UserClock.cs`), never
+  `UtcNow.Date`. Parsing strings: `TimeParsing` (query "to" filters: `ParseInstantLenientEnd`).
+- SQL defaults: `SYSUTCDATETIME()`, never `GETDATE()`/`SYSDATETIME()` (the server runs at +07).
+
+---
+
 **For complete documentation, see:** `.github/copilot-instructions.md`

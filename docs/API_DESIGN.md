@@ -99,8 +99,8 @@ public class PagedResponse<T>
 public class SearchNotesRequest
 {
     public string? SearchText { get; set; }
-    public DateTime? CreatedFrom { get; set; }
-    public DateTime? CreatedTo { get; set; }
+    public string? CreatedFrom { get; set; } // "YYYY-MM-DD", "YYYY-MM" or ISO with offset -> TimeParsing.ParseInstantLenient
+    public string? CreatedTo { get; set; }   // same, whole day/month included -> TimeParsing.ParseInstantLenientEnd
     public string SortBy { get; set; } = "CreatedDate";
     public string SortOrder { get; set; } = "desc"; // asc/desc
 }

@@ -50,8 +50,14 @@ namespace SuperAppDataRepositories.Repositories
                         ? await _context.FlowEdges.FirstOrDefaultAsync(e => e.Id == req.Id && e.UserId == userId)
                         : null;
 
-                    // Instant -> UTC (offset honoured; no offset = user's local time), server-timezone independent.
-                    DateTime? parsedDeletedAt = SuperAppModels.Time.TimeParsing.ParseInstantLenient(req.DeletedAt);
+                    // Instant in a JSON body must carry 'Z' or an offset (same rule as the JSON converters).
+                    DateTime? parsedDeletedAt = null;
+                    if (!string.IsNullOrWhiteSpace(req.DeletedAt))
+                    {
+                        if (!SuperAppModels.Time.TimeParsing.TryParseInstant(req.DeletedAt, out var deletedUtc))
+                            return new ResultOptions { Success = false, Message = $"deletedAt must be ISO 8601 with an offset: '{req.DeletedAt}'", Status = 400 };
+                        parsedDeletedAt = deletedUtc;
+                    }
 
                     if (existing != null)
                     {

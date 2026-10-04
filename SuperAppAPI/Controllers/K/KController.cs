@@ -116,7 +116,7 @@ namespace SuperAppAPI.Controllers.K
                         : null,
                     DeletedAt   = deletedAt,
                     CreatedFrom = TimeParsing.ParseInstantLenient(createdAtFrom),
-                    CreatedTo   = TimeParsing.ParseInstantLenient(createdAtTo)
+                    CreatedTo   = TimeParsing.ParseInstantLenientEnd(createdAtTo)
                 };
 
                 var result = await _knowledgeService.GetAllKnowledgesAsync(userId.Value, filter);

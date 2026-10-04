@@ -350,8 +350,8 @@ namespace SuperAppServices.Services.Files
                     Size = file.Size ?? 0,
                     WebViewLink = file.WebViewLink,
                     WebContentLink = file.WebContentLink,
-                    CreatedTime = file.CreatedTimeDateTimeOffset?.DateTime,
-                    ModifiedTime = file.ModifiedTimeDateTimeOffset?.DateTime
+                    CreatedTime = file.CreatedTimeDateTimeOffset?.UtcDateTime,
+                    ModifiedTime = file.ModifiedTimeDateTimeOffset?.UtcDateTime
                 };
             }
             catch (Exception ex)
