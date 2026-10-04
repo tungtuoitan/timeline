@@ -9,6 +9,14 @@ namespace SuperAppModels.DTOs.Requests
     /// </summary>
     public class UpsertTaskCommentRequest
     {
+        /// <summary>comment | decision | devlog | track. Create: null = "comment". Update: null = unchanged.</summary>
+        [JsonPropertyName("type")]
+        public string? Type { get; set; }
+
+        /// <summary>When it actually happened (null = created time). Update: null = unchanged.</summary>
+        [JsonPropertyName("occurredAt")]
+        public DateTime? OccurredAt { get; set; }
+
         /// <summary>
         /// Comment ID (0 for create, >0 for update)
         /// </summary>

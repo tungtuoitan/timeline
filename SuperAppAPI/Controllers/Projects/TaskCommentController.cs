@@ -32,14 +32,14 @@ namespace SuperAppAPI.Controllers.Projects
         [HttpGet]
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public async Task<IActionResult> GetComments([FromQuery] int taskId)
+        public async Task<IActionResult> GetComments([FromQuery] int taskId, [FromQuery] string? type = null)
         {
             var userId = GetUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
 
             _logger.LogInformation("Getting comments for taskId: {TaskId}, userId: {UserId}", taskId, userId.Value);
 
-            var response = await _service.GetCommentsByTaskIdAsync(taskId, userId.Value);
+            var response = await _service.GetCommentsByTaskIdAsync(taskId, userId.Value, type);
             return Ok(response);
         }
 

@@ -28,7 +28,7 @@ namespace SuperAppDataRepositories.Repositories
         /// Get all non-deleted comments for a task, ordered by creation date ASC.
         /// Validates task belongs to user via project ownership.
         /// </summary>
-        public async Task<ResultOptions> GetCommentsByTaskIdAsync(int taskId, int userId)
+        public async Task<ResultOptions> GetCommentsByTaskIdAsync(int taskId, int userId, List<string>? types = null)
         {
             try
             {
@@ -53,10 +53,16 @@ namespace SuperAppDataRepositories.Repositories
                     };
                 }
 
-                var comments = await _context.TaskComments
+                var query = _context.TaskComments
                     .AsNoTracking()
-                    .Where(c => c.TaskId == taskId && c.DeletedAt == null)
-                    .OrderBy(c => c.CreatedAt)
+                    .Where(c => c.TaskId == taskId && c.DeletedAt == null);
+                if (types?.Count > 0)
+                    query = query.Where(c => types.Contains(c.Type));
+
+                // Order by when it happened (occurred_at), falling back to created_at
+                var comments = await query
+                    .OrderBy(c => c.OccurredAt ?? c.CreatedAt)
+                    .ThenBy(c => c.Id)
                     .ToListAsync();
 
                 _logger.LogInformation("Retrieved {Count} comments for taskId: {TaskId}", comments.Count, taskId);
@@ -120,7 +126,10 @@ namespace SuperAppDataRepositories.Repositories
                         }
 
                         existing.Content = comment.Content;
+                        if (!string.IsNullOrEmpty(comment.Type)) existing.Type = comment.Type;
+                        if (comment.OccurredAt.HasValue) existing.OccurredAt = comment.OccurredAt;
                         existing.UpdatedAt = VietnamDateTime.Now();
+                        comment = existing;
                     }
 
                     await _context.SaveChangesAsync();

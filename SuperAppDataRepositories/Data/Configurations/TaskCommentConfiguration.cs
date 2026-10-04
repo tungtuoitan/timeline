@@ -35,6 +35,15 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("user_id")
                 .IsRequired();
 
+            builder.Property(c => c.Type)
+                .HasColumnName("type")
+                .HasMaxLength(20)
+                .HasDefaultValue(TaskCommentTypes.Comment)
+                .IsRequired();
+
+            builder.Property(c => c.OccurredAt)
+                .HasColumnName("occurred_at");
+
             builder.Property(c => c.CreatedAt)
                 .HasColumnName("created_at")
                 .HasDefaultValueSql("SYSDATETIME()");
@@ -47,6 +56,7 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasColumnName("deleted_at");
 
             builder.HasIndex(c => c.TaskId);
+            builder.HasIndex(c => new { c.TaskId, c.Type });
             builder.HasIndex(c => c.ParentCommentId);
         }
     }

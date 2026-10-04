@@ -5,7 +5,7 @@ namespace SuperAppDataRepositories.Ins
 {
     public interface ITaskCommentRepository
     {
-        Task<ResultOptions> GetCommentsByTaskIdAsync(int taskId, int userId);
+        Task<ResultOptions> GetCommentsByTaskIdAsync(int taskId, int userId, List<string>? types = null);
         Task<ResultOptions> UpsertCommentAsync(TaskComment comment);
         Task<ResultOptions> DeleteCommentAsync(int commentId, int userId);
     }

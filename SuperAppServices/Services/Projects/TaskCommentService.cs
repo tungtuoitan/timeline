@@ -27,12 +27,20 @@ namespace SuperAppServices.Services.Projects
             _ownership = ownership ?? throw new ArgumentNullException(nameof(ownership));
         }
 
-        public async Task<ResultOptions> GetCommentsByTaskIdAsync(int taskId, int userId)
+        public async Task<ResultOptions> GetCommentsByTaskIdAsync(int taskId, int userId, string? type = null)
         {
             try
             {
-                _logger.LogInformation("Getting comments for taskId: {TaskId}", taskId);
-                return await _repository.GetCommentsByTaskIdAsync(taskId, userId);
+                _logger.LogInformation("Getting comments for taskId: {TaskId}, type: {Type}", taskId, type);
+                List<string>? types = null;
+                if (!string.IsNullOrWhiteSpace(type))
+                {
+                    types = type.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct().ToList();
+                    var unknown = types.Where(t => !TaskCommentTypes.All.Contains(t)).ToList();
+                    if (unknown.Any())
+                        return new ResultOptions { Success = false, Message = $"Unknown comment type(s): {string.Join(", ", unknown)}", Status = 400 };
+                }
+                return await _repository.GetCommentsByTaskIdAsync(taskId, userId, types);
             }
             catch (Exception ex)
             {
@@ -62,6 +70,9 @@ namespace SuperAppServices.Services.Projects
                 if (request.ParentCommentId.HasValue && !await _ownership.CommentOnTaskAsync(request.ParentCommentId.Value, request.TaskId))
                     return OwnershipGuard.Denied("Parent comment");
 
+                if (request.Type != null && !TaskCommentTypes.All.Contains(request.Type))
+                    return new ResultOptions { Success = false, Message = $"Unknown comment type: {request.Type}", Status = 400 };
+
                 var comment = new TaskComment
                 {
                     Id = request.Id,
@@ -69,6 +80,9 @@ namespace SuperAppServices.Services.Projects
                     ParentCommentId = request.ParentCommentId,
                     Content = request.Content,
                     UserId = userId,
+                    // Update: empty Type = keep existing (repository); create: default "comment"
+                    Type = request.Type ?? (request.Id == 0 ? TaskCommentTypes.Comment : string.Empty),
+                    OccurredAt = request.OccurredAt,
                 };
 
                 return await _repository.UpsertCommentAsync(comment);
