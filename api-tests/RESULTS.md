@@ -4,9 +4,9 @@
 
 > File SINH TỰ ĐỘNG bởi `node run-tests.js` (chạy cả bộ) — không sửa tay.
 
-- Thời điểm: 2026-10-05T00:51:43.958Z
+- Thời điểm: 2026-10-05T02:11:47.392Z
 - BE: http://localhost:5000
-- Kết quả: **45/45 pass**
+- Kết quả: **56/56 pass**
 
 | Kết quả | Case | File | Lỗi |
 |---|---|---|---|
@@ -55,3 +55,14 @@
 | ✅ | Flow06#7: B PATCH task A -> HTTP 404; B chuyển task mình sang project A (#7.1) / gán cha task A (#7.2) -> 404 | flows/06-ownership/06-1-cross-user-isolation.test.js |  |
 | ✅ | Flow06#8: B hard-delete task A -> 404, task A còn | flows/06-ownership/06-1-cross-user-isolation.test.js |  |
 | ✅ | Flow06#9: B đọc (#9.1) / comment (#9.2) / sửa (#9.3) / xoá (#9.4) comment trên task A -> bị chặn, comment A nguyên vẹn | flows/06-ownership/06-1-cross-user-isolation.test.js |  |
+| ✅ | Flow07#1: thêm link vào task chưa có folder -> BE tạo folder, link nằm trong đó | flows/07-links/07-1-task-links.test.js |  |
+| ✅ | Flow07#2: link hiện ngay trong tree/v2 (không đợi cache) | flows/07-links/07-1-task-links.test.js |  |
+| ✅ | Flow07#3: url không hợp lệ -> 400, không tạo gì | flows/07-links/07-1-task-links.test.js |  |
+| ✅ | Flow07#4: không truyền name -> name = host + path | flows/07-links/07-1-task-links.test.js |  |
+| ✅ | Flow07#5: gắn item có sẵn (note) của cùng workspace, gắn lại không trùng | flows/07-links/07-1-task-links.test.js |  |
+| ✅ | Flow07#6: link tạo bằng workspace batch trong folder task cũng có trong task links | flows/07-links/07-1-task-links.test.js |  |
+| ✅ | Flow07#7: xoá link -> link trong folder bị soft delete, item có sẵn chỉ bỏ gắn | flows/07-links/07-1-task-links.test.js |  |
+| ✅ | Flow07#8: đổi tên + url link qua PATCH /api/file/{id} | flows/07-links/07-2-project-links-file.test.js |  |
+| ✅ | Flow07#9: link project nằm trong folder Links ở gốc workspace, xoá = soft delete | flows/07-links/07-2-project-links-file.test.js |  |
+| ✅ | Flow07#10: hard delete task có link -> folder + link biến mất khỏi tree | flows/07-links/07-2-project-links-file.test.js |  |
+| ✅ | Flow07#11: B không đọc/thêm/xoá link, không sửa file, không batch vào workspace của A | flows/07-links/07-3-ownership.test.js |  |
