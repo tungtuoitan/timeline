@@ -60,6 +60,14 @@ PRINT CONCAT(N'project: ', @@ROWCOUNT);
 DELETE FROM ws.workspaces WHERE id IN (SELECT id FROM #w); -- workspace_items: ON DELETE CASCADE
 PRINT CONCAT(N'workspaces: ', @@ROWCOUNT);
 
+-- fin_transaction (#1482) — không có FK, dọn theo user_id; giá test dùng asset 'TST_%'
+IF OBJECT_ID('pro.fin_transaction') IS NOT NULL
+    DELETE FROM pro.fin_transaction WHERE user_id IN (SELECT id FROM #u);
+PRINT CONCAT(N'fin_transaction: ', @@ROWCOUNT);
+IF OBJECT_ID('pro.fin_price_cache') IS NOT NULL
+    DELETE FROM pro.fin_price_cache WHERE asset LIKE 'TST[_]%';
+PRINT CONCAT(N'fin_price_cache (TST_*): ', @@ROWCOUNT);
+
 -- users: Keywords, refresh_tokens, user_profiles đều ON DELETE CASCADE
 DELETE FROM urm.users WHERE id IN (SELECT id FROM #u);
 PRINT CONCAT(N'users: ', @@ROWCOUNT);

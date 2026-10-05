@@ -15,6 +15,8 @@
  */
 
 async function cleanupSession(s) {
+  for (const id of s.tracked.finTransactions ?? []) await s.call('DELETE', `/api/finance/transactions/${id}`).catch(() => {});
+
   const tracked = [...s.tracked.tasks];
   for (let i = 0; i < tracked.length; i += 200) {
     const chunk = tracked.slice(i, i + 200);

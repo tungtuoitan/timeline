@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SuperAppModels.Models;
 using SuperAppModels.Models.DailyLog;
@@ -63,6 +63,10 @@ namespace SuperAppDataRepositories.Data
         // DailyLog Tables (pro schema)
         public DbSet<SuperAppModels.Models.DailyLog.DailyLog> DailyLogs { get; set; }
         public DbSet<DailyLogFieldTemplate> DailyLogFieldTemplates { get; set; }
+
+        // Finance Tables (pro schema)
+        public DbSet<SuperAppModels.Models.Finance.FinTransaction> FinTransactions { get; set; }
+        public DbSet<SuperAppModels.Models.Finance.FinPrice> FinPrices { get; set; }
 
         // Wiki Tables (wiki schema)
         public DbSet<WikiKeyword> WikiKeywords { get; set; }

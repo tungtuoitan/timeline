@@ -4,9 +4,9 @@
 
 > File SINH TỰ ĐỘNG bởi `node run-tests.js` (chạy cả bộ) — không sửa tay.
 
-- Thời điểm: 2026-10-05T02:11:47.392Z
+- Thời điểm: 2026-10-05T15:06:24.655Z
 - BE: http://localhost:5000
-- Kết quả: **56/56 pass**
+- Kết quả: **74/74 pass**
 
 | Kết quả | Case | File | Lỗi |
 |---|---|---|---|
@@ -66,3 +66,21 @@
 | ✅ | Flow07#9: link project nằm trong folder Links ở gốc workspace, xoá = soft delete | flows/07-links/07-2-project-links-file.test.js |  |
 | ✅ | Flow07#10: hard delete task có link -> folder + link biến mất khỏi tree | flows/07-links/07-2-project-links-file.test.js |  |
 | ✅ | Flow07#11: B không đọc/thêm/xoá link, không sửa file, không batch vào workspace của A | flows/07-links/07-3-ownership.test.js |  |
+| ✅ | Flow08#1: activity đếm devlog/comment/decision theo (tuần, project), bỏ track | flows/08-dashboard/08-1-activity-habits.test.js |  |
+| ✅ | Flow08#1.1: ranh giới tuần theo giờ VN (T2 00:30 +07 thuộc tuần mới) | flows/08-dashboard/08-1-activity-habits.test.js |  |
+| ✅ | Flow08#1.2: types=track chỉ đếm track | flows/08-dashboard/08-1-activity-habits.test.js |  |
+| ✅ | Flow08#1.3: from > to, type lạ -> HTTP 400 | flows/08-dashboard/08-1-activity-habits.test.js |  |
+| ✅ | Flow08#2: habits mặc định chỉ repeat, entry track+comment theo ngày VN | flows/08-dashboard/08-1-activity-habits.test.js |  |
+| ✅ | Flow08#2.1: taskIds= task thường | flows/08-dashboard/08-1-activity-habits.test.js |  |
+| ✅ | Flow08#2.2: excludeTaskIds bỏ tracker | flows/08-dashboard/08-1-activity-habits.test.js |  |
+| ✅ | Flow08#2.3: taskIds=abc -> HTTP 400 | flows/08-dashboard/08-1-activity-habits.test.js |  |
+| ✅ | Flow08#3: user B không thấy activity/tracker của A | flows/08-dashboard/08-1-activity-habits.test.js |  |
+| ✅ | Flow08#4: POST lô giao dịch -> chèn hết; gửi lại y nguyên -> unchanged, không nhân đôi | flows/08-dashboard/08-2-finance.test.js |  |
+| ✅ | Flow08#4.1: sửa tay category rồi nguồn gửi lại số mới -> cập nhật số, giữ category | flows/08-dashboard/08-2-finance.test.js |  |
+| ✅ | Flow08#4.2: dữ liệu sai -> HTTP 400, báo đúng dòng | flows/08-dashboard/08-2-finance.test.js |  |
+| ✅ | Flow08#5: GET lọc kind / account / uncategorized / from-to | flows/08-dashboard/08-2-finance.test.js |  |
+| ✅ | Flow08#6: summary — tài sản ròng theo ngày (giá carry-forward), tháng tách chi tiêu/đầu tư | flows/08-dashboard/08-2-finance.test.js |  |
+| ✅ | Flow08#6.1: summary interval=week / tham số sai -> HTTP 400 | flows/08-dashboard/08-2-finance.test.js |  |
+| ✅ | Flow08#7: giá — latest theo (asset, quote); giá <= 0 -> HTTP 400 | flows/08-dashboard/08-2-finance.test.js |  |
+| ✅ | Flow08#8: user B không thấy / không sửa / không xoá được giao dịch của A | flows/08-dashboard/08-2-finance.test.js |  |
+| ✅ | Flow08#9: DELETE -> biến mất khỏi list; xoá lại -> HTTP 404 | flows/08-dashboard/08-2-finance.test.js |  |
