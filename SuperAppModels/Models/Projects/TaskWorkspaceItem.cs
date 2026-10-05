@@ -3,8 +3,8 @@ using System.Text.Json.Serialization;
 namespace SuperAppModels.Models
 {
     /// <summary>
-    /// Links a task to workspace items (folders/notes)
-    /// Maps to pro.TaskWorkspaceItem table
+    /// Links a task to workspace items (folders/notes/files/links)
+    /// Maps to pro.task_workspace_item
     /// </summary>
     public class TaskWorkspaceItem
     {
@@ -18,7 +18,7 @@ namespace SuperAppModels.Models
         public int WorkspaceItemId { get; set; }
 
         /// <summary>
-        /// 2 = Folder, 3 = Note
+        /// entity_type of the linked workspace item: 2 = Folder, 3 = Note, 4 = File/link (#1477)
         /// </summary>
         [JsonPropertyName("itemType")]
         public int ItemType { get; set; }

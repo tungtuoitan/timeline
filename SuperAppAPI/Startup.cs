@@ -240,6 +240,7 @@ namespace SuperAppAPI
             services.AddScoped<SuperAppServices.Interfaces.DailyLog.IDailyLogTemplateService, SuperAppServices.Services.DailyLog.DailyLogTemplateService>();
             services.AddScoped<SuperAppServices.Interfaces.ITaskService, TaskService>();
             services.AddScoped<SuperAppServices.Interfaces.ITaskCommentService, TaskCommentService>();
+            services.AddScoped<SuperAppServices.Interfaces.ILinkService, LinkService>();
             services.AddScoped<SuperAppServices.Interfaces.IFlowService, FlowService>();
             services.AddScoped<SuperAppServices.Interfaces.ILifeLogService, LifeLogService>();
             services.AddScoped<SuperAppServices.Interfaces.IWikiService, WikiService>();

@@ -4,6 +4,7 @@ using SuperAppModels.Models;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
+using SuperAppModels.Helpers;
 using SuperAppDataRepositories.Data;
 using SuperAppServices.Interfaces;
 using SuperAppServices.Services.Keywords;
@@ -64,6 +65,12 @@ namespace SuperAppServices.Services.Workspaces
 
                     if (!HasEntityData(request))
                         return $"Create action requires entity data for EntityType {request.EntityType}";
+
+                    // Link (#1477): FE opens the url in a new tab — only absolute http/https
+                    if (request.EntityType.Value == LinkRules.EntityTypeFile
+                        && LinkRules.IsLink(request.FileData!.MimeType)
+                        && !LinkRules.IsValidUrl(request.FileData.Url))
+                        return "Link url must be an absolute http/https URL";
 
                     return null;
 

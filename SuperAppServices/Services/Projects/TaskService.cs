@@ -4,6 +4,7 @@ using SuperAppDataRepositories.Data;
 using SuperAppDataRepositories.Ins;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
+using SuperAppModels.Helpers;
 using SuperAppModels.Models;
 using SuperAppServices.Interfaces;
 using SuperAppServices.Services.Keywords;
@@ -371,6 +372,17 @@ namespace SuperAppServices.Services.Projects
                     _context.Notes.RemoveRange(notes);
                 }
 
+                // 10b. Hard-delete link files in the task folder (#1477) — a link is only a url row,
+                //      nothing on Drive. Uploaded files are kept (their Drive content is not removed here).
+                //      pro.task_workspace_item rows go with the task / workspace items (FK ON DELETE CASCADE).
+                var fileEntityIds = allWsItems.Where(i => i.EntityType == LinkRules.EntityTypeFile).Select(i => i.EntityId).Distinct().ToList();
+                if (fileEntityIds.Any())
+                {
+                    var linkFiles = await _context.Files
+                        .Where(f => fileEntityIds.Contains(f.Id) && f.MimeType == LinkRules.MimeType)
+                        .ToListAsync();
+                    _context.Files.RemoveRange(linkFiles);
+                }
 
                 // 11. Detach child tasks that reference any of the tasks being deleted
                 var childTasks = await _context.ProTasks
