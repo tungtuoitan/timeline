@@ -3,7 +3,7 @@
   "private": true,
   "description": "API test cho project/task/comment (SuperApp task #1471) — chạy với BE local trỏ SuperApp-dev",
   "scripts": {
-    "test": "node --test --test-concurrency=1 \"flows/**/*.test.js\""
+    "test": "node run-tests.js"
   },
   "engines": {
     "node": ">=20"

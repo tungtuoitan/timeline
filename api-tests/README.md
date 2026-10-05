@@ -2,30 +2,56 @@
 
 **Fullpath:** /api-tests/README.md
 
-Test tích hợp gọi BE thật (SuperApp task #1471), viết theo mẫu `testcase.md` + `node:test` của
-#113. Mỗi `flows/NN-*/` có `testcase.md` (bảng case, cột Pass) và `NN-*.test.js`.
+Test tích hợp gọi BE thật (SuperApp task #1471). Cấu trúc theo harness của #113 (repo `ai`,
+skill `task-testing`), có điều chỉnh: test nằm trong repo code (version cùng BE, gắn CI được),
+mỗi file test dùng user riêng (không va chạm data), trạng thái chỉ ghi ở `RESULTS.md` sinh tự động.
+
+## Cấu trúc
+
+```
+api-tests/
+├── run-tests.js            chạy test (có lọc) + sinh RESULTS.md
+├── RESULTS.md              kết quả lần chạy cả bộ gần nhất — SINH TỰ ĐỘNG, không sửa tay
+├── _lib/                   harness dùng chung
+│   ├── dataManager.js      facade: newSession(tag) -> user test + mọi hàm domain bind sẵn
+│   ├── auth.js · project.js · task.js · comment.js   1 file / domain, JSDoc Preconditions/Side-effects
+│   ├── cleanupData.js      dọn data của session trong after()
+│   ├── verify.js           assert dùng chung (ok, assertFail, assertDenied, ISO_WITH_OFFSET...)
+│   ├── http.js · config.js
+├── _cases/_TEMPLATE.js     khung 1 file test mới
+├── _scripts/cleanup-test-data-by-prefix.sql   dọn TOÀN BỘ data test còn sót trên SuperApp-dev
+└── flows/<NN>-<flow>/
+    ├── testcase.md         bảng case: # · mô tả · kỳ vọng · file test
+    └── <NN>-<group>-<slug>.test.js   1 file = 1 nhóm case cùng hành vi
+```
 
 ## Chạy
 
-1. BE local trỏ **SuperApp-dev** trên `http://localhost:5000` (`dotnet run --project SuperAppAPI`).
-   Máy không vào thẳng được `157.66.101.51:1433` → mở tunnel
-   `ssh -N -L 14330:127.0.0.1:1433 vps-superapp` và cho BE dùng `Server=127.0.0.1,14330`
-   (password `sa` lấy qua `secret run -e ...=vps/sql_server.sa_password`, xem skill `find-credential`).
-2. Chạy test (Node ≥ 20, không cần `npm install`):
+1. BE local trỏ **SuperApp-dev** ở `http://localhost:5000`. Máy không vào thẳng được
+   `157.66.101.51:1433` → mở tunnel `ssh -N -L 14331:127.0.0.1:1433 vps-superapp`, cho BE dùng
+   `Server=127.0.0.1,14331` với password lấy qua
+   `secret run -e ...=vps/sql_server.sa_password` (skill `find-credential` — không ghi pass ra file).
+2. Chạy (Node ≥ 20, không cần `npm install`):
 
    ```bash
-   node --test --test-concurrency=1 "flows/**/*.test.js"
+   node run-tests.js          # cả bộ -> ghi RESULTS.md
+   node run-tests.js 03 05-2  # lọc theo đường dẫn (không ghi RESULTS.md)
    ```
 
-- Mỗi lần chạy tự signup user `apitest+<run>-<tag>@test.local` (password ngẫu nhiên, chỉ trong RAM)
-  → không đụng data thật. Cuối file: hard-delete task, soft-delete project.
-- `SA_API_URL` đổi base URL; mặc định chặn mọi host không phải localhost (tránh chạy nhầm prod).
+3. Dọn data còn sót (user test, workspace, project đã soft delete, lịch sử temporal — API không
+   xoá được những thứ này). Mặc định dry-run + rollback; `APPLY=1` mới xoá:
 
-## Checklist tổng (lần chạy 2026-10-05 trên SuperApp-dev: 66/66 pass)
+   ```bash
+   secret run -e SQLCMDPASSWORD=vps/sql_server.sa_password -- sqlcmd -S 127.0.0.1,14331 -U sa -C -I -b \
+     -d SuperApp-dev -v APPLY=0 -i _scripts/cleanup-test-data-by-prefix.sql
+   ```
 
-- [x] 01 Project — tạo (workspace tự tạo, userId từ JWT), validate, update, batch, filter, soft delete/restore
-- [x] 02 Task upsert — default, ngày có offset, batch all-or-nothing, description null/""/note, task con, filter
-- [x] 03 Task PATCH — chỉ ghi field gửi lên, `clearFields`, validate, đổi project/parent, ngày ISO→ngày user, 1468
-- [x] 04 Task hard delete — xoá comment, giữ task con (parent=null), giới hạn 1–200 id, lô lỗi không xoá gì
-- [x] 05 Comment — type, filter, occurredAt (bắt buộc offset) + thứ tự, sửa, reply, xoá lan reply (bug message "Comment created" tìm ra & đã sửa)
-- [x] 06 Ownership — user B không đọc/sửa/xoá được project/task/comment của user A
+## Quy ước
+
+- Data test: mọi user có email `apitest+<run>-<tag>@test.local` — đó là "prefix" để dọn; mọi
+  data khác đều thuộc các user này nên không bao giờ đụng data thật.
+- Tạo và assert đều qua API (như FE / `superapp.py`), không đọc DB — test không dính schema.
+- Tên test bắt đầu bằng `Flow<NN>#<case>` khớp cột `#` của `testcase.md`.
+- Chỉ tự động hoá hành vi đáng giá: nhiều bước, nhiều nhánh, rule bảo mật/ownership, dễ hồi quy
+  âm thầm. Thứ test tay vài giây là thấy thì không cần.
+- `config.js` chặn chạy vào host không phải localhost (tránh tạo rác trên prod).
