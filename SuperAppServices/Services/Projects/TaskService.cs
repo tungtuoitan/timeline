@@ -317,7 +317,11 @@ namespace SuperAppServices.Services.Projects
                 var comments = await _context.TaskComments
                     .Where(c => taskIds.Contains(c.TaskId))
                     .ToListAsync();
+                // Persist the null-out first: once an entity is marked Deleted, EF sends only the
+                // DELETE, so a parent removed before its reply hits FK_task_comment_parent.
                 foreach (var c in comments) c.ParentCommentId = null;
+                if (comments.Any(c => _context.Entry(c).Property(x => x.ParentCommentId).IsModified))
+                    await _context.SaveChangesAsync();
                 _context.TaskComments.RemoveRange(comments);
 
                 // 5. Delete task checklist history
