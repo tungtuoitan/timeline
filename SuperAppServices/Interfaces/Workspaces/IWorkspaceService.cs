@@ -78,5 +78,11 @@ namespace SuperAppServices.Interfaces
         /// <param name="userId">User ID for access validation</param>
         /// <returns>Result options with upserted items</returns>
         Task<ResultOptions> UpsertWorkspaceItemsAsync(List<UpsertWorkspaceItemRequest> requests, int userId);
+
+        /// <summary>
+        /// Drop the cached tree/v2 of a workspace — call after changing its items outside this service
+        /// (batch upsert, move-cross, links).
+        /// </summary>
+        void InvalidateTreeCache(int workspaceId, int userId);
     }
 }

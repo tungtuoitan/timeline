@@ -6,6 +6,7 @@ using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests;
 using SuperAppModels.DTOs.Responses;
 using SuperAppServices.Interfaces;
+using SuperAppServices.Services.Projects;
 using SuperAppModels.Time;
 
 namespace SuperAppAPI.Controllers.Workspaces
@@ -20,13 +21,16 @@ namespace SuperAppAPI.Controllers.Workspaces
     {
         private readonly IWorkspaceService _workspaceService;
         private readonly IWorkspaceItemService _workspaceItemService;
+        private readonly OwnershipGuard _ownership;
         private readonly ILogger<WorkspaceController> _logger;
 
         public WorkspaceController(
             IWorkspaceService workspaceService,
             IWorkspaceItemService workspaceItemService,
+            OwnershipGuard ownership,
             ILogger<WorkspaceController> logger)
         {
+            _ownership = ownership ?? throw new ArgumentNullException(nameof(ownership));
             _workspaceService = workspaceService ?? throw new ArgumentNullException(nameof(workspaceService));
             _workspaceItemService = workspaceItemService ?? throw new ArgumentNullException(nameof(workspaceItemService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -386,6 +390,13 @@ namespace SuperAppAPI.Controllers.Workspaces
 
             var userEmail = GetUserEmail();
 
+            // 3b. Ownership (#1477): target workspace + every existing item touched by the batch
+            var touchedItemIds = requests.Where(r => r.Id.HasValue && r.Id.Value > 0).Select(r => r.Id!.Value)
+                .Concat(requests.Where(r => r.ParentId.HasValue && r.ParentId.Value > 0).Select(r => r.ParentId!.Value));
+            if (!await _ownership.WorkspacesOwnedAsync(userId.Value, new[] { workspaceId })
+                || !await _ownership.WorkspaceItemsOwnedAsync(userId.Value, touchedItemIds))
+                return StatusCode(404, OwnershipGuard.Denied("Workspace"));
+
             // 4. Set workspaceId, userId, and CreatedBy for all requests
             foreach (var request in requests)
             {
@@ -411,6 +422,10 @@ namespace SuperAppAPI.Controllers.Workspaces
                 "Batch workspace items completed for workspace: {WorkspaceId}, user: {UserId}, Success: {Success}",
                 workspaceId, userId.Value, response.Success);
 
+            // tree/v2 is cached 60s — without this a new item shows up late on the next load
+            if (response.Success)
+                _workspaceService.InvalidateTreeCache(workspaceId, userId.Value);
+
             return Ok(response);
         }
 
@@ -432,7 +447,16 @@ namespace SuperAppAPI.Controllers.Workspaces
                 "Moving {Count} item(s) from workspace {WorkspaceId} to workspace {TargetWorkspaceId}",
                 request.ItemIds.Count, workspaceId, request.TargetWorkspaceId);
 
+            if (!await _ownership.WorkspacesOwnedAsync(userId.Value, new[] { workspaceId, request.TargetWorkspaceId })
+                || !await _ownership.WorkspaceItemsOwnedAsync(userId.Value, request.ItemIds))
+                return StatusCode(404, OwnershipGuard.Denied("Workspace"));
+
             var result = await _workspaceItemService.MoveCrossAsync(request, userId.Value);
+            if (result.Success)
+            {
+                _workspaceService.InvalidateTreeCache(workspaceId, userId.Value);
+                _workspaceService.InvalidateTreeCache(request.TargetWorkspaceId, userId.Value);
+            }
             return result.Success ? Ok(result) : StatusCode(result.Status ?? 500, result);
         }
     }

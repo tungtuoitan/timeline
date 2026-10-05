@@ -48,6 +48,8 @@ namespace SuperAppServices.Services.Workspaces
             _cache.Remove(TreeV2CacheKey(workspaceId, userId));
         }
 
+        public void InvalidateTreeCache(int workspaceId, int userId) => InvalidateTreeV2(workspaceId, userId);
+
         /// <summary>
         /// Gets all workspaces for a user with optional filters
         /// </summary>
