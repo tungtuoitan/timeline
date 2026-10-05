@@ -217,6 +217,7 @@ namespace SuperAppAPI
             services.AddScoped<IFlowRepository, FlowRepository>();
             services.AddScoped<ILifeLogRepository, LifeLogRepository>();
             services.AddScoped<IWikiRepository, WikiRepository>();
+            services.AddScoped<SuperAppDataRepositories.Ins.Dashboard.IDashboardRepository, SuperAppDataRepositories.Repositories.Dashboard.DashboardRepository>();
 
             // Services
             services.AddScoped<SuperAppServices.Interfaces.IWorkspaceService, WorkspaceService>();
@@ -244,6 +245,7 @@ namespace SuperAppAPI
             services.AddScoped<SuperAppServices.Interfaces.IFlowService, FlowService>();
             services.AddScoped<SuperAppServices.Interfaces.ILifeLogService, LifeLogService>();
             services.AddScoped<SuperAppServices.Interfaces.IWikiService, WikiService>();
+            services.AddScoped<SuperAppServices.Interfaces.Dashboard.IDashboardService, SuperAppServices.Services.Dashboard.DashboardService>();
             services.AddScoped<SuperAppServices.Interfaces.IGoogleDriveService, GoogleDriveService>();
             services.AddScoped<SuperAppServices.Interfaces.IFileService, FileService>();
             services.AddSingleton<SuperAppServices.Interfaces.IClaudibleService, ClaudibleService>();

@@ -11,6 +11,7 @@
  *   - comment               -> comment.js
  *   - workspace (tree/batch) -> workspace.js
  *   - link task/project     -> link.js
+ *   - dashboard             -> dashboard.js
  *   - dọn data              -> cleanupData.js
  *   - Domain MỚI (vd workspace, keyword): tạo file mới trong _lib/, thêm vào DOMAINS bên dưới.
  * JSDoc (Preconditions / Side-effects) nằm ở từng module — đọc ở đó trước khi viết case.
@@ -30,7 +31,7 @@ const { request } = require('./http');
 const { signupUser } = require('./auth');
 const { cleanupSession } = require('./cleanupData');
 
-const DOMAINS = [require('./project'), require('./task'), require('./comment'), require('./workspace'), require('./link')];
+const DOMAINS = [require('./project'), require('./task'), require('./comment'), require('./workspace'), require('./link'), require('./dashboard')];
 
 /**
  * Tạo session = 1 user test mới + mọi hàm domain đã bind sẵn user đó.
