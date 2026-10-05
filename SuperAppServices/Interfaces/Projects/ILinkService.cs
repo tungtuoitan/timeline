@@ -13,6 +13,8 @@ namespace SuperAppServices.Interfaces
         Task<ResultOptions> GetTaskLinksAsync(int taskId, int userId);
         Task<ResultOptions> AddTaskLinkAsync(int taskId, AddLinkRequest request, int userId, string? userEmail);
         Task<ResultOptions> RemoveTaskLinkAsync(int taskId, int workspaceItemId, int userId, string? userEmail);
+        /// <summary>Task folder id, created when missing (a new note of the task goes there).</summary>
+        Task<ResultOptions> GetOrCreateTaskFolderAsync(int taskId, int userId, string? userEmail);
 
         Task<ResultOptions> GetProjectLinksAsync(int projectId, int userId);
         Task<ResultOptions> AddProjectLinkAsync(int projectId, AddLinkRequest request, int userId, string? userEmail);

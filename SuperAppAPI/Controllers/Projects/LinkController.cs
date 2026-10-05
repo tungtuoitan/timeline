@@ -41,6 +41,12 @@ namespace SuperAppAPI.Controllers.Projects
         public Task<IActionResult> RemoveTaskLink(int taskId, int workspaceItemId) =>
             Run(userId => _linkService.RemoveTaskLinkAsync(taskId, workspaceItemId, userId, GetUserEmail()));
 
+        /// <summary>Task folder of the task (created when missing) — the FE places new task notes there (task #1487).</summary>
+        [HttpPost("task/{taskId:int}/folder")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        public Task<IActionResult> GetOrCreateTaskFolder(int taskId) =>
+            Run(userId => _linkService.GetOrCreateTaskFolderAsync(taskId, userId, GetUserEmail()));
+
         /// <summary>Links of a project: links in the "Links" folder at the root of its workspace.</summary>
         [HttpGet("project/{projectId:int}/links")]
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]

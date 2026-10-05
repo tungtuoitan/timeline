@@ -155,6 +155,30 @@ namespace SuperAppServices.Services.Projects
             return new ResultOptions { Success = true, Message = "Link removed", Status = 200 };
         }
 
+        public async Task<ResultOptions> GetOrCreateTaskFolderAsync(int taskId, int userId, string? userEmail)
+        {
+            if (!await _ownership.TasksOwnedAsync(userId, new[] { taskId }))
+                return OwnershipGuard.Denied("Task");
+
+            var task = await _context.ProTasks.FirstAsync(t => t.Id == taskId);
+            var workspaceId = await ProjectWorkspaceIdAsync(task.ProjectId);
+            if (!workspaceId.HasValue)
+                return Fail(400, "Project of this task has no workspace");
+
+            var folderId = await EnsureTaskFolderAsync(task, workspaceId.Value, userId, userEmail);
+            if (folderId == null)
+                return Fail(500, "Could not create the task folder");
+
+            _workspaceService.InvalidateTreeCache(workspaceId.Value, userId);
+            return new ResultOptions
+            {
+                Success = true,
+                Message = "Task folder ready",
+                Status = 200,
+                Object = new { folderWorkspaceItemId = folderId.Value, workspaceId = workspaceId.Value }
+            };
+        }
+
         // ============================================================= project links
 
         public async Task<ResultOptions> GetProjectLinksAsync(int projectId, int userId)
