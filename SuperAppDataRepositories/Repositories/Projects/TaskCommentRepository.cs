@@ -99,7 +99,9 @@ namespace SuperAppDataRepositories.Repositories
 
                 try
                 {
-                    if (comment.Id == 0)
+                    // Captured before SaveChanges assigns the new Id
+                    var isNew = comment.Id == 0;
+                    if (isNew)
                     {
                         // CREATE
                         _logger.LogInformation("Creating comment for taskId: {TaskId}", comment.TaskId);
@@ -139,7 +141,7 @@ namespace SuperAppDataRepositories.Repositories
                     return new ResultOptions
                     {
                         Success = true,
-                        Message = comment.Id == 0 ? "Comment created" : "Comment updated",
+                        Message = isNew ? "Comment created" : "Comment updated",
                         Data = new List<object> { comment },
                         Status = 200
                     };
