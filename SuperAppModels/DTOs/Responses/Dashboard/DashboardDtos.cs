@@ -54,6 +54,10 @@ namespace SuperAppModels.DTOs.Responses.Dashboard
         [JsonPropertyName("date")]
         public DateOnly Date { get; set; }
 
+        /// <summary>The instant itself (occurredAt ?? createdAt) — time of day matters for check-ins (#1481).</summary>
+        [JsonPropertyName("at")]
+        public DateTime At { get; set; }
+
         [JsonPropertyName("type")]
         public string Type { get; set; } = string.Empty;
 

@@ -77,6 +77,7 @@ test('Flow08#2: habits mặc định chỉ repeat, entry track+comment theo ngà
     [['2026-09-29', 'track'], ['2026-09-30', 'comment'], ['2026-10-02', 'track']],
   );
   assert.equal(h.entries[1].content, 'Mưa, không chạy');
+  assert.equal(new Date(h.entries[0].at).toISOString(), '2026-09-28T23:30:00.000Z', 'at = instant (có offset) để biết giờ trong ngày');
 });
 
 test('Flow08#2.1: taskIds= task thường', async () => {

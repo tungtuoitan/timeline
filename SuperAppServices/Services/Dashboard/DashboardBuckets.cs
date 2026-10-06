@@ -107,6 +107,7 @@ namespace SuperAppServices.Services.Dashboard
                     {
                         CommentId = c.CommentId,
                         Date = toUserDate(c.At),
+                        At = c.At,
                         Type = c.Type,
                         Content = c.Content
                     }).ToList()

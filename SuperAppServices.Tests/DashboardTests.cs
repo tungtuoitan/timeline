@@ -96,6 +96,7 @@ namespace SuperAppServices.Tests
 
             Assert.Equal(new[] { 1460, 1458 }, series.Select(s => s.TaskId));
             Assert.Equal(new[] { new DateOnly(2026, 9, 28), new DateOnly(2026, 10, 2) }, series[0].Entries.Select(e => e.Date));
+            Assert.Equal(Utc(2026, 10, 1, 23), series[0].Entries[1].At); // instant kept for time-of-day
             Assert.Empty(series[1].Entries);
         }
     }

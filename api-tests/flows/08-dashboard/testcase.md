@@ -14,7 +14,7 @@
 | 1.1 | ↳ Ranh giới tuần theo giờ VN. | CN 23:30 (+07) thuộc tuần trước; T2 00:30 (+07) — dù UTC vẫn là CN — thuộc tuần mới. | [08-1-activity-habits](08-1-activity-habits.test.js) |
 | 1.2 | ↳ `types=track`. | Chỉ đếm track. | [08-1-activity-habits](08-1-activity-habits.test.js) |
 | 1.3 | ↳ `from > to`, type lạ. | HTTP 400. | [08-1-activity-habits](08-1-activity-habits.test.js) |
-| 2 | Habits mặc định. | Chỉ task `type=repeat`; entry gồm `track` + `comment` (không devlog), ngày theo giờ VN. | [08-1-activity-habits](08-1-activity-habits.test.js) |
+| 2 | Habits mặc định. | Chỉ task `type=repeat`; entry gồm `track` + `comment` (không devlog), ngày theo giờ VN, kèm `at` (thời điểm có offset). | [08-1-activity-habits](08-1-activity-habits.test.js) |
 | 2.1 | ↳ `taskIds=` task thường. | Trả đúng task đó (không cần là repeat). | [08-1-activity-habits](08-1-activity-habits.test.js) |
 | 2.2 | ↳ `excludeTaskIds=` tracker. | Tracker đó không có trong kết quả (dùng cho private mode). | [08-1-activity-habits](08-1-activity-habits.test.js) |
 | 2.3 | ↳ `taskIds=abc`. | HTTP 400. | [08-1-activity-habits](08-1-activity-habits.test.js) |
