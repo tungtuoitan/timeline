@@ -19,7 +19,9 @@ namespace SuperAppAPI
 
             if (File.Exists(envPath))
             {
-                Env.Load(envPath);
+                // NoClobber: biến môi trường đã có (secret run, systemd) thắng .env.
+                // .env dev chỉ chứa tham chiếu vault://, giá trị thật do tung-vault bơm vào (#1502).
+                Env.NoClobber().Load(envPath);
                 Console.WriteLine($"✓ Loaded .env file from: {envPath}");
             }
             else
@@ -28,6 +30,17 @@ namespace SuperAppAPI
                 Console.WriteLine($"  Searched in: {currentDir}");
                 if (Directory.GetParent(currentDir) != null)
                     Console.WriteLine($"  and: {Directory.GetParent(currentDir)?.FullName}");
+            }
+
+            var unresolved = Environment.GetEnvironmentVariables().Keys.Cast<string>()
+                .Where(k => (Environment.GetEnvironmentVariable(k) ?? "").StartsWith("vault://"))
+                .OrderBy(k => k)
+                .ToList();
+            if (unresolved.Count > 0)
+            {
+                Console.WriteLine($"✗ Secret chưa giải mã: {string.Join(", ", unresolved)}");
+                Console.WriteLine("  Chạy BE qua tung-vault: powershell -File scripts/run-dev.ps1");
+                Environment.Exit(1);
             }
 
             var logPath = Path.Combine(AppContext.BaseDirectory, "Logs", "superapp-.log");

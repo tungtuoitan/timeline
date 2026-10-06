@@ -61,7 +61,11 @@ Timeline/
 
 ### 1. Configure environment
 
-Copy `.env.example` to `.env` and fill in the values:
+Copy `.env.example` to `.env`. Secrets are **not** stored in `.env`: it only holds
+`vault://<file>/<key>` references into tung-vault (sops),
+resolved at startup by `scripts/run-dev.ps1` (`secret run`). `Program.cs` loads `.env` with
+`NoClobber`, so real environment variables always win, and it refuses to start while any
+`vault://` value is still unresolved.
 
 ```bash
 cp .env.example .env
@@ -77,11 +81,9 @@ cp .env.example .env
 | `Jwt__Key` / `Jwt__Issuer` / `Jwt__Audience` / `Jwt__ExpirationMinutes` | JWT settings |
 | `OAuth__Google__ClientSecret` | Google OAuth client secret |
 
-Sensitive values can also be stored with user-secrets:
-
-```bash
-dotnet user-secrets set "Jwt__Key" "your-key" --project SuperAppAPI
-```
+The dev connection strings carry no `Password=`; `run-dev.ps1` injects `DB_PASSWORD` inside the
+process. The DB is reached through an SSH tunnel `127.0.0.1:14330 -> VPS:1433` (public 1433 is
+closed); the script opens it when missing.
 
 ### 2. Run
 
@@ -89,8 +91,9 @@ dotnet user-secrets set "Jwt__Key" "your-key" --project SuperAppAPI
 dotnet restore
 dotnet build
 
-dotnet run   --project SuperAppAPI      # run the API
-dotnet watch --project SuperAppAPI      # run with hot reload
+powershell -ExecutionPolicy Bypass -File scripts/run-dev.ps1                          # run the API
+powershell -ExecutionPolicy Bypass -File scripts/run-dev.ps1 -Watch                   # hot reload
+powershell -ExecutionPolicy Bypass -File scripts/run-dev.ps1 -Database SuperApp-test  # other DB
 ```
 
 Swagger UI is available at the API root (`/swagger`) in Development.

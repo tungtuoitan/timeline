@@ -26,8 +26,8 @@ Please refer to that file for:
 
 ## Quick Reference
 
-- **Run dev server:** `dotnet run --project SuperAppAPI`
-- **Watch mode:** `dotnet watch --project SuperAppAPI`
+- **Run dev server:** `powershell -ExecutionPolicy Bypass -File scripts/run-dev.ps1` (secret qua tung-vault + SSH tunnel DB; `dotnet run` trực tiếp sẽ dừng vì `.env` chỉ có `vault://`)
+- **Watch mode:** `... scripts/run-dev.ps1 -Watch` · đổi DB: `-Database SuperApp-test`
 - **Build:** `dotnet build`
 - **Tests:** `dotnet test`
 - **Manage secrets:** `dotnet user-secrets set "key" "value" --project SuperAppAPI`
