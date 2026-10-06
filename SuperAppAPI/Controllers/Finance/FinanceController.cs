@@ -14,9 +14,12 @@ namespace SuperAppAPI.Controllers.Finance
     {
         private readonly IFinanceService _service;
 
-        public FinanceController(IFinanceService service)
+        private readonly SuperAppServices.Interfaces.Auth.ITotpService _totp;
+
+        public FinanceController(IFinanceService service, SuperAppServices.Interfaces.Auth.ITotpService totp)
         {
             _service = service;
+            _totp = totp;
         }
 
         /// <summary>GET /api/finance/transactions?from=yyyy-MM-dd&amp;to=&amp;account=&amp;kind=&amp;uncategorized=true&amp;limit=200 — newest first.</summary>
@@ -69,6 +72,9 @@ namespace SuperAppAPI.Controllers.Finance
         {
             var userId = GetUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
+            // Private homepage data: only with a fresh TOTP unlock token (TungRoot #1489)
+            if (!_totp.IsUnlocked(userId.Value, Request.Headers[SuperAppServices.Services.Auth.UnlockToken.HeaderName].FirstOrDefault()))
+                return StatusCode(StatusCodes.Status403Forbidden, new ResultOptions { Success = false, Status = 403, Message = "Cần mở khoá bằng mã TOTP" });
             return Reply(await _service.GetSummaryAsync(userId.Value, from, to, interval));
         }
 

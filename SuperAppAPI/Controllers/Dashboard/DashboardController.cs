@@ -13,10 +13,12 @@ namespace SuperAppAPI.Controllers.Dashboard
     public class DashboardController : BaseAuthController
     {
         private readonly IDashboardService _service;
+        private readonly SuperAppServices.Interfaces.Auth.ITotpService _totp;
 
-        public DashboardController(IDashboardService service)
+        public DashboardController(IDashboardService service, SuperAppServices.Interfaces.Auth.ITotpService totp)
         {
             _service = service;
+            _totp = totp;
         }
 
         /// <summary>
@@ -49,7 +51,9 @@ namespace SuperAppAPI.Controllers.Dashboard
             var userId = GetUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
 
-            var result = await _service.GetHabitsAsync(userId.Value, TimeParsing.ParseDateOrNull(from), TimeParsing.ParseDateOrNull(to), taskIds, excludeTaskIds);
+            // Tasks marked is_sensitive are left out unless a TOTP unlock token is sent (TungRoot #1489)
+            var unlocked = _totp.IsUnlocked(userId.Value, Request.Headers[SuperAppServices.Services.Auth.UnlockToken.HeaderName].FirstOrDefault());
+            var result = await _service.GetHabitsAsync(userId.Value, TimeParsing.ParseDateOrNull(from), TimeParsing.ParseDateOrNull(to), taskIds, excludeTaskIds, unlocked);
             return result.Status == 400 ? BadRequest(result) : Ok(result);
         }
     }

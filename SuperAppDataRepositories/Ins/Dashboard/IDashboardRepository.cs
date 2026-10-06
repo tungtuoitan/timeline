@@ -18,7 +18,8 @@ namespace SuperAppDataRepositories.Ins.Dashboard
         /// Tracker tasks of the user. taskIds given → exactly those (owned, non-deleted) tasks;
         /// otherwise every non-deleted task with type = "repeat". excludeTaskIds is applied in both cases.
         /// </summary>
-        Task<List<DashboardTaskRow>> GetTrackerTasksAsync(int userId, IReadOnlyCollection<int>? taskIds, IReadOnlyCollection<int>? excludeTaskIds);
+        /// <param name="includeSensitive">Keep tasks marked is_sensitive (TOTP unlocked, #1489).</param>
+        Task<List<DashboardTaskRow>> GetTrackerTasksAsync(int userId, IReadOnlyCollection<int>? taskIds, IReadOnlyCollection<int>? excludeTaskIds, bool includeSensitive);
 
         /// <summary>Comments (with content) of the given tasks in [fromUtc, toUtcExclusive), filtered by type.</summary>
         Task<List<DashboardCommentRow>> GetTrackerCommentsAsync(IReadOnlyCollection<int> taskIds, DateTime fromUtc, DateTime toUtcExclusive, IReadOnlyCollection<string> types);

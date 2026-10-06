@@ -62,6 +62,10 @@ namespace SuperAppModels.DTOs.Requests
         [JsonPropertyName("isMilestone")]
         public bool? IsMilestone { get; set; }
 
+        /// <summary>Private data — homepage APIs need a TOTP unlock token to return it (TungRoot #1489)</summary>
+        [JsonPropertyName("isSensitive")]
+        public bool? IsSensitive { get; set; }
+
         /// <summary>Move task to another project (must be owned by the caller)</summary>
         [JsonPropertyName("projectId")]
         public int? ProjectId { get; set; }

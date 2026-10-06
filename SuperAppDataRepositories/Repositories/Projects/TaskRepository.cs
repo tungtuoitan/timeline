@@ -140,6 +140,7 @@ namespace SuperAppDataRepositories.Repositories
                             ProcessJson = x.Task.ProcessJson,
                             CustomTabsJson = x.Task.CustomTabsJson,
                             IsMilestone = x.Task.IsMilestone,
+                            IsSensitive = x.Task.IsSensitive,
                             // Limit dates from project
                             ProjectStartDate = x.Project.StartDate,
                             ProjectEndDate = x.Project.EndDate,
@@ -373,6 +374,7 @@ namespace SuperAppDataRepositories.Repositories
                 if (request.EndDate.HasValue) existing.EndDate = request.EndDate;
                 if (request.OrderIndex.HasValue) existing.OrderIndex = request.OrderIndex.Value;
                 if (request.IsMilestone.HasValue) existing.IsMilestone = request.IsMilestone.Value;
+                if (request.IsSensitive.HasValue) existing.IsSensitive = request.IsSensitive.Value;
                 if (request.ProjectId.HasValue) existing.ProjectId = request.ProjectId.Value;
                 if (request.ParentTaskId.HasValue) existing.ParentTaskId = request.ParentTaskId;
 

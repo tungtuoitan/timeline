@@ -11,6 +11,8 @@ const { ok, assertHttp400 } = require('../../_lib/verify');
 let a;
 let b;
 let asset;
+let tokenA; // vé mở khoá TOTP (#1489) — summary là API riêng tư
+let tokenB;
 const run = Date.now().toString(36);
 const ext = (k) => `apitest-${run}-${k}`;
 /** Trả `body.object` sau khi kiểm tra thành công (summary nằm ở object, không phải data). */
@@ -26,6 +28,8 @@ before(async () => {
   a = await dm.newSession('08-2a');
   b = await dm.newSession('08-2b');
   asset = a.testAsset();
+  tokenA = (await a.enableTotp()).token;
+  tokenB = (await b.enableTotp()).token;
 });
 
 after(async () => {
@@ -95,7 +99,7 @@ test('Flow08#6: summary — tài sản ròng theo ngày (giá carry-forward), th
     { date: '2026-09-01', asset, quote: 'VND', price: 1000, source: 'test' },
     { date: '2026-09-03', asset, quote: 'VND', price: 2000, source: 'test' },
   ]));
-  const s = obj(await a.getFinSummary('?from=2026-09-01&to=2026-09-03'));
+  const s = obj(await a.getFinSummary('?from=2026-09-01&to=2026-09-03', tokenA));
   assert.deepEqual(s.series.map((p) => p.totalVnd), [100000, 95000, 112000]);
   assert.deepEqual(s.series[2].accounts, { BIDV: 89000, Binance: 20000 });
   assert.equal(s.series[2].debtVnd, 3000, 'tiền cho mượn vẫn là tài sản');
@@ -112,10 +116,10 @@ test('Flow08#6: summary — tài sản ròng theo ngày (giá carry-forward), th
 });
 
 test('Flow08#6.1: summary interval=week / tham số sai -> HTTP 400', async () => {
-  const s = obj(await a.getFinSummary('?from=2026-09-01&to=2026-09-13&interval=week'));
+  const s = obj(await a.getFinSummary('?from=2026-09-01&to=2026-09-13&interval=week', tokenA));
   assert.deepEqual(s.series.map((p) => p.date), ['2026-09-06', '2026-09-13'], 'điểm cuối tuần (CN)');
-  assertHttp400(await a.getFinSummary('?interval=year'));
-  assertHttp400(await a.getFinSummary('?from=2026-09-05&to=2026-09-01'));
+  assertHttp400(await a.getFinSummary('?interval=year', tokenA));
+  assertHttp400(await a.getFinSummary('?from=2026-09-05&to=2026-09-01', tokenA));
 });
 
 test('Flow08#7: giá — latest theo (asset, quote); giá <= 0 -> HTTP 400', async () => {
@@ -129,7 +133,7 @@ test('Flow08#8: user B không thấy / không sửa / không xoá được giao 
   assert.deepEqual(ok(await b.listFinTx()), []);
   assert.equal((await b.patchFinTx(id, { category: 'hack' })).http, 404);
   assert.equal((await b.deleteFinTx(id)).http, 404);
-  const s = obj(await b.getFinSummary('?from=2026-09-01&to=2026-09-03'));
+  const s = obj(await b.getFinSummary('?from=2026-09-01&to=2026-09-03', tokenB));
   assert.deepEqual(s.holdings, []);
   assert.ok(s.series.every((p) => p.totalVnd === 0));
 });

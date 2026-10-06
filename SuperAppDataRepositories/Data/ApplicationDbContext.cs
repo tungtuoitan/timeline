@@ -46,6 +46,7 @@ namespace SuperAppDataRepositories.Data
 
         // Auth Tables (auth schema)
         public DbSet<RefreshToken> RefreshTokens { get; set; }
+        public DbSet<SuperAppModels.Models.Auth.UserTotp> UserTotps { get; set; }
 
         // Personal Productivity App Tables (pro schema)
         public DbSet<Project> Projects { get; set; }

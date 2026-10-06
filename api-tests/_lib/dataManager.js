@@ -13,6 +13,7 @@
  *   - link task/project     -> link.js
  *   - dashboard             -> dashboard.js
  *   - finance (ledger/giá)  -> finance.js
+ *   - TOTP / vé mở khoá     -> totp.js
  *   - dọn data              -> cleanupData.js
  *   - Domain MỚI (vd workspace, keyword): tạo file mới trong _lib/, thêm vào DOMAINS bên dưới.
  * JSDoc (Preconditions / Side-effects) nằm ở từng module — đọc ở đó trước khi viết case.
@@ -32,7 +33,7 @@ const { request } = require('./http');
 const { signupUser } = require('./auth');
 const { cleanupSession } = require('./cleanupData');
 
-const DOMAINS = [require('./project'), require('./task'), require('./comment'), require('./workspace'), require('./link'), require('./dashboard'), require('./finance')];
+const DOMAINS = [require('./project'), require('./task'), require('./comment'), require('./workspace'), require('./link'), require('./dashboard'), require('./totp'), require('./finance')];
 
 /**
  * Tạo session = 1 user test mới + mọi hàm domain đã bind sẵn user đó.
@@ -44,7 +45,7 @@ async function newSession(tag) {
   const s = {
     ...user,
     tracked: { projects: new Map(), tasks: new Set() },
-    call: (method, path, body) => request(method, path, { token: user.token, body }),
+    call: (method, path, body, headers) => request(method, path, { token: user.token, body, headers }),
     cleanup: () => cleanupSession(s),
   };
   for (const mod of DOMAINS) {

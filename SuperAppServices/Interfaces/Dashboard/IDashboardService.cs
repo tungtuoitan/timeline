@@ -12,6 +12,7 @@ namespace SuperAppServices.Interfaces.Dashboard
         /// Habit trackers with their track/comment entries per day. Default range: last 56 days.
         /// taskIds → only those tasks; otherwise every repeat task. excludeTaskIds removes tasks in both cases.
         /// </summary>
-        Task<ResultOptions> GetHabitsAsync(int userId, DateOnly? from, DateOnly? to, string? taskIds, string? excludeTaskIds);
+        /// <param name="includeSensitive">Return tasks marked is_sensitive too (TOTP unlocked, #1489).</param>
+        Task<ResultOptions> GetHabitsAsync(int userId, DateOnly? from, DateOnly? to, string? taskIds, string? excludeTaskIds, bool includeSensitive);
     }
 }

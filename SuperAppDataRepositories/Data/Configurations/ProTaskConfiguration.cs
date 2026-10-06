@@ -103,6 +103,11 @@ namespace SuperAppDataRepositories.Data.Configurations
                 .HasDefaultValue(false)
                 .IsRequired();
 
+            builder.Property(t => t.IsSensitive)
+                .HasColumnName("is_sensitive")
+                .HasDefaultValue(false)
+                .IsRequired();
+
             // Index for common queries
             builder.HasIndex(t => t.ProjectId);
             builder.HasIndex(t => t.ParentTaskId);

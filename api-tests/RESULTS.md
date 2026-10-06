@@ -4,9 +4,9 @@
 
 > File SINH TỰ ĐỘNG bởi `node run-tests.js` (chạy cả bộ) — không sửa tay.
 
-- Thời điểm: 2026-10-05T15:06:24.655Z
+- Thời điểm: 2026-10-06T01:09:01.990Z
 - BE: http://localhost:5000
-- Kết quả: **74/74 pass**
+- Kết quả: **83/83 pass**
 
 | Kết quả | Case | File | Lỗi |
 |---|---|---|---|
@@ -84,3 +84,12 @@
 | ✅ | Flow08#7: giá — latest theo (asset, quote); giá <= 0 -> HTTP 400 | flows/08-dashboard/08-2-finance.test.js |  |
 | ✅ | Flow08#8: user B không thấy / không sửa / không xoá được giao dịch của A | flows/08-dashboard/08-2-finance.test.js |  |
 | ✅ | Flow08#9: DELETE -> biến mất khỏi list; xoá lại -> HTTP 404 | flows/08-dashboard/08-2-finance.test.js |  |
+| ✅ | Flow09#1: user mới chưa bật, unlock -> 404 | flows/09-totp/09-1-setup-unlock.test.js |  |
+| ✅ | Flow09#2: setup -> confirm sai 400 -> confirm đúng trả vé + enabled | flows/09-totp/09-1-setup-unlock.test.js |  |
+| ✅ | Flow09#2.1: setup lại khi đã bật -> 409 | flows/09-totp/09-1-setup-unlock.test.js |  |
+| ✅ | Flow09#3: mã đã dùng -> 400; mã bước kế tiếp -> vé mới | flows/09-totp/09-1-setup-unlock.test.js |  |
+| ✅ | Flow09#7: tắt TOTP bằng mã đúng | flows/09-totp/09-1-setup-unlock.test.js |  |
+| ✅ | Flow09#4: sai 3 lần -> khoá 10 phút; đang khoá thì mã đúng cũng bị từ chối | flows/09-totp/09-2-lock.test.js |  |
+| ✅ | Flow09#5: habits bỏ tracker nhạy cảm khi không có vé hợp lệ | flows/09-totp/09-3-private-apis.test.js |  |
+| ✅ | Flow09#5.1: isSensitive giữ nguyên sau upsert (full replace) | flows/09-totp/09-3-private-apis.test.js |  |
+| ✅ | Flow09#6: finance summary cần vé | flows/09-totp/09-3-private-apis.test.js |  |

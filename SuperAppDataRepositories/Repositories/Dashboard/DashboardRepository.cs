@@ -40,7 +40,7 @@ namespace SuperAppDataRepositories.Repositories.Dashboard
                 })
                 .ToListAsync();
 
-        public Task<List<DashboardTaskRow>> GetTrackerTasksAsync(int userId, IReadOnlyCollection<int>? taskIds, IReadOnlyCollection<int>? excludeTaskIds)
+        public Task<List<DashboardTaskRow>> GetTrackerTasksAsync(int userId, IReadOnlyCollection<int>? taskIds, IReadOnlyCollection<int>? excludeTaskIds, bool includeSensitive)
         {
             var query = from t in _context.ProTasks.AsNoTracking()
                         join p in _context.Projects.AsNoTracking() on t.ProjectId equals p.Id
@@ -53,6 +53,9 @@ namespace SuperAppDataRepositories.Repositories.Dashboard
 
             if (excludeTaskIds?.Count > 0)
                 query = query.Where(t => !excludeTaskIds.Contains(t.Id));
+
+            if (!includeSensitive)
+                query = query.Where(t => !t.IsSensitive);
 
             return query
                 .OrderBy(t => t.Id)

@@ -45,7 +45,7 @@ namespace SuperAppServices.Services.Dashboard
             }
         }
 
-        public async Task<ResultOptions> GetHabitsAsync(int userId, DateOnly? from, DateOnly? to, string? taskIds, string? excludeTaskIds)
+        public async Task<ResultOptions> GetHabitsAsync(int userId, DateOnly? from, DateOnly? to, string? taskIds, string? excludeTaskIds, bool includeSensitive)
         {
             try
             {
@@ -53,7 +53,7 @@ namespace SuperAppServices.Services.Dashboard
                 var include = DashboardBuckets.ParseIds(taskIds);
                 var exclude = DashboardBuckets.ParseIds(excludeTaskIds);
 
-                var tasks = await _repository.GetTrackerTasksAsync(userId, include, exclude);
+                var tasks = await _repository.GetTrackerTasksAsync(userId, include, exclude, includeSensitive);
                 var comments = tasks.Count == 0
                     ? new List<SuperAppModels.DTOs.Responses.Dashboard.DashboardCommentRow>()
                     : await _repository.GetTrackerCommentsAsync(

@@ -56,8 +56,9 @@ function getFinPricesLatest(s) {
 }
 
 /** `GET /api/finance/summary?from&to&interval` — series tài sản ròng, tháng, holdings (VND). */
-function getFinSummary(s, query = '') {
-  return s.call('GET', `/api/finance/summary${query}`);
+/** Cần vé mở khoá TOTP (#1489) — không có -> HTTP 403. */
+function getFinSummary(s, query = '', unlockToken) {
+  return s.call('GET', `/api/finance/summary${query}`, undefined, unlockToken ? { 'X-Unlock-Token': unlockToken } : undefined);
 }
 
 module.exports = { testAsset, postFinTx, listFinTx, trackFinTx, patchFinTx, deleteFinTx, putFinPrices, getFinPricesLatest, getFinSummary };

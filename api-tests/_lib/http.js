@@ -14,6 +14,7 @@ const { BASE_URL } = require('./config');
  * @param {string} [opts.token]  JWT (Bearer). Không có -> request ẩn danh.
  * @param {*}      [opts.body]   JSON body.
  * @param {object} [opts.form]   form-urlencoded body (auth/signup dùng [FromForm]).
+ * @param {object} [opts.headers] header thêm (vd `X-Unlock-Token`, #1489).
  * @returns {Promise<{http:number, body:any}>} `http` = HTTP status; `body` = JSON đã parse
  *   (thường là ResultOptions `{success, message, data, status}`).
  *
@@ -21,8 +22,8 @@ const { BASE_URL } = require('./config');
  *   Chỉ model validation / JSON converter (thiếu field bắt buộc, ngày không offset...) mới ra
  *   HTTP 400, và PATCH task không tìm thấy mới ra HTTP 404. Assert đúng tầng.
  */
-async function request(method, path, { token, body, form } = {}) {
-  const headers = {};
+async function request(method, path, { token, body, form, headers: extra } = {}) {
+  const headers = { ...extra };
   if (token) headers.Authorization = `Bearer ${token}`;
   let payload;
   if (form) {

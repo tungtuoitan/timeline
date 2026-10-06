@@ -86,6 +86,14 @@ namespace SuperAppModels.Models
         public bool IsMilestone { get; set; }
 
         /// <summary>
+        /// Private data (e.g. a personal habit tracker): homepage APIs only return it with a TOTP
+        /// unlock token (TungRoot #1489). Set via PATCH only — upsert keeps the stored value.
+        /// </summary>
+        [JsonPropertyName("isSensitive")]
+        [Column("is_sensitive")]
+        public bool IsSensitive { get; set; }
+
+        /// <summary>
         /// Workspace item ID of the folder linked to this task (ws.workspace_items.id)
         /// Set when the first note is created for this task
         /// </summary>

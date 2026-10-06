@@ -22,10 +22,11 @@ function getActivity(s, query = '') {
 /**
  * `GET /api/dashboard/habits?from&to&taskIds&excludeTaskIds` — tracker (task `type=repeat`, hoặc
  * đúng các `taskIds` nếu truyền) + entry `track`/`comment` theo ngày. Task của user khác bị bỏ qua
- * im lặng (không lộ tồn tại). Range mặc định 56 ngày; id lạ -> HTTP 400.
+ * im lặng (không lộ tồn tại). Range mặc định 56 ngày; id lạ -> HTTP 400. Task `isSensitive` chỉ có khi
+ * gửi `unlockToken` hợp lệ (#1489).
  */
-function getHabits(s, query = '') {
-  return s.call('GET', `/api/dashboard/habits${query}`);
+function getHabits(s, query = '', unlockToken) {
+  return s.call('GET', `/api/dashboard/habits${query}`, undefined, unlockToken ? { 'X-Unlock-Token': unlockToken } : undefined);
 }
 
 module.exports = { getActivity, getHabits };
