@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SuperAppDataRepositories.Ins.Auth;
@@ -56,7 +58,7 @@ namespace SuperAppServices.Services.Auth
                 totp.PendingSecret = null;
                 totp.EnabledAt = DateTime.UtcNow;
                 _logger.LogInformation("[TOTP] enabled | UserId={UserId}", userId);
-                return IssueToken(userId);
+                return IssueToken(userId, totp.Secret!);
             });
         }
 
@@ -64,7 +66,7 @@ namespace SuperAppServices.Services.Auth
         {
             var totp = await _repository.GetAsync(userId);
             if (totp?.Secret == null) return Fail(404, "TOTP chưa bật");
-            return await CheckAsync(totp, totp.Secret, code, onSuccess: _ => IssueToken(userId));
+            return await CheckAsync(totp, totp.Secret, code, onSuccess: _ => IssueToken(userId, totp.Secret!));
         }
 
         public async Task<ResultOptions> DisableAsync(int userId, string code)
@@ -76,12 +78,21 @@ namespace SuperAppServices.Services.Auth
                 totp.Secret = null;
                 totp.PendingSecret = null;
                 totp.EnabledAt = null;
+                totp.LastUsedStep = null; // old secret is gone; keep the replay guard from rejecting the new secret's first code
                 _logger.LogInformation("[TOTP] disabled | UserId={UserId}", userId);
                 return new ResultOptions { Success = true, Message = "Đã tắt TOTP", Status = 200 };
             });
         }
 
-        public bool IsUnlocked(int userId, string? unlockToken) => UnlockToken.IsValid(_unlockKey, unlockToken, userId, DateTime.UtcNow);
+        public async Task<bool> IsUnlockedAsync(int userId, string? unlockToken)
+        {
+            if (string.IsNullOrWhiteSpace(unlockToken)) return false;
+            var secret = (await _repository.GetAsync(userId))?.Secret;
+            return secret != null && UnlockToken.IsValid(TokenKey(secret), unlockToken, userId, DateTime.UtcNow);
+        }
+
+        /// <summary>Tokens are signed with a key bound to the current secret, so changing/disabling TOTP kills every older token.</summary>
+        private byte[] TokenKey(string secret) => HMACSHA256.HashData(_unlockKey, Encoding.UTF8.GetBytes(secret));
 
         /// <summary>Lock check → verify → success (reset counter, remember step) or failure (count, maybe lock).</summary>
         private async Task<ResultOptions> CheckAsync(UserTotp totp, string secret, string code, Func<long, ResultOptions> onSuccess)
@@ -107,10 +118,10 @@ namespace SuperAppServices.Services.Auth
             return result;
         }
 
-        private ResultOptions IssueToken(int userId)
+        private ResultOptions IssueToken(int userId, string secret)
         {
             var expires = DateTime.UtcNow.Add(UnlockToken.Lifetime);
-            return Ok(new UnlockTokenDto { Token = UnlockToken.Issue(_unlockKey, userId, expires), ExpiresAt = expires });
+            return Ok(new UnlockTokenDto { Token = UnlockToken.Issue(TokenKey(secret), userId, expires), ExpiresAt = expires });
         }
 
         private static ResultOptions Ok(object obj) => new() { Success = true, Message = "OK", Object = obj, Status = 200 };

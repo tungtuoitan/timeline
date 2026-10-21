@@ -73,7 +73,7 @@ namespace SuperAppAPI.Controllers.Finance
             var userId = GetUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
             // Private homepage data: only with a fresh TOTP unlock token (TungRoot #1489)
-            if (!_totp.IsUnlocked(userId.Value, Request.Headers[SuperAppServices.Services.Auth.UnlockToken.HeaderName].FirstOrDefault()))
+            if (!await _totp.IsUnlockedAsync(userId.Value, Request.Headers[SuperAppServices.Services.Auth.UnlockToken.HeaderName].FirstOrDefault()))
                 return StatusCode(StatusCodes.Status403Forbidden, new ResultOptions { Success = false, Status = 403, Message = "Cần mở khoá bằng mã TOTP" });
             return Reply(await _service.GetSummaryAsync(userId.Value, from, to, interval));
         }

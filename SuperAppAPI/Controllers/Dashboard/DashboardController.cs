@@ -52,7 +52,7 @@ namespace SuperAppAPI.Controllers.Dashboard
             if (userId == null) return Unauthorized("User ID not found in token");
 
             // Tasks marked is_sensitive are left out unless a TOTP unlock token is sent (TungRoot #1489)
-            var unlocked = _totp.IsUnlocked(userId.Value, Request.Headers[SuperAppServices.Services.Auth.UnlockToken.HeaderName].FirstOrDefault());
+            var unlocked = await _totp.IsUnlockedAsync(userId.Value, Request.Headers[SuperAppServices.Services.Auth.UnlockToken.HeaderName].FirstOrDefault());
             var result = await _service.GetHabitsAsync(userId.Value, TimeParsing.ParseDateOrNull(from), TimeParsing.ParseDateOrNull(to), taskIds, excludeTaskIds, unlocked);
             return result.Status == 400 ? BadRequest(result) : Ok(result);
         }

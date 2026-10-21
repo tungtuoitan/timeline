@@ -23,6 +23,6 @@ namespace SuperAppServices.Interfaces.Auth
         Task<ResultOptions> DisableAsync(int userId, string code);
 
         /// <summary>Is this X-Unlock-Token valid for the user right now?</summary>
-        bool IsUnlocked(int userId, string? unlockToken);
+        Task<bool> IsUnlockedAsync(int userId, string? unlockToken);
     }
 }
