@@ -603,3 +603,40 @@ Chưa đề nghị ĐÓNG sàn: diff còn mâu thuẫn, spike 0a không thể đ
 Không trả lời = lấy đề nghị in đậm. Thêm một việc cần bạn biết (không phải câu hỏi): **app production đang nối DB qua địa chỉ công khai của VPS**, nên muốn đóng cổng 1433 thì phải đổi cấu hình app trước (A đã ghi trình tự vào Bước −1; mọi thay đổi VPS chỉ chạy sau khi bạn duyệt từng cái).
 
 → chờ: Tung
+
+
+---
+
+## Vòng 10 — Tung chốt (ghi bởi A) + A: sửa plan một lượt (v7) — 2026-10-30
+
+Tung được hỏi bằng lời thường (AskUserQuestion), trả lời **nguyên văn**:
+
+| Q | Câu hỏi (rút gọn) | Tung chốt (nguyên văn) | Ghi vào đâu |
+|---|---|---|---|
+| Q10 | Giữ công cụ đọc plan ở bản đầu không? | "Giữ, chỉ đọc đúng plan cố định (Recommended)" | PLAN v7 Q10, §Công cụ v1 |
+| Q11 | Giới hạn kỹ thuật khi đọc cả loạt | "25 task hoặc 64 KB mỗi trang (Recommended)" | PLAN v7 Q11, §nginx |
+| Q12 | Cấu trúc spike | không hỏi riêng — quyết định kỹ thuật, A lấy đề nghị của C (0a transport bằng bearer; 0b OAuth giả bằng thư viện thật; sau đó mới Google/TOTP) | PLAN v7 Bước 0a/0b |
+
+Cả hai câu Tung chọn đúng đề nghị (không trái A hay C). Không có quyết định [R] nào đang mở ngoài Bước −1 (cần Tung duyệt từng thay đổi VPS khi tới lúc làm).
+
+### A10-1 Sửa plan v7 — hash `70e2f8d` (diff `8a7d43e..70e2f8d`)
+Đã sửa trong `docs/mcp-server/PLAN.md`:
+- **C8-1:** xoá nhánh "tối giản tự viết" ở sơ đồ (dòng 45). `grep -i "tự viết"` chỉ còn các câu cấm (Q3 dòng 15, Q9 dòng 21, sơ đồ dòng 45 "KHÔNG có nhánh tự viết", Bước 0b dòng 115).
+- **C8-3, C8-4:** thêm hai dòng vào mục threat model: không tuyên bố cách ly tương đương process riêng; `origin=mcp`/audit chỉ là provenance.
+- **C8-5:** kiểm `sub → userId → active` ở authorize, **mỗi refresh, mỗi lần gọi tool** (không cache).
+- **C8-6:** Bước 0a chỉ đo transport/client bằng bearer, không đo OAuth; 0b là AS thử nghiệm bằng thư viện thật + danh tính giả, mỗi cột ma trận ghi artefact sinh ra nó; Google/TOTP thật nối sau cùng.
+- **C8-7 (+ bằng chứng A):** Bước −1 viết lại thành trình tự có preflight + rollback timer: đổi `DB_SERVER` app sang `127.0.0.1` **trước**, rồi chặn 1433 ở provider + ufw (sau khi có phiên SSH thứ hai), rồi origin chỉ nhận Cloudflare, bind SQL localhost để cuối cùng; health-check sau mỗi lớp.
+- **C8-8, C8-10, Q10, Q11:** response caps (25 task/64 KB, ≤ 6 lần/phút, cursor keyset do facade tự làm vì `GetTasks` không phân trang); `get_plan` định nghĩa cứng (project cố định từ cấu hình, 64 KB, `truncated`).
+- **C8-9:** `resource` bắt buộc ở authorize + đổi code (đã đối chiếu spec 2026-07-28); refresh: thiếu → dùng `resource` của grant, khác grant → `invalid_target`. **Đang chờ C xác nhận hoặc bác** (xem dưới).
+- **C8-11:** kill switch = file cục bộ đọc mỗi request, fail-closed, ≤ 2 giây, không phụ thuộc DB; runbook nginx 503; thu hồi gia đình refresh.
+- **A9-1:** CIMD chỉ qua allowlist URL chính xác + chặn SSRF; không bật CIMD chung.
+- Thêm việc Tung #3: duyệt từng thay đổi VPS ở Bước −1.
+
+### Việc A nhờ C kiểm (Vòng 11)
+1. **Kiểm diff** `8a7d43e..70e2f8d` bằng cách đọc diff (không tin báo cáo của A): mọi mục A nói đã sửa có thật không? Còn mâu thuẫn nào giữa các dòng của plan (A đã tìm thấy một mâu thuẫn dòng 43 ở v6 — C hãy tìm kiểu lỗi tương tự trong v7)?
+2. **C8-9 (refresh):** đề nghị của A "refresh thiếu `resource` → dùng `resource` của grant; khác → `invalid_target`" có kịch bản tấn công/phản ví dụ nào không? Nếu không, C ghi **đồng ý** để A đóng.
+3. **Bước −1:** trình tự mới có bước nào còn có thể làm app/SSH sập, hoặc thiếu kiểm tra? (Ví dụ nginx `default_server` bỏ đi có làm website `www.tungle.uk` hay các site khác trên cùng nginx — `glancify-dev`, `pets`, `portfolio` — mất không?)
+4. **Q11:** với keyset cursor `id > cursor` và trang ≤ 25 task/64 KB — có kịch bản bỏ sót/lặp item (task bị xoá/đổi giữa hai lần gọi, `deletedAt`) mà plan chưa nói không?
+5. **Bảng trạng thái** (mã → trạng thái → bằng chứng) cập nhật, và nếu mọi điểm nghiêm trọng đã có trạng thái rõ + điều kiện đóng đo được thì ghi **"đề nghị ĐÓNG sàn"** kèm danh sách điều kiện còn treo (Bước −1 / 0a / 0b / test nào) để chuyển sang thực hiện.
+
+→ chờ: C
