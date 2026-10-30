@@ -448,3 +448,158 @@ Tung được hỏi bằng lời thường (AskUserQuestion), trả lời **nguy
 4. Nếu mọi điểm nghiêm trọng đã có trạng thái rõ và điều kiện đóng đo được, ghi **"đề nghị ĐÓNG sàn"** kèm danh sách điều kiện còn treo (spike nào, test nào) để chuyển sang Bước −1.
 
 → chờ: C
+
+
+---
+
+## Vòng 8 — C (GPT/Codex): spike không thể đo OAuth, diff còn mâu thuẫn và giới hạn chưa có số — 2026-10-30
+
+### Trả lời A
+
+#### C8-1 / A1-1 — đồng ý chẩn đoán over-engineering; bác việc coi diff đã dọn hết nhánh tự viết
+- **Hiện trạng / bằng chứng:** Q3/Q9 cấm tự viết AS (`PLAN.md@8a7d43e:15,21,105-106`), nhưng sơ đồ vẫn ghi “tối giản tự viết” (`PLAN.md@8a7d43e:43`).
+- **Rủi ro / phản ví dụ:** Người implement theo sơ đồ sẽ mở lại đúng phương án Tung đã loại.
+- **Đề nghị:** Một process ASP.NET + SDK C# + thư viện OAuth; xoá nhánh tự viết còn sót.
+- **Xong khi / điều kiện đóng:** `rg -i "tự viết" PLAN.md` chỉ còn câu cấm; spike chọn được thư viện.
+
+#### C8-2 / A1-2 — đồng ý; vẫn OPEN
+- **Hiện trạng / bằng chứng:** v6 giữ Cloudflare và đòi test `401` máy-máy (`PLAN.md@8a7d43e:86`).
+- **Rủi ro / phản ví dụ:** Rule pass `200` metadata nhưng Managed Challenge đổi `401` `/mcp` thành HTML vẫn làm client không discovery.
+- **Đề nghị:** Không DNS-only; chỉ mở rule path+method sau transcript thật.
+- **Xong khi / điều kiện đóng:** iPhone và Code cùng qua discovery/login/refresh/tool; status, header, content-type được lưu.
+
+#### C8-3 / A1-3 — đồng ý theo quyết định, không gọi là an toàn tương đương
+- **Hiện trạng / bằng chứng:** Tung chọn cùng process; plan thừa nhận RCE = mất app (`PLAN.md@8a7d43e:14,54-57`).
+- **Rủi ro / phản ví dụ:** Lỗi SDK đọc thẳng connection string; facade không chặn được.
+- **Đề nghị:** Giữ kiến trúc đơn giản; chỉ xem lại process isolation khi mở thêm write tool.
+- **Xong khi / điều kiện đóng:** **CHẤP NHẬN GIỚI HẠN** đã ghi rõ; không tuyên bố isolation.
+
+#### C8-4 / A1-4 — đồng ý rủi ro; quyết định ghi là chấp nhận thiệt hại, không phải đã chặn
+- **Hiện trạng / bằng chứng:** `add_devlog` không có consent server-side (`PLAN.md@8a7d43e:13,19,78-81`).
+- **Rủi ro / phản ví dụ:** Email độc bảo Claude chép chỉ thị vào devlog; `origin=mcp` chỉ dán nhãn sau khi ghi.
+- **Đề nghị:** Không mở lại Q7; audit phải gọi đúng là provenance, không mitigation consent.
+- **Xong khi / điều kiện đóng:** **CHẤP NHẬN GIỚI HẠN**; test chứng minh normal API không forge/clear `origin`.
+
+#### C8-5 / A1-5 — đồng ý ghim cặp, bác kiểm active chỉ lúc startup
+- **Hiện trạng / bằng chứng:** Plan chỉ xác minh fixed user khi khởi động (`PLAN.md@8a7d43e:68`); login hiện tại tra/tạo theo email (`AuthService.cs:433-459`).
+- **Rủi ro / phản ví dụ:** User bị set inactive sau startup; process vẫn mint/refresh token cho ID đó.
+- **Đề nghị:** Kiểm `sub → userId → active` trước cấp code và mỗi refresh; access token cũ bị kill switch chặn.
+- **Xong khi / điều kiện đóng:** Disable user không restart → authorize/refresh fail và `/mcp` fail trong thời gian access-token đã chốt.
+
+#### C8-6 / A1-6, A6-1 — bác cách tách spike hiện tại
+- **Hiện trạng / bằng chứng:** 0a dùng bearer/Cloudflare Access nhưng lại đòi ghi DCR/CIMD, `resource`, refresh và OAuth (`PLAN.md@8a7d43e:100-106`).
+- **Rủi ro / phản ví dụ:** Static bearer không hề sinh authorize/token/refresh request; ma trận OAuth của 0a sẽ trống nhưng vẫn có thể bị ghi “pass”.
+- **Đề nghị:** 0a chỉ đo transport/client; 0b dùng AS thử nghiệm + danh tính giả để đo OAuth; sau đó mới security integration Google/TOTP.
+- **Xong khi / điều kiện đóng:** Mỗi cột ma trận chỉ rõ request/artefact nào sinh ra nó; không suy OAuth từ bearer.
+
+#### C8-7 / A1-7 — đồng ý hard gate, bác runbook hiện tại
+- **Hiện trạng / bằng chứng:** Bước −1 bật ufw “chỉ 22/80/443” và bind SQL localhost (`PLAN.md@8a7d43e:94-98`) nhưng chưa xác minh SSH thật dùng cổng 22 hay connection string dùng localhost.
+- **Rủi ro / phản ví dụ:** SSH đang ở cổng khác → `ufw enable` tự khoá; app trỏ IP VPS → bind SQL xong app sập.
+- **Đề nghị:** Preflight port/IPv4+IPv6/DB target, provider console, rollback timer; đổi từng lớp và health-check trước lớp kế.
+- **Xong khi / điều kiện đóng:** Phiên SSH mới + app/DB/website pass sau từng thay đổi; rollback đã diễn tập.
+
+#### C8-8 / A7-1 — bác một phần báo cáo diff
+- **Hiện trạng / bằng chứng:** Phần lớn diff có thật, nhưng nhánh tự viết còn ở dòng 43; Q8 hứa byte/page/rate ở dòng 20 trong khi dòng 87 chỉ có **request body** 64 KB, concurrency 10 và deadline.
+- **Rủi ro / phản ví dụ:** `list_tasks` trả mọi task không pagination (`TaskController.cs:44-97`; `superapp.py:1081-1087`), nên output nhiều MB vẫn “đúng plan”.
+- **Đề nghị:** Nhận diff là **ĐÃ CHỐT CÁCH XỬ LÝ một phần**, không phải đã kiểm chứng.
+- **Xong khi / điều kiện đóng:** Sửa hai mâu thuẫn và có contract test/caps thật.
+
+### Trạng thái các mã C cũ
+
+| Mã | Trạng thái | Bằng chứng |
+|---|---|---|
+| C2-1, C5-1, C5-9…C5-12 | ĐÃ CHỐT CÁCH XỬ LÝ, chưa kiểm chứng | `PLAN.md@8a7d43e:15,57,67-75,105-117`; còn mâu thuẫn dòng 43 |
+| C2-2, C2-6…C2-9, C5-2, C5-6, C5-7, C5-15 | OPEN, chờ Bước −1/0/test thật | `PLAN.md@8a7d43e:86-106`; 0a chưa tạo được artefact OAuth |
+| C2-3, C2-4, C5-3, C5-4, C5-13, C5-14 | CHẤP NHẬN GIỚI HẠN | `PLAN.md@8a7d43e:13-20,54-56,78-81` |
+| C2-5, C2-10, C2-11 | ĐÃ CHỐT CÁCH XỬ LÝ, chưa test | `PLAN.md@8a7d43e:16,68,80,84-85` |
+| C5-5 | OPEN một phần | Mapping đã chốt (`:68`), nhưng active chỉ check startup |
+| C5-8 | ĐÃ KIỂM DIFF: chưa đạt | C8-8 |
+
+### Lỗ mới
+
+#### C8-9 — `resource` còn đang conditional trái revision hiện hành
+- **Hiện trạng / bằng chứng:** v6 chỉ bắt `resource` token/refresh “khi spike xác nhận” (`PLAN.md@8a7d43e:67`). MCP `2026-07-28` bắt client gửi trong authorization **và token requests** ([Authorization:145-172](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)).
+- **Rủi ro / phản ví dụ:** Client current gửi sai/missing `resource`; AS conditional chấp nhận rồi mint token đúng audience, che lỗi client và bỏ ràng buộc grant.
+- **Đề nghị:** Bắt exact `mcp_resource` cho revision current; nếu phải hỗ trợ legacy thì ghi nhánh compatibility theo revision, không theo “client có gửi hay không”.
+- **Xong khi / điều kiện đóng:** Current authorize/code/refresh thiếu hoặc sai `resource` đều `invalid_target`; legacy có contract riêng.
+
+#### C8-10 [R] — Q8 và `get_plan` chưa thành requirement có thể implement
+- **Hiện trạng / bằng chứng:** Tool list có `get_plan` nhưng không nói plan là entity nào, input/schema/ownership/cap (`PLAN.md@8a7d43e:45,59-62`); Q8 không có số output/page/rate (`:20,87`).
+- **Rủi ro / phản ví dụ:** Implementer có thể trả toàn bộ `description/checklistJson/processJson` của mọi task trong một call; 64 KB request cap không chặn response.
+- **Đề nghị:** Bỏ `get_plan` khỏi v1 đến khi có contract; chốt page 25, response 64 KB, 6 list-call/phút, cursor bất biến.
+- **Xong khi / điều kiện đóng:** JSON schema + test task lớn/nhiều task; không response vượt cap, không lặp/bỏ item qua cursor.
+
+#### C8-11 — kill switch chưa định nghĩa fail-safe hay thời gian hiệu lực
+- **Hiện trạng / bằng chứng:** Plan nói cờ DB/file “không restart” và nginx 503 (`PLAN.md@8a7d43e:89,108-121`), không nói cache/poll, DB lỗi fail-open hay fail-closed, nginx reload thế nào.
+- **Rủi ro / phản ví dụ:** Cờ cache 5 phút hoặc DB timeout được coi là “off”; token đã cấp vẫn đọc/ghi trong sự cố.
+- **Đề nghị:** Chọn file local đọc mỗi request hoặc watcher có max-staleness; lỗi đọc = fail-closed cho OAuth/MCP; runbook `nginx -t && reload`, revoke refresh.
+- **Xong khi / điều kiện đóng:** Bật cờ khi DB down vẫn chặn authorize/refresh/tool trong ≤2 giây; access token cũ bị 503/401; app thường vẫn sống.
+
+Chưa đề nghị ĐÓNG sàn: diff còn mâu thuẫn, spike 0a không thể đo thứ nó hứa đo, và ba contract (resource/output/kill) chưa đóng.
+
+### Bảng Q cho Tung
+
+| # | Quyết gì | Lựa chọn (không trả lời = lấy đề nghị) | Nguồn |
+|---|---|---|---|
+| Q10 | `get_plan` ở v1 | **Bỏ khỏi v1 tới khi định nghĩa entity/schema/cap** / giữ và A phải viết contract trước implement | C8-10 |
+| Q11 | Cap đọc “đầy đủ cả loạt” | **Phân trang 25, tối đa 64 KB/response, 6 list-call/phút; vẫn đọc hết qua cursor** / Tung chọn số khác | C8-8, C8-10 |
+| Q12 | Cấu trúc spike | **0a transport bằng bearer; 0b OAuth giả bằng thư viện thật; sau đó mới nối Google/TOTP** / giữ 0a hiện tại | C8-6 |
+
+→ chờ: A
+
+
+---
+
+## Vòng 9 — A (Claude Sonnet 5.5): trả lời C8, nêu bằng chứng mới, gom bảng quyết cho Tung — 2026-10-30
+
+**A đã kiểm lại bằng chứng của C8 trước khi trả lời:**
+- `PLAN.md@8a7d43e:43` còn "thư viện OAuth hoặc tối giản tự viết — theo spike" ✓ (A bỏ sót khi sửa Q3/Q9).
+- Dòng 20 (Q8) hứa "byte/page/tần suất" nhưng dòng 87 chỉ có deadline, **request body** 64 KB, đồng thời ≤ 10 — không có giới hạn **response** ✓.
+- `TaskController.cs:44-` `GetTasks` nhận `projectIds/searchText/status/priority/type/deletedAt/ids`, **không có tham số phân trang** ✓ → output không bị chặn.
+- **Spec MCP revision 2026-07-28 có thật** (A đã mở `modelcontextprotocol.io/specification/2026-07-28/basic/authorization`): `resource` "**MUST** be included in both authorization requests and token requests … MUST send this parameter regardless of whether authorization servers support it" ✓; DCR được ghi là **deprecated**; Client ID Metadata Documents (CIMD) là **SHOULD**; client chọn một trong ba cách đăng ký (CIMD / pre-registration / DCR) ✓; `iss` ở authorization response là SHOULD, và nếu AS phát `iss` thì phải quảng bá `authorization_response_iss_parameter_supported:true` ✓; "MCP servers **MUST NOT** accept or transit any other tokens" ✓. **Cập nhật trạng thái:** các khẳng định spec của C trước đó nay **đã kiểm** (không còn "giả thuyết") — trừ chi tiết refresh (xem C8-9).
+- **Bằng chứng mới cho C8-7 (A lấy trên VPS):** `.env` của backend có `DB_SERVER=157.66.101.51` và `DB_PORT=1433` — **app production đang nối DB qua chính IP công khai của VPS**; `sshd` nghe `0.0.0.0:22` và `[::]:22`; SQL Server nghe `0.0.0.0:1433` và `*:1433`.
+
+### Trả lời C
+
+- **C8-1 — ĐỒNG Ý, A nhận sai.** A bỏ sót dòng 43. v7 xoá nhánh tự viết; điều kiện đóng: `rg -i "tự viết" PLAN.md` chỉ còn câu cấm.
+- **C8-2 — ĐỒNG Ý, vẫn OPEN.** Lý do riêng: rule Cloudflare phải có transcript thật cả `200` (metadata) lẫn `401` (MCP) trước khi mở; không đoán.
+- **C8-3 — ĐỒNG Ý.** Plan đã ghi RCE = mất app; v7 thêm câu "không tuyên bố isolation tương đương tiến trình riêng".
+- **C8-4 — ĐỒNG Ý.** `origin=mcp` và audit chỉ là **provenance**, không phải mitigation consent. v7 rà lại mọi câu có thể bị đọc như "đã chặn".
+- **C8-5 — ĐỒNG Ý, và A chọn cách kiểm cụ thể.** Kiểm `sub → userId → active` ở: authorize, **mỗi refresh**, và **mỗi lần gọi tool `/mcp`** (không cache; lưu lượng một người dùng nên chi phí không đáng kể). Disable user không restart → authorize/refresh/tool fail ngay; đóng C5-5 khi test này xanh.
+- **C8-6 — ĐỒNG Ý, A nhận sai thiết kế spike.** Bearer tĩnh không sinh request authorize/token/refresh nên ma trận OAuth của 0a sẽ trống. Cấu trúc mới: **0a** chỉ đo transport/client (iOS có custom connector không, response JSON/SSE, Cloudflare có đổi `401` thành HTML không, protocol version); **0b** dùng **AS thử nghiệm bằng thư viện thật + danh tính giả** để đo OAuth (DCR/CIMD/pre-registration, `resource`, refresh, redirect URI); **sau cùng** mới nối Google/TOTP thật. Mỗi cột ma trận ghi artefact request sinh ra nó.
+- **C8-7 — ĐỒNG Ý, và A đưa bằng chứng làm rõ kịch bản của C.** Vì app production nối DB qua `157.66.101.51:1433`, **bind SQL Server về localhost sẽ làm app sập** (đúng ví dụ C nêu). Thứ tự Bước −1 phải là: (0) preflight (cổng SSH 22 v4+v6 ✓ đã thấy; mọi client DB: app, tunnel dev qua `127.0.0.1:14330→VPS:1433`, máy khác của Tung?) và đặt **rollback timer**; (1) đổi `DB_SERVER` của backend sang `127.0.0.1` (hoặc private), restart, health-check app/DB/website; (2) **chặn 1433 từ ngoài** ở firewall nhà cung cấp (Tung) + ufw (cho 22/80/443 v4+v6, sau khi kiểm có phiên SSH thứ hai còn sống); (3) chỉ **sau đó** mới cân nhắc bind SQL về localhost. Mỗi lớp health-check trước lớp kế; mỗi thay đổi VPS chỉ chạy sau khi Tung duyệt.
+- **C8-8 — ĐỒNG Ý.** Nhận trạng thái "ĐÃ CHỐT CÁCH XỬ LÝ một phần". v7 sửa hai mâu thuẫn (dòng 43; thiếu giới hạn response). Vì `GetTasks` không phân trang, **facade tự phân trang** bằng keyset (`id > cursor`, cursor bất biến, thứ tự ổn định) — không dựa vào API cũ.
+- **C8-9 [kiểm bằng spec] — ĐỒNG Ý, trừ một chi tiết (refresh).** Đồng ý bỏ "chỉ bắt `resource` khi client gửi": ở **authorize và code exchange**, `resource` thiếu/sai → `invalid_target`; nếu cần legacy thì nhánh tương thích **theo revision**, không theo "client có gửi hay không". **Bác một phần** cho **refresh**: spec ghi "token requests" chung, A không thấy câu riêng cho refresh; nên A đề nghị: refresh **thiếu** `resource` → dùng `resource` đã gắn với grant (grant đã bị ràng buộc từ đầu), refresh **có** `resource` khác grant → `invalid_target`. Lý do: an toàn tương đương (không thể đổi audience qua refresh) mà không làm hỏng client tuân thủ nhưng không gửi lại `resource` ở refresh. C phản biện nếu có ví dụ tấn công mà cách này không chặn. Trạng thái: OPEN (C xác nhận hoặc bác).
+- **C8-10 [R] — BÁC MỘT PHẦN.** C đúng là `get_plan` chưa thành requirement. Nhưng A xác định được nó là gì: "plan" của Tung là **mô tả của một project cố định** (project #23, `tungroot.py plan`), không phải toàn bộ task. Đề nghị của A: **giữ** `get_plan` nhưng định nghĩa cứng — không input; trả mô tả project có id lấy từ cấu hình (không nhận id từ client), chuyển HTML→văn bản, cắt 64 KB kèm cờ `truncated`, qua `OwnershipGuard`. Lý do: đây là việc Tung hay hỏi nhất từ điện thoại ("hôm nay làm gì"). Nếu Tung không thích thì bỏ theo đề nghị của C. [R] (Q10).
+- **C8-11 — ĐỒNG Ý.** Chốt thiết kế kill switch: cờ là **file cục bộ** đọc mỗi request OAuth/MCP (hoặc watcher với độ trễ tối đa 2 giây); **lỗi đọc = fail-closed** (chặn authorize/refresh/tool); không phụ thuộc DB; runbook `nginx -t && systemctl reload nginx` cho `return 503`; lệnh thu hồi mọi gia đình refresh. Điều kiện đóng đúng như C: bật cờ khi DB down vẫn chặn authorize/refresh/tool trong ≤ 2 giây; token cũ nhận 503/401; app thường vẫn sống.
+
+### Điểm mới A thêm
+
+#### A9-1 Đăng ký client: CIMD có thể là đường duy nhất Claude dùng → AS phải hỗ trợ có kiểm soát
+- **Hiện trạng / bằng chứng:** spec 2026-07-28: client "MUST obtain a client ID through one of three" (CIMD / pre-registration / DCR); DCR **deprecated**, CIMD **SHOULD**. Plan v6 "tắt DCR, đăng ký sẵn 2 client" chỉ đúng nếu Claude cho nhập `client_id`/secret thủ công (chưa biết).
+- **Rủi ro / phản ví dụ:** nếu Claude chỉ dùng CIMD, AS không hỗ trợ CIMD thì flow chết; nếu hỗ trợ CIMD tuỳ tiện thì AS phải **tự fetch URL do client đưa** → SSRF/đọc metadata độc.
+- **Đề nghị:** 0b đo xem connector UI của claude.ai / iOS / Claude Code dùng cơ chế nào. Nếu CIMD: chỉ chấp nhận `client_id` thuộc **allowlist URL chính xác** (host/path cố định), chặn private IP/redirect, timeout + giới hạn kích thước khi fetch, cache có hạn, `redirect_uris` trong metadata phải nằm trong allowlist redirect. Không bật CIMD chung.
+- **Xong khi:** ma trận 0b ghi cơ chế mỗi client dùng; test SSRF (client_id trỏ nội bộ/redirect) bị từ chối.
+
+### Trạng thái các mã (A cập nhật theo bảng của C)
+
+| Mã | Trạng thái (A) | Điều kiện còn treo |
+|---|---|---|
+| C2-1, C5-1, C5-9…C5-12 | ĐÃ CHỐT CÁCH XỬ LÝ (v7 sẽ xoá dòng 43) | contract test + spike 0b |
+| C2-2, C2-6…C2-9, C5-2, C5-6, C5-7, C5-15 | OPEN | Bước −1 (có preflight DB), 0a, 0b có artefact thật |
+| C2-3, C2-4, C5-3, C5-4, C5-13, C5-14 | CHẤP NHẬN GIỚI HẠN | Q1, Q2, Q5, Q7, Q8 đã ghi |
+| C2-5, C2-10, C2-11 | ĐÃ CHỐT CÁCH XỬ LÝ | test |
+| C5-5 / C8-5 | ĐÃ CHỐT CÁCH XỬ LÝ (kiểm mỗi request) | test disable user |
+| C8-9 | OPEN (refresh) | C xác nhận đề nghị của A hoặc bác |
+| C8-10, C8-11 | ĐÃ CHỐT CÁCH XỬ LÝ chờ Q10 / test | |
+
+### Bảng Q cho Tung (A hỏi hộ — thay Q10–Q12 của C; Q12 là quyết định kỹ thuật A lấy đề nghị của C, không hỏi)
+
+| # | Quyết gì | Lựa chọn (đề nghị **in đậm**) | Nguồn |
+|---|---|---|---|
+| Q10 | `get_plan` ở bản đầu | **Giữ, nhưng định nghĩa cứng: chỉ đọc mô tả của project "plan" cố định (cấu hình), cắt 64 KB** / bỏ khỏi bản đầu | C8-10 |
+| Q11 | Giới hạn khi đọc "đầy đủ cả loạt" | **Mỗi lần tối đa 25 task hoặc 64 KB (cái nào tới trước), lật trang tiếp bằng con trỏ, tối đa 6 lần gọi danh sách mỗi phút** / số khác do bạn chọn | C8-8, C8-10 |
+
+Không trả lời = lấy đề nghị in đậm. Thêm một việc cần bạn biết (không phải câu hỏi): **app production đang nối DB qua địa chỉ công khai của VPS**, nên muốn đóng cổng 1433 thì phải đổi cấu hình app trước (A đã ghi trình tự vào Bước −1; mọi thay đổi VPS chỉ chạy sau khi bạn duyệt từng cái).
+
+→ chờ: Tung
