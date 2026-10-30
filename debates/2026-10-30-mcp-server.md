@@ -218,3 +218,42 @@ Không trả lời = lấy đề nghị. (A sẽ hỏi Tung sau khi C phản bi�
 Không trả lời = lấy đề nghị in đậm. A sẽ hỏi Tung bằng lời thường (AskUserQuestion), ghi nguyên văn vào Vòng 4, rồi sửa plan v5 một lượt và mời C kiểm diff.
 
 → chờ: Tung
+
+
+---
+
+## Vòng 4 — Tung chốt (ghi bởi A) + A: sửa plan một lượt — 2026-10-30
+
+Tung được hỏi bằng lời thường (AskUserQuestion), trả lời **nguyên văn**:
+
+| Q | Câu hỏi (rút gọn) | Tung chốt | Ghi vào đâu |
+|---|---|---|---|
+| Q1 | Bản đầu cho Claude ghi hay chỉ xem? | "Xem + ghi devlog" (**khác** đề nghị của A và C là chỉ-đọc) | PLAN v5 §Quyết định Q1, §Công cụ v1 |
+| Q2 | Cầu nối đặt ở đâu? | "Chung với backend SuperApp (Recommended)" | PLAN v5 §Kiến trúc |
+| Q3 | Cách làm cổng OAuth | không hỏi riêng (A tự lấy đề nghị theo luật "không trả lời = lấy đề nghị") | PLAN v5 Q3, điều kiện spike |
+| Q4 | Thêm TOTP khi cấp quyền? | "Có (Recommended)" | PLAN v5 §Bảo mật |
+| Q5 | Task nhạy cảm có cho đọc qua MCP? | "Có, cho đọc hết" (**khác** đề nghị của A là không bao giờ) | PLAN v5 Q5 + chấp nhận giới hạn |
+| Q6 | Đóng cửa hạ tầng trước? | "Làm trước (Recommended)" | PLAN v5 Bước −1 |
+
+Hai quyết định (Q1, Q5) trái đề nghị của cả A lẫn C: A **không mở lại**, chỉ ghi rõ rủi ro đã được chấp nhận (CHẤP NHẬN GIỚI HẠN) và các biện pháp giảm nhẹ nằm trong plan.
+
+### A4-1 Sửa plan v5 — hash `74f5346` (diff `d9e5296..74f5346`)
+Đã sửa trong `docs/mcp-server/PLAN.md`:
+- Bỏ service key / unix socket / Python / verifier tự viết; chuyển sang MCP C# SDK **cùng process** qua `IMcpFacade` hẹp, một đường duy nhất (không `McpController` song song) — theo Q2, C2-3.
+- v1 = `list_tasks`, `get_task`, `get_plan`, `add_devlog` (tạo mới); bỏ `tick_checklist` — theo Q1.
+- Thêm `origin` bất biến (`user|mcp`) + migration + DTO + hạn mức ghi **vì có `add_devlog`** — theo C2-10 (A hoãn nó khi tưởng v1 chỉ-đọc; Tung chọn ghi nên phải làm).
+- Thêm **Bước −1** (đóng 1433, khoá origin chỉ nhận Cloudflare, ghi đè header IP) — theo C2-7, C2-9, A3-9, Q6.
+- AS: thư viện OAuth nếu spike đạt 4 điều kiện, nếu không tự viết kèm test song song — theo C2-1.
+- Ghim `canonical_resource`, contract test exact-string, nêu rõ phần spec chưa kiểm — theo C2-8.
+- TOTP qua service verify nội bộ, giữ `[Authorize]` — theo C2-5. Cloudflare rule có phạm vi + test máy-máy — theo C2-2. Spike có bearer/Access + TTL — theo C2-6.
+- Sửa mô tả rate limit sai; `UseForwardedHeaders` đặt trước redirect/limiter/auth; limiter riêng — theo C2-11.
+- Sửa nhầm `tungroot.py` → `superapp.py` — theo C2-10.
+
+### Việc A nhờ C kiểm (Vòng 5)
+1. **Kiểm diff** `d9e5296..74f5346`: mọi mục A nói đã sửa có thật trong plan không? (đọc diff, không tin báo cáo của A.)
+2. **Tấn công kiến trúc mới** (cùng process + `IMcpFacade`): chỗ nào ghép nối tự viết còn lỗ? Đặc biệt: scheme `Mcp` vs scheme JWT mặc định (cùng `AddAuthentication`), thứ tự middleware, token MCP gọi API thường, facade có thật sự chặn đường tắt tới service layer/DbContext không.
+3. **`add_devlog` là đường ghi duy nhất**: kịch bản tấn công nào còn lại sau nhãn `origin` + cắt độ dài + bỏ URL + hạn mức + "luôn hỏi"? Có cần thêm biện pháp rẻ nào (ví dụ chỉ cho ghi vào một task/loại comment cố định)?
+4. **Q5 (đọc cả task nhạy cảm)**: có biện pháp **không đổi quyết định của Tung** mà giảm thiệt hại (ví dụ trường nào của task nhạy cảm không cần trả, độ dài trích, số task mỗi lần)?
+5. Còn lỗ nào C chưa nêu? Nếu C thấy **mọi** điểm nghiêm trọng đã đóng đủ (có điều kiện đóng đo được) thì ghi "đề nghị ĐÓNG sàn" kèm danh sách điều kiện còn treo.
+
+→ chờ: C
