@@ -1,6 +1,6 @@
-# MCP server cho SuperApp — plan v7
+# MCP server cho SuperApp — plan v8
 
-> Task SuperApp #1734. Bản canonical của plan nằm ở file này (trong repo); mô tả task trên SuperApp là bản sao. Sàn tranh luận: `debates/2026-10-30-mcp-server.md` (A = Claude, C = GPT/Codex, Tung quyết). v7 = v6 + quyết định của Tung ở Vòng 10 (Q10–Q11) + phản biện của C ở Vòng 8 (và spec MCP 2026-07-28 đã được A kiểm trực tiếp).
+> Task SuperApp #1734. Bản canonical của plan nằm ở file này (trong repo); mô tả task trên SuperApp là bản sao. Sàn tranh luận: `debates/2026-10-30-mcp-server.md` (A = Claude, C = GPT/Codex, Tung quyết). v8 = v7 + phản biện của C ở Vòng 11 (spec MCP 2026-07-28 đã được A kiểm trực tiếp; Q13–Q15 là mặc định A lấy theo đề nghị của C, Q14/Q15 chờ Tung xác nhận).
 
 ## Mục tiêu
 
@@ -11,7 +11,7 @@ Dùng SuperApp (task, devlog, plan) từ Claude trên **iPhone (iOS 18.5)** và 
 | # | Quyết định | Ghi chú |
 |---|---|---|
 | Q1 | **Bản đầu: xem + ghi devlog** (`add_devlog` chỉ tạo mới). Không có `tick_checklist`, không xoá, không sửa. | A và C đều đề nghị chỉ-đọc; Tung chọn thêm devlog → rủi ro prompt injection đường ghi **được chấp nhận có điều kiện** (xem mục Injection). |
-| Q2 | **MCP chạy cùng process ASP.NET** (MCP C# SDK), **không** service key / unix socket / tiến trình Python riêng. Tool handler đi qua `IMcpFacade` hẹp, không gọi service layer trực tiếp. | Chấp nhận giới hạn: MCP bị chiếm (RCE) = chiếm cả app. Xem lại nếu mở thêm tool ghi. |
+| Q2 | **MCP chạy cùng process ASP.NET** (MCP C# SDK), **không** service key / unix socket / tiến trình Python riêng. **Một đường duy nhất:** tool → `IMcpFacade` (lớp duy nhất tool được gọi) → domain service / `OwnershipGuard` → repository; facade **gọi** domain service, không copy SQL, không đi thẳng DbContext. | Chấp nhận giới hạn: MCP bị chiếm (RCE) = chiếm cả app. Xem lại nếu mở thêm tool ghi. |
 | Q3 | **Authorization server (OAuth) trong backend, dùng thư viện OAuth cho .NET** (ứng viên OpenIddict) — chỉ nếu spike đạt 4 điều kiện: hỗ trợ `resource` (RFC 8707); consent tuỳ biến; đăng ký sẵn 2 client, tắt DCR; bảng token tách riêng. **Nếu không đạt: DỪNG và đổi thư viện/giải pháp; KHÔNG tự viết AS ở v1 (Q9, Tung chốt).** | C5-1: test race không phủ mix-up/code substitution/PKCE downgrade. |
 | Q4 | **Đòi TOTP** khi cấp quyền (sau khi Google `sub` khớp) — gọi **service verify nội bộ**, giữ replay/lockout; không gỡ `[Authorize]` của `TotpController`. Recovery chỉ qua SSH/runbook. | |
 | Q5 | **Task nhạy cảm (`is_sensitive`) ĐƯỢC đọc qua MCP.** | Tung chọn khác đề nghị của A. **Chấp nhận giới hạn**: Claude có thể đọc rồi (qua connector khác trong cùng chat) gửi ra ngoài. Giảm nhẹ: finance và project nội bộ vẫn **ngoài phạm vi**; kill switch; hướng dẫn không bật connector gửi dữ liệu ra ngoài khi dùng SuperApp. |
@@ -20,7 +20,10 @@ Dùng SuperApp (task, devlog, plan) từ Claude trên **iPhone (iOS 18.5)** và 
 | Q8 | **Đọc đầy đủ cả loạt** (kể cả mô tả task nhạy cảm) trong `list_tasks`. | Tung chọn khác đề nghị của A và C (list tối thiểu). **CHẤP NHẬN GIỚI HẠN**: một lệnh có thể lấy nhiều dữ liệu. Giữ **giới hạn kỹ thuật cố định** (byte tối đa/response, page size, số lần gọi/phút) — không đổi quyết định về nội dung, chỉ chặn quá cỡ/DoS. Comments chưa có ở v1. Số cụ thể: Q11. |
 | Q9 | Thư viện OAuth không đạt spike → **dừng, đổi giải pháp; không tự viết v1.** | Tung: "Dừng, đổi giải pháp khác". |
 | Q10 | **Giữ `get_plan` ở bản đầu, định nghĩa cứng:** không input; trả mô tả của **một project "plan" cố định lấy từ cấu hình** (hiện là project #23; client không chọn được id), HTML→văn bản, cắt **64 KB** kèm cờ `truncated`, qua `OwnershipGuard`. | Tung: "Giữ, chỉ đọc đúng plan cố định (Recommended)". C8-10. |
-| Q11 | **Giới hạn đọc: mỗi trang tối đa 25 task hoặc 64 KB (cái nào tới trước); tiếp bằng con trỏ (cursor) bất biến; tối đa 6 lần gọi danh sách mỗi phút.** Một mô tả task đơn lẻ dài quá giới hạn thì cắt kèm `truncated:true` (`get_task(id)` trả tối đa 64 KB). | Tung: "25 task hoặc 64 KB mỗi trang (Recommended)". Vẫn đọc hết qua cursor — không đổi Q8, chỉ chặn quá cỡ/DoS. C8-8, C8-10. |
+| Q11 | **Giới hạn đọc: mỗi trang tối đa 25 task hoặc 64 KB (cái nào tới trước); tiếp bằng con trỏ (cursor); tối đa 6 lần gọi danh sách mỗi phút.** Giới hạn tính theo **byte UTF-8 của cả response (envelope)**; một mô tả task dài quá thì **cắt từng mô tả** kèm `truncated:true`, **cursor luôn tiến**, JSON luôn hợp lệ; `get_task(id)` cũng cap **toàn envelope** ≤ 64 KiB (không chỉ riêng description). | Tung: "25 task hoặc 64 KB mỗi trang (Recommended)". Vẫn đọc hết qua cursor — không đổi Q8, chỉ chặn quá cỡ/DoS. C8-8, C8-10. |
+| Q13 | **Nhất quán yếu giữa các trang:** không lặp item; task thêm/khôi phục giữa hai lần gọi có thể phải list lại từ đầu; không làm snapshot cứng. | Mặc định theo đề nghị của C (C11-10); Tung không bị hỏi vì là chi tiết kỹ thuật. |
+| Q14 | **Task riêng lẻ lớn hơn cap: cắt từng mô tả + `truncated`, dùng `get_task` để đọc thêm.** | Mặc định theo đề nghị của C (C11-11); **chờ Tung xác nhận** (đổi được). |
+| Q15 | **Quota `add_devlog` v1: 10 lần/ngày, 4 KiB/lần, 1 lần/10 giây; vượt thì từ chối (không xếp hàng); bộ đếm lưu bền (sống qua restart), an toàn khi gọi đồng thời; audit không ghi nội dung.** | Mặc định theo đề nghị của C (C11-12); **chờ Tung xác nhận** (đổi được). |
 
 Ngoài ra: **một danh tính** dùng MCP (Tung), ghim bằng Google `sub` + `email_verified`; SuperApp vẫn cho đăng ký tự do (product), siết lại chỉ khi tiện.
 
@@ -44,7 +47,7 @@ Cloudflare → nginx → ASP.NET (cùng process):
    /mcp           MCP C# SDK, scheme `Mcp` (chỉ chấp nhận token aud=MCP), scope kiểm TRONG TỪNG TOOL
    /mcp-oauth/*   authorization server = thư viện OAuth đã chọn qua spike 0b (Q3/Q9); KHÔNG có nhánh tự viết
    │
-   ▼ `IMcpFacade` (hẹp): ListTasks (keyset cursor `id > cursor`, tự phân trang vì `GetTasks` không có phân trang), GetTask, GetPlan (cố định), AddDevlog — DTO tối giản, KHÔNG phải service layer
+   ▼ `IMcpFacade` (hẹp): ListTasks (query repository RIÊNG: `WHERE ownership AND Id > lastId ORDER BY Id`, lấy N+1 theo ngân sách byte; ownership nằm trong SQL; **không** dùng `GetTasks` cũ vì nó sắp `OrderIndex, CreatedAt` và nạp toàn bộ danh sách — `TaskRepository.cs:102-106,152`; weak consistency, Q13), GetTask, GetPlan (cố định), AddDevlog — DTO tối giản, KHÔNG phải service layer
    ▼
 Database
 ```
@@ -62,17 +65,17 @@ Database
 
 ## Công cụ v1
 
-`list_tasks` (trang 25 task/64 KB, cursor bất biến, ≤ 6 lần/phút), `get_task(id)` (≤ 64 KB, `truncated`), `get_plan` (Q10: mô tả project plan cố định, ≤ 64 KB) — đọc; `add_devlog` (ghi, **chỉ tạo mới**, không nhận id, cắt độ dài, bỏ URL ngay lúc ghi, hạn mức/ngày ở backend, gắn `origin = mcp`).
+`list_tasks` (trang 25 task/64 KB, cursor bất biến, ≤ 6 lần/phút), `get_task(id)` (≤ 64 KB, `truncated`), `get_plan` (Q10: mô tả project plan cố định, ≤ 64 KB) — đọc; `add_devlog` (ghi, **chỉ tạo mới**, không nhận id, cắt độ dài, bỏ URL ngay lúc ghi, hạn mức theo Q15 ở backend, gắn `origin = mcp`).
 Không có: xoá, sửa task, tick checklist, comment khác, project, finance, SQL, gọi API tuỳ ý.
 
 ## Bảo mật
 
 **OAuth / xác thực**
-- S256 only. **`resource` (spec MCP 2026-07-28 — A đã đọc trực tiếp: "MUST be included in both authorization requests and token requests"):** ở **authorize và đổi code**, thiếu/sai `resource` ≠ `mcp_resource` → `invalid_target`; nhánh tương thích legacy nếu cần thì **theo revision**, không theo "client có gửi hay không". **Refresh** (đang chờ C xác nhận, C8-9): thiếu `resource` → dùng `resource` đã gắn với grant; có `resource` khác grant → `invalid_target`. **Hai hằng riêng, không trộn:** `mcp_resource` (URL MCP, ví dụ `https://www.tungle.uk/mcp`; khớp PRM `resource` và `aud`) và `authorization_server_issuer` (khớp metadata `issuer` và `iss` token); exact-match, không normalize; contract test tráo hai giá trị phải fail.
+- S256 only. **`resource` (spec MCP 2026-07-28 — A đã đọc trực tiếp: "MUST be included in both authorization requests and token requests"):** ở **authorize và đổi code**, thiếu/sai `resource` ≠ `mcp_resource` → `invalid_target`; nhánh tương thích legacy nếu cần thì **theo revision**, không theo "client có gửi hay không". **Refresh (C11-9, chốt):** với grant của client **current** (revision 2026-07-28), refresh thiếu hoặc sai `resource` → `invalid_target`; chỉ khi **0b chứng minh một client/legacy grant cụ thể** cần thì cho **fallback về `resource` đã gắn với grant**, ghi rõ theo client và không đổi `aud`. **Hai hằng riêng, không trộn:** `mcp_resource` (URL MCP, ví dụ `https://www.tungle.uk/mcp`; khớp PRM `resource` và `aud`) và `authorization_server_issuer` (khớp metadata `issuer` và `iss` token); exact-match, không normalize; contract test tráo hai giá trị phải fail.
 - **Ghim danh tính bằng cặp `{AllowedGoogleSub → SuperAppUserId}` trong cấu hình** (không chỉ email): AS **không** gọi `GetOrCreateGoogleUserAsync` (tra/tạo user theo email, `AuthService.cs:433`); đổi email không đổi user; khi khởi động xác minh `SuperAppUserId` còn tồn tại và active, sai thì **không khởi động**; `sub` lạ bị chặn **trước** bước TOTP (TOTP nhận `int userId`, `TotpService.cs:65`).
 - **Kiểm `sub → userId → active` ở: authorize, MỖI refresh, và MỖI lần gọi tool `/mcp`** (không cache; lưu lượng một người dùng). Disable user không restart → authorize/refresh/tool fail ngay (C8-5).
 - **Phân tách scheme bằng policy, không bằng tên scheme:** policy `McpOnly` chỉ chấp nhận scheme `Mcp` + `aud` + scope + `sub`; API thường chỉ policy/scheme hiện tại; không dùng policy-selector theo token tự khai. Test ma trận 4 ca `{endpoint MCP/API} × {token MCP/app}` chỉ đúng hai đường hợp lệ; test kiến trúc: endpoint mới thiếu policy phải làm test fail. (`[Authorize]` trần chạy scheme mặc định JWT thường — `Startup.cs:59-72`.)
-- Metadata: `/.well-known/oauth-authorization-server` (kèm `code_challenge_methods_supported:["S256"]`; chỉ quảng bá `authorization_response_iss_parameter_supported:true` nếu thật sự trả `iss`), `/.well-known/oauth-protected-resource` (đường dẫn có hậu tố theo RFC 9728/8414); nginx route đúng; MCP trả `401 WWW-Authenticate` đúng chuẩn. **Các điều khoản/revision spec chưa được kiểm → contract test ở Bước 0**, không coi là sự thật.
+- Metadata: `/.well-known/oauth-authorization-server` (kèm `code_challenge_methods_supported:["S256"]`; chỉ quảng bá `authorization_response_iss_parameter_supported:true` nếu thật sự trả `iss`), `/.well-known/oauth-protected-resource` (đường dẫn có hậu tố theo RFC 9728/8414); nginx route đúng; MCP trả `401 WWW-Authenticate` đúng chuẩn. (Spec 2026-07-28 **đã được A kiểm trực tiếp**; vẫn có contract test exact-string ở Bước 0b cho từng client.)
 - Redirect URI: allowlist `https://claude.ai/api/mcp/auth_callback` (+ claude.com) và loopback mọi cổng (RFC 8252) cho Claude Code; không redirect trước khi validate `client_id` + `redirect_uri`. **DCR tắt**, 2 client đăng ký sẵn.
 - **Đăng ký client (spec: CIMD SHOULD, DCR deprecated, pre-registration được phép):** spike 0b đo từng client Claude dùng cơ chế nào. Nếu CIMD: chỉ chấp nhận `client_id` thuộc **allowlist URL chính xác**, chặn private IP/redirect khi fetch (SSRF), timeout + giới hạn kích thước, cache có hạn, `redirect_uris` trong metadata phải nằm trong allowlist redirect; **không bật CIMD chung** (A9-1).
 - Chống login CSRF/mix-up: cookie `__Host-` SameSite=Lax gắn yêu cầu authorize, bắt buộc ở callback Google + POST consent; token CSRF; `frame-ancestors 'none'` + `X-Frame-Options` (đăng ký `SecurityHeadersMiddleware` — hiện có file nhưng chưa đăng ký); luôn hiện consent.
@@ -103,6 +106,7 @@ Không có: xoá, sửa task, tick checklist, comment khác, project, finance, S
 2. Firewall nhà cung cấp VPS **deny 1433** từ ngoài (**Tung làm**) + ufw cho 22/80/443 (v4+v6) **sau khi** xác nhận phiên SSH mới vẫn vào được.
 3. Origin chỉ nhận **dải Cloudflare** ở 80/443 (hoặc Authenticated Origin Pulls); bỏ `default_server` phục vụ app theo IP; nginx ghi đè header IP; backend chỉ tin proxy `127.0.0.1`.
 4. **Sau cùng** mới cân nhắc bind SQL Server về localhost.
+- **Inventory trước bước 3 (C11-7):** lưu `nginx -T`; liệt kê mọi hostname/proxy/ACME/monitor trên VPS (`www.tungle.uk`, `glancify-dev`, `pets`, `portfolio`, …) và site nào DNS-only (không qua Cloudflare). **Khoá origin ở mức nginx theo từng vhost** (Authenticated Origin Pulls hoặc `allow`/`deny` dải Cloudflare) **thay vì firewall chặn cả 80/443** (firewall không phân biệt hostname và sẽ giết site DNS-only hoặc ACME HTTP-01); firewall chỉ **deny 1433** và cho 22/80/443. `default_server` được **thay bằng catch-all từ chối** (không chỉ xoá). Test từng hostname, renew cert, websocket, direct-IP; rollback timer diễn tập.
 - Mỗi thay đổi cấu hình VPS **chỉ chạy sau khi Tung duyệt từng cái**. Xong khi: phiên SSH mới + app/DB/website pass sau từng lớp; quét từ hai mạng ngoài, 1433 timeout/filtered; gọi thẳng IP:80/443 thất bại; qua Cloudflare với header giả vẫn rate-limit theo IP thật; rollback đã diễn tập.
 
 **Bước 0a — Đo transport/client (bearer tĩnh, dữ liệu giả; KHÔNG đo OAuth)**
