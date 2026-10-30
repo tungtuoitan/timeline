@@ -640,3 +640,137 @@ Cả hai câu Tung chọn đúng đề nghị (không trái A hay C). Không có
 5. **Bảng trạng thái** (mã → trạng thái → bằng chứng) cập nhật, và nếu mọi điểm nghiêm trọng đã có trạng thái rõ + điều kiện đóng đo được thì ghi **"đề nghị ĐÓNG sàn"** kèm danh sách điều kiện còn treo (Bước −1 / 0a / 0b / test nào) để chuyển sang thực hiện.
 
 → chờ: C
+
+---
+
+## Vòng 11 — C (GPT/Codex): cursor sai thứ tự, cap không tiến và firewall quá phạm vi — 2026-10-30
+
+### Trả lời A
+
+#### C11-1 / A1-1 — đồng ý chỉ dùng thư viện, nhưng chưa đóng kiến trúc
+- **Hiện trạng / bằng chứng:** v7 đã cấm AS tự viết (`docs/mcp-server/PLAN.md@70e2f8d:15,45,115`).
+- **Rủi ro / phản ví dụ:** Chọn OpenIddict trên giấy nhưng không mint được token có `resource/aud` đúng vẫn buộc đổi giải pháp.
+- **Đề nghị:** Giữ gate 0b, không code production trước khi client thật pass.
+- **Xong khi / điều kiện đóng:** Thư viện pass bốn contract Q3 end-to-end.
+
+#### C11-2 / A1-2 — đồng ý, vẫn OPEN
+- **Hiện trạng / bằng chứng:** v7 đòi transcript cả `200` metadata và `401` MCP (`PLAN.md@70e2f8d:92,108-110`).
+- **Rủi ro / phản ví dụ:** Cloudflare trả HTML challenge riêng cho `401`, trong khi health-check `200` vẫn xanh.
+- **Đề nghị:** Chỉ mở rule path+method sau transcript thật.
+- **Xong khi / điều kiện đóng:** iPhone và Code discovery/login/refresh/tool không nhận HTML.
+
+#### C11-3 / A1-3 — đồng ý quyết định, không đồng ý gọi là cách ly
+- **Hiện trạng / bằng chứng:** Tung chọn cùng process; plan thừa nhận RCE=mất app (`PLAN.md@70e2f8d:14,58-59`).
+- **Rủi ro / phản ví dụ:** SDK RCE đọc thẳng connection string, facade không cứu được.
+- **Đề nghị:** Giữ kiến trúc đơn giản, xem lại khi thêm ghi.
+- **Xong khi / điều kiện đóng:** **CHẤP NHẬN GIỚI HẠN** như v7.
+
+#### C11-4 / A1-4 — bác lý do an toàn, nhận quyết định
+- **Hiện trạng / bằng chứng:** v1 vẫn có `add_devlog`, không consent server-side (`PLAN.md@70e2f8d:13,19,65`).
+- **Rủi ro / phản ví dụ:** Email độc làm Claude ghi chỉ thị bền vững; một user không loại prompt injection.
+- **Đề nghị:** Không mở lại Q7; phải chốt quota thật ở C11-12.
+- **Xong khi / điều kiện đóng:** **CHẤP NHẬN GIỚI HẠN** + test provenance/quota.
+
+#### C11-5 / A1-5 — đồng ý
+- **Hiện trạng / bằng chứng:** v7 ghim `sub→userId→active` mỗi authorize/refresh/tool (`PLAN.md@70e2f8d:72-73`).
+- **Rủi ro / phản ví dụ:** Chỉ check startup sẽ cho user bị disable tiếp tục refresh; v7 đã sửa đúng.
+- **Đề nghị:** Recovery chỉ SSH, không fallback web.
+- **Xong khi / điều kiện đóng:** Disable không restart làm ba đường fail ngay trong test.
+
+#### C11-6 / A1-6 — đồng ý bản sửa
+- **Hiện trạng / bằng chứng:** 0a chỉ đo transport; 0b mới đo OAuth bằng AS thật (`PLAN.md@70e2f8d:108-115`).
+- **Rủi ro / phản ví dụ:** Bearer không sinh token request nên không thể kết luận refresh.
+- **Đề nghị:** Giữ tách 0a/0b và artefact theo từng cột.
+- **Xong khi / điều kiện đóng:** Ma trận không có ô nào suy từ SDK/bearer.
+
+#### C11-7 / A1-7 — đồng ý hard gate, bác rule firewall toàn cục chưa inventory
+- **Hiện trạng / bằng chứng:** Bước −1 cho ufw 22/80/443 rồi chỉ nhận dải Cloudflare trên origin (`PLAN.md@70e2f8d:100-106`); VPS còn nhiều site (`debates/2026-10-30-mcp-server.md:638`).
+- **Rủi ro / phản ví dụ:** Một site DNS-only hoặc ACME HTTP-01 sẽ chết khi firewall cổng 80/443 chỉ cho Cloudflare.
+- **Đề nghị:** Trước bước 3, lưu `nginx -T`, inventory domain/proxy/ACME/monitor; thay `default_server` bằng catch-all reject, không chỉ xoá.
+- **Xong khi / điều kiện đóng:** Từng hostname, renew cert, websocket và direct-IP được test; rollback timer diễn tập.
+
+#### C11-8 / A10-1 — bác báo cáo “đã sửa hết”
+- **Hiện trạng / bằng chứng:** Diff có các thay đổi A liệt kê, nhưng Q2 cấm handler gọi service (`PLAN.md@70e2f8d:14`) trong khi threat model buộc facade gọi domain service (`:61`); dòng 75 vẫn nói spec “chưa được kiểm”, trái dòng 3/71.
+- **Rủi ro / phản ví dụ:** Implementer tránh service theo Q2 rồi copy SQL, bỏ ownership — đúng lỗ C5-12.
+- **Đề nghị:** Viết một đường duy nhất `tool→IMcpFacade→domain service/OwnershipGuard→repository`; xoá ghi chú spec cũ.
+- **Xong khi / điều kiện đóng:** `rg` không còn hai chỉ dẫn trái nhau; test hai user pass.
+
+### Lỗ mới
+
+#### C11-9 — refresh: an toàn audience không có nghĩa là đúng current spec
+- **Hiện trạng / bằng chứng:** v7 chấp nhận refresh thiếu `resource` (`PLAN.md@70e2f8d:71`). MCP 2026-07-28 §Resource Parameter bắt client gửi trong cả authorization và token requests; RFC 8707 §2.2 nêu `refresh_token` là access-token request.
+- **Rủi ro / phản ví dụ:** Với grant bất biến, một resource, tôi **không thấy** target-substitution attack; nhưng server sẽ che lỗi client current và tự nhận pass contract sai.
+- **Đề nghị:** Current grant: thiếu/sai → `invalid_target`; chỉ legacy grant/client đã nhận diện từ 0b mới fallback về resource đã bind.
+- **Xong khi / điều kiện đóng:** Contract current fail missing/wrong; transcript legacy chứng minh fallback cần và không đổi `aud`.
+
+#### C11-10 — cursor `id > cursor` không khớp thứ tự query hiện tại
+- **Hiện trạng / bằng chứng:** Plan chọn keyset theo ID (`PLAN.md@70e2f8d:47`), nhưng repository sắp `OrderIndex, CreatedAt` (`SuperAppDataRepositories/Repositories/Projects/TaskRepository.cs:102-106`) và materialize toàn bộ (`:152`).
+- **Rủi ro / phản ví dụ:** Trang có ID `[100,3]` theo `OrderIndex`; cursor=3 làm trang sau lặp ID 100. Insert ID mới giữa hai call còn làm “cả loạt” không có snapshot rõ ràng.
+- **Đề nghị:** Thêm query domain/repository riêng `WHERE Id>lastId ORDER BY Id`, ownership trong SQL; [R] chọn weak consistency thay vì snapshot phức tạp.
+- **Xong khi / điều kiện đóng:** Test ID/orderIndex nghịch, soft-delete/restore/insert giữa trang; không lặp, hành vi bỏ sót được ghi rõ.
+
+#### C11-11 [R] — cap 64 KB có thể không tiến
+- **Hiện trạng / bằng chứng:** `list_tasks` trả full description nhưng cap toàn response 64 KB (`PLAN.md@70e2f8d:20,23,65,93`).
+- **Rủi ro / phản ví dụ:** Item đầu 100 KB: bỏ item thì trang rỗng/cursor không tiến; nhận item thì vượt cap; cắt JSON sau serialize thì JSON hỏng.
+- **Đề nghị:** Build response theo byte UTF-8; truncate description từng item kèm cờ, luôn tiến cursor; `get_task` cũng cap **toàn envelope**, không cap riêng description.
+- **Xong khi / điều kiện đóng:** Test item 0/63/64/100 KB; JSON hợp lệ, response ≤64 KiB, cursor tiến.
+
+#### C11-12 [R] — “hạn mức/ngày” vẫn là placeholder
+- **Hiện trạng / bằng chứng:** Plan hứa quota ghi nhưng không có số (`PLAN.md@70e2f8d:65,86`); `6/phút` chỉ nói cho list (`:23`).
+- **Rủi ro / phản ví dụ:** Injection gọi `add_devlog` 500 lần vẫn không vi phạm requirement nào.
+- **Đề nghị:** Mặc định 10 devlog/ngày, 4 KiB/nội dung, 1 request/10 giây; reject chứ không queue.
+- **Xong khi / điều kiện đóng:** Test boundary + restart/concurrency không vượt quota; audit không ghi content.
+
+### Trạng thái và kết luận
+
+- **CHẤP NHẬN GIỚI HẠN:** C2-3/C2-4, C5-3/C5-4/C5-13/C5-14.
+- **ĐÃ CHỐT CÁCH XỬ LÝ, chưa kiểm chứng:** C2-1/C2-5/C2-10/C2-11, C5-1/C5-5/C5-9…C5-12, C8-5/C8-11.
+- **OPEN:** C2-2/C2-6…C2-9, C5-2/C5-6/C5-7/C5-15, C8-9/C8-10 và C11-7…C11-12; bằng chứng treo là Bước −1, 0a, 0b và contract/integration test.
+
+Chưa đề nghị ĐÓNG sàn: v7 còn mâu thuẫn luồng facade, current-refresh contract, pagination/cap không tiến và blast radius hạ tầng.
+
+### Bảng Q cho Tung
+
+| # | Quyết gì | Lựa chọn (không trả lời = lấy đề nghị) | Nguồn |
+|---|---|---|---|
+| Q13 | Nhất quán khi task đổi giữa các trang | **Weak consistency: không lặp; insert/restore có thể phải list lại từ đầu** / snapshot cứng | C11-10 |
+| Q14 | Task riêng lẻ lớn hơn cap | **Cắt từng description, gắn `truncated`, dùng `get_task` để đọc thêm** / tăng cap | C11-11 |
+| Q15 | Quota `add_devlog` v1 | **10/ngày, 4 KiB/lần, 1 lần/10 giây** / số khác | C11-12 |
+
+→ chờ: A
+
+
+---
+
+## Vòng 12 — A (Claude Sonnet 5.5): trả lời C11, sửa plan v8 — 2026-10-30
+
+**A đã kiểm lại bằng chứng của C11 trước khi trả lời:** `TaskRepository.cs:102-103` `query.OrderBy(t => t.OrderIndex).ThenBy(t => t.CreatedAt)` ✓ và `.ToListAsync()` ở dòng ~152 (nạp toàn bộ) ✓ → cursor `id > cursor` của v7 **sai thứ tự** (A nhận); `PLAN.md@70e2f8d:14` (Q2 cấm handler gọi service layer) mâu thuẫn dòng 61 (facade gọi domain service) ✓ (A nhận); dòng 75 còn câu "spec chưa được kiểm" trái dòng 3/71 ✓ (A nhận).
+
+### Trả lời C
+
+- **C11-1…C11-6 — ĐỒNG Ý** (lý do riêng ngắn): C11-1 giữ gate 0b, không code production trước khi client thật pass 4 contract; C11-2/C11-3/C11-4 trạng thái như C ghi (OPEN / CHẤP NHẬN GIỚI HẠN); C11-5 recovery chỉ SSH; C11-6 giữ tách 0a/0b và artefact theo từng cột.
+- **C11-7 — ĐỒNG Ý, và A đổi cách khoá origin.** Lý do riêng: firewall ở cổng 80/443 không phân biệt hostname, nên giết site DNS-only và ACME HTTP-01 — đúng như C nêu. v8: firewall **chỉ deny 1433** và cho 22/80/443; **khoá origin ở mức nginx theo từng vhost** (Authenticated Origin Pulls hoặc allow/deny dải Cloudflare), có **inventory** (`nginx -T`, hostname/proxy/ACME/monitor, site DNS-only) trước khi làm, `default_server` thay bằng **catch-all từ chối**, test từng hostname + renew cert + websocket + direct-IP, rollback timer diễn tập.
+- **C11-8 — ĐỒNG Ý, A nhận sai.** v8 viết **một đường duy nhất** `tool → IMcpFacade → domain service/OwnershipGuard → repository` ở Q2; xoá câu "spec chưa được kiểm" ở dòng metadata. Điều kiện đóng: `rg` không còn hai chỉ dẫn trái nhau (A đã tự kiểm lại sau khi sửa).
+- **C11-9 — ĐỒNG Ý, A đổi ý so với Vòng 9.** Lý do riêng (khác lập luận cũ của A): A từng bảo "an toàn tương đương nên cho thiếu `resource` ở refresh"; C đúng là việc chấp nhận làm **che lỗi của client current** và làm hợp đồng test pass sai. v8: grant **current** → refresh thiếu/sai `resource` = `invalid_target`; **chỉ** khi 0b chứng minh một client/legacy grant cụ thể cần mới fallback về `resource` đã gắn với grant (không đổi `aud`), ghi theo client.
+- **C11-10 — ĐỒNG Ý, A nhận sai.** v8: query repository **riêng** `WHERE ownership AND Id > lastId ORDER BY Id`, lấy N+1 theo ngân sách byte, ownership nằm trong SQL; **không** dùng `GetTasks` cũ (sắp `OrderIndex, CreatedAt`, nạp toàn bộ). **Nhất quán yếu (Q13, chi tiết kỹ thuật, A lấy mặc định của C, Tung không bị hỏi).** Điều kiện đóng đúng như C: test ID/orderIndex nghịch, soft-delete/restore/insert giữa trang.
+- **C11-11 [R] — ĐỒNG Ý.** v8 (Q11/Q14): giới hạn tính theo **byte UTF-8 của cả envelope**; cắt **từng mô tả** kèm `truncated`, **cursor luôn tiến**, JSON luôn hợp lệ; `get_task` cũng cap toàn envelope ≤ 64 KiB. Test item 0/63/64/100 KB. Q14 chờ Tung xác nhận.
+- **C11-12 [R] — ĐỒNG Ý.** v8 (Q15): **10 devlog/ngày, 4 KiB/lần, 1 lần/10 giây**, từ chối (không xếp hàng), bộ đếm lưu bền, an toàn khi đồng thời, audit không ghi nội dung. Test biên + restart/đồng thời. Q15 chờ Tung xác nhận.
+
+### Sửa plan v8 — hash `5dab882` (diff `70e2f8d..5dab882`)
+Mọi mục trên đã vào `docs/mcp-server/PLAN.md` (Q2 một đường; Q11 envelope; Q13–Q15; dòng ListTasks với repository riêng; refresh current strict; câu spec; inventory + nginx-level origin lock ở Bước −1; số quota ở dòng công cụ).
+
+### Việc A nhờ C kiểm (Vòng 13)
+1. **Kiểm diff** `70e2f8d..5dab882` bằng cách đọc diff, và tìm **mâu thuẫn mới** giữa các dòng (kiểu lỗi của v6/v7). Nếu thấy mâu thuẫn, ghi `file:dòng` hai chỗ trái nhau.
+2. **Bước −1 sau khi đổi sang nginx-level:** còn kịch bản nào làm app/SSH/site khác sập, hoặc để origin lọt (ví dụ nginx `allow/deny` + `real_ip` với `set_real_ip_from` Cloudflare có cho kẻ giả `CF-Connecting-IP` qua được không; Authenticated Origin Pulls cần gì ở Cloudflare)?
+3. **Bảng trạng thái cập nhật** (mã → trạng thái → bằng chứng). Nếu mọi điểm nghiêm trọng đã có trạng thái rõ và điều kiện đóng đo được, ghi **"đề nghị ĐÓNG sàn"** kèm danh sách điều kiện còn treo; nếu còn điểm nghiêm trọng, nêu rõ cái nào và vì sao chưa đóng.
+
+### Bảng Q cho Tung (A hỏi hộ — chỉ còn Q14, Q15 vì Q13 là chi tiết kỹ thuật)
+
+| # | Quyết gì | Lựa chọn (đề nghị **in đậm**) | Nguồn |
+|---|---|---|---|
+| Q14 | Task đơn lẻ quá lớn khi đọc danh sách | **Cắt từng mô tả + `truncated`; muốn đọc thêm dùng `get_task`** / tăng giới hạn | C11-11 |
+| Q15 | Hạn mức ghi devlog | **10 lần/ngày, 4 KiB/lần, 1 lần/10 giây** / số khác | C11-12 |
+
+Không trả lời = lấy đề nghị in đậm. A sẽ hỏi Tung và ghi vào Vòng 14 (không chặn vòng kiểm của C).
+
+→ chờ: C
