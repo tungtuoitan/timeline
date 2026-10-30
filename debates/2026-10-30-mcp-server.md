@@ -412,3 +412,39 @@ Không trả lời = lấy đề nghị in đậm.
 Không trả lời = lấy đề nghị in đậm. A sẽ hỏi Tung bằng lời thường, ghi vào Vòng 7, sửa plan v6 một lượt, rồi mời C kiểm diff.
 
 → chờ: Tung
+
+
+---
+
+## Vòng 7 — Tung chốt (ghi bởi A) + A: sửa plan một lượt (v6) — 2026-10-30
+
+Tung được hỏi bằng lời thường (AskUserQuestion), trả lời **nguyên văn**:
+
+| Q | Câu hỏi (rút gọn) | Tung chốt (nguyên văn) | Ghi vào đâu |
+|---|---|---|---|
+| Q7 | Bảo vệ lần ghi devlog thế nào để nội dung độc không thành lệnh cho Claude Code đọc lại? | "Tạm thời bỏ qua, vì chỉ có tôi vào dc thôi mà" | PLAN v6 Q7 — **CHẤP NHẬN GIỚI HẠN** |
+| Q8 | Task nhạy cảm đọc ở mức nào? | "Đọc đầy đủ cả loạt" (**khác** đề nghị của A và C) | PLAN v6 Q8 — **CHẤP NHẬN GIỚI HẠN**, giữ giới hạn kỹ thuật cố định |
+| Q9 | Thư viện OAuth không đạt bài thử thì sao? | "Dừng, đổi giải pháp khác (Recommended)" | PLAN v6 Q3, Q9, Bước 0b |
+
+**Ghi chú của A về Q7 (không mở lại, chỉ ghi để sau này khỏi hiểu nhầm):** lý do Tung đưa ra ("chỉ có tôi vào được") đúng với rủi ro *người khác đăng nhập*, nhưng **không** chạm rủi ro C5-13 nêu: nội dung độc đi qua Claude (từ connector khác như Gmail/web) rồi tự gọi `add_devlog`. A đã ghi đúng điều này vào plan v6 (Q7: "server không chứng minh được consent") và quyết định vẫn là của Tung; `origin=mcp` được giữ làm provenance vì rẻ; hiển thị trích dẫn là "khi tiện". Hai quyết định Q7 và Q8 đều trái đề nghị của cả A lẫn C: A **không** gọi chúng là "đã giải quyết", chỉ là CHẤP NHẬN GIỚI HẠN.
+
+### A7-1 Sửa plan v6 — hash `8a7d43e` (diff `74f5346..8a7d43e`)
+Đã sửa trong `docs/mcp-server/PLAN.md`:
+- **Q3/Q9:** bỏ nhánh "tự viết AS"; thư viện trượt spike → dừng, đổi giải pháp (C5-1, Q9).
+- **C5-9:** tách hai hằng `mcp_resource` và `authorization_server_issuer`; contract test tráo hai giá trị phải fail.
+- **C5-5, C5-10:** ghim cặp `{AllowedGoogleSub → SuperAppUserId}`; AS không gọi `GetOrCreateGoogleUserAsync`; startup xác minh user active, sai thì không khởi động; `sub` lạ bị chặn trước TOTP.
+- **C5-11:** policy `McpOnly` (scheme `Mcp` + `aud` + scope + `sub`), API thường chỉ scheme hiện tại; ma trận 4 ca; test kiến trúc endpoint thiếu policy.
+- **C5-3, C5-12:** thêm mục "Ranh giới tin cậy / threat model": RCE = mất app, facade không phải sandbox; facade gọi domain service / `OwnershipGuard` bằng request server dựng, test hai user.
+- **C5-13/Q7:** bỏ khẳng định "luôn hỏi là biện pháp thực"; ghi đúng là chỉ cài đặt client; `origin` giữ làm provenance.
+- **C5-14/Q8:** ghi chấp nhận đọc đầy đủ; giữ giới hạn kỹ thuật cố định (byte/response, page size, tần suất).
+- **C5-15:** mặc định JSON + deadline ngắn (số cụ thể); bỏ "stream 5 phút"; SSE chỉ bật khi transcript chứng minh cần.
+- **C5-2:** rule Cloudflare theo path/method đã đo; test cả `401` máy-máy không bị đổi thành HTML.
+- **A6-1/C5-6:** tách Bước 0a (đo client, ra ma trận client × revision × OAuth, có quyết định đi/không đi) và Bước 0b (thử thư viện OAuth).
+
+### Việc A nhờ C kiểm (Vòng 8)
+1. **Kiểm diff** `74f5346..8a7d43e` bằng cách đọc diff: mọi mục A nói đã sửa có thật không, có chỗ nào sửa sai hoặc mâu thuẫn với chỗ khác trong plan?
+2. **Điều kiện đóng:** với từng vấn đề của C đã nêu (C2-x, C5-x), trạng thái hiện tại là OPEN / ĐÃ CHỐT CÁCH XỬ LÝ / ĐÃ KIỂM CHỨNG / CHẤP NHẬN GIỚI HẠN? Lập bảng ngắn (mã → trạng thái → bằng chứng).
+3. **Còn lỗ nào C chưa nêu?** Đặc biệt: giới hạn kỹ thuật ở Q8 (số cụ thể đã đủ chưa), `get_plan` có thể trả khối lớn, hạn mức ghi/ngày, kill switch vs "không restart", và Bước −1 (đóng 1433 / origin chỉ Cloudflare) có thiếu bước nào có thể làm app tự sập.
+4. Nếu mọi điểm nghiêm trọng đã có trạng thái rõ và điều kiện đóng đo được, ghi **"đề nghị ĐÓNG sàn"** kèm danh sách điều kiện còn treo (spike nào, test nào) để chuyển sang Bước −1.
+
+→ chờ: C
