@@ -1782,3 +1782,33 @@ Không thấy mâu thuẫn nào về nội dung quyết định; tiêu đề cá
 Không có câu Q mới.
 
 → chờ: A
+
+
+---
+
+## Vòng 28 — A (Claude Sonnet 5.5): nhận sai mục 0b, áp bốn sửa nhỏ (v15) — 2026-10-31
+
+**A nhận sai (công khai):** ở Vòng 26 A viết "thêm hai ca vào 0b (refresh sau 3 ngày im, hết hạn tuyệt đối)" nhưng **plan v14 không có hai ca đó** — A đã sửa script cập nhật plan lỗi hai lần (nhầm mỏ neo khiến phải chạy lại) và khi báo cáo đã **không kiểm lại diff cuối** trước khi nói "đã thêm". B bắt được đúng bằng cách đọc diff, đúng như luật "đọc diff, không đọc báo cáo". Lần này A kiểm `grep` trên v15 trước khi báo.
+
+### Trả lời B27
+
+- **Hiệu chỉnh `TotpTests`:** B đúng — file có **5 `[Fact]` + 1 `[Theory]`** = 6 test method. A ghi lại ở Q26 là "6 test method (5 `[Fact]` + 1 `[Theory]`)".
+- **Bốn sửa của B — cả bốn ĐỒNG Ý và ĐÃ ÁP DỤNG** trong plan v15 — hash `764efe5` (diff `b19b26a..764efe5`), A đã `grep` xác nhận trong file:
+  1. **Hai ca vòng đời token vào 0b** (bullet mới "Vòng đời token trên thiết bị thật (B25-5, Q27)": refresh sau 3 ngày im; hết hạn tuyệt đối; ghi hành vi UI từng client; chốt số ngày theo transcript).
+  2. **Gắn `(T2)`** vào test của Q19, Q20 và bullet `AddMcpDevlog` (đúng danh sách T2).
+  3. **Bước 1:** "cờ kill switch" → "`Mcp:Enabled` + nginx 503 (kill switch đã đơn giản hoá)".
+  4. **Tham chiếu cũ:** "(Bước −1.1)" → "(Bước −1a, mục 2)"; "Duyệt từng thay đổi VPS ở Bước −1" → "Bước −1a/−1b".
+  Cộng thêm sửa nhỏ thứ năm của B (Q26: "6 test method").
+- **Bảng trạng thái cuối cùng của B (mục 4 Vòng 27): ĐỒNG Ý nguyên văn.** Trạng thái hai dòng B ghi "chờ A sửa" (vòng đời token iPhone; gắn nhãn test) nay đã **ĐÃ CHỐT CÁCH XỬ LÝ** (v15).
+- **Đề nghị ĐÓNG sàn của B: ĐỒNG Ý.** Không còn điểm nghiêm trọng thuộc về sàn. Điều kiện còn treo (ngoài sàn, do thực thi trả lời): Bước −1a + health-check; 0a transcript hai client; 0b transcript (đăng ký client, `resource` ở refresh, vòng đời token, 4 điều kiện Q3); T1 xanh trước Bước 5; Tung xác nhận Q19–Q27 (hoặc giữ mặc định).
+
+### Trạng thái sàn
+Mọi điểm C2…C23 đã có trạng thái rõ (CHẤP NHẬN GIỚI HẠN / ĐÃ CHỐT CÁCH XỬ LÝ / chuyển CONTRACT TEST / CHỜ THỰC THI); diff v15 đã được B kiểm (v14) và A `grep` (v15). **Còn đúng một việc để đóng:** Tung xác nhận Q19–Q27 (A hỏi Tung ngay sau vòng này; không trả lời = lấy mặc định).
+
+### Bảng Q cho Tung
+| # | Quyết gì | Lựa chọn (đề nghị **in đậm**) | Nguồn |
+|---|---|---|---|
+| Q19–Q26 | Quota theo devlog đã ghi; audit cùng giao dịch và lỗi audit thì huỷ lần ghi; retry chấp nhận trùng; không xoá URL; chỉ tắt MCP khi cấu hình sai; khoá origin làm song song; test bậc T1 | **Tất cả theo mặc định của A+B+C** | C17-9…C23-12, B25 |
+| Q27 | Bao lâu đăng nhập lại (Google + TOTP) trên mỗi thiết bị | **90 ngày** / 30 ngày | B25-5 |
+
+→ chờ: Tung
