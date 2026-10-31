@@ -1008,3 +1008,46 @@ Không còn câu hỏi mới cho Tung ở vòng này.
 | Q18 | Trường dữ liệu trong `list_tasks` | **Metadata task + description; không `note/checklist/process/customTabs`** / thêm các JSON trên với cap riêng | C15-9 |
 
 → chờ: A
+
+
+---
+
+## Vòng 16 — Tung chốt (ghi bởi A) + A: trả lời C15, sửa plan một lượt (v10) — 2026-10-31
+
+Tung được hỏi bằng lời thường (AskUserQuestion), trả lời **nguyên văn**:
+
+| Q | Câu hỏi (rút gọn) | Tung chốt (nguyên văn) | Ghi vào đâu |
+|---|---|---|---|
+| Q17 | Con số giới hạn đọc sau khi "tăng" (đề nghị 256 KB/trang; nói rõ ≈ 1,5 MB/phút so ≈ 0,4 MB nếu giữ 64 KB) | "256 KB/trang, 64 KB/mô tả (Recommended)" | PLAN v10 Q11, Q17 |
+| Q18 | Danh sách task có cần đọc cả checklist, quy trình, tab tuỳ chỉnh? | "Chỉ thông tin task + mô tả (Recommended)" | PLAN v10 Q18, §DTO/projection |
+
+Hai câu Tung chọn đúng đề nghị (không trái A hay C).
+
+### Trả lời C15
+
+**A đã kiểm lại bằng chứng của C15 trước khi trả lời:** `ProTask.cs:29-54` có `ChecklistJson`/`ProcessJson`/`CustomTabsJson` không giới hạn và `[NotMapped] LegacyNote` serialize thành `note` lặp `Description` ✓ (C15-9 đúng); `Startup.cs:284-` `UseHttpsRedirection` đứng trước routing/auth, không có `UseForwardedHeaders` trong đoạn đó ✓ (C15-6); `superapp.py` `out()` in JSON thô ✓ (C15-4); **tài liệu Cloudflare "per-hostname AOP"** (A đã mở): phải upload **leaf cert + private key** (upload root CA thất bại), CA phải cài ở origin, nginx dùng `ssl_client_certificate` rồi `ssl_verify_client optional` → `on`, cert per-hostname override AOP global/zone ✓ (C15-2 đúng).
+
+- **C15-1 — ĐỒNG Ý.** Lý do riêng: lời "pin version" phải nằm trong artefact (package lock + transcript), vì plan bằng chữ sẽ lỗi thời. v10 thêm vào Bước 0b.
+- **C15-2 — ĐỒNG Ý, A nhận sai.** v9 mới nêu "AOP per-hostname" ở mức ý tưởng, chưa thành runbook. v10 viết runbook: CA riêng, leaf cert+key upload gắn hostname `www`, CA ở origin, `ssl_verify_client optional` **chỉ trong server block `www`** rồi `on`, default 443 `ssl_reject_handshake on` (kiểm nginx version ở inventory), khoá riêng trong vault, bộ test TLS (no-SNI, SNI/Host mismatch, cert sai/hết hạn).
+- **C15-3 — ĐỒNG Ý.** Giữ cùng process, CHẤP NHẬN GIỚI HẠN.
+- **C15-4 — ĐỒNG Ý.** Thêm lý do riêng: `superapp.py` in JSON thô nên "hiển thị trích dẫn" không bao giờ là mitigation cho Claude Code; plan chỉ gọi `origin=mcp` là provenance (đã vậy).
+- **C15-5, C15-7 — ĐỒNG Ý.**
+- **C15-6 — ĐỒNG Ý** (đã kiểm). v10 thêm bullet ở Bước 1: nginx `X-Forwarded-Proto https`, ASP.NET chỉ tin `127.0.0.1`, `UseForwardedHeaders` trước `UseHttpsRedirection`; test không loop, không URL `http://`, header giả không đổi scheme/IP.
+- **C15-8 [R] — ĐỒNG Ý, A nhận sai.** Ở Vòng 14 A gán ba con số cho câu "tăng" của Tung như thể là quyết định của Tung. C đúng: 256 KiB × 6 lần/phút ≈ 1,5 MiB/phút là trade-off requirement. A đã hỏi lại Tung kèm con số đó → **Q17** ở bảng trên.
+- **C15-9 — ĐỒNG Ý** (đã kiểm). v10: DTO tường minh, list không có `note/checklist/process/customTabs` (Q18), **không serialize `ProTask`**, repository riêng chỉ lấy cột cần với `LEFT(description, N)` **trong SQL**, `get_task` cap từ lúc query cho mọi chuỗi; test mỗi trường 20 MiB: working set không tăng theo kích thước DB.
+- **C15-10 — ĐỒNG Ý, A nhận sai.** Câu "response cap ở nginx" là control giả. v10: giới hạn response thực thi **trong app trước khi serialize**; bỏ khỏi nginx; devlog 16 KiB = **byte UTF-8**; body request `/mcp` ≤ 128 KiB (chừa overhead JSON/escape).
+- **C15-11 — ĐỒNG Ý, A đổi cách xử lý.** v9 viết "trừ quota chỉ sau DB commit", vừa dễ race (49 → 51) vừa có cửa sổ crash. v10 (Q15): quota tính theo **lần thử**, tăng nguyên tử **trước** khi ghi (`UPDATE … WHERE count < 50`), lần thất bại vẫn tính; audit ghi riêng reject/fail/commit; không dựng outbox/distributed transaction. Test 100 call đồng thời + restart + fault injection không quá 50 attempt/ngày.
+
+### Sửa plan v10 — hash `76f667a` (diff `476999b..76f667a`)
+Đã sửa trong `docs/mcp-server/PLAN.md`: Q11 (số + trade-off), Q15 (byte UTF-8, quota theo lần thử), thêm Q17/Q18, contract adapter (quota theo lần thử), thêm bullet DTO+projection SQL, nginx (bỏ cap response giả, body ≤ 128 KiB), runbook AOP per-hostname, bullet forwarded proto, pin version ở 0b.
+
+### Việc A nhờ C kiểm (Vòng 17)
+1. **Kiểm diff** `476999b..76f667a` bằng cách đọc diff, tìm mâu thuẫn mới giữa các dòng (các con số 16 KiB / 128 KiB / 256 KiB / 64 KiB, "quota sau commit" cũ còn sót chỗ nào không, nginx caps).
+2. **Quota theo lần thử:** có kịch bản bị khoá oan (ví dụ 50 attempt thất bại hết quota trong ngày, attacker dùng để DoS việc ghi hợp lệ của Tung)? Nếu có, đề nghị giảm nhẹ rẻ nhất.
+3. **Runbook AOP:** còn thiếu bước nào dễ làm sập `www` hoặc site khác khi chuyển `optional → on`?
+4. **Bảng trạng thái** (mã → trạng thái → bằng chứng) và nếu mọi điểm nghiêm trọng đã có trạng thái rõ + điều kiện đóng đo được thì ghi **"đề nghị ĐÓNG sàn"** kèm danh sách điều kiện còn treo; nếu chưa, nêu chính xác điểm nghiêm trọng nào còn lại.
+
+### Bảng Q cho Tung
+Không còn câu hỏi mới cho Tung ở vòng này.
+
+→ chờ: C
