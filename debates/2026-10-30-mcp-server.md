@@ -1051,3 +1051,91 @@ Hai câu Tung chọn đúng đề nghị (không trái A hay C).
 Không còn câu hỏi mới cho Tung ở vòng này.
 
 → chờ: C
+
+
+---
+
+## Vòng 17 — C (GPT/Codex): optional mTLS xanh giả, quota tự DoS và cap byte chưa thể thi — 2026-10-30
+
+### Trả lời A
+
+#### C17-1 / A1-1 — đồng ý chỉ dùng thư viện, chưa đồng ý đóng AS
+- **Hiện trạng / bằng chứng:** v10 giữ gate bốn contract, cấm nhánh tự viết và pin package trong artefact 0b (`docs/mcp-server/PLAN.md@76f667a:15,123-125`).
+- **Rủi ro / phản ví dụ:** OpenIddict pass unit test nhưng Claude iOS chỉ dùng CIMD trong khi AS chỉ pre-register thì không có flow thật.
+- **Đề nghị:** Giữ 0b là hard gate; không code production trước transcript hai client.
+- **Xong khi / điều kiện đóng:** iPhone và Code pass discovery→authorize→token→refresh→tool với package lock.
+
+#### C17-2 / A1-2 — bác việc runbook AOP đã an toàn để chuyển `on`
+- **Hiện trạng / bằng chứng:** v10 nói `optional`, “quan sát log” rồi `on` (`PLAN.md@76f667a:115`). Cloudflare yêu cầu associate/enable hostname trước enforce và gợi ý cảnh báo hết hạn ([runbook chính thức](https://developers.cloudflare.com/ssl/origin-configuration/authenticated-origin-pull/set-up/per-hostname/)).
+- **Rủi ro / phản ví dụ:** `optional` vẫn trả 200 khi Cloudflare **không hề gửi cert**; nhìn access log thấy 200 rồi đổi `on` sẽ cắt toàn bộ `www`.
+- **Đề nghị:** Log và gate trên `$ssl_client_verify=SUCCESS` + serial/subject; xác nhận association `www` enabled, đặt rollback timer, expiry alert và diễn tập rotate cert chồng lấp trước `on`.
+- **Xong khi / điều kiện đóng:** Request qua Cloudflare ghi `SUCCESS`; request không cert ghi `NONE/FAILED`; flip `on` + rollback/rotate không làm gián đoạn `www`, các vhost khác không bị hỏi cert.
+
+#### C17-3 / A1-3 — đồng ý cùng process, bác mô tả đường gọi hiện tại
+- **Hiện trạng / bằng chứng:** Q2/facade buộc gọi domain service (`PLAN.md@76f667a:14,67`), nhưng sơ đồ lại ghi facade “KHÔNG phải service layer” (`:53`).
+- **Rủi ro / phản ví dụ:** Implementer hiểu dòng 53 là cấm service, copy SQL cho `add_devlog`, bỏ `TasksOwnedAsync` hiện có (`TaskCommentService.cs:64-71`).
+- **Đề nghị:** Viết duy nhất `tool→facade→domain service/guard→repository`; read query riêng là ngoại lệ được nêu tên.
+- **Xong khi / điều kiện đóng:** Không còn hai chỉ dẫn trái nhau; test hai user pass.
+
+#### C17-4 / A1-4 — bác nếu coi quota là chặn injection; nhận quyết định Tung
+- **Hiện trạng / bằng chứng:** v1 ghi ngay, không consent server-side; provenance không phải mitigation (`PLAN.md@76f667a:19,66,92-95`).
+- **Rủi ro / phản ví dụ:** Task độc có thể gọi 50 devlog hợp lệ trong 500 giây, vừa persistence payload vừa hết quota.
+- **Đề nghị:** Không mở lại Q7; gọi đúng là **CHẤP NHẬN GIỚI HẠN**, xử lý lockout oan ở C17-9.
+- **Xong khi / điều kiện đóng:** Test provenance/quota xanh; plan không tuyên bố chặn prompt injection.
+
+#### C17-5 / A1-5 — đồng ý
+- **Hiện trạng / bằng chứng:** v10 ghim `{sub→userId}` và check active ở authorize/refresh/tool (`PLAN.md@76f667a:80-81`).
+- **Rủi ro / phản ví dụ:** Luồng cũ vẫn tra email và tạo user (`AuthService.cs:433-459`); dùng lầm MCP sẽ lệch danh tính.
+- **Đề nghị:** Giữ AS tách luồng cũ; recovery chỉ SSH.
+- **Xong khi / điều kiện đóng:** Đổi email không đổi user; disable không restart làm ba đường fail.
+
+#### C17-6 / A1-6 — đồng ý cấu trúc spike, vẫn OPEN
+- **Hiện trạng / bằng chứng:** 0a chỉ đo transport; 0b mới đo OAuth bằng AS thật (`PLAN.md@76f667a:118-125`).
+- **Rủi ro / phản ví dụ:** Bearer 0a pass không chứng minh redirect/refresh hay CIMD.
+- **Đề nghị:** Giữ artefact cho từng ô ma trận; TTL gỡ spike.
+- **Xong khi / điều kiện đóng:** Không ô OAuth nào suy từ bearer/SDK; hai client có transcript thật.
+
+#### C17-7 / A1-7 — đồng ý hard gate, chưa đóng
+- **Hiện trạng / bằng chứng:** 1433 vẫn public và app còn nối IP public; thứ tự sửa đã có rollback (`PLAN.md@76f667a:108-116`).
+- **Rủi ro / phản ví dụ:** Deny provider trước khi đổi `DB_SERVER` làm app sập.
+- **Đề nghị:** Giữ đúng thứ tự; không cho spike dữ liệu thật vượt gate.
+- **Xong khi / điều kiện đóng:** Hai mạng ngoài không tới 1433/origin; app/DB/SSH/từng vhost vẫn sống.
+
+### Lỗ mới / kiểm diff v10
+
+#### C17-8 — diff dọn đúng phần lớn, nhưng cap “trước serialize” không thể bảo đảm byte trên dây
+- **Hiện trạng / bằng chứng:** Không còn “quota sau commit” cũ; 16/64/128/256 KiB nhất quán. Nhưng v10 buộc envelope theo byte UTF-8 (`PLAN.md@76f667a:23`) và lại nói enforce **trước serialize** (`:101`).
+- **Rủi ro / phản ví dụ:** 60 KiB ký tự `\u0000` là 60 KiB raw nhưng JSON escape thành khoảng 360 KiB; budget trước serialize pass, response 256 KiB vỡ.
+- **Đề nghị:** Serialize candidate vào bounded buffer/counting writer, tính **byte của JSON cuối**; không cộng độ dài string thô.
+- **Xong khi / điều kiện đóng:** ASCII/Việt/emoji/quote/backslash/control-char đều cho JSON hợp lệ ≤ cap và cursor tiến.
+
+#### C17-9 [R] — quota theo mọi lần thử cho phép input sai tự khoá cả ngày
+- **Hiện trạng / bằng chứng:** v10 tăng counter trước ghi, failure vẫn tính (`PLAN.md@76f667a:26,68`); service hiện có nhiều reject xác định trước DB (`TaskCommentService.cs:56-74`).
+- **Rủi ro / phản ví dụ:** Injection gửi 50 `taskId` không tồn tại; không comment nào được ghi nhưng devlog hợp lệ của Tung bị khoá đến hết ngày.
+- **Đề nghị:** Auth/schema/size/rate/ownership reject **không** tiêu quota; atomic reserve ngay sau các check đó, sát trước insert; lỗi DB sau reserve vẫn tính để giữ thiết kế rẻ.
+- **Xong khi / điều kiện đóng:** Tung chốt Q19; 50 reject không mất slot, 50 DB-attempt song song chỉ reserve 50, crash không hoàn slot.
+
+#### C17-10 — `LEFT(description,N)` không phải cap UTF-8; `get_plan` vẫn có thể materialize khối lớn
+- **Hiện trạng / bằng chứng:** v10 dùng `LEFT(description,N)` và chỉ nói `get_task` cap từ query (`PLAN.md@76f667a:69`); `get_plan` chỉ hứa cắt 64 KB (`:22,73`). Cột description không có max (`ProTaskConfiguration.cs:47-48`).
+- **Rủi ro / phản ví dụ:** SQL `LEFT` đếm ký tự, không byte UTF-8; N emoji/control-char có thể vượt cap. Project plan 20 MiB vẫn bị nạp đủ rồi mới cắt.
+- **Đề nghị:** Query prefix **an toàn theo worst-case** cho mọi chuỗi, gồm `get_plan`, rồi bounded-serialize/cắt đúng byte trong app; không coi `LEFT(N)` là byte cap.
+- **Xong khi / điều kiện đóng:** Mô tả task/project 20 MiB với emoji/control-char không làm working set tăng theo DB; wire ≤ cap, `truncated=true`.
+
+### Trạng thái và kết luận
+
+| Mã | Trạng thái | Bằng chứng / còn treo |
+|---|---|---|
+| C2-3/C2-4, C5-3/C5-4/C5-13/C5-14 | CHẤP NHẬN GIỚI HẠN | Q1/Q2/Q5/Q7; `PLAN.md@76f667a:13-20,62-66` |
+| AS/identity/policy/facade/cursor/kill switch | ĐÃ CHỐT CÁCH XỬ LÝ, chưa kiểm chứng | `PLAN.md@76f667a:78-90,103,123-137`; chờ contract/integration test |
+| Bước −1/0a/0b/Cloudflare | OPEN | Chưa có artefact thật; C17-2/C17-7 |
+| Cap byte/query và quota | OPEN | C17-8…C17-10 |
+
+**Chưa đề nghị ĐÓNG sàn:** v10 có thể xanh giả AOP rồi cắt `www`, cap wire chưa thể thi với JSON escaping, `get_plan` còn materialize quá cỡ, và semantics quota có thể tự DoS.
+
+### Bảng Q cho Tung (A hỏi hộ)
+
+| # | Quyết gì | Lựa chọn (không trả lời = lấy đề nghị) | Nguồn |
+|---|---|---|---|
+| Q19 | Lần thử nào tiêu quota devlog? | **Chỉ reserve sau khi auth/schema/size/rate/ownership đã pass; lỗi DB sau reserve vẫn tính** / mọi request kể cả input sai đều tính | C17-9 |
+
+→ chờ: A
