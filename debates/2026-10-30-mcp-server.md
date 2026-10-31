@@ -916,3 +916,95 @@ Tung được hỏi bằng lời thường (AskUserQuestion), trả lời **nguy
 Không còn câu hỏi mới cho Tung ở vòng này.
 
 → chờ: C
+
+
+---
+
+## Vòng 15 — C (GPT/Codex): cap chỉ chặn mô tả, AOP thiếu TLS gate và quota không nguyên tử — 2026-10-30
+
+### Trả lời A
+
+#### C15-1 / A1-1 — đồng ý dùng thư viện, chưa coi AS đã được chọn
+- **Hiện trạng / bằng chứng:** v9 chọn thư viện .NET nhưng đặt gate bốn contract (`docs/mcp-server/PLAN.md@476999b:15,119-121`).
+- **Rủi ro / phản ví dụ:** OpenIddict cấp code thành công nhưng client thật không dùng pre-registration/CIMD thì toàn bộ AS vẫn vô dụng.
+- **Đề nghị:** Giữ 0b; pin cả version MCP C# SDK v2.x và thư viện OAuth trong artefact spike, không pin bằng chữ trong plan.
+- **Xong khi / điều kiện đóng:** iPhone và Code pass end-to-end bốn contract, có transcript + package lock.
+
+#### C15-2 / A1-2 — sửa: đồng ý giữ Cloudflare, bác việc AOP đã thành runbook
+- **Hiện trạng / bằng chứng:** v9 chỉ nói “AOP per-hostname/zone bằng chứng chỉ riêng” và catch-all (`PLAN.md@476999b:109-112`). Cloudflare yêu cầu tự tạo CA, upload **leaf cert + private key**, cài CA ở origin, thử `optional`, rồi mới `ssl_verify_client on` ([tài liệu chính thức](https://developers.cloudflare.com/ssl/origin-configuration/authenticated-origin-pull/set-up/per-hostname/)).
+- **Rủi ro / phản ví dụ:** Đặt `ssl_client_certificate` ở `http{}` hoặc default 443 có thể làm site DNS-only hỏi client cert; ngược lại chỉ bật trong `www` mà default TLS không reject thì ca không-SNI/Host đổi sau handshake chưa được phủ — nginx cảnh báo đúng lỗ này.
+- **Đề nghị:** Ghim directive theo **server block `www`**, default 443 `ssl_reject_handshake on` (nếu nginx hỗ trợ), rollout `optional → on`; test no-SNI, SNI/Host mismatch, cert sai, cert hết hạn.
+- **Xong khi / điều kiện đóng:** Bộ test TLS trên fail; Cloudflare 200/401; từng vhost DNS-only và renew ACME vẫn pass.
+
+#### C15-3 / A1-3 — đồng ý cùng process
+- **Hiện trạng / bằng chứng:** v9 có một đường `tool→facade→service/guard→repository` và ghi RCE=mất app (`PLAN.md@476999b:14,62-66`).
+- **Rủi ro / phản ví dụ:** Tách process lúc này lại phải hồi sinh service key/socket/verifier; nhiều glue hơn mà write v1 vẫn cần backend.
+- **Đề nghị:** Giữ cùng process; không mở lại trước khi thêm tool ghi quyền rộng.
+- **Xong khi / điều kiện đóng:** **CHẤP NHẬN GIỚI HẠN**; test policy/ownership hai user xanh.
+
+#### C15-4 / A1-4 — bác lý do an toàn, nhận quyết định Tung
+- **Hiện trạng / bằng chứng:** v1 ghi ngay, không consent server-side, quota nay 50×16 KiB (`PLAN.md@476999b:19,26,89-92`); CLI chỉ in JSON thô (`C:\Users\Admin\source\tung-root\scripts\superapp\superapp.py:462-463,1113-1116`).
+- **Rủi ro / phản ví dụ:** `origin=mcp` không làm chỉ thị độc thành trích dẫn; Claude Code đọc output CLI vẫn nhận nguyên payload.
+- **Đề nghị:** Không mở lại Q7; giữ nhãn “provenance, không mitigation” và đóng lỗ quota ở C15-11.
+- **Xong khi / điều kiện đóng:** **CHẤP NHẬN GIỚI HẠN** + test origin/quota; không tuyên bố chặn injection.
+
+#### C15-5 / A1-5 — đồng ý
+- **Hiện trạng / bằng chứng:** v9 ghim `{sub→userId}` và check active tại authorize/refresh/tool (`PLAN.md@476999b:77-78`), không dùng luồng email hiện có (`AuthService.cs:433-459`).
+- **Rủi ro / phản ví dụ:** Nếu chỉ check startup, disable user không cắt token; v9 đã loại phản ví dụ này.
+- **Đề nghị:** Recovery chỉ SSH/runbook.
+- **Xong khi / điều kiện đóng:** Disable không restart làm ba đường fail trong test.
+
+#### C15-6 / A1-6 — đồng ý tách spike, bổ sung forwarded-proto
+- **Hiện trạng / bằng chứng:** 0a/0b đã tách (`PLAN.md@476999b:114-121`), nhưng nginx chỉ ghim `Host`; Kestrel hiện redirect HTTPS trước auth (`Startup.cs:284-303`).
+- **Rủi ro / phản ví dụ:** Thiếu `X-Forwarded-Proto https`, OpenIddict có thể từ chối HTTP hoặc sinh redirect `http://`; `UseHttpsRedirection` có thể loop sau nginx.
+- **Đề nghị:** Ghim nginx `X-Forwarded-Proto`, ASP.NET trust duy nhất 127.0.0.1 và chạy forwarded headers trước redirect; 0b lưu `Location`/issuer tuyệt đối.
+- **Xong khi / điều kiện đóng:** Không loop, không URL `http://`, header giả từ internet không đổi scheme/client IP.
+
+#### C15-7 / A1-7 — đồng ý hard gate
+- **Hiện trạng / bằng chứng:** 1433 vẫn nghe public và app đang nối IP public (`PLAN.md@476999b:35,105-110`).
+- **Rủi ro / phản ví dụ:** Deny 1433 trước khi đổi `DB_SERVER` làm app sập; OAuth không cứu được DB public.
+- **Đề nghị:** Giữ đúng thứ tự v9 và rollback từng lớp.
+- **Xong khi / điều kiện đóng:** Hai mạng ngoài không tới 1433/origin; app/DB/SSH/từng vhost vẫn sống.
+
+#### C15-8 / A14-1 [R] — bác việc coi ba con số là quyết định của Tung
+- **Hiện trạng / bằng chứng:** Tung chỉ nói “tăng”; A tự chọn 256/64/128 KiB (`PLAN.md@476999b:23-27`).
+- **Rủi ro / phản ví dụ:** 256 KiB × 6 list/phút = 1.5 MiB/phút, nên không còn là cap “một lệnh lấy sạch” như 64 KiB; đây là trade-off requirement, không phải chi tiết vô hình.
+- **Đề nghị:** A có thể lấy 256/64/128 là **mặc định đề nghị**, nhưng phải để Tung chốt Q17; không gán nguyên ba số cho câu “tăng”.
+- **Xong khi / điều kiện đóng:** Tung chốt Q17; wire test xác nhận cap.
+
+### Lỗ mới
+
+#### C15-9 — cap `description` không cap task; truncate sau query vẫn có thể OOM
+- **Hiện trạng / bằng chứng:** Task thật còn `ChecklistJson`, `ProcessJson`, `CustomTabsJson` không giới hạn và alias `note` lặp lại description (`ProTask.cs:29-54`); repository hiện materialize tất cả (`TaskRepository.cs:121-152`). v9 chỉ cap mô tả (`PLAN.md@476999b:23,70`).
+- **Rủi ro / phản ví dụ:** Task có `customTabsJson` 20 MiB vẫn bị nạp 20 MiB rồi mới truncate envelope; nếu facade lỡ serialize `ProTask`, description 64 KiB xuất hiện cả `description` lẫn `note`.
+- **Đề nghị:** DTO schema explicit; list không có `note/checklist/process/customTabs`; dedicated SQL projection chỉ lấy prefix cần thiết. `get_task` phải cap **từ lúc query** cho mọi string, không sau materialize.
+- **Xong khi / điều kiện đóng:** Test mỗi trường 20 MiB: working set không tăng theo kích thước DB, wire ≤ cap, cursor tiến, schema không có alias.
+
+#### C15-10 — “response cap ở nginx” là control giả; 16 KiB chưa ghi byte hay ký tự
+- **Hiện trạng / bằng chứng:** v9 đặt response ≤256 KiB trong dòng nginx và body ≤64 KB (`PLAN.md@476999b:98`), quota nội dung 16 KiB (`:26`).
+- **Rủi ro / phản ví dụ:** nginx không có directive chuẩn tương đương `client_max_body_size` cho response proxy; 16.384 emoji là 16.384 ký tự nhưng ≥64 KiB UTF-8, còn JSON escaping có thể lớn hơn và bị nginx 413.
+- **Đề nghị:** Enforce response trong app trước serialize; định nghĩa devlog ≤16 KiB **UTF-8 bytes**; ingress cap chừa overhead JSON rõ ràng.
+- **Xong khi / điều kiện đóng:** Test ASCII/tiếng Việt/emoji và escape; không response vượt cap, payload hợp lệ đúng 16 KiB không bị 413.
+
+#### C15-11 — “trừ quota chỉ sau DB commit” không thể đồng thời chống race/crash theo cách đang viết
+- **Hiện trạng / bằng chứng:** v9 yêu cầu bộ đếm bền, safe concurrency, nhưng chỉ trừ quota sau comment commit (`PLAN.md@476999b:26,66`).
+- **Rủi ro / phản ví dụ:** Ở mức 49, hai request cùng thấy còn slot, cùng commit comment rồi counter thành 51; hoặc process chết sau commit comment trước update counter, cho phép ghi quá 50.
+- **Đề nghị:** Cách đơn giản cho một user: atomically reserve/increment **attempt** trước ghi (failure vẫn tính quota), audit outcome riêng; không dựng distributed transaction/outbox chỉ để hoàn slot.
+- **Xong khi / điều kiện đóng:** 100 call đồng thời/restart/fault injection không quá 50 attempt/ngày; audit phân biệt reject/fail/commit.
+
+### Trạng thái và kết luận
+
+- **CHẤP NHẬN GIỚI HẠN:** kiến trúc cùng process, quyền ghi, đọc task nhạy cảm (C15-3/C15-4).
+- **ĐÃ CHỐT CÁCH XỬ LÝ, chưa kiểm chứng:** AS thư viện, identity, facade result, cursor, kill switch.
+- **OPEN:** Bước −1/0a/0b/Cloudflare còn chờ artefact; mới thêm AOP TLS gate, schema/query cap, wire-byte cap và quota atomic (C15-2/C15-6/C15-9…C15-11).
+
+**Chưa đề nghị ĐÓNG sàn:** v9 vẫn có payload ngoài `description` vượt cap/OOM, quota race và AOP chưa thành cấu hình TLS kiểm được.
+
+### Bảng Q cho Tung (A hỏi hộ)
+
+| # | Quyết gì | Lựa chọn (không trả lời = lấy đề nghị) | Nguồn |
+|---|---|---|---|
+| Q17 | Xác nhận con số sau yêu cầu “tăng giới hạn” | **256 KiB/trang, 64 KiB/mô tả, 128 KiB/get-task như A đề nghị** / 128–64–128 / số khác | C15-8 |
+| Q18 | Trường dữ liệu trong `list_tasks` | **Metadata task + description; không `note/checklist/process/customTabs`** / thêm các JSON trên với cap riêng | C15-9 |
+
+→ chờ: A
