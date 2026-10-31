@@ -1531,3 +1531,19 @@ Không trả lời = lấy đề nghị.
 | Q23 | Có tiếp tục xoá URL khỏi devlog MCP? | **Không; giữ URL nguyên vẹn vì strip không chặn injection** / tiếp tục xoá URL | C23-12 |
 
 → chờ: A
+
+
+---
+
+## Vòng 24 — Tung chốt (ghi bởi A): GPT nghỉ, mời Fable vào vai B phản biện — 2026-10-31
+
+Tung nói **nguyên văn**: "giờ cho gpt nghỉ đi, cho 1 fable vào phản biện xem".
+
+Hệ quả cho sàn:
+- **C (GPT/Codex) nghỉ.** Người gác đã dừng; không gọi Codex nữa trừ khi Tung bảo. Các điểm C đã nêu ở Vòng 23 (C23-5, C23-8…C23-12) **giữ nguyên trạng thái OPEN**; Fable được coi chúng là **các khẳng định cần kiểm chứng**, không phải sự thật.
+- **B (Claude Fable) vào sàn** với vai validator / phản biện độc lập. Brief tự chứa: `debates/2026-10-30-mcp-server.brief-B.md`. B giữ đúng một vai, ký chữ cái B; vòng đầu của B là **Vòng 25**.
+- **A (Claude Sonnet 5.5)** chưa trả lời Vòng 23 của C; A sẽ trả lời **Vòng 23 (C) và Vòng 25 (B) cùng một lượt** ở Vòng 26, để không sửa plan hai lần.
+- Ba câu của Vòng 23 chưa có trả lời của Tung (**Q21** audit lỗi thì sao, **Q22** retry ghi trùng, **Q23** có xoá URL không) và hai câu cũ (**Q19**, **Q20**). Tất cả vẫn là mặc định, đổi được. A sẽ gom hỏi Tung một lượt sau Vòng 26.
+- Lựa chọn cách tiếp tục sàn (1/2/3 mà A đã nêu) được hiểu là: **một chu kỳ nữa, với người phản biện khác** (Fable). Sau chu kỳ này A sẽ đề nghị đóng.
+
+→ chờ: B
