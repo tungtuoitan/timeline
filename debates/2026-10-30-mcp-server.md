@@ -1812,3 +1812,32 @@ Mọi điểm C2…C23 đã có trạng thái rõ (CHẤP NHẬN GIỚI HẠN / 
 | Q27 | Bao lâu đăng nhập lại (Google + TOTP) trên mỗi thiết bị | **90 ngày** / 30 ngày | B25-5 |
 
 → chờ: Tung
+
+
+---
+
+## Vòng 29 — Tung chốt (ghi bởi A) + ĐÓNG SÀN — 2026-10-31
+
+Tung được hỏi bằng lời thường (AskUserQuestion), trả lời **nguyên văn**:
+
+| Q | Câu hỏi (rút gọn) | Tung chốt (nguyên văn) | Ghi vào đâu |
+|---|---|---|---|
+| Q19–Q26 | 8 quyết định nhỏ (quota theo devlog đã ghi; audit cùng giao dịch; lỗi audit thì huỷ lần ghi; chấp nhận devlog trùng khi mạng lỗi; không xoá URL; cấu hình MCP sai chỉ tắt MCP; khoá origin làm song song; test bậc T1) | "Dùng hết mặc định (Recommended)" | PLAN v16, bảng quyết định |
+| Q27 | Hết hạn tuyệt đối đăng nhập lại | "90 ngày (Recommended)" | PLAN v16 Q27; số thật chốt lại theo transcript 0b |
+
+Plan **v16** — hash `d1ce8c0` — ghi xác nhận của Tung (chỉ sửa ghi chú trạng thái các hàng Q19/Q20/Q27 và tiêu đề; không đổi nội dung kỹ thuật so với v15 `764efe5`).
+
+### Kết quả của sàn (29 vòng; A = Claude Sonnet 5.5, C = GPT/Codex Vòng 2–23, B = Claude Fable Vòng 25–27, Tung quyết)
+- **Đóng theo đề nghị chung của A và B** (C đã nghỉ từ Vòng 24 theo lệnh của Tung; điểm C còn mở đều đã được B phân loại thành test/đã sửa/chấp nhận giới hạn trong Vòng 27).
+- **Quyết định lớn của Tung:** bản đầu đọc + ghi devlog; MCP cùng process ASP.NET; TOTP khi cấp quyền; cho đọc cả task nhạy cảm; đóng cửa hạ tầng trước; cap đọc 256 KiB/trang, 64 KiB/mô tả; quota 50 devlog/ngày, 16 KiB/lần; đăng nhập lại 90 ngày.
+- **Lỗi thiết kế thật bịt được trước khi viết code:** app production nối DB qua IP công khai (đóng cổng 1433 phải đổi cấu hình app trước); token MCP dùng được trên toàn API (backend không kiểm `aud`); nhầm `iss` với `resource`; kiểm quyền task ngoài transaction (TOCTOU); TOTP không an toàn khi song song; `ufw enable` chặn Tailscale/docker/cron; cấu hình MCP sai làm sập cả app; plan nặng hơn hạ tầng test hiện có (đã cắt T3).
+- **Bài học về quy trình:** sau ~10 vòng C chỉ còn tìm chi tiết cài đặt; đổi sang người phản biện khác (B) tìm ra các lỗ vận hành và chi phí mà A và C đều bỏ qua; B đọc diff bắt được một mục A báo sai.
+
+### Điều kiện còn treo (do thực thi trả lời, không phải sàn)
+1. **Bước −1a** xong và health-check pass (app, DB, SSH, bot/hook Telegram, 1433 bị chặn từ hai mạng ngoài) — cần Tung duyệt từng thay đổi VPS và tự đóng cổng 1433 ở firewall nhà cung cấp.
+2. **0a / 0b** transcript hai client (iPhone, Claude Code); không đạt → dừng (Q9).
+3. **T1** xanh trước Bước 5.
+
+**Trạng thái sàn:** ĐÓNG — chuyển sang **Bước −1a** (đóng cổng DB). Mở lại chỉ khi code/transcript chứng minh ngược hoặc có yêu cầu mới.
+
+→ chờ: không
