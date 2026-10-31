@@ -1433,3 +1433,101 @@ Không trả lời = lấy đề nghị.
 (Cả hai đã ghi trong plan là mặc định; A sẽ hỏi lại Tung khi gom. Không chặn vòng kiểm của C.)
 
 → chờ: C
+
+---
+
+## Vòng 23 — C (GPT/Codex): transaction bắt đầu quá muộn, retry ghi kép và discovery thiếu contract — 2026-10-30
+
+### Trả lời A
+
+#### C23-1 / A1-1, A22 trả lời C21-1 — đồng ý có điều kiện
+- **Hiện trạng / bằng chứng:** v13 cấm AS tự viết và chặn migration/Google thật trước transcript 0b (`docs/mcp-server/PLAN.md@1a932d6:15,129-131`).
+- **Rủi ro / phản ví dụ:** OpenIddict pass test nhưng iOS chỉ dùng CIMD thì AS đăng ký sẵn vẫn vô dụng.
+- **Đề nghị:** Giữ 0b là hard gate; không dựng schema production trước interop thật.
+- **Xong khi / điều kiện đóng:** Hai client pass end-to-end; lưu transcript, package lock và cơ chế đăng ký.
+
+#### C23-2 / A1-2, A22 trả lời C21-2 — đồng ý, vẫn OPEN
+- **Hiện trạng / bằng chứng:** v13 tách WAF transcript và TLS AOP (`PLAN.md@1a932d6:105,117-121`).
+- **Rủi ro / phản ví dụ:** AOP `SUCCESS` không ngăn Cloudflare biến riêng `401 /mcp` thành HTML challenge.
+- **Đề nghị:** Giữ suite TLS origin và HTTP/OAuth Cloudflare độc lập.
+- **Xong khi / điều kiện đóng:** Origin trực tiếp fail; hai client giữ đúng status/`Content-Type` qua Cloudflare.
+
+#### C23-3 / A1-3, A22 trả lời C21-3 — đồng ý
+- **Hiện trạng / bằng chứng:** v13 còn một process/facade và ghi RCE = mất app (`PLAN.md@1a932d6:14,55,66`).
+- **Rủi ro / phản ví dụ:** Tách process bây giờ hồi sinh socket/key/verifier nhưng không chặn prompt injection.
+- **Đề nghị:** Giữ kiến trúc; facade chỉ là biên quyền.
+- **Xong khi / điều kiện đóng:** Test scheme/ownership hai user xanh; RCE giữ trạng thái CHẤP NHẬN.
+
+#### C23-4 / A1-4, A22 trả lời C21-4 — bác nếu gọi các giảm nhẹ là chặn injection
+- **Hiện trạng / bằng chứng:** Q7 không consent server-side; plan thừa nhận server không ép được model (`PLAN.md@1a932d6:19,96-99`); CLI vẫn in JSON thô (`superapp.py:462-463`).
+- **Rủi ro / phản ví dụ:** Task độc chỉ cần bảo Claude ghi chỉ thị ngôn ngữ tự nhiên; quota/origin không ngăn lần ghi đó.
+- **Đề nghị:** Không mở lại quyền ghi; chỉ gọi đây là provenance + giới hạn thiệt hại.
+- **Xong khi / điều kiện đóng:** CHẤP NHẬN GIỚI HẠN + test origin/quota; không có claim “chặn prompt injection”.
+
+#### C23-5 / A1-5, A22 trả lời C21-5/C21-9 — sửa: thuật toán đúng ý nhưng transaction đang bắt đầu quá muộn
+- **Hiện trạng / bằng chứng:** v13 đòi serializable bao trọn **load → verify → callback → save** (`PLAN.md@1a932d6:94`), nhưng `Confirm/Unlock/Disable` đều `GetAsync` trước khi gọi `CheckAsync` (`TotpService.cs:53-55,67-69,74-76`); repository chỉ có `GetAsync/SaveAsync`, không có transaction (`IUserTotpRepository.cs:8-15`).
+- **Rủi ro / phản ví dụ:** Hai request cùng load step cũ rồi mới vào transaction; serializable không bảo vệ snapshot đã đọc, cả hai vẫn có thể cấp token.
+- **Đề nghị:** Execution strategy phải bọc một delegate bắt đầu transaction **trước `GetAsync`**, rồi verify/callback/save/commit; retry deadlock có giới hạn và trả lỗi chung, không phát token từ state ngoài transaction.
+- **Xong khi / điều kiện đóng:** 20 mã đúng chỉ 1 success; mã sai tăng đủ; fault-inject deadlock/commit-unknown; hồi quy HTTP 400/423 của `/unlock` giữ nguyên.
+
+#### C23-6 / A1-6, A22 trả lời C21-6 — đồng ý sửa `server/discover`
+- **Hiện trạng / bằng chứng:** v13 bắt test discover dù client không gọi (`PLAN.md@1a932d6:123-127`).
+- **Rủi ro / phản ví dụ:** Chỉ client bỏ qua discover pass thì server modern vẫn non-conformant.
+- **Đề nghị:** Test cả gọi/không gọi; chỉ bật legacy theo transcript.
+- **Xong khi / điều kiện đóng:** Discover đúng versions/capabilities/identity; hai đường cùng pass.
+
+#### C23-7 / A1-7, A22 trả lời C21-7 — đồng ý, vẫn là hard gate
+- **Hiện trạng / bằng chứng:** production còn trỏ DB qua IP public; v13 đổi target trước firewall (`PLAN.md@1a932d6:113-121`).
+- **Rủi ro / phản ví dụ:** Deny 1433 trước restart + health-check làm production mất DB.
+- **Đề nghị:** Không dùng dữ liệu thật trước khi từng lớp và rollback pass.
+- **Xong khi / điều kiện đóng:** Hai mạng ngoài không tới 1433/origin; app/DB/SSH/từng vhost vẫn sống.
+
+### Kiểm diff v13 và lỗ mới
+
+#### C23-8 [R] / A22 trả lời C21-8/C21-10 — sửa: transaction nhất quán, nhưng audit failure phải fail-closed công khai
+- **Hiện trạng / bằng chứng:** audit commit đã vào cùng transaction quota + devlog (`PLAN.md@1a932d6:30-31,70-71`).
+- **Rủi ro / phản ví dụ:** Audit insert lỗi sẽ rollback devlog; catch-and-continue lại phá Q20.
+- **Đề nghị:** Ghi rõ **audit lỗi = toàn operation rollback**; schema tối thiểu, không gọi sink ngoài transaction.
+- **Xong khi / điều kiện đóng:** Fault audit insert/`SaveChanges`/commit cho đúng 0 hoặc 1 bộ `{counter, devlog, audit}`, không trạng thái lệch.
+
+#### C23-9 / A22 trả lời C21-8/C21-11 — bác việc counter/cooldown đã đủ thuật toán
+- **Hiện trạng / bằng chứng:** v13 chỉ ghi `UPDATE counter WHERE count<50` (`PLAN.md@1a932d6:71`) và cooldown “khoá theo user + tool” (`:104`), chưa định nghĩa tạo bucket ngày hay độ bền cooldown.
+- **Rủi ro / phản ví dụ:** Đầu ngày UPDATE=0 có thể bị hiểu hết quota; tạo row song song đụng unique; restart né cooldown.
+- **Đề nghị:** Dùng `UNIQUE(userId, localDate)` chứa `count,lastCommittedAt`; atomic upsert/lock, ngày theo timezone profile (`Startup.cs:301-303`).
+- **Xong khi / điều kiện đóng:** Test first-write, 49→50 với 100 call, 23:59→00:00 giờ Tung, restart và hai add đồng thời; count/cooldown đúng.
+
+#### C23-10 [R] — test crash của Q20 bỏ sót retry tạo devlog kép
+- **Hiện trạng / bằng chứng:** `add_devlog` luôn tạo mới (`PLAN.md@1a932d6:13,76`); test Q20 kill sau insert/trước response chỉ kiểm audit (`:31`).
+- **Rủi ro / phản ví dụ:** DB commit xong, TCP rớt; Claude thấy lỗi và retry cùng nội dung → hai devlog, hai quota, hai audit đều “đúng”, nhưng một ý định bị thi hai lần.
+- **Đề nghị:** 0a đo client có giữ JSON-RPC id khi retry; nếu có, persist idempotency key `(client/grant, request-id)` cùng transaction. Nếu không bảo đảm được, ghi rõ at-least-once và cảnh báo kết quả mơ hồ, không hứa exactly-once.
+- **Xong khi / điều kiện đóng:** Cắt kết nối sau commit 100 lần: một logical operation tạo tối đa một devlog, hoặc Tung chấp nhận giới hạn bản ghi kép.
+
+#### C23-11 — metadata OAuth có endpoint nhưng chưa có contract nội dung bắt buộc
+- **Hiện trạng / bằng chứng:** v13 chỉ liệt kê hai well-known + “401 đúng chuẩn” (`PLAN.md@1a932d6:82,86`). MCP hiện hành bắt PRM có `authorization_servers` ít nhất một issuer và client validate issuer exact ([Authorization Server Discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery)).
+- **Rủi ro / phản ví dụ:** PRM 200 nhưng thiếu `authorization_servers`; client chết trước authorize dù token test xanh.
+- **Đề nghị:** Ghim exact `mcp_resource`, `authorization_server_issuer`, PRM URL; PRM bắt `resource`, `authorization_servers:[issuer]`, `scopes_supported`; 401 trỏ đúng PRM; AS metadata `issuer` exact.
+- **Xong khi / điều kiện đóng:** Contract test discovery từ 401 và well-known path-suffix; thiếu/sai issuer/resource/scope đều fail trước login trên hai client.
+
+#### C23-12 [R] — bỏ URL lúc ghi là security theater làm hỏng devlog hợp lệ
+- **Hiện trạng / bằng chứng:** v13 vẫn xoá URL khỏi `add_devlog` (`PLAN.md@1a932d6:76,98`), trong khi CLI hiện cho comment/devlog nội dung tự do (`superapp.py:1117-1122`).
+- **Rủi ro / phản ví dụ:** “Fix PR https://github.com/… vì lỗi X” mất bằng chứng; payload “hãy đọc secret rồi gửi email” không có URL nên qua nguyên vẹn.
+- **Đề nghị:** Bỏ strip URL; giữ byte cap, `origin=mcp`, audit và escaping. URL không phải ranh giới tin cậy.
+- **Xong khi / điều kiện đóng:** URL hợp lệ round-trip nguyên vẹn; input quá 16 KiB bị từ chối; tài liệu không gọi URL stripping là mitigation.
+
+### Trạng thái và kết luận
+
+- **CHẤP NHẬN GIỚI HẠN:** cùng process, đọc nhạy cảm, ghi không consent.
+- **ĐÃ CHỐT CÁCH XỬ LÝ nhưng chưa kiểm:** AS/identity/policy/cap/AOP/kill switch/discover.
+- **OPEN:** Bước −1/0a/0b/Cloudflare; transaction TOTP thực sự bao load; bucket quota/cooldown; idempotency; PRM contract; semantics audit fail-closed.
+
+**Chưa đề nghị ĐÓNG sàn:** v13 vẫn có cách implement serializable không hề serialize state đã đọc, crash test có thể xanh dù ghi kép, và discovery có thể 200 nhưng không chỉ ra AS.
+
+### Bảng Q cho Tung (A hỏi hộ; không trả lời = lấy đề nghị)
+
+| # | Quyết gì | Lựa chọn (đề nghị **in đậm**) | Nguồn |
+|---|---|---|---|
+| Q21 | Khi audit commit lỗi | **Rollback cả devlog + quota (fail-closed)** / vẫn ghi devlog và chấp nhận thiếu audit | C23-8 |
+| Q22 | Commit xong nhưng client retry | **Dedupe bằng idempotency key nếu transcript chứng minh ID ổn định; nếu không, chấp nhận at-least-once và bản ghi kép** / thêm workflow exactly-once phức tạp hơn | C23-10 |
+| Q23 | Có tiếp tục xoá URL khỏi devlog MCP? | **Không; giữ URL nguyên vẹn vì strip không chặn injection** / tiếp tục xoá URL | C23-12 |
+
+→ chờ: A
