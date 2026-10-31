@@ -1547,3 +1547,114 @@ Hệ quả cho sàn:
 - Lựa chọn cách tiếp tục sàn (1/2/3 mà A đã nêu) được hiểu là: **một chu kỳ nữa, với người phản biện khác** (Fable). Sau chu kỳ này A sẽ đề nghị đóng.
 
 → chờ: B
+
+
+---
+
+## Vòng 25 — B (Claude Fable): plan đúng hướng nhưng nặng gấp ba so với rủi ro; hai lỗ vận hành tự sập — 2026-10-31
+
+B đọc plan v13 @ `1a932d6`, Vòng 1–24, mở code thật và spec 2026-07-28 (transports/streamable-http, authorization, authorization-server-discovery, server/discover). B không nhận gì của A hay C là đúng cho tới khi tự kiểm.
+
+**Kiểm dẫn chứng (file:dòng, đã mở):** `TotpService.cs:53-55,67-69,74-76` (`GetAsync` trước `CheckAsync`) ✓; `IUserTotpRepository.cs:9-15` chỉ `GetAsync/SaveAsync/GetEmailAsync` ✓; `UserTotp.cs` không rowversion ✓; `TaskCommentRepository.cs:92-160` tự mở transaction + `catch` trả `ResultOptions` ✓; `TaskCommentService.cs:66-71` ownership ✓; `TaskCommentController.cs:64` luôn `Ok(response)` ✓; `Startup.cs:61-72` scheme mặc định JWT, `145-153` limiter key IP, `286` HttpsRedirection trước `297` Routing, `300-303` limiter trước auth ✓; `AuthService.cs:431-433` `GetOrCreateGoogleUserAsync` tra theo email ✓; `TaskRepository.cs:103,106-152` sắp `OrderIndex` và nạp cả `ChecklistJson/ProcessJson/CustomTabsJson` ✓; `superapp.py:462-463` `out()` in JSON thô, `1117-1122` comment add nội dung tự do ✓. **Không tìm thấy trích dẫn sai** của A hay C. Một sửa nhỏ: plan ghi `AuthController.cs` — file thật ở `SuperAppAPI/Controllers/Auth/AuthController.cs` (số dòng đúng).
+
+**Kiểm spec (đã mở trang thật):** Streamable HTTP 2026-07-28: bỏ session và GET stream; mỗi JSON-RPC một POST; `MCP-Protocol-Version`, `Mcp-Method`, `Mcp-Name` REQUIRED, sai/thiếu → `400` + `-32020 HeaderMismatch`; GET/DELETE → `405`; **Origin không hợp lệ → `403` (MUST)** ✓. `server/discover`: server MUST, client optional ✓. PRM MUST có `authorization_servers`; `resource` MUST ở authorize + token ✓. Plan v13 chép đúng spec. Nuget `ModelContextProtocol.AspNetCore` mới nhất **2.3.0 (2026-10-20)**, mô tả không nêu revision hỗ trợ → 0a phải đo thật, đúng như plan nói.
+
+### 1. Phán quyết độc lập
+
+**(a) Khả thi?** Về kỹ thuật: có. Về **quy mô**: không, với hạ tầng test hiện có. Plan v13 (159 dòng) chứa ~35 điều kiện "Xong khi" dạng *100 lần song song*, *fault injection tại từng `SaveChanges`/`Commit`*, *kill process 100 lần*, *mô tả 20 MiB*, *hai user thật*, *diễn tập rotate cert*. Repo hiện có **6 file test, `TotpTests.cs` 6 `[Fact]`**, project test chỉ tham chiếu `SuperAppServices` + `SuperAppModels` — **không có hạ tầng test chạy trên SQL Server thật, không có fault-injection harness, không có integration test HTTP** (`api-tests/run-tests.js` là script gọi API sống). Mỗi "Xong khi" kiểu đó là một harness phải dựng từ đầu. Hệ quả thực tế: hoặc Tung viết harness nhiều tuần, hoặc các điều kiện bị bỏ qua lặng lẽ và plan thành giấy. Đây là lỗ lớn nhất mà cả A lẫn C không nhìn vì cả hai chỉ nhìn tính đúng, không nhìn chi phí.
+
+**(b) Over-engineered** (chi phí > rủi ro chặn được, cho một người dùng):
+- **AOP per-hostname với CA riêng, leaf cert, log `$ssl_client_verify`, rotate chồng lấp, `ssl_reject_handshake`** (Bước −1.3 + runbook C15-2/C17-2). Rủi ro nó chặn: kẻ biết IP gốc gọi thẳng nginx với `Host: www.tungle.uk` → **né WAF/rate-limit Cloudflare**, KHÔNG né auth (MCP vẫn đòi JWT, API vẫn đòi JWT). Sau khi đã thay `default_server` bằng catch-all từ chối + `UseForwardedHeaders` chỉ tin `127.0.0.1`, phần còn lại của AOP là bảo vệ một lớp phụ. Không đáng là **điều kiện tiên quyết** trước khi viết dòng code MCP nào.
+- **Counting writer / bounded serializer trên JSON cuối + test mỗi trường 20 MiB** (C17-8, C17-10, Q11). Endpoint `/api/task` hiện tại đã nạp **toàn bộ** task kèm mọi JSON không giới hạn (`TaskRepository.cs:106-152`) — nếu có mô tả 20 MiB thì app chính sập trước MCP. MCP đang được bảo vệ kỹ hơn app chính khỏi dữ liệu do chính Tung nhập. Đủ: `LEFT(col, 65536)` trong SQL + cắt byte UTF-8 trong app + nếu JSON trang > 256 KiB thì giảm page size và thử lại. Bỏ counting writer, bỏ ma trận control-char.
+- **Kill switch ba lớp** (file flag watcher ≤2 s fail-closed + nginx 503 + thu hồi gia đình refresh). Cả ba đều cần SSH. nginx `return 503` cho `/mcp*` + `/mcp-oauth/*` là đủ cho khẩn cấp; thu hồi token = xoay khoá ký (restart) hoặc một câu `DELETE`. Bỏ file watcher.
+- **Chép lại spec vào plan** (header `Mcp-Name`, `-32020`, `server/discover`, PRM fields). Đây là việc của SDK 2.x và thư viện OAuth; plan chỉ cần một dòng: *"contract test: SDK phiên bản X pass bộ kiểm tra conformance của hai client thật"*.
+
+**(c) Under-engineered / thiếu hẳn:**
+- **Không có đường deploy và rollback cho chính backend.** Prod là `superapp-api.service` systemd, không staging. Bước 1 đổi thứ tự middleware, bật `iss/aud`, thêm OpenIddict + MCP SDK vào cùng process; **mọi lỗi khởi động = FE + `superapp.py` chết cùng lúc**. Plan không có cờ `Mcp:Enabled=false` mặc định để tách *deploy code* khỏi *mở tính năng*, không có bước "publish cũ còn giữ để quay lại".
+- **Migration schema thế nào?** Repo không dùng EF migrations; `migrations/` là SQL tay. Plan nói "migration `origin`", bảng refresh riêng, bảng counter, bảng audit — chưa nói ai chạy, chạy khi nào, rollback ra sao, có trước backup 6h sáng không.
+- **Trải nghiệm thật trên iPhone:** access 15', refresh xoay, hạn tuyệt đối 30 ngày, `sub→userId→active` mỗi call. Nếu client iOS không refresh êm khi app ngủ nhiều ngày thì connector "chết" định kỳ; mỗi 30 ngày Tung phải Google + TOTP lại trên **từng** client. 0b chỉ đo "refresh đồng thời", chưa đo "refresh sau khi app ngủ 3 ngày" và "hết hạn tuyệt đối thì client làm gì". Không phải lỗi bảo mật, là lỗi vận hành sẽ bị hiểu nhầm thành bug.
+- Hai lỗ **tự sập do biện pháp bảo mật** — xem B25-1, B25-2.
+
+**(d) Thứ tự:** Sai ở một chỗ: **cả Bước −1 (gồm AOP) chặn mọi thứ**. Nên tách: **−1a bắt buộc** (preflight + `DB_SERVER=127.0.0.1` + deny 1433 + ufw) → **0a ∥ Bước 1** (gia cố backend độc lập với spike, giảm rủi ro cho app hiện có ngay) → 0b → 2/3 → 4 → 5; **−1b (khoá origin)** chạy song song, xong trước Bước 4 là đủ.
+
+### 2. Phân loại điểm của C (C2…C23, A đã trả lời)
+
+| Mã | Loại | Lý do ngắn |
+|---|---|---|
+| C2-1, C5-1, C8-1, C11-1…C21-1 (AS bằng thư viện, không tự viết) | **Blocker — đã sửa plan (Q3/Q9)** | Đúng; không còn tranh luận. |
+| C2-7, C5-7, C8-7, C11-7, C13-7/9, C15-2, C17-2 (1433, firewall, AOP) | **Blocker: chỉ phần 1433 + DB_SERVER + ufw.** AOP → test/điều kiện Bước 4, không chặn code | Xem 1(b). |
+| C2-8, C5-9, C8-9, C11-9 (`resource`/`iss`/exact-match) | Test khi cài đặt | Spec rõ; thư viện lo; contract test một lần. |
+| C2-10, C5-12, C13-11 (`origin`, facade kiểm `Success`) | Blocker nhỏ — đã trong plan | Đúng và rẻ. |
+| C2-11, C15-6, C21-11 (rate limit, forwarded proto, cooldown theo user+tool) | Test khi cài đặt | Đã có cách làm; chỉ cần test. |
+| C5-10, C8-5 (ghim `sub`, kiểm active) | Đã sửa — **nhưng xem B25-1** | Cách thi hành hiện tại tự sập app. |
+| C5-13, C8-4, C11-4, C13-4, C15-4, C17-4, C19-4, C21-4, C23-4 (không gọi quota/origin là chặn injection) | **Thừa — đã CHẤP NHẬN GIỚI HẠN ở Q7**, lặp 9 lần | Không còn gì để quyết. |
+| C5-15, C15-10 (bỏ stream 5', nginx không cap response) | Đã sửa | Đúng. |
+| C8-6, C19-6, C21-6, C23-6 (spike tách bearer/OAuth, era, discover) | Test khi cài đặt (0a/0b) | SDK + client thật quyết; plan chỉ cần "đo và ghi transcript". |
+| C8-10, C13-10, C15-8, C15-9 (contract `get_plan`, cap, DTO) | Đã sửa — **giảm bớt** | Giữ số; bỏ counting writer/20 MiB. |
+| C8-11 (kill switch fail-closed) | **Thừa một phần** | Giữ nginx 503; bỏ file watcher. |
+| C11-10, C11-11, C13-10 (cursor theo Id, cap tiến) | Đã sửa; test | Đúng, rẻ. |
+| C15-11, C17-9, C19-8, C21-8, C21-10 (quota theo commit, một transaction, audit cùng transaction) | Đã sửa (Q15/Q19/Q20) — một operation repository riêng | Đúng. |
+| C17-8, C17-10 (byte trên dây, `LEFT` ký tự) | **Thừa ở mức ma trận test**; giữ `LEFT(N)` + cắt byte | Xem 1(b). |
+| C19-9, C21-9, C23-5 (TOTP song song) | **Blocker thật** — xem mục 3 | Đụng luồng FE hiện có. |
+| C23-8 | Thừa tranh luận | Hệ quả tất yếu của một transaction. |
+| C23-9 | Test khi cài đặt | Xem mục 3. |
+| C23-10 | Thừa cho v1 | Xem mục 3. |
+| C23-11 | Test khi cài đặt | Thư viện + SDK; contract test. |
+| C23-12 | **Blocker nhỏ: sửa plan một dòng** | Đồng ý bỏ strip URL. |
+
+### 3. Trả lời mã
+
+- **C23-5 — ĐỒNG Ý, kèm sửa cách làm.** Đã kiểm: `Confirm/Unlock/Disable` đều `GetAsync` *trước* `CheckAsync` (`TotpService.cs:53,67,74`), nên "serializable bao load→save" của v13 không thể thi hành nếu không viết lại ba method. Phản biện thêm của B: **SERIALIZABLE trong SQL Server với mẫu đọc-rồi-ghi trên cùng một hàng tạo deadlock chắc chắn** khi hai request song song (hai S-lock → hai lần nâng lên X → 1205), execution strategy retry, nạn nhân đọc lại và đúng — nhưng FE `/unlock` hợp lệ sẽ chậm và log đầy deadlock. Cách rẻ hơn, cùng mức bảo đảm, không đụng isolation: trong transaction, `sp_getapplock @Resource = 'totp:' + userId, @LockMode = 'Exclusive'` ngay đầu delegate, rồi load→verify→callback→save→commit. Một khoá theo user, không deadlock, không đổi isolation của cả context. Test giữ như C: 20 mã đúng → 1 success; N mã sai → counter = N.
+- **C23-8 — ĐỒNG Ý** (hiển nhiên: cùng transaction thì audit lỗi = rollback). Không cần [R]; Q21 lấy mặc định.
+- **C23-9 — ĐỒNG Ý về bucket, BÁC về cooldown bền.** Bucket: `UNIQUE(user_id, day)` với upsert nguyên tử (`MERGE` hoặc insert-catch-2627 rồi update có điều kiện) là chi tiết cài đặt; ngày tính theo **UTC+7 cố định** — `UserTimeZoneMiddleware` lấy `GetUserId()` từ claim, còn token MCP có `sub = Google sub` nên middleware rơi về mặc định `Asia/Ho_Chi_Minh` (`TimeZones.cs:13`) dù sao cũng thế; đừng kéo timezone profile vào. Cooldown 10 s "sống qua restart": phản ví dụ — restart app mất > 10 s; không ai lợi dụng được. In-memory đủ.
+- **C23-10 — BÁC cho v1.** Phản ví dụ: cooldown 1 lần/10 s theo user+tool (C21-11, đã trong plan) **đã chặn** retry tức thì sau commit — lần thử lại trong 10 s bị từ chối, Tung thấy một devlog + một lỗi. Chỉ retry sau > 10 s mới ghi kép, và devlog kép hiện rõ trên app, xoá được. Idempotency key cần client giữ id ổn định — spec 2026-07-28 không hứa. Q22 lấy mặc định "at-least-once", ghi một dòng vào plan, không thêm bảng.
+- **C23-11 — ĐỒNG Ý nội dung, hạ cấp thành test.** Đã kiểm spec: PRM MUST có `authorization_servers`; client MUST reject `issuer` khác URL dựng. Thư viện OAuth sinh metadata, SDK sinh 401; plan chỉ cần một contract test "discovery từ 401 tới token trên hai client thật".
+- **C23-12 — ĐỒNG Ý.** Devlog của chính repo này toàn hash và URL; strip URL phá dữ liệu hợp lệ và không chặn câu lệnh ngôn ngữ tự nhiên. Bỏ.
+- **A22 / Q19, Q20 — ĐỒNG Ý mặc định.** Q19: quota theo commit là định nghĩa duy nhất nhất quán với "một transaction". Q20: audit commit cùng transaction là **miễn phí** (thêm một insert trong transaction đã có), còn best-effort thì phải viết thêm code; chọn cái rẻ hơn mà đúng hơn. Q21/Q22/Q23: mặc định của C đều hợp lý.
+
+### 4. Lỗ mới của B
+
+#### B25-1 — Kiểm `SuperAppUserId` lúc khởi động "sai thì không khởi động" = tự sập production vì một tính năng phụ
+- **Hiện trạng:** `PLAN.md@1a932d6:83`: "khi khởi động xác minh `SuperAppUserId` còn tồn tại và active, sai thì **không khởi động**". MCP chạy **cùng process** với toàn bộ API (Q2); `User.IsActive` đổi được bằng code (`User.cs:58`).
+- **Rủi ro:** cấu hình sai một số, hoặc user bị deactivate nhầm → **FE, `superapp.py`, SignalR, K-sync daemon đều chết** cho tới khi SSH sửa. Biện pháp bảo vệ một tool đọc/ghi devlog hạ cả app.
+- **Đề nghị:** startup chỉ **tắt MCP** (không map `/mcp`, `/mcp-oauth`; log Error + health endpoint báo `mcp: disabled`), app vẫn chạy. Thêm cờ `Mcp:Enabled` mặc định `false` để deploy code trước, bật sau.
+- **Xong khi:** test: cấu hình `SuperAppUserId` sai → `/api/health` 200, `/mcp` 503/404, log có dòng lỗi; FE đăng nhập bình thường.
+
+#### B25-2 — `ufw enable` ở Bước −1.2 sẽ chặn Tailscale và các dịch vụ không-HTTP đang chạy trên VPS
+- **Hiện trạng:** Bước −1.2 "ufw cho 22/80/443 (v4+v6)"; inventory (C11-7) chỉ liệt kê **vhost nginx/ACME**. Nhưng VPS đang chạy `openclaw-gateway.service` bind **tailnet `100.75.1.36:18789`**, cron máy nhà gọi VPS qua Tailscale/SSH forced-command, `mssql-server.service` (tunnel dev `127.0.0.1:14330→1433`) — `tung-root/context/services.md:33-45`.
+- **Rủi ro:** ufw mặc định `deny incoming` chặn luôn traffic đến qua `tailscale0` (và UDP 41641 nếu không có direct path) → bot Telegram/hook/cron nhà↔VPS chết im lặng; Tung chỉ biết sau vài ngày. Đây đúng loại "biện pháp bảo mật tự gây sự cố" mà plan hứa tránh.
+- **Đề nghị:** inventory −1 thêm `ss -tulnp` **mọi listener** + `tailscale status`; rule ufw: `allow in on tailscale0`, `allow 41641/udp`; sau enable chạy healthcheck sẵn có `tungroot-vps-healthcheck.sh` + gửi thử một hook Telegram.
+- **Xong khi:** sau `ufw enable`: SSH mới vào được; bot Telegram trả lời; hook từ máy nhà tới gateway OK; 1433 timeout từ hai mạng ngoài.
+
+#### B25-3 — Không có đường deploy/rollback và migration cho backend có MCP
+- **Hiện trạng:** `superapp-api.service` systemd, không staging; `migrations/` là SQL tay; plan không có mục deploy.
+- **Rủi ro:** Bước 1 đổi thứ tự middleware và bật `iss/aud` (hiện `ValidateIssuer/Audience=false`, `Startup.cs:68-69`; `.env.example:24-25` đã có `Jwt__Issuer/Audience` nhưng token cũ có thể không mang claim) → **mọi token đang sống của FE/CLI bị 401 ngay sau deploy** nếu cờ bật sai; không có cách quay lại ngoài build lại.
+- **Đề nghị:** một mục "Deploy" trong plan: (1) publish vào thư mục có version, symlink `current`, rollback = đổi symlink + restart; (2) SQL migration **chỉ thêm** (cột `origin` default `'user'`, bảng mới), chạy sau backup 6h, có file `*_rollback.sql`; (3) `Jwt:ValidateIssuerAudience=false` mặc định ở release đầu, bật ở release sau khi log cho thấy 100% token có claim.
+- **Xong khi:** diễn tập rollback một lần trên VPS (deploy bản mới → quay bản cũ < 2 phút); FE + `superapp.py` pass sau mỗi bước.
+
+#### B25-4 — Quy mô test vượt hạ tầng: điều kiện "Xong khi" không thi hành được
+- **Hiện trạng:** xem 1(a). Không có harness DB/fault-injection; `TotpTests.cs` 6 fact thuần đơn vị.
+- **Rủi ro:** điều kiện đóng thành vật trang trí; hoặc dự án không bao giờ tới Bước 5.
+- **Đề nghị:** chia test ba bậc, ghi rõ trong plan: **(T1) bắt buộc trước Bước 5** — hai user thật (list/get/add không chéo), 20 TOTP song song, 50 add song song đếm đúng, token MCP↔API chéo 401, strip/caps cơ bản, kill switch nginx; **(T2) trước khi mở tool ghi thứ hai** — fault injection, kill-process 100 lần; **(T3) bỏ** — 20 MiB/field, control-char matrix, rotate cert chồng lấp. Harness T1 = một project xunit chạy trên SQL Server LocalDB/docker với `Respawn`, ~1 ngày.
+- **Xong khi:** plan liệt kê T1 đích danh; T1 chạy xanh một lần trên CI/máy Tung trước Bước 5.
+
+#### B25-5 — 0b chưa đo vòng đời token theo cách Tung dùng thật
+- **Hiện trạng:** `PLAN.md:91-92,130`: access ≤15', refresh xoay, hạn tuyệt đối 30 ngày; 0b đo "refresh đồng thời".
+- **Rủi ro:** iOS ngủ nhiều ngày, refresh hết hạn → client có tự re-auth hay hiện lỗi mơ hồ? Mỗi 30 ngày Google + TOTP trên mỗi client — Tung sẽ coi là hỏng.
+- **Đề nghị:** 0b thêm hai ca: "refresh sau 3 ngày im", "hết hạn tuyệt đối"; ghi hành vi UI từng client; cân nhắc 90 ngày tuyệt đối (một người dùng, có kill switch).
+- **Xong khi:** transcript hai ca trên hai client; số ngày tuyệt đối chốt theo transcript.
+
+### 5. Đề nghị đóng
+
+**Đề nghị ĐÓNG sàn sau Vòng 26 của A**, với điều kiện A sửa plan v14 gồm: (1) B25-1 (tắt MCP thay vì không khởi động + cờ `Mcp:Enabled`); (2) B25-2 (inventory listener + Tailscale vào −1); (3) B25-3 (mục Deploy/rollback/migration); (4) B25-4 (ba bậc test, bỏ T3); (5) tách −1a/−1b và cho Bước 1 ∥ 0a; (6) TOTP: `sp_getapplock` theo user thay serializable (hoặc A bác có lý do); (7) bỏ strip URL (C23-12), ghi at-least-once (C23-10), bỏ file-watcher kill switch, bỏ counting writer. Mọi thứ còn lại (discover, PRM, header, cursor, cooldown, bucket) **chuyển thành test** — không tranh luận thêm. Điểm nghiêm trọng duy nhất còn mở sau đó là **kết quả 0a/0b**, thứ chỉ transcript trả lời được, không phải sàn.
+
+### Bảng Q cho Tung (A hỏi hộ; không trả lời = lấy đề nghị)
+
+| # | Quyết gì | Lựa chọn (đề nghị **in đậm**) | Nguồn |
+|---|---|---|---|
+| Q24 | Cấu hình MCP sai lúc khởi động thì sao? | **Chỉ tắt phần MCP, app vẫn chạy** / cả app không khởi động | B25-1 |
+| Q25 | Khoá origin bằng AOP (chứng chỉ riêng) có phải làm xong trước khi code MCP không? | **Không — làm song song, xong trước khi lên VPS (Bước 4)** / giữ là điều kiện trước mọi thứ | 1(d) |
+| Q26 | Mức test bắt buộc trước khi dùng thật | **Bậc T1 (hai user, TOTP song song, 50 add song song, token chéo, kill switch)**; bỏ test 20 MiB/rotate cert / giữ toàn bộ như v13 | B25-4 |
+| Q27 | Bao lâu phải đăng nhập lại (Google + TOTP) trên mỗi thiết bị? | **90 ngày** / 30 ngày như plan | B25-5 |
+
+→ chờ: A
