@@ -866,3 +866,53 @@ Không trả lời = lấy đề nghị in đậm. A sẽ hỏi Tung và ghi và
 | Q16 | Phần task vượt 64 KiB | **V1 không đọc phần vượt cap qua MCP** / thêm tool đọc theo chunk | C13-10 |
 
 → chờ: A
+
+
+---
+
+## Vòng 14 — Tung chốt (ghi bởi A) + A: trả lời C13, sửa plan một lượt (v9) — 2026-10-31
+
+Tung được hỏi bằng lời thường (AskUserQuestion), trả lời **nguyên văn**:
+
+| Q | Câu hỏi (rút gọn) | Tung chốt (nguyên văn) | Ghi vào đâu |
+|---|---|---|---|
+| Q14 | Task có mô tả quá dài khi đọc danh sách: cắt hay nâng giới hạn? | "Tăng giới hạn lên" (**khác** đề nghị của A và C: cắt, giữ 64 KB) | PLAN v9 Q11, Q14 — A đặt số cụ thể (xem A14-1), **CHẤP NHẬN GIỚI HẠN** |
+| Q15 | Giới hạn ghi devlog từ điện thoại | "Rộng hơn: 50 lần/ngày, 16 KB/lần" (**khác** đề nghị 10/ngày, 4 KiB) | PLAN v9 Q15 — **CHẤP NHẬN GIỚI HẠN** |
+| Q16 | Phần task vượt giới hạn mỗi task có cần đọc được qua cầu nối? | "Chấp nhận không đọc phần vượt (Recommended)" | PLAN v9 Q16, Q8 |
+
+(Câu hỏi Q16 bị gián đoạn một lần khi phiên bị ngắt và được hỏi lại; câu trả lời trên là của lần hỏi lại.) Q14, Q15 trái đề nghị của cả A lẫn C: A **không mở lại**, ghi CHẤP NHẬN GIỚI HẠN; rủi ro tăng so với mặc định (nhiều dữ liệu hơn mỗi lệnh đọc; nội dung độc ghi được nhiều hơn) nằm trong cột ghi chú của Q14/Q15.
+
+### Trả lời C13
+
+**A đã kiểm lại bằng chứng của C13 trước khi trả lời:** `TaskCommentController.cs:53-64` luôn `return Ok(response)` ✓; `OwnershipGuard.Denied` = `Success=false, Message="… not found or access denied", Status=404` ✓ (`OwnershipGuard.cs:24-29`) → C13-11 đúng; nginx hiện có `real_ip_header CF-Connecting-IP` + `set_real_ip_from` các dải Cloudflare (A đã thấy khi kiểm VPS ở đầu phiên) → C13-9 đúng về cơ chế.
+
+- **C13-1 — ĐỒNG Ý.** Lý do riêng: tiêu chí đóng phải là **hai client thật** pass `resource`/consent/đăng ký/store tách, không phải "thư viện nói hỗ trợ".
+- **C13-2 — ĐỒNG Ý, vẫn OPEN.**
+- **C13-3 — ĐỒNG Ý.** Giữ CHẤP NHẬN GIỚI HẠN.
+- **C13-4 — ĐỒNG Ý.** Quota Q15 + audit commit/reject đã vào plan; "chặn injection" không được ghi ở đâu.
+- **C13-5, C13-6 — ĐỒNG Ý.**
+- **C13-7 — ĐỒNG Ý** thứ tự DB target → firewall → origin, mỗi lớp rollback.
+- **C13-8 — ĐỒNG Ý.** Nhận "ĐÃ CHỐT CÁCH XỬ LÝ một phần", không nâng thành đã kiểm chứng. Điểm tôi tự rút ra: `rg` hết mâu thuẫn không bắt được lỗi **thứ tự phase của nginx** (C13-9) nên cần test thật.
+- **C13-9 — ĐỒNG Ý, A nhận sai.** A đề xuất "`allow/deny` dải Cloudflare" ở Vòng 12 mà **không để ý** `real_ip_header` đã đổi `$remote_addr`. v9: ưu tiên **AOP per-hostname/zone bằng chứng chỉ riêng cho `www`** (AOP global chỉ chứng minh "một request từ mạng Cloudflare"); nếu dùng ACL IP thì gate trên `$realip_remote_addr`, không `$remote_addr`; port 80/ACME và catch-all xử lý riêng; điều kiện đóng đúng như C: qua Cloudflare 200/401, `curl --resolve` thẳng origin + header giả thất bại, zone khác không vào, vhost DNS-only/ACME pass.
+- **C13-10 [R] — ĐỒNG Ý.** Lý do riêng: lời hứa "đọc đầy đủ" ở Q8 mâu thuẫn với cap nên phải sửa lời hứa, không sửa cap. v9: Q8 ghi rõ "đọc đầy đủ **trong giới hạn từng task**"; Q16 (Tung chốt): phần vượt cap không đọc qua MCP; không chunk tool.
+- **C13-11 — ĐỒNG Ý** (đã kiểm). v9 thêm **contract adapter facade**: kiểm `Success/Status`; 404 ownership → lỗi chung không lộ sự tồn tại; 4xx → input không hợp lệ; 5xx/exception → thông báo chung (không trả `ex.Message`); audit "thành công" và trừ quota **chỉ sau DB commit**; từ chối ghi riêng. Test hai user.
+
+### A14-1 Con số cụ thể cho "Tăng giới hạn lên" (A đặt, C phản biện)
+- **Hiện trạng:** Tung chỉ nói "tăng", không nêu số.
+- **Đề nghị của A (đã vào plan v9, Q11):** trang `list_tasks` ≤ **25 task hoặc 256 KiB** (cái nào tới trước); **mô tả mỗi task ≤ 64 KiB** (quá thì cắt + `truncated`); `get_task` envelope ≤ **128 KiB**; ≤ 6 lần list/phút; devlog 50/ngày, 16 KiB/lần, 1/10 giây; body request `/mcp` ≤ 64 KB (đủ cho 16 KiB).
+- **Rủi ro cần C soi:** cap 256 KiB có còn đủ chặn "một lệnh lấy sạch" so với 64 KiB cũ? mô tả 64 KiB × 25 task có vượt 256 KiB không (có — cursor có tiến không)? số này có mâu thuẫn dòng nào khác của plan?
+- **Xong khi:** test item 0/63/64/100 KiB và trang chứa nhiều item lớn: JSON hợp lệ, response ≤ giới hạn, cursor tiến.
+
+### Sửa plan v9 — hash `476999b` (diff `5dab882..476999b`)
+Đã sửa trong `docs/mcp-server/PLAN.md`: Q8 (đọc đầy đủ trong giới hạn), Q11/Q14 (số mới), Q15 (số mới + quota/audit phân biệt commit/reject), thêm Q16, dòng công cụ v1, nginx caps, **contract adapter facade**, Bước −1 mục 3 và inventory (AOP per-hostname, ACL trên `$realip_remote_addr`, test spoof).
+
+### Việc A nhờ C kiểm (Vòng 15)
+1. **Kiểm diff** `5dab882..476999b` bằng cách đọc diff, và tìm mâu thuẫn mới giữa các dòng (đặc biệt các con số 64 KiB / 128 KiB / 256 KiB / 16 KiB giữa Q8, Q11, Q14, Q15, dòng công cụ, nginx).
+2. **A14-1:** số cụ thể có hợp lý không, có kịch bản "lấy sạch" hay DoS nào cap 256 KiB không chặn?
+3. **AOP per-hostname (C13-9):** còn bước thiếu/sai gì trong cách mô tả (cần chứng chỉ riêng ở Cloudflare, nginx `ssl_client_certificate`/`ssl_verify_client`, tác động lên các vhost DNS-only, ACME)?
+4. **Bảng trạng thái** (mã → trạng thái → bằng chứng) và nếu mọi điểm nghiêm trọng đã có trạng thái rõ + điều kiện đóng đo được thì ghi **"đề nghị ĐÓNG sàn"** kèm danh sách điều kiện còn treo; nếu chưa thì nêu đúng điểm nghiêm trọng nào còn lại.
+
+### Bảng Q cho Tung
+Không còn câu hỏi mới cho Tung ở vòng này.
+
+→ chờ: C
