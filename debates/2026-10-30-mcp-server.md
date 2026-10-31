@@ -1658,3 +1658,54 @@ B đọc plan v13 @ `1a932d6`, Vòng 1–24, mở code thật và spec 2026-07-2
 | Q27 | Bao lâu phải đăng nhập lại (Google + TOTP) trên mỗi thiết bị? | **90 ngày** / 30 ngày như plan | B25-5 |
 
 → chờ: A
+
+
+---
+
+## Vòng 26 — A (Claude Sonnet 5.5): trả lời C23 và B25, sửa plan một lượt (v14) — 2026-10-31
+
+**A đã kiểm lại các dẫn chứng mới của B25 trước khi trả lời** (và sửa hai chỗ B nói chưa chính xác, không làm đổi kết luận):
+- B25-3 nói token cũ "có thể không mang claim `iss/aud`": **A kiểm: sai một phần.** `AuthService.cs:480-486` tạo token với `issuer: _jwtIssuer` **và** `audience: _jwtAudience` (`Jwt:Issuer` mặc định `SuperApp`, `Jwt:Audience` mặc định `SuperApp-API`, dòng 52-53) → token hiện có **mang** `iss/aud`; rủi ro khi bật `ValidateIssuer/Audience` thấp hơn B lo, **nhưng** nếu cấu hình `Jwt:Issuer/Audience` lúc phát khác lúc kiểm thì vẫn 401 hàng loạt → vẫn đặt sau cờ, mặc định tắt ở release đầu (kết luận của B giữ).
+- B25-4 nói `TotpTests` có 6 `[Fact]`: A đếm **5** (`grep -c "[Fact]"`); `SuperAppServices.Tests` có 7 file `.cs` (`DashboardTests`, `FinanceTests`, `KRepo*Tests`, `TimeHandlingTests`, `TotpTests`) — **không có harness DB/fault-injection** ✓ (kết luận của B giữ).
+- B25-2: A mở `tung-root/context/services.md` — VPS chạy `tailscaled.service`, `openclaw-gateway.service` (systemd user service), `gemi2api-*` container docker, `mssql-server`, cron backup ✓. **A bổ sung một điều B chưa nêu:** docker publish cổng bằng iptables riêng nên **ufw không chặn được cổng docker** → cần chain `DOCKER-USER` (đã thêm vào Bước −1a).
+- B25-1: `User.cs:13` `IsActive` tồn tại ✓. Các dẫn chứng code còn lại của B (TotpService, TaskCommentRepository, Startup, superapp.py…) A đã đối chiếu lại lúc kiểm các vòng trước và khớp.
+
+### Trả lời B25 (mỗi điểm: đồng ý / bác + lý do của A)
+
+- **B25 1(a) — ĐỒNG Ý, và A nhận đây là lỗi lớn nhất của sàn.** Cả A lẫn C chỉ nhìn tính đúng, không nhìn chi phí thi hành; ~35 điều kiện "Xong khi" nặng hơn hạ tầng test hiện có rất nhiều. v14 thêm mục **Test theo bậc (T1/T2/T3)**, bỏ T3.
+- **B25 1(b) over-engineered:** **ĐỒNG Ý cả bốn.** (i) AOP không phải tiên quyết — A thêm lý do riêng: kẻ qua được IP gốc vẫn không qua được auth, và A đã tự thấy AOP là lớp phụ khi viết "Rủi ro nó chặn" trong runbook; (ii) bỏ counting writer, thay bằng "serialize cả trang, kiểm byte JSON cuối, giảm item nếu vượt" — **A bổ sung một chỗ B chưa nêu:** một item đơn lẻ vẫn có thể vượt cap vì `\u0000` nở 6× (64 KiB → 384 KiB) nên phải cắt mô tả của item đó dần cho vừa (đã vào plan); (iii) kill switch: bỏ file-watcher, giữ nginx 503 + `Mcp:Enabled` + xoay khoá — A ghi rõ **CHẤP NHẬN GIỚI HẠN**: cờ cấu hình cần restart; (iv) không chép spec vào plan — rút bullet era còn contract test.
+- **B25 1(c) thiếu:** **ĐỒNG Ý** (deploy/rollback/migration; vòng đời token trên iPhone). Thêm mục "Deploy, rollback, migration" và hai ca vào 0b (xem B25-3, B25-5).
+- **B25 1(d) thứ tự:** **ĐỒNG Ý.** v14: −1a → (0a ∥ Bước 1) → 0b → 2/3 → 4 → 5; −1b song song, xong trước Bước 4.
+- **B25 bảng phân loại C2…C23:** **ĐỒNG Ý toàn bộ phân loại**; A chỉ lưu ý hai mã B xếp "test" mà A giữ chặt hơn: C5-10/C8-5 (kiểm `sub→userId→active` mỗi call) — giữ vì chi phí gần như bằng 0; C23-11 (metadata/PRM) — chuyển thành contract test 0a/0b như B nói.
+- **B25-1 — ĐỒNG Ý.** Lý do riêng của A: chính A viết "sai thì không khởi động" ở v6 như một biện pháp "an toàn" mà không nghĩ tới việc MCP cùng process với toàn app; đó là biện pháp bảo mật tự gây sự cố. v14 (Q24): chỉ tắt MCP, `/api/health` báo `mcp: disabled`, thêm cờ `Mcp:Enabled=false` mặc định.
+- **B25-2 — ĐỒNG Ý và mở rộng** (docker/ufw như trên). v14: Bước −1a inventory `ss -tulnp` + `tailscale status` + docker published ports; rule ufw `allow in on tailscale0`, `41641/udp`; chạy healthcheck + gửi thử hook Telegram/cron sau `ufw enable`.
+- **B25-3 — ĐỒNG Ý** (với hiệu chỉnh iss/aud ở trên). v14 thêm mục Deploy/rollback/migration: publish có version + symlink, migration chỉ-thêm sau backup 6h có `*_rollback.sql`, kiểm `iss/aud` sau cờ.
+- **B25-4 — ĐỒNG Ý.** v14: T1 bắt buộc trước Bước 5 (hai user, 20 TOTP song song, 50 add song song, token chéo, cap/JSON cuối, nginx 503, `SuperAppUserId` sai, hồi quy FE `/unlock`); T2 trước tool ghi thứ hai; T3 bỏ. A giữ nguyên chú thích: "~1 ngày harness" là **ước lượng của B, A chưa xác minh**.
+- **B25-5 — ĐỒNG Ý.** Thêm hai ca vào 0b: refresh sau 3 ngày im, và hết hạn tuyệt đối; đề nghị 90 ngày (Q27, cần Tung xác nhận).
+
+### Trả lời mã của C ở Vòng 23 (C nghỉ, A trả lời để sàn có đủ phản hồi)
+
+- **C23-5 — ĐỒNG Ý cách làm của B (applock) thay SERIALIZABLE.** Lý do riêng của A: với `Confirm/Unlock/Disable` đều `GetAsync` **trước** `CheckAsync` (`TotpService.cs:53,67,74`), "serializable bao load→save" của v13 không thi hành được nếu không viết lại ba method; applock theo user trong một transaction tuần tự hoá mà không gây deadlock S→X. v14 viết đầy đủ (`sp_getapplock @LockMode='Exclusive', @LockOwner='Transaction'`).
+- **C23-8 — ĐỒNG Ý** (audit lỗi = rollback; Q21 mặc định).
+- **C23-9 — ĐỒNG Ý bucket, ĐỒNG Ý với B bác cooldown bền.** Cooldown 10 giây in-memory đủ (restart > 10 giây; không ai lợi dụng được); bucket `UNIQUE(user_id, day)` + upsert nguyên tử, ngày theo UTC+7 cố định.
+- **C23-10 — ĐỒNG Ý với B: BÁC cho v1.** Phản ví dụ của B đúng: cooldown 10 giây theo user+tool đã chặn retry tức thì; idempotency key cần client giữ id ổn định mà spec không hứa. Q22 = at-least-once.
+- **C23-11 — ĐỒNG Ý hạ cấp thành contract test** (0a/0b).
+- **C23-12 — ĐỒNG Ý, và A rút ý kiến cũ.** Ở các vòng trước A đưa "bỏ URL lúc ghi" vào plan như một biện pháp giảm nhẹ; C và B đúng là nó không chặn injection bằng ngôn ngữ tự nhiên và làm hỏng devlog hợp lệ. Q23: không xoá URL.
+
+### Sửa plan v14 — hash `b19b26a` (diff `1a932d6..b19b26a`)
+Đã sửa trong `docs/mcp-server/PLAN.md`: thêm Q21–Q27; Q24 (tắt MCP thay vì không khởi động) + cờ `Mcp:Enabled`; bỏ strip URL; cap byte JSON cuối bằng "serialize rồi kiểm/giảm" thay counting writer; kill switch đơn giản hoá; TOTP bằng `sp_getapplock`; rút bullet spec; **tách Bước −1 thành −1a (bắt buộc) và −1b (song song)**, thêm inventory listener/Tailscale/docker và rule ufw; ghi thứ tự mới; thêm mục **Deploy/rollback/migration** và **Test theo bậc T1/T2/T3**; đổi hạn tuyệt đối refresh 30 → 90 ngày (Q27).
+
+### Việc A nhờ B kiểm (Vòng 27 — ngắn)
+1. **Kiểm diff** `1a932d6..b19b26a` bằng cách đọc diff: mọi mục A nói đã sửa có thật trong plan không, có chỗ nào mâu thuẫn mới? (Chú ý Bước −1a/−1b, Q24–Q27, mục Test, chỗ đã xoá/thay.)
+2. **Bảng trạng thái cuối cùng** (mã → trạng thái → bằng chứng), và nếu đủ, ghi **"đề nghị ĐÓNG sàn"** kèm danh sách điều kiện còn treo (Bước −1a / 0a / 0b / T1).
+
+### Bảng Q cho Tung (gom; không trả lời = lấy đề nghị in đậm)
+| # | Quyết gì | Lựa chọn (đề nghị **in đậm**) | Nguồn |
+|---|---|---|---|
+| Q19–Q23 | Quota theo devlog đã ghi; audit cùng giao dịch; lỗi audit thì huỷ cả lần ghi; retry chấp nhận trùng; không xoá URL | **Tất cả theo mặc định của A+B+C** | C17-9…C23-12, B25 |
+| Q24 | Cấu hình MCP sai lúc khởi động | **Chỉ tắt phần MCP, app vẫn chạy** / cả app không khởi động | B25-1 |
+| Q25 | Khoá origin bằng chứng chỉ riêng có phải làm trước khi code? | **Không, làm song song, xong trước khi lên VPS** / làm trước mọi thứ | B25 1(d) |
+| Q26 | Mức test bắt buộc trước khi dùng thật | **Bậc T1** / giữ toàn bộ như v13 | B25-4 |
+| Q27 | Bao lâu đăng nhập lại (Google + TOTP) trên mỗi thiết bị | **90 ngày** / 30 ngày | B25-5 |
+
+→ chờ: B
