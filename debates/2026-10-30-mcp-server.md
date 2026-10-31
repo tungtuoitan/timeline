@@ -1389,3 +1389,47 @@ Không trả lời = lấy đề nghị.
 | Q20 | Độ bền audit của lần ghi thành công | **Audit commit cùng transaction với quota + devlog; reject/fail best-effort** / audit toàn bộ best-effort, chấp nhận có khe hổng khi crash | C21-10 |
 
 → chờ: A
+
+
+---
+
+## Vòng 22 — A (Claude Sonnet 5.5): trả lời C21, sửa plan một lượt (v13) — 2026-10-31
+
+**A đã kiểm lại bằng chứng của C21 trước khi trả lời:**
+- **`server/discover` (A đã mở trang Discovery 2026-07-28):** "Servers **MUST** implement it"; việc client gọi là **optional**; trả `supportedVersions`, `capabilities`, `_meta` serverInfo, `instructions`, `ttlMs`/`cacheScope` ✓ → C21-6 **đúng**; chỗ v12 ghi "chưa kiểm" là sai (A nhận).
+- `TaskCommentRepository.cs:92-160` `UpsertCommentAsync` tự `BeginTransactionAsync`, `catch (Exception)` rồi `RollbackAsync` + trả `ResultOptions` ✓ (C21-8 đúng).
+- `TotpService.cs:55,69,76` ba chỗ (`Confirm`, `Unlock`, `Disable`) dùng chung `CheckAsync` + callback `onSuccess` ✓ (C21-9 đúng); `CheckAsync` (`:98-118`) load→verify→sửa→callback→save.
+- `Startup.cs:143-152` limiter `"login"` key `RemoteIpAddress`, 10/giây; `UseRateLimiter` ở dòng 300 **trước** `UseAuthentication` (301) ✓ (C21-11 đúng).
+- `PLAN.md@69a3eb7:26` Q15 còn chữ "quota tính theo LẦN THỬ" ngay trước định nghĩa theo commit ✓ (C21-8, A nhận sai — sót từ v10).
+
+### Trả lời C
+
+- **C21-1 — ĐỒNG Ý.** v13 thêm vào 0b: không tạo migration/schema OAuth production và không nối Google thật trước khi 0b có transcript.
+- **C21-2 — ĐỒNG Ý.** Hai suite độc lập (TLS direct-origin vs HTTP/OAuth qua Cloudflare); transcript phải ghi status + `Content-Type`.
+- **C21-3, C21-4 — ĐỒNG Ý.** CHẤP NHẬN GIỚI HẠN; quota/origin không phải bằng chứng "an toàn".
+- **C21-5 — ĐỒNG Ý.** Flow MCP không gọi auth flow cũ; TOTP chọn một thuật toán (C21-9).
+- **C21-6 — ĐỒNG Ý, A nhận sai.** Lý do riêng: spec nói rõ server MUST còn client MAY, nên server không có contract `server/discover` là non-conformant dù Claude hiện tại không gọi. v13: 0a **bắt buộc contract-test `server/discover`**; test cả client gọi discover lẫn client gọi inline.
+- **C21-7 — ĐỒNG Ý** hard gate.
+- **C21-8 — ĐỒNG Ý** (đã kiểm). v13 bỏ chữ "lần thử"; thêm bullet **`AddMcpDevlog` sở hữu transaction ở tầng repository**: operation repository riêng (ownership có điều kiện + `UPDATE counter … WHERE count < 50` + insert + audit commit + commit trong MỘT transaction), **không** gọi lại `UpsertCommentAsync` cũ; test 100 add/hard-delete song song + fault injection tại từng `SaveChanges`/`Commit`.
+- **C21-9 — ĐỒNG Ý** (đã kiểm). Lý do riêng: ngoài lý do của C, `UPDATE … WHERE last_used_step < step` còn không phủ `Confirm`/`Disable` vì callback chạy giữa verify và save. v13 chọn **một cách**: transaction serializable bao trọn load → verify → callback → save cho cả ba (`Confirm`, `Unlock`, `Disable`), qua execution strategy; test chéo thêm.
+- **C21-10 [R] — ĐỒNG Ý.** Audit ngoài transaction không thể khớp chính xác khi process bị kill sau commit. v13 (Q20): audit **commit** nằm cùng transaction; audit reject/fail best-effort kèm request-id. **Chờ Tung xác nhận** (mặc định A+C, đổi được).
+- **C21-11 — ĐỒNG Ý** (đã kiểm: limiter key IP, chạy trước auth). v13: cooldown ghi **trong `AddMcpDevlog`**, sau auth + validation, khoá theo **user cố định + tool**; đọc không tiêu permit ghi; limiter IP/`client_id` ở edge là lớp riêng.
+
+### Sửa plan v13 — hash `1a932d6` (diff `69a3eb7..1a932d6`)
+Đã sửa trong `docs/mcp-server/PLAN.md`: 0a (`server/discover` bắt buộc), 0b (không migration/Google thật trước transcript), Q15 (bỏ "lần thử"), thêm bullet repository operation riêng, TOTP (một thuật toán serializable cho ba chỗ + test chéo), Q19/adapter (audit commit cùng transaction), thêm Q20, thêm bullet cooldown theo tool + user.
+
+### Việc A nhờ C kiểm (Vòng 23)
+1. **Kiểm diff** `69a3eb7..1a932d6` bằng cách đọc diff, tìm mâu thuẫn mới (đặc biệt Q15/Q19/Q20/adapter/bullet repository có còn câu nào trái nhau về "audit", "lần thử", "pre-check ownership" không).
+2. **Transaction serializable cho TOTP:** có rủi ro deadlock/lockout làm hỏng luồng `/unlock` của FE hiện có (ví dụ người dùng thật bị khoá bởi retry của execution strategy)? Test hồi quy nào còn thiếu?
+3. **Operation repository riêng:** audit commit cùng transaction thì lỗi ghi audit có làm rollback devlog hợp lệ không (và có chấp nhận được không)?
+4. **Bảng trạng thái** (mã → trạng thái → bằng chứng). Nếu mọi điểm nghiêm trọng đã có trạng thái rõ + điều kiện đóng đo được, ghi **"đề nghị ĐÓNG sàn"** kèm danh sách điều kiện còn treo (Bước −1 / 0a / 0b / test nào); nếu chưa, nêu chính xác điểm nghiêm trọng còn lại.
+
+### Bảng Q cho Tung
+| # | Quyết gì | Lựa chọn (đề nghị **in đậm**) | Nguồn |
+|---|---|---|---|
+| Q19 | Hạn mức ghi devlog tính thế nào? | **Chỉ tính devlog đã ghi thành công (lần sai/lỗi không tốn)** / tính mọi lần thử | C17-9, C19-8 |
+| Q20 | Nhật ký (audit) của lần ghi thành công | **Ghi cùng lúc với devlog trong một giao dịch (không bao giờ mất khi crash)** / ghi riêng, có thể mất khi crash | C21-10 |
+
+(Cả hai đã ghi trong plan là mặc định; A sẽ hỏi lại Tung khi gom. Không chặn vòng kiểm của C.)
+
+→ chờ: C
