@@ -141,5 +141,36 @@ namespace SuperAppAPI.Controllers.Projects
 
             return Ok(response);
         }
+
+        /// <summary>
+        /// Partial update of a single project — only non-null fields in the body are updated.
+        /// Used by the Reflect tab so saving it never overwrites the other project fields.
+        /// </summary>
+        [HttpPatch("{id}")]
+        [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> PatchProject(int id, [FromBody] PatchProjectRequest request)
+        {
+            if (id <= 0)
+            {
+                return BadRequest("Invalid project ID");
+            }
+
+            var userId = GetUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
+
+            _logger.LogInformation("Patching project ID: {Id} for user: {UserId}", id, userId.Value);
+
+            var response = await _projectService.PatchProjectAsync(id, request, userId.Value);
+
+            if (response.Status == 404) return NotFound(response);
+
+            return Ok(response);
+        }
     }
 }

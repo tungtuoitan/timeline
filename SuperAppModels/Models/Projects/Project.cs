@@ -43,5 +43,9 @@ namespace SuperAppModels.Models
 
         [JsonPropertyName("image")]
         public string? Image { get; set; }
+
+        /// <summary>Rows of the Reflect tab (Type / I think / Reality) as a JSON array string</summary>
+        [JsonPropertyName("reflectJson")]
+        public string? ReflectJson { get; set; }
     }
 }

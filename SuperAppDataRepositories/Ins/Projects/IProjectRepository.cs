@@ -8,5 +8,8 @@ namespace SuperAppDataRepositories.Ins
     {
         Task<ResultOptions> GetProjectsAsync(ProjectFilterOptions filterOptions);
         Task<ResultOptions> UpsertProjectsAsync(List<Project> projects);
+
+        /// <summary>Partial update: only non-null fields are applied, ClearFields null out the listed fields.</summary>
+        Task<ResultOptions> PatchProjectAsync(int projectId, PatchProjectRequest request);
     }
 }

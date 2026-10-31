@@ -197,5 +197,26 @@ namespace SuperAppServices.Services.Projects
                 };
             }
         }
+
+        public async Task<ResultOptions> PatchProjectAsync(int projectId, PatchProjectRequest request, int userId)
+        {
+            try
+            {
+                if (!await _ownership.ProjectsOwnedAsync(userId, new[] { projectId }))
+                    return OwnershipGuard.Denied("Project");
+
+                var unknownClears = (request.ClearFields ?? new List<string>())
+                    .Where(f => !PatchProjectRequest.ClearableFields.Contains(f)).ToList();
+                if (unknownClears.Any())
+                    return new ResultOptions { Success = false, Message = $"Cannot clear field(s): {string.Join(", ", unknownClears)}", Status = 400 };
+
+                return await _projectRepository.PatchProjectAsync(projectId, request);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error patching project ID: {ProjectId}", projectId);
+                return new ResultOptions { Success = false, Message = ex.Message, Status = 500 };
+            }
+        }
     }
 }

@@ -63,6 +63,9 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(p => p.Image)
                 .HasColumnName("image");
 
+            builder.Property(p => p.ReflectJson)
+                .HasColumnName("reflect_json");
+
             // Index for user_id for faster queries
             builder.HasIndex(p => p.UserId);
         }

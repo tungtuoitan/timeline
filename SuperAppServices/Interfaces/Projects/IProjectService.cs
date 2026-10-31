@@ -23,5 +23,10 @@ namespace SuperAppServices.Interfaces
         /// <param name="requests">List of project upsert requests</param>
         /// <returns>ResultOptions containing batch operation results</returns>
         Task<ResultOptions> UpsertProjectsAsync(List<UpsertProjectRequest> requests);
+
+        /// <summary>
+        /// Partial update of one project (e.g. the Reflect tab) without touching its other fields
+        /// </summary>
+        Task<ResultOptions> PatchProjectAsync(int projectId, PatchProjectRequest request, int userId);
     }
 }

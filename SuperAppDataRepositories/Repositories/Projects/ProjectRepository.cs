@@ -110,6 +110,45 @@ namespace SuperAppDataRepositories.Repositories
         /// <summary>
         /// Batch upserts multiple projects in a single transaction (all-or-nothing)
         /// </summary>
+        public async Task<ResultOptions> PatchProjectAsync(int projectId, PatchProjectRequest request)
+        {
+            try
+            {
+                var existing = await _context.Projects.FindAsync(projectId);
+                if (existing == null)
+                    return new ResultOptions { Success = false, Message = $"Project with ID {projectId} not found", Status = 404 };
+
+                // Merge only non-null fields (null in the body means "unchanged")
+                if (request.ReflectJson != null) existing.ReflectJson = request.ReflectJson;
+
+                // Explicit clears
+                foreach (var field in request.ClearFields ?? new List<string>())
+                {
+                    switch (field.ToLowerInvariant())
+                    {
+                        case "reflectjson": existing.ReflectJson = null; break;
+                    }
+                }
+                existing.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Patched project ID: {ProjectId}", projectId);
+
+                return new ResultOptions
+                {
+                    Success = true,
+                    Message = "Project patched",
+                    Data = new List<object> { existing },
+                    Status = 200
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error patching project ID: {ProjectId}", projectId);
+                return new ResultOptions { Success = false, Message = ex.Message, Status = 500 };
+            }
+        }
+
         public async Task<ResultOptions> UpsertProjectsAsync(List<Project> projects)
         {
             var strategy = _context.Database.CreateExecutionStrategy();
