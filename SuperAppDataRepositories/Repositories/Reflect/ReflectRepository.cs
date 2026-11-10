@@ -12,6 +12,9 @@ namespace SuperAppDataRepositories.Repositories.Reflect
         private readonly ApplicationDbContext _context;
         private readonly ILogger<ReflectRepository> _logger;
 
+        /// <summary>"I think" may only be changed this long after the row was created (the point of the journal is that it cannot be rewritten later); a few seconds of grace cover clock differences.</summary>
+        private static readonly TimeSpan ThinkEditWindow = TimeSpan.FromMinutes(3) + TimeSpan.FromSeconds(5);
+
         public ReflectRepository(ApplicationDbContext context, ILogger<ReflectRepository> logger)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
@@ -61,6 +64,9 @@ namespace SuperAppDataRepositories.Repositories.Reflect
                 }
                 else
                 {
+                    if (existing.DeletedAt == null && existing.Think != entry.Think && DateTime.UtcNow - existing.CreatedAt > ThinkEditWindow)
+                        return new ResultOptions { Success = false, Message = "I think is locked 3 minutes after the row was created", Status = 409 };
+
                     existing.Type = entry.Type;
                     existing.Think = entry.Think;
                     existing.Real = entry.Real;
