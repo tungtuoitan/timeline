@@ -65,6 +65,9 @@ namespace SuperAppDataRepositories.Data
         public DbSet<SuperAppModels.Models.DailyLog.DailyLog> DailyLogs { get; set; }
         public DbSet<DailyLogFieldTemplate> DailyLogFieldTemplates { get; set; }
 
+        // Reflect journal (pro schema)
+        public DbSet<SuperAppModels.Models.Reflect.ReflectEntry> ReflectEntries { get; set; }
+
         // Finance Tables (pro schema)
         public DbSet<SuperAppModels.Models.Finance.FinTransaction> FinTransactions { get; set; }
         public DbSet<SuperAppModels.Models.Finance.FinPrice> FinPrices { get; set; }
