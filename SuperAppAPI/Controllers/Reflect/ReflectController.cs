@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SuperAppModels.DTOs;
 using SuperAppModels.DTOs.Requests.Reflect;
+using SuperAppModels.Time;
 using SuperAppServices.Interfaces.Reflect;
 
 namespace SuperAppAPI.Controllers.Reflect
@@ -20,11 +21,12 @@ namespace SuperAppAPI.Controllers.Reflect
 
         [HttpGet]
         [ProducesResponseType(typeof(ResultOptions), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetEntries()
+        public async Task<IActionResult> GetEntries([FromQuery] string? createdAtFrom = null, [FromQuery] string? createdAtTo = null)
         {
             var userId = GetUserId();
             if (userId == null) return Unauthorized("User ID not found in token");
-            return Ok(await _service.GetEntriesAsync(userId.Value));
+            // Same as the Workspace filter: "yyyy-MM" / "yyyy-MM-dd" are read in the user's timezone, an ISO instant keeps its offset
+            return Ok(await _service.GetEntriesAsync(userId.Value, TimeParsing.ParseInstantLenient(createdAtFrom), TimeParsing.ParseInstantLenientEnd(createdAtTo)));
         }
 
         [HttpPost]

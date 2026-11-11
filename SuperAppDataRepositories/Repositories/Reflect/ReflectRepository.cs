@@ -21,14 +21,17 @@ namespace SuperAppDataRepositories.Repositories.Reflect
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task<ResultOptions> GetEntriesAsync(int userId)
+        public async Task<ResultOptions> GetEntriesAsync(int userId, DateTime? createdFrom, DateTime? createdTo)
         {
             try
             {
-                var entries = await _context.ReflectEntries.AsNoTracking()
-                    .Where(r => r.UserId == userId && r.DeletedAt == null)
-                    .OrderBy(r => r.CreatedAt)
-                    .ToListAsync();
+                // CreatedAt is stored in UTC, and both bounds arrive as UTC instants
+                var query = _context.ReflectEntries.AsNoTracking()
+                    .Where(r => r.UserId == userId && r.DeletedAt == null);
+                if (createdFrom.HasValue) query = query.Where(r => r.CreatedAt >= createdFrom.Value);
+                if (createdTo.HasValue) query = query.Where(r => r.CreatedAt <= createdTo.Value);
+
+                var entries = await query.OrderBy(r => r.CreatedAt).ToListAsync();
 
                 return new ResultOptions
                 {

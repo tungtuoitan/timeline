@@ -15,7 +15,7 @@ namespace SuperAppServices.Services.Reflect
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         }
 
-        public Task<ResultOptions> GetEntriesAsync(int userId) => _repository.GetEntriesAsync(userId);
+        public Task<ResultOptions> GetEntriesAsync(int userId, DateTime? createdFrom, DateTime? createdTo) => _repository.GetEntriesAsync(userId, createdFrom, createdTo);
 
         public Task<ResultOptions> UpsertEntryAsync(UpsertReflectEntryRequest request)
         {
