@@ -212,6 +212,7 @@ namespace SuperAppAPI
             services.AddScoped<SuperAppDataRepositories.Ins.DailyLog.IDailyLogRepository, SuperAppDataRepositories.Repositories.DailyLog.DailyLogRepository>();
             services.AddScoped<SuperAppDataRepositories.Ins.DailyLog.IDailyLogTemplateRepository, SuperAppDataRepositories.Repositories.DailyLog.DailyLogTemplateRepository>();
             services.AddScoped<SuperAppDataRepositories.Ins.Reflect.IReflectRepository, SuperAppDataRepositories.Repositories.Reflect.ReflectRepository>();
+            services.AddScoped<SuperAppDataRepositories.Ins.Reflect.IReflectScanRepository, SuperAppDataRepositories.Repositories.Reflect.ReflectScanRepository>();
             services.AddScoped<ITaskRepository, TaskRepository>();
             services.AddScoped<ITargetKeywordRepository, TargetKeywordRepository>();
             services.AddScoped<ITaskCommentRepository, TaskCommentRepository>();
@@ -243,6 +244,7 @@ namespace SuperAppAPI
             services.AddScoped<SuperAppServices.Interfaces.DailyLog.IDailyLogService, SuperAppServices.Services.DailyLog.DailyLogService>();
             services.AddScoped<SuperAppServices.Interfaces.DailyLog.IDailyLogTemplateService, SuperAppServices.Services.DailyLog.DailyLogTemplateService>();
             services.AddScoped<SuperAppServices.Interfaces.Reflect.IReflectService, SuperAppServices.Services.Reflect.ReflectService>();
+            services.AddScoped<SuperAppServices.Interfaces.Reflect.IReflectScanService, SuperAppServices.Services.Reflect.ReflectScanService>();
             services.AddScoped<SuperAppServices.Interfaces.ITaskService, TaskService>();
             services.AddScoped<SuperAppServices.Interfaces.ITaskCommentService, TaskCommentService>();
             services.AddScoped<SuperAppServices.Interfaces.ILinkService, LinkService>();
@@ -270,6 +272,7 @@ namespace SuperAppAPI
             // Daemon never pulls; it only pushes. FE polls /compare to surface remote-vs-DB
             // diffs, and the user resolves any conflicts via the resolve-conflicts dialog.
             services.AddHostedService<KRepoSyncDaemon>();
+            services.AddHostedService<ReflectScanDaemon>();
         }
 
         public void Configure(IApplicationBuilder app)

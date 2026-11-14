@@ -34,5 +34,16 @@ namespace SuperAppModels.Models.Reflect
 
         [JsonPropertyName("deletedAt")]
         public DateTime? DeletedAt { get; set; }
+
+        /// <summary>Kind of entry, set by the nightly scan (thought, health, money...); empty until scanned</summary>
+        [JsonPropertyName("tag")]
+        public string? Tag { get; set; }
+
+        /// <summary>Hash of the text the scan last read; the row is scanned again only when it no longer matches</summary>
+        [JsonIgnore]
+        public string? ScannedHash { get; set; }
+
+        [JsonIgnore]
+        public DateTime? ScannedAt { get; set; }
     }
 }
