@@ -256,7 +256,7 @@ namespace SuperAppAPI
             services.AddScoped<SuperAppServices.Interfaces.Finance.IFinanceService, SuperAppServices.Services.Finance.FinanceService>();
             services.AddScoped<SuperAppServices.Interfaces.IGoogleDriveService, GoogleDriveService>();
             services.AddScoped<SuperAppServices.Interfaces.IFileService, FileService>();
-            services.AddSingleton<SuperAppServices.Interfaces.IAiChatService, AnthropicService>();
+            services.AddSingleton<SuperAppServices.Interfaces.IAiChatService, OpenRouterChatService>();
             services.AddScoped<SuperAppServices.Interfaces.IKGradingService, KGradingService>();
             services.AddScoped<SuperAppServices.Interfaces.IKMarkdownImportService, KMarkdownImportService>();
             services.AddScoped<SuperAppServices.Interfaces.IKRepoSyncService, KRepoSyncService>();

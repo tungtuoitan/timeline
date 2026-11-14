@@ -11,7 +11,7 @@ namespace SuperAppServices.Services.K
 {
     /// <summary>
     /// Markdown → k.node import.
-    /// Approach 1 (AI): calls AnthropicService to parse markdown into a node tree.
+    /// Approach 1 (AI): calls OpenRouterChatService to parse markdown into a node tree.
     /// Approach 2 (self-parse): deterministic markdown parser, no AI needed.
     /// Currently wired to Approach 2 in ImportAsync.
     /// </summary>

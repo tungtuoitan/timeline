@@ -64,7 +64,7 @@ Lưu ý: comment phải ngắn gọn, tối đa 15 từ, bằng tiếng Việt h
                 string response;
                 try
                 {
-                    _logger.LogDebug("[KGrading] Calling primary (Anthropic)");
+                    _logger.LogDebug("[KGrading] Calling primary (OpenRouter)");
                     response = await _primary.ChatAsync(prompt, SystemPrompt);
                     _logger.LogDebug("[KGrading] Primary response:\n{Response}", response);
                 }
