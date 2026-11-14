@@ -21,6 +21,7 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(r => r.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("SYSUTCDATETIME()");
             builder.Property(r => r.DeletedAt).HasColumnName("deleted_at");
             builder.Property(r => r.Tag).HasColumnName("tag").HasMaxLength(32);
+            builder.Property(r => r.IsHighlight).HasColumnName("is_highlight").HasDefaultValue(false);
             builder.Property(r => r.ScannedHash).HasColumnName("scanned_hash").HasMaxLength(64);
             builder.Property(r => r.ScannedAt).HasColumnName("scanned_at");
 

@@ -118,7 +118,7 @@ namespace SuperAppDataRepositories.Repositories.Reflect
             var data = await rows.OrderBy(o => o.OccurredOn).ThenBy(o => o.Id).ToListAsync();
             var metrics = await _context.ReflectMetrics.AsNoTracking().Where(m => m.UserId == userId && m.DeletedAt == null).OrderBy(m => m.Code).ToListAsync();
 
-            var result = new List<SuperAppModels.DTOs.Reflect.ReflectSeries>();
+            var result = await GetUsageSeriesAsync(userId, from, to);
             foreach (var m in metrics)
             {
                 var points = data.Where(d => d.MetricId == m.Id).Select(d => new SuperAppModels.DTOs.Reflect.ReflectSeriesPoint
@@ -129,6 +129,48 @@ namespace SuperAppDataRepositories.Repositories.Reflect
                     result.Add(new SuperAppModels.DTOs.Reflect.ReflectSeries { Code = m.Code, Label = m.Label, Unit = m.Unit, Aggregate = m.Aggregate, Shape = m.Shape, Sensitive = m.Sensitive, Points = points });
             }
             return result;
+        }
+
+        /// <summary>The library of suggestion sentences is a Reflect row too, but it is not writing; usage leaves it out</summary>
+        private const string SuggestionLibraryType = "Thư viện ám thị";
+        private const int DefaultUsageDays = 30;
+
+        /// <summary>
+        /// How much the journal is used, per day on the user's own calendar: rows written, characters written,
+        /// and facts read out of those rows. Worked out from the rows themselves, nothing extra is stored.
+        /// </summary>
+        private async Task<List<SuperAppModels.DTOs.Reflect.ReflectSeries>> GetUsageSeriesAsync(int userId, DateTime? from, DateTime? to)
+        {
+            var tzId = await _context.UserProfiles.AsNoTracking().Where(p => p.UserId == userId).Select(p => p.Timezone).FirstOrDefaultAsync();
+            var tz = SuperAppModels.Time.TimeZones.FindOrDefault(tzId);
+            var since = from ?? DateTime.UtcNow.AddDays(-DefaultUsageDays);
+
+            var entries = await _context.ReflectEntries.AsNoTracking()
+                .Where(e => e.UserId == userId && e.DeletedAt == null && e.Type != SuggestionLibraryType && e.CreatedAt >= since && (to == null || e.CreatedAt <= to))
+                .Select(e => new { e.Id, e.CreatedAt, Chars = e.Think.Length + e.Real.Length })
+                .ToListAsync();
+            var ids = entries.Select(e => e.Id).ToList();
+            var factsPerEntry = await _context.ReflectObservations.AsNoTracking().Where(o => ids.Contains(o.EntryId))
+                .GroupBy(o => o.EntryId).Select(g => new { EntryId = g.Key, N = g.Count() }).ToDictionaryAsync(x => x.EntryId, x => x.N);
+
+            var days = entries
+                .GroupBy(e => TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(e.CreatedAt, DateTimeKind.Utc), tz).Date)
+                .OrderBy(g => g.Key)
+                .Select(g => new { Date = g.Key.ToString("yyyy-MM-dd"), Rows = g.Count(), Chars = g.Sum(x => x.Chars), Facts = g.Sum(x => factsPerEntry.GetValueOrDefault(x.Id)) })
+                .ToList();
+            if (days.Count == 0) return new List<SuperAppModels.DTOs.Reflect.ReflectSeries>();
+
+            SuperAppModels.DTOs.Reflect.ReflectSeries Series(string code, string label, string unit, Func<int, int, int, int> pick) => new()
+            {
+                Code = code, Label = label, Unit = unit, Aggregate = "sum", Shape = "count",
+                Points = days.Select(d => new SuperAppModels.DTOs.Reflect.ReflectSeriesPoint { Date = d.Date, Value = pick(d.Rows, d.Chars, d.Facts) }).ToList()
+            };
+            return new List<SuperAppModels.DTOs.Reflect.ReflectSeries>
+            {
+                Series("usage_rows", "Dòng viết mỗi ngày", "dòng", (r, c, f) => r),
+                Series("usage_chars", "Số chữ viết mỗi ngày", "chữ", (r, c, f) => c),
+                Series("usage_facts", "Số liệu bóc ra mỗi ngày", "mục", (r, c, f) => f),
+            };
         }
     }
 }

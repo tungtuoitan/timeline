@@ -39,6 +39,10 @@ namespace SuperAppModels.Models.Reflect
         [JsonPropertyName("tag")]
         public string? Tag { get; set; }
 
+        /// <summary>Worth reading: Claude marks it when it processes the row (thought vs reality, a lesson, a decision); the page shows only these unless "Show all"</summary>
+        [JsonPropertyName("isHighlight")]
+        public bool IsHighlight { get; set; }
+
         /// <summary>Hash of the text the scan last read; the row is scanned again only when it no longer matches</summary>
         [JsonIgnore]
         public string? ScannedHash { get; set; }
