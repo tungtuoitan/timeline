@@ -31,5 +31,7 @@ namespace SuperAppServices.Services.Reflect
         }
 
         public Task<ResultOptions> DeleteEntryAsync(int userId, string id) => _repository.DeleteEntryAsync(userId, id);
+
+        public Task<List<SuperAppModels.DTOs.Reflect.ReflectSeries>> GetSeriesAsync(int userId, DateTime? from, DateTime? to) => _repository.GetSeriesAsync(userId, from, to);
     }
 }

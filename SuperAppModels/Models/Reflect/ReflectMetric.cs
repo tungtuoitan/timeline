@@ -25,6 +25,12 @@ namespace SuperAppModels.Models.Reflect
         [JsonPropertyName("aggregate")]
         public string Aggregate { get; set; } = "sum";
 
+        /// <summary>Drawing hint: auto, flag, count, level, items, range or list</summary>
+        public string Shape { get; set; } = "auto";
+
+        /// <summary>Hidden behind privacy mode on the page</summary>
+        public bool Sensitive { get; set; }
+
         [JsonIgnore]
         public DateTime CreatedAt { get; set; }
 
@@ -41,7 +47,10 @@ namespace SuperAppModels.Models.Reflect
         public int MetricId { get; set; }
         public ReflectMetric? Metric { get; set; }
         public DateTime OccurredOn { get; set; }
-        public decimal Value { get; set; }
+        public decimal? Value { get; set; }
+        public string? ValueText { get; set; }
+        /// <summary>Sub-key inside a metric (e.g. which suggestion sentence); empty when there is none</summary>
+        public string Item { get; set; } = "";
         public string Quote { get; set; } = "";
         public DateTime CreatedAt { get; set; }
     }

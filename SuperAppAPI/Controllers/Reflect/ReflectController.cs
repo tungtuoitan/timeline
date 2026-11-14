@@ -13,12 +13,10 @@ namespace SuperAppAPI.Controllers.Reflect
     public class ReflectController : BaseAuthController
     {
         private readonly IReflectService _service;
-        private readonly IReflectScanService _scan;
 
-        public ReflectController(IReflectService service, IReflectScanService scan)
+        public ReflectController(IReflectService service)
         {
             _service = service;
-            _scan = scan;
         }
 
         [HttpGet]
@@ -63,17 +61,7 @@ namespace SuperAppAPI.Controllers.Reflect
             if (userId == null) return Unauthorized("User ID not found in token");
             DateTime? fromDay = DateTime.TryParse(from, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var f) ? f : null;
             DateTime? toDay = DateTime.TryParse(to, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var t) ? t : null;
-            return Ok(await _scan.GetSeriesAsync(userId.Value, fromDay, toDay));
-        }
-
-        /// <summary>Reads the rows that are new or edited since their last scan now, instead of waiting for the nightly run</summary>
-        [HttpPost("scan")]
-        [ProducesResponseType(typeof(SuperAppModels.DTOs.Reflect.ReflectScanResult), StatusCodes.Status200OK)]
-        public async Task<IActionResult> ScanNow(CancellationToken ct)
-        {
-            var userId = GetUserId();
-            if (userId == null) return Unauthorized("User ID not found in token");
-            return Ok(await _scan.ScanUserAsync(userId.Value, ct));
+            return Ok(await _service.GetSeriesAsync(userId.Value, fromDay, toDay));
         }
     }
 }

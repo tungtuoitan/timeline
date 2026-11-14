@@ -8,5 +8,6 @@ namespace SuperAppDataRepositories.Ins.Reflect
         Task<ResultOptions> GetEntriesAsync(int userId, DateTime? createdFrom, DateTime? createdTo);
         Task<ResultOptions> UpsertEntryAsync(ReflectEntry entry);
         Task<ResultOptions> DeleteEntryAsync(int userId, string id);
+        Task<List<SuperAppModels.DTOs.Reflect.ReflectSeries>> GetSeriesAsync(int userId, DateTime? from, DateTime? to);
     }
 }

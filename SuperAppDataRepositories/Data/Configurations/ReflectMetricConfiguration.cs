@@ -16,6 +16,8 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(m => m.Label).HasColumnName("label").HasMaxLength(128).IsRequired();
             builder.Property(m => m.Unit).HasColumnName("unit").HasMaxLength(32).HasDefaultValue("").IsRequired();
             builder.Property(m => m.Aggregate).HasColumnName("aggregate").HasMaxLength(8).HasDefaultValue("sum").IsRequired();
+            builder.Property(m => m.Shape).HasColumnName("shape").HasMaxLength(16).HasDefaultValue("auto").IsRequired();
+            builder.Property(m => m.Sensitive).HasColumnName("sensitive").HasDefaultValue(false);
             builder.Property(m => m.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("SYSUTCDATETIME()");
             builder.Property(m => m.DeletedAt).HasColumnName("deleted_at");
             builder.HasIndex(m => new { m.UserId, m.Code }).IsUnique();
@@ -34,10 +36,12 @@ namespace SuperAppDataRepositories.Data.Configurations
             builder.Property(o => o.MetricId).HasColumnName("metric_id").IsRequired();
             builder.Property(o => o.OccurredOn).HasColumnName("occurred_on").HasColumnType("date");
             builder.Property(o => o.Value).HasColumnName("value").HasColumnType("decimal(18,4)");
+            builder.Property(o => o.ValueText).HasColumnName("value_text").HasMaxLength(400);
+            builder.Property(o => o.Item).HasColumnName("item").HasMaxLength(200).HasDefaultValue("").IsRequired();
             builder.Property(o => o.Quote).HasColumnName("quote").HasMaxLength(400).HasDefaultValue("").IsRequired();
             builder.Property(o => o.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("SYSUTCDATETIME()");
             builder.HasOne(o => o.Metric).WithMany().HasForeignKey(o => o.MetricId);
-            builder.HasIndex(o => new { o.EntryId, o.MetricId, o.OccurredOn }).IsUnique();
+            builder.HasIndex(o => new { o.EntryId, o.MetricId, o.OccurredOn, o.Item }).IsUnique();
             builder.HasIndex(o => new { o.UserId, o.MetricId, o.OccurredOn });
         }
     }

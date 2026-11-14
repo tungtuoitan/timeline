@@ -107,5 +107,28 @@ namespace SuperAppDataRepositories.Repositories.Reflect
                 return new ResultOptions { Success = false, Message = ex.Message, Status = 500 };
             }
         }
+
+        /// <summary>Every point read out of the user's rows, grouped per metric (oldest first); the page decides how to draw each one</summary>
+        public async Task<List<SuperAppModels.DTOs.Reflect.ReflectSeries>> GetSeriesAsync(int userId, DateTime? from, DateTime? to)
+        {
+            var rows = _context.ReflectObservations.AsNoTracking().Where(o => o.UserId == userId
+                && _context.ReflectEntries.Any(e => e.Id == o.EntryId && e.DeletedAt == null));
+            if (from.HasValue) rows = rows.Where(o => o.OccurredOn >= from.Value.Date);
+            if (to.HasValue) rows = rows.Where(o => o.OccurredOn <= to.Value.Date);
+            var data = await rows.OrderBy(o => o.OccurredOn).ThenBy(o => o.Id).ToListAsync();
+            var metrics = await _context.ReflectMetrics.AsNoTracking().Where(m => m.UserId == userId && m.DeletedAt == null).OrderBy(m => m.Code).ToListAsync();
+
+            var result = new List<SuperAppModels.DTOs.Reflect.ReflectSeries>();
+            foreach (var m in metrics)
+            {
+                var points = data.Where(d => d.MetricId == m.Id).Select(d => new SuperAppModels.DTOs.Reflect.ReflectSeriesPoint
+                {
+                    Date = d.OccurredOn.ToString("yyyy-MM-dd"), Value = d.Value, Text = d.ValueText, Item = d.Item, Quote = d.Quote
+                }).ToList();
+                if (points.Count > 0)
+                    result.Add(new SuperAppModels.DTOs.Reflect.ReflectSeries { Code = m.Code, Label = m.Label, Unit = m.Unit, Aggregate = m.Aggregate, Shape = m.Shape, Sensitive = m.Sensitive, Points = points });
+            }
+            return result;
+        }
     }
 }
