@@ -38,10 +38,10 @@ namespace SuperAppServices.Services.Reflect
             "Do not invent numbers. When there is no number, observations is an empty array.";
 
         private readonly IReflectScanRepository _repository;
-        private readonly IClaudibleService _ai;
+        private readonly IAiChatService _ai;
         private readonly ILogger<ReflectScanService> _logger;
 
-        public ReflectScanService(IReflectScanRepository repository, IClaudibleService ai, ILogger<ReflectScanService> logger)
+        public ReflectScanService(IReflectScanRepository repository, IAiChatService ai, ILogger<ReflectScanService> logger)
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
             _ai = ai ?? throw new ArgumentNullException(nameof(ai));

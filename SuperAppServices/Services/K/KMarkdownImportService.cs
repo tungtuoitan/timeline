@@ -11,14 +11,14 @@ namespace SuperAppServices.Services.K
 {
     /// <summary>
     /// Markdown → k.node import.
-    /// Approach 1 (AI): calls ClaudibleService to parse markdown into a node tree.
+    /// Approach 1 (AI): calls AnthropicService to parse markdown into a node tree.
     /// Approach 2 (self-parse): deterministic markdown parser, no AI needed.
     /// Currently wired to Approach 2 in ImportAsync.
     /// </summary>
     public class KMarkdownImportService : IKMarkdownImportService
     {
         private readonly ApplicationDbContext _context;
-        private readonly IClaudibleService    _ai;
+        private readonly IAiChatService    _ai;
         private readonly ILogger<KMarkdownImportService> _logger;
 
         // ── Approach 1: AI prompt ────────────────────────────────────────────
@@ -46,7 +46,7 @@ namespace SuperAppServices.Services.K
 
         public KMarkdownImportService(
             ApplicationDbContext context,
-            IClaudibleService    ai,
+            IAiChatService    ai,
             ILogger<KMarkdownImportService> logger)
         {
             _context = context;

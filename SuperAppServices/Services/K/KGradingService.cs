@@ -10,7 +10,7 @@ namespace SuperAppServices.Services.K
 {
     public class KGradingService : IKGradingService
     {
-        private readonly IClaudibleService _primary;
+        private readonly IAiChatService _primary;
         private readonly ChatClient _fallback;
         private readonly ILogger<KGradingService> _logger;
 
@@ -29,7 +29,7 @@ Trả về JSON array (không có markdown):
 
 Lưu ý: comment phải ngắn gọn, tối đa 15 từ, bằng tiếng Việt hoặc tiếng Anh tùy ngôn ngữ câu hỏi.";
 
-        public KGradingService(IClaudibleService primary, IConfiguration config, ILogger<KGradingService> logger)
+        public KGradingService(IAiChatService primary, IConfiguration config, ILogger<KGradingService> logger)
         {
             _primary = primary ?? throw new ArgumentNullException(nameof(primary));
             _logger  = logger;
@@ -64,7 +64,7 @@ Lưu ý: comment phải ngắn gọn, tối đa 15 từ, bằng tiếng Việt h
                 string response;
                 try
                 {
-                    _logger.LogDebug("[KGrading] Calling primary (Claudible)");
+                    _logger.LogDebug("[KGrading] Calling primary (Anthropic)");
                     response = await _primary.ChatAsync(prompt, SystemPrompt);
                     _logger.LogDebug("[KGrading] Primary response:\n{Response}", response);
                 }
