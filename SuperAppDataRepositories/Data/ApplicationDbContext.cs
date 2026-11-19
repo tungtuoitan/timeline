@@ -68,6 +68,7 @@ namespace SuperAppDataRepositories.Data
         // Reflect journal (pro schema)
         public DbSet<SuperAppModels.Models.Reflect.ReflectEntry> ReflectEntries { get; set; }
         public DbSet<SuperAppModels.Models.Reflect.ReflectMetric> ReflectMetrics { get; set; }
+        public DbSet<SuperAppModels.Models.Reflect.ReflectPlanItem> ReflectPlanItems { get; set; }
         public DbSet<SuperAppModels.Models.Reflect.ReflectObservation> ReflectObservations { get; set; }
 
         // Finance Tables (pro schema)

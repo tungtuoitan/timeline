@@ -212,6 +212,7 @@ namespace SuperAppAPI
             services.AddScoped<SuperAppDataRepositories.Ins.DailyLog.IDailyLogRepository, SuperAppDataRepositories.Repositories.DailyLog.DailyLogRepository>();
             services.AddScoped<SuperAppDataRepositories.Ins.DailyLog.IDailyLogTemplateRepository, SuperAppDataRepositories.Repositories.DailyLog.DailyLogTemplateRepository>();
             services.AddScoped<SuperAppDataRepositories.Ins.Reflect.IReflectRepository, SuperAppDataRepositories.Repositories.Reflect.ReflectRepository>();
+            services.AddScoped<SuperAppDataRepositories.Ins.Reflect.IReflectPlanRepository, SuperAppDataRepositories.Repositories.Reflect.ReflectPlanRepository>();
             services.AddScoped<ITaskRepository, TaskRepository>();
             services.AddScoped<ITargetKeywordRepository, TargetKeywordRepository>();
             services.AddScoped<ITaskCommentRepository, TaskCommentRepository>();
@@ -243,6 +244,7 @@ namespace SuperAppAPI
             services.AddScoped<SuperAppServices.Interfaces.DailyLog.IDailyLogService, SuperAppServices.Services.DailyLog.DailyLogService>();
             services.AddScoped<SuperAppServices.Interfaces.DailyLog.IDailyLogTemplateService, SuperAppServices.Services.DailyLog.DailyLogTemplateService>();
             services.AddScoped<SuperAppServices.Interfaces.Reflect.IReflectService, SuperAppServices.Services.Reflect.ReflectService>();
+            services.AddScoped<SuperAppServices.Interfaces.Reflect.IReflectPlanService, SuperAppServices.Services.Reflect.ReflectPlanService>();
             services.AddScoped<SuperAppServices.Interfaces.ITaskService, TaskService>();
             services.AddScoped<SuperAppServices.Interfaces.ITaskCommentService, TaskCommentService>();
             services.AddScoped<SuperAppServices.Interfaces.ILinkService, LinkService>();
